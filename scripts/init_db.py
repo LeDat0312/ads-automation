@@ -8,8 +8,8 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.config import get_settings, init_db
-from app.core.database import Base, engine
+from app.core.config import get_settings
+from app.core.database import Base, init_db
 # Import models để đảm bảo chúng được đăng ký với Base
 from app.models.telegram_update import TelegramUpdate
 from app.models.job import Job
@@ -21,6 +21,16 @@ def main():
     print("🚀 Initializing database...")
     
     try:
+        # Load settings để đảm bảo DATABASE_URL được load
+        settings = get_settings()
+        print(f"📋 Database URL: {settings.DATABASE_URL[:50]}...")
+        
+        # Initialize database (tạo engine)
+        init_db()
+        
+        # Import engine sau khi init
+        from app.core.database import engine
+        
         # Create all tables
         Base.metadata.create_all(bind=engine)
         print("✅ Database initialized successfully!")
@@ -29,8 +39,7 @@ def main():
             print(f"  - {table}")
     except Exception as e:
         print(f"❌ Error initializing database: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
-
-if __name__ == "__main__":
-    main()
 
