@@ -10,6 +10,7 @@ import logging
 from app.core.config import get_settings, init_db
 from app.services.automation import run_automation, test_run_automation
 from app.services.telegram_bot import send_telegram_message_safe
+from app.services.webhook_setup import setup_webhook
 from app.api.routes import dashboard, templates, templates_ui, rules, telegram
 
 logging.basicConfig(level=logging.INFO)
@@ -36,12 +37,26 @@ app.include_router(telegram.router)
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup"""
+    """Initialize database and setup webhook on startup"""
     try:
         init_db()
         logger.info("✅ Database initialized successfully")
     except Exception as e:
         logger.error(f"🚨 Error initializing database: {e}")
+    
+    # Setup Telegram webhook với drop_pending_updates
+    try:
+        settings = get_settings()
+        if settings.WEBHOOK_URL and settings.TELEGRAM_BOT_TOKEN:
+            success = await setup_webhook(drop_pending=True)
+            if success:
+                logger.info("✅ Telegram webhook setup successfully")
+            else:
+                logger.warning("⚠️ Failed to setup Telegram webhook")
+        else:
+            logger.warning("⚠️ WEBHOOK_URL or TELEGRAM_BOT_TOKEN not configured, skipping webhook setup")
+    except Exception as e:
+        logger.error(f"🚨 Error setting up webhook: {e}")
 
 
 @app.get("/")

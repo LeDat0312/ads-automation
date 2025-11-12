@@ -47,9 +47,15 @@ class JobQueue:
                 raise ValueError(f"Rate limit: Too many jobs for chat {chat_id}")
         
         # Check duplicate job - tránh tạo job trùng cho cùng command và chat_id
+        # Sử dụng unique job_id dựa trên chat_id:command:message_id
         if job_type == 'telegram_command' and chat_id:
             command = payload.get('command') or payload.get('cmd')
+            message_id = payload.get('message_id')
+            
             if command:
+                # Tạo unique job_id để tránh duplicate
+                job_id = f"{chat_id}:{command}:{message_id or 'none'}"
+                
                 # Query jobs và filter trong Python (vì JSON query phức tạp)
                 existing_jobs = self.db.query(Job).filter(
                     and_(
@@ -62,7 +68,11 @@ class JobQueue:
                 # Check payload trong Python
                 for existing_job in existing_jobs:
                     job_command = existing_job.payload.get('command') or existing_job.payload.get('cmd')
-                    if job_command == command:
+                    job_message_id = existing_job.payload.get('message_id')
+                    existing_job_id = f"{chat_id}:{job_command}:{job_message_id or 'none'}"
+                    
+                    # Nếu cùng command và message_id (hoặc cùng command nếu message_id None)
+                    if job_command == command and (message_id is None or job_message_id == message_id):
                         logger.warning(f"⏭️ Duplicate job skipped: {command} for chat {chat_id} (existing job: {existing_job.id})")
                         raise ValueError(f"Đang xử lý lệnh {command}, vui lòng đợi...")
         

@@ -12,6 +12,7 @@ from sqlalchemy import text
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.models.telegram_update import TelegramUpdate
+from app.models.job import Job, JobStatus
 from app.services.job_queue import JobQueue, JobPriority
 from app.services.command_processor import CommandProcessor, LIGHT_COMMANDS, HEAVY_COMMANDS
 from app.services.telegram_bot import parse_command, send_message
@@ -103,6 +104,30 @@ async def telegram_webhook(
         elif cmd in HEAVY_COMMANDS:
             job_queue = JobQueue(db=db)
             try:
+                # Kiểm tra duplicate job trước khi gửi "Đang xử lý..."
+                # Tạo unique key để check
+                command = parsed.get('cmd')
+                message_id = parsed.get('message_id')
+                unique_key = f"{chat_id}:{command}:{message_id or 'none'}"
+                
+                # Check xem đã có job đang xử lý chưa
+                existing_jobs = db.query(Job).filter(
+                    and_(
+                        Job.job_type == 'telegram_command',
+                        Job.chat_id == chat_id,
+                        Job.status.in_([JobStatus.PENDING, JobStatus.PROCESSING])
+                    )
+                ).all()
+                
+                for existing_job in existing_jobs:
+                    job_cmd = existing_job.payload.get('cmd') or existing_job.payload.get('command')
+                    job_msg_id = existing_job.payload.get('message_id')
+                    existing_key = f"{chat_id}:{job_cmd}:{job_msg_id or 'none'}"
+                    
+                    if existing_key == unique_key:
+                        logger.info(f"⏭️ Duplicate command {command} for chat {chat_id}, skipping")
+                        return Response(status_code=200)  # Trả 200 OK ngay, không xử lý
+                
                 # Gửi "Đang xử lý..." ngay và lưu message_id để edit sau
                 success, result = send_message(
                     chat_id,
@@ -125,6 +150,10 @@ async def telegram_webhook(
                     chat_id=chat_id,
                     user_id=parsed.get('user_id')
                 )
+            except ValueError as e:
+                # Rate limit hoặc duplicate job
+                logger.warning(f"⚠️ {str(e)}")
+                # Không gửi message vì có thể đã có job đang xử lý
             except Exception as e:
                 logger.error(f"❌ Error enqueueing job: {e}")
         
