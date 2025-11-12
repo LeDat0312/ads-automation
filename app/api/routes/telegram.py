@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request, HTTPException, Header, Depends
 from fastapi.responses import Response
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, and_
 
 from app.core.database import get_db
 from app.core.config import get_settings
