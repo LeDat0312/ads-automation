@@ -127,6 +127,7 @@ class JobQueue:
         should_close = self._db is None
         
         try:
+            # Bắt đầu transaction để SELECT FOR UPDATE hoạt động
             # Dùng SELECT FOR UPDATE để lock row và tránh race condition
             # Chỉ lấy job PENDING hoặc RETRY, lock row để tránh 2 workers cùng lấy
             job = db.query(Job).filter(
@@ -134,7 +135,7 @@ class JobQueue:
             ).order_by(
                 Job.priority.desc(),  # HIGH trước
                 Job.created_at.asc()  # Cũ nhất trước
-            ).with_for_update(skip_locked=True).first()  # Lock row, skip nếu đã bị lock
+            ).with_for_update(skip_locked=True, nowait=False).first()  # Lock row, skip nếu đã bị lock
             
             if job:
                 # Mark as PROCESSING - đảm bảo không có worker khác lấy được
@@ -144,14 +145,12 @@ class JobQueue:
                 db.commit()
                 db.refresh(job)
                 logger.info(f"🔧 Processing job: {job.id} (type: {job.job_type}, attempt: {job.attempts}, worker: {worker_id})")
-                # Store job_id before closing session
-                job_id = job.id
             
             return job
         except Exception as e:
             db.rollback()
-            logger.error(f"❌ Error getting next job: {e}")
-            raise
+            logger.error(f"❌ Error getting next job: {e}", exc_info=True)
+            return None  # Trả về None thay vì raise để worker tiếp tục loop
         finally:
             if should_close:
                 db.close()

@@ -33,6 +33,11 @@ def process_job(job_id: int):
             logger.error(f"❌ Job {job_id} not found")
             return
         
+        # Kiểm tra job status - nếu không phải PROCESSING thì bỏ qua
+        if job.status != JobStatus.PROCESSING:
+            logger.warning(f"⚠️ Job {job_id} status is {job.status}, not PROCESSING. Skipping.")
+            return
+        
         payload = job.payload
         job_type = job.job_type
         
