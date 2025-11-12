@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.config import get_settings
 from app.models.telegram_update import TelegramUpdate
 from app.services.job_queue import JobQueue, JobPriority
-from app.services.command_processor import CommandProcessor, LIGHT_COMMANDS
+from app.services.command_processor import CommandProcessor, LIGHT_COMMANDS, HEAVY_COMMANDS
 from app.services.telegram_bot import parse_command, send_message
 
 logger = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ async def telegram_webhook(
                 logger.error(f"❌ Error handling light command {cmd}: {e}")
         
         # Lệnh nặng - enqueue job
-        else:
+        elif cmd in HEAVY_COMMANDS:
             job_queue = JobQueue(db=db)
             try:
                 # Gửi "Đang xử lý..." ngay và lưu message_id để edit sau
@@ -130,6 +130,15 @@ async def telegram_webhook(
                 )
             except Exception as e:
                 logger.error(f"❌ Error enqueueing job: {e}")
+        
+        # Lệnh không tồn tại - thông báo lỗi
+        else:
+            send_message(
+                chat_id,
+                f"❌ **Lệnh không hợp lệ**\n\nLệnh `{cmd}` không tồn tại.\n\nVui lòng sử dụng lệnh `/help` để xem danh sách lệnh có sẵn.",
+                settings.TELEGRAM_BOT_TOKEN,
+                reply_to_message_id=message_id
+            )
         
         # Mark update as processed
         telegram_update.processed = True
