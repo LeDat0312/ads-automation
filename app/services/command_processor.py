@@ -3,7 +3,8 @@ Command Processor Service
 Xử lý các lệnh Telegram (nhẹ và nặng)
 """
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
+from datetime import datetime
 from app.services.telegram_bot import send_message, send_chat_action, parse_command
 from app.services.job_queue import JobQueue, JobPriority
 from app.core.config import get_settings
@@ -179,25 +180,279 @@ Dùng /help để xem danh sách lệnh.
     
     @staticmethod
     def handle_report(payload: Dict[str, Any]) -> str:
-        """Xử lý /report (được gọi từ worker)"""
-        # TODO: Implement report logic
-        return "📊 Báo cáo đang được tạo..."
+        """Xử lý /report - Pull data mới và tạo báo cáo tổng hợp"""
+        from app.services.telegram_bot import send_message
+        from app.core.config import get_settings
+        
+        settings = get_settings()
+        chat_id = payload.get('chat_id')
+        message_id = payload.get('message_id')
+        
+        def send_progress(msg: str):
+            """Gửi progress update"""
+            if chat_id:
+                try:
+                    send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
+                except Exception as e:
+                    logger.error(f"❌ Error sending progress: {e}")
+        
+        try:
+            # Bước 1: Pull data mới từ Facebook
+            send_progress("📥 **Bắt đầu pull dữ liệu từ Facebook...**")
+            pull_msg, pull_count = CommandProcessor._pull_and_save_data(
+                chat_id=chat_id,
+                message_id=message_id,
+                progress_callback=send_progress
+            )
+            pull_time = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            
+            # Nếu có lỗi khi pull, trả về luôn
+            if pull_msg.startswith("❌"):
+                return pull_msg
+            
+            # Bước 2: Tạo báo cáo tổng hợp
+            send_progress("📊 **Đang tạo báo cáo tổng hợp...**")
+            # TODO: Implement detailed report logic
+            report = f"""📊 **BÁO CÁO TỔNG HỢP**
+
+**Dữ liệu mới:**
+{pull_msg}
+⏰ Pull lúc: `{pull_time}`
+
+**Báo cáo chi tiết đang được tạo...**
+
+_Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
+"""
+            return report
+            
+        except Exception as e:
+            error_msg = f"❌ **LỖI NGHIÊM TRỌNG:** {str(e)}"
+            logger.error(f"❌ Error generating report: {e}", exc_info=True)
+            send_progress(error_msg)
+            return error_msg
+    
+    @staticmethod
+    def _pull_and_save_data(chat_id: Optional[str] = None, message_id: Optional[int] = None, progress_callback=None) -> Tuple[str, int]:
+        """
+        Pull data từ Facebook và lưu vào database
+        Returns: (message, count)
+        
+        Args:
+            chat_id: Chat ID để gửi progress updates
+            message_id: Message ID để reply
+            progress_callback: Callback function(progress_msg) để gửi updates
+        """
+        from app.services.facebook_api import pull_facebook_data
+        from app.core.database import get_db_session, AdMetrics
+        from app.core.config import get_settings
+        from app.services.telegram_bot import send_message
+        
+        settings = get_settings()
+        start_time = datetime.now()
+        
+        def send_progress(msg: str):
+            """Gửi progress update"""
+            if progress_callback:
+                progress_callback(msg)
+            elif chat_id:
+                try:
+                    send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
+                except:
+                    pass
+        
+        try:
+            # Bước 1: Bắt đầu pull
+            send_progress("📥 **Bước 1/3:** Đang kết nối Facebook API...")
+            logger.info("📥 Đang pull dữ liệu từ Facebook API...")
+            
+            # Pull data
+            send_progress("📥 **Bước 2/3:** Đang pull dữ liệu từ Facebook...\n⏳ Vui lòng đợi, có thể mất 10-60 giây...")
+            ad_metrics_list = pull_facebook_data(
+                settings.ACCESS_TOKEN,
+                settings.ad_account_ids_list,
+                settings.DATA_DATE_PRESET
+            )
+            
+            if not ad_metrics_list:
+                send_progress("⚠️ Không có dữ liệu mới từ Facebook")
+                return "⚠️ Không có dữ liệu mới từ Facebook", 0
+            
+            # Bước 2: Lưu vào database
+            send_progress(f"💾 **Bước 3/3:** Đang lưu {len(ad_metrics_list)} ads vào database...")
+            db = get_db_session()
+            try:
+                count = 0
+                total = len(ad_metrics_list)
+                for idx, ad_metric in enumerate(ad_metrics_list):
+                    # Progress update mỗi 20%
+                    if total > 10 and idx % max(1, total // 5) == 0:
+                        progress_pct = int((idx / total) * 100)
+                        send_progress(f"💾 Đang lưu: {progress_pct}% ({idx}/{total} ads)...")
+                    
+                    # Kiểm tra xem đã có chưa
+                    existing = db.query(AdMetrics).filter(
+                        AdMetrics.adset_id == ad_metric.get('adset_id'),
+                        AdMetrics.ad_id == ad_metric.get('ad_id'),
+                        AdMetrics.date >= datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                    ).first()
+                    
+                    if existing:
+                        # Update
+                        for key, value in ad_metric.items():
+                            if hasattr(existing, key):
+                                setattr(existing, key, value)
+                        existing.updated_at = datetime.now()
+                    else:
+                        # Create new
+                        new_metric = AdMetrics(**ad_metric)
+                        db.add(new_metric)
+                        count += 1
+                
+                db.commit()
+                elapsed = (datetime.now() - start_time).total_seconds()
+                message = f"✅ Đã pull {len(ad_metrics_list)} ads ({count} mới) trong {elapsed:.1f}s"
+                logger.info(message)
+                send_progress(f"✅ {message}")
+                return message, len(ad_metrics_list)
+            except Exception as e:
+                db.rollback()
+                error_detail = f"❌ Lỗi khi lưu database: {str(e)}"
+                logger.error(error_detail, exc_info=True)
+                send_progress(error_detail)
+                raise
+            finally:
+                db.close()
+                
+        except Exception as e:
+            elapsed = (datetime.now() - start_time).total_seconds()
+            error_msg = f"❌ **LỖI:** {str(e)}\n⏱️ Sau {elapsed:.1f}s"
+            logger.error(f"❌ Error pulling data: {e}", exc_info=True)
+            send_progress(error_msg)
+            return error_msg, 0
     
     @staticmethod
     def handle_statusads(payload: Dict[str, Any]) -> str:
-        """Xử lý /statusads (được gọi từ worker)"""
-        # TODO: Implement statusads logic
-        return "📈 Trạng thái quảng cáo đang được kiểm tra..."
+        """Xử lý /statusads - Pull data mới và tạo báo cáo trạng thái"""
+        from app.core.database import get_db_session, AdMetrics
+        from app.services.telegram_bot import send_message
+        from app.core.config import get_settings
+        from sqlalchemy import func, distinct
+        
+        settings = get_settings()
+        chat_id = payload.get('chat_id')
+        message_id = payload.get('message_id')
+        
+        def send_progress(msg: str):
+            """Gửi progress update"""
+            if chat_id:
+                try:
+                    send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
+                except Exception as e:
+                    logger.error(f"❌ Error sending progress: {e}")
+        
+        try:
+            # Bước 1: Pull data mới từ Facebook
+            send_progress("📥 **Bắt đầu pull dữ liệu từ Facebook...**")
+            pull_msg, pull_count = CommandProcessor._pull_and_save_data(
+                chat_id=chat_id,
+                message_id=message_id,
+                progress_callback=send_progress
+            )
+            pull_time = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            
+            # Nếu có lỗi khi pull, trả về luôn
+            if pull_msg.startswith("❌"):
+                return pull_msg
+            
+            # Bước 2: Tạo báo cáo
+            send_progress("📊 **Đang tạo báo cáo...**")
+            db = get_db_session()
+            
+            try:
+                # Đếm adsets theo status
+                active_adsets = db.query(func.count(distinct(AdMetrics.adset_id))).filter(
+                    AdMetrics.adset_status == "ACTIVE"
+                ).scalar() or 0
+                
+                paused_adsets = db.query(func.count(distinct(AdMetrics.adset_id))).filter(
+                    AdMetrics.adset_status == "PAUSED"
+                ).scalar() or 0
+                
+                # Tổng số adsets
+                total_adsets = db.query(func.count(distinct(AdMetrics.adset_id))).scalar() or 0
+                
+                # Tổng số ads
+                total_ads = db.query(func.count(AdMetrics.ad_id)).scalar() or 0
+                
+                # Tổng spend
+                total_spend = db.query(func.sum(AdMetrics.spend)).scalar() or 0
+                
+                # Tổng results
+                total_results = db.query(func.sum(AdMetrics.results)).scalar() or 0
+            except Exception as e:
+                error_msg = f"❌ **LỖI khi đọc database:** {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                send_progress(error_msg)
+                return error_msg
+            finally:
+                db.close()
+            
+            # Format báo cáo
+            report = f"""📊 **BÁO CÁO TRẠNG THÁI ADS**
+
+**Dữ liệu mới:**
+{pull_msg}
+⏰ Pull lúc: `{pull_time}`
+
+**Trạng thái Adsets:**
+• ✅ Đang bật: `{active_adsets:,}`
+• ⏸️ Đã tắt: `{paused_adsets:,}`
+• 📊 Tổng: `{total_adsets:,}`
+
+**Tổng quan:**
+• 📈 Tổng Ads: `{total_ads:,}`
+• 💰 Tổng Spend: `{total_spend:,.0f}`
+• 🎯 Tổng Results: `{total_results:,}`
+
+_Thời gian báo cáo: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
+"""
+            return report
+            
+        except Exception as e:
+            error_msg = f"❌ **LỖI NGHIÊM TRỌNG:** {str(e)}"
+            logger.error(f"❌ Error generating statusads report: {e}", exc_info=True)
+            send_progress(error_msg)
+            return error_msg
     
     @staticmethod
     def handle_run_automation(payload: Dict[str, Any]) -> str:
-        """Xử lý /run (được gọi từ worker)"""
-        # TODO: Implement run automation logic
-        return "🚀 Automation đang chạy..."
+        """Xử lý /run - Chạy automation (trong khung giờ)"""
+        from app.services.automation import run_automation
+        
+        try:
+            # Chạy automation trong background thread
+            import threading
+            thread = threading.Thread(target=run_automation, daemon=True)
+            thread.start()
+            
+            return "🚀 Automation đã được khởi động!\n\n⏳ Đang chạy trong background..."
+        except Exception as e:
+            logger.error(f"❌ Error running automation: {e}", exc_info=True)
+            return f"❌ Lỗi khi chạy automation: {str(e)}"
     
     @staticmethod
     def handle_test_automation(payload: Dict[str, Any]) -> str:
-        """Xử lý /test (được gọi từ worker)"""
-        # TODO: Implement test automation logic
-        return "🧪 Test automation đang chạy..."
+        """Xử lý /test - Test automation (bỏ qua khung giờ)"""
+        from app.services.automation import test_run_automation
+        
+        try:
+            # Chạy test automation trong background thread
+            import threading
+            thread = threading.Thread(target=test_run_automation, daemon=True)
+            thread.start()
+            
+            return "🧪 Test automation đã được khởi động!\n\n⏳ Đang chạy trong background (bỏ qua khung giờ)..."
+        except Exception as e:
+            logger.error(f"❌ Error running test automation: {e}", exc_info=True)
+            return f"❌ Lỗi khi chạy test automation: {str(e)}"
 

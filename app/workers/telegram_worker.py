@@ -80,20 +80,35 @@ def process_job(job_id: int):
                 job_queue.fail_job(job.id, f"Handler not found: {handler_name}")
                 return
             
-            # Xử lý command
-            response = handler(payload)
-            
-            # Gửi response
-            if response:
-                send_message(
-                    chat_id,
-                    response,
-                    settings.TELEGRAM_BOT_TOKEN,
-                    reply_to_message_id=message_id
-                )
-            
-            job_queue.complete_job(job.id)
-            logger.info(f"✅ Processed telegram_command job {job.id}: {command}")
+            # Xử lý command với error handling
+            try:
+                response = handler(payload)
+                
+                # Gửi response
+                if response:
+                    send_message(
+                        chat_id,
+                        response,
+                        settings.TELEGRAM_BOT_TOKEN,
+                        reply_to_message_id=message_id
+                    )
+                
+                job_queue.complete_job(job.id)
+                logger.info(f"✅ Processed telegram_command job {job.id}: {command}")
+            except Exception as handler_error:
+                # Gửi lỗi chi tiết về Telegram
+                error_msg = f"❌ **LỖI khi xử lý lệnh `{command}`:**\n\n`{str(handler_error)}`"
+                logger.error(f"❌ Error in handler {handler_name}: {handler_error}", exc_info=True)
+                try:
+                    send_message(
+                        chat_id,
+                        error_msg,
+                        settings.TELEGRAM_BOT_TOKEN,
+                        reply_to_message_id=message_id
+                    )
+                except:
+                    pass
+                job_queue.fail_job(job.id, str(handler_error))
             return
         
         # Unknown job type

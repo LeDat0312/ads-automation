@@ -141,3 +141,14 @@ async def telegram_health():
     """Health check cho Telegram webhook"""
     return {"status": "ok", "service": "telegram_webhook"}
 
+
+@router.get("/webhook")
+async def telegram_webhook_get():
+    """GET endpoint cho webhook - chỉ để test, Telegram chỉ dùng POST"""
+    return {
+        "status": "ok",
+        "message": "Telegram webhook endpoint. Use POST method to send updates.",
+        "endpoint": "/api/telegram/webhook",
+        "method": "POST"
+    }
+
