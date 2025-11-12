@@ -299,12 +299,11 @@ Dùng /help để xem danh sách lệnh.
                     )
                 ).distinct().all()
                 
-                # Thống kê trạng thái: { accountId: { prefix: { enabled, active, paused, total, spend } } }
+                # Thống kê trạng thái: { accountId: { prefix: { enabled, active, paused, spend } } }
                 stats_by_account = defaultdict(lambda: defaultdict(lambda: {
-                    'enabled': 0,  # Ads bật hôm nay (impressions > 0 và status = ACTIVE)
-                    'active': 0,   # Adsets đang bật (status = ACTIVE)
-                    'paused': 0,   # Adsets đã tắt (status = PAUSED)
-                    'total': 0,   # Tổng adsets
+                    'enabled': 0,  # Ads bật hôm nay (impressions > 0 của ngày hôm nay)
+                    'active': 0,   # Adsets đang bật (impressions > 0 và status = ACTIVE)
+                    'paused': 0,   # Adsets đã tắt (impressions > 0 và status = PAUSED)
                     'spend': 0.0  # Tổng số tiền chi tiêu (hôm nay)
                 }))
                 
@@ -329,20 +328,12 @@ Dùng /help để xem danh sách lệnh.
                             'campaign_name': row.campaign_name
                         }
                 
-                # Đếm adsets theo status
-                for adset_key, adset_info in adset_status_map.items():
-                    account_id = adset_info['account_id']
-                    prefix = adset_info['prefix']
-                    status = adset_info['status']
-                    
-                    stats_by_account[account_id][prefix]['total'] += 1
-                    
-                    if status == 'ACTIVE':
-                        stats_by_account[account_id][prefix]['active'] += 1
-                    elif status == 'PAUSED':
-                        stats_by_account[account_id][prefix]['paused'] += 1
+                # Tính spend, enabled, active, paused từ metrics hôm nay
+                # enabled: đếm số ads (không phải adsets) có impressions > 0 hôm nay
+                # active: đếm số adsets unique có impressions > 0 và status = ACTIVE
+                # paused: đếm số adsets unique có impressions > 0 và status = PAUSED
+                adset_keys_with_impressions = set()  # Để đếm unique adsets có impressions > 0
                 
-                # Tính spend và enabled từ metrics hôm nay
                 for m in metrics_today:
                     if not m.account_id or not m.campaign_name or not m.adset_id:
                         continue
@@ -355,15 +346,29 @@ Dùng /help để xem danh sách lệnh.
                     adset_key = f"{m.account_id}|{m.adset_id}"
                     
                     if impressions > 0:
+                        # Tính spend
                         stats_by_account[m.account_id][prefix]['spend'] += m.spend or 0
                         
-                        if adset_key in adset_status_map and adset_status_map[adset_key]['status'] == 'ACTIVE':
-                            stats_by_account[m.account_id][prefix]['enabled'] += 1
+                        # Đếm ads bật hôm nay (mỗi ad có impressions > 0 = 1 ads bật)
+                        stats_by_account[m.account_id][prefix]['enabled'] += 1
+                        
+                        # Đếm unique adsets có impressions > 0
+                        if adset_key not in adset_keys_with_impressions:
+                            adset_keys_with_impressions.add(adset_key)
+                            
+                            # Kiểm tra status của adset này
+                            if adset_key in adset_status_map:
+                                status = adset_status_map[adset_key]['status']
+                                if status == 'ACTIVE':
+                                    stats_by_account[m.account_id][prefix]['active'] += 1
+                                elif status == 'PAUSED':
+                                    stats_by_account[m.account_id][prefix]['paused'] += 1
                 
                 # ===== TẠO BÁO CÁO KẾT HỢP =====
+                # Format compact và dễ nhìn hơn cho cả máy tính và điện thoại
                 lines = []
                 lines.append('📊 **BÁO CÁO TỔNG HỢP**')
-                lines.append('━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+                lines.append('━' * 25)
                 
                 # Tổng kết theo từng account
                 sorted_account_ids = sorted(account_ids)
@@ -371,16 +376,14 @@ Dùng /help để xem danh sách lệnh.
                 total_enabled_all = 0
                 total_active_all = 0
                 total_paused_all = 0
-                total_adsets_all = 0
                 total_spend_all = 0.0
                 
                 for account_id in sorted_account_ids:
-                    lines.append(f'\n📌 **Tài khoản:** `{account_id}`')
+                    lines.append(f'\n📌 **{account_id}**')
                     
                     account_enabled = 0
                     account_active = 0
                     account_paused = 0
-                    account_total = 0
                     account_spend_today = 0.0
                     
                     # Lấy danh sách prefix từ cả 2 báo cáo
@@ -389,7 +392,8 @@ Dùng /help để xem danh sách lệnh.
                     all_prefixes = sorted(financial_prefixes | status_prefixes)
                     
                     for prefix in all_prefixes:
-                        lines.append(f'\n  🔹 **{prefix}:**')
+                        # Format compact: prefix và các metrics trên cùng 1 dòng khi có thể
+                        prefix_lines = [f'**{prefix}:**']
                         
                         # Phần tài chính
                         if prefix in agg_financial[account_id]:
@@ -398,52 +402,42 @@ Dùng /help để xem danh sách lệnh.
                             cpphone = (a['spend'] / a['phones']) if a['phones'] > 0 else 0
                             phone_rate = (a['phones'] / a['interactions'] * 100) if a['interactions'] > 0 else 0
                             
-                            lines.append(f'     💰 **Chi tiêu:** `{a["spend"]:,.0f} ₫`')
-                            lines.append(f'     📈 **Tương tác:** `{int(a["interactions"])}`')
-                            lines.append(f'     💵 **Giá DATA:** `{cpd:,.0f} ₫`')
-                            lines.append(f'     📱 **SĐT (checkout):** `{int(a["phones"])}`')
-                            lines.append(f'     💳 **Giá SĐT:** `{cpphone:,.0f} ₫`')
-                            lines.append(f'     📊 **Tỷ lệ SĐT/Tương tác:** `{phone_rate:.1f}%`')
+                            # Format compact: nhóm các metrics liên quan
+                            prefix_lines.append(f'💰 {a["spend"]:,.0f}₫ | 📈 {int(a["interactions"])} | 💵 {cpd:,.0f}₫')
+                            prefix_lines.append(f'📱 {int(a["phones"])} SĐT | 💳 {cpphone:,.0f}₫ | 📊 {phone_rate:.1f}%')
                         
-                        # Phần trạng thái
+                        # Phần trạng thái - format compact
                         if prefix in stats_by_account[account_id]:
                             s = stats_by_account[account_id][prefix]
-                            lines.append(f'     ✅ **Ads bật hôm nay:** `{s["enabled"]}`')
-                            lines.append(f'     🟢 **Adsets đang bật:** `{s["active"]}`')
-                            lines.append(f'     🔴 **Adsets đã tắt:** `{s["paused"]}`')
-                            lines.append(f'     📦 **Tổng adsets:** `{s["total"]}`')
+                            prefix_lines.append(f'✅ {s["enabled"]} | 🟢 {s["active"]} | 🔴 {s["paused"]}')
                             
                             account_enabled += s['enabled']
                             account_active += s['active']
                             account_paused += s['paused']
-                            account_total += s['total']
                             account_spend_today += s['spend']
+                        
+                        lines.append('  ' + ' | '.join(prefix_lines))
                     
-                    lines.append(f'\n  📈 **Tổng Account:**')
-                    lines.append(f'     ✅ Bật: `{account_enabled}` | 🟢 Đang bật: `{account_active}` | 🔴 Đã tắt: `{account_paused}` | 📦 Tổng: `{account_total}`')
-                    lines.append(f'     💰 Chi tiêu hôm nay: `{account_spend_today:,.0f} ₫`')
+                    # Tổng account - format compact
+                    lines.append(f'  **Tổng:** ✅{account_enabled} 🟢{account_active} 🔴{account_paused} | 💰{account_spend_today:,.0f}₫')
                     
                     total_enabled_all += account_enabled
                     total_active_all += account_active
                     total_paused_all += account_paused
-                    total_adsets_all += account_total
                     total_spend_all += account_spend_today
                 
-                # Tổng kết tất cả
-                lines.append('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-                lines.append('📊 **TỔNG TẤT CẢ:**')
-                lines.append(f'  ✅ Ads bật hôm nay: `{total_enabled_all}`')
-                lines.append(f'  🟢 Adsets đang bật: `{total_active_all}`')
-                lines.append(f'  🔴 Adsets đã tắt: `{total_paused_all}`')
-                lines.append(f'  📦 Tổng adsets: `{total_adsets_all}`')
-                lines.append(f'  💰 Tổng chi tiêu hôm nay: `{total_spend_all:,.0f} ₫`')
+                # Tổng kết tất cả - format compact
+                lines.append('\n' + '━' * 25)
+                lines.append('📊 **TỔNG:**')
+                lines.append(f'✅ {total_enabled_all} | 🟢 {total_active_all} | 🔴 {total_paused_all}')
+                lines.append(f'💰 {total_spend_all:,.0f} ₫')
                 
                 # Thêm thời gian báo cáo
                 tz_vn = tz('Asia/Ho_Chi_Minh')
                 now = datetime.now(tz_vn)
                 time_str = now.strftime('%H:%M')
                 date_str = now.strftime('%d/%m/%Y')
-                lines.append(f'\n⏰ **Thời gian:** {time_str} ngày {date_str}')
+                lines.append(f'\n⏰ {time_str} {date_str}')
                 
                 report = '\n'.join(lines)
                 
