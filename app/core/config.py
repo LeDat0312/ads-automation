@@ -4,7 +4,7 @@ Thay thế cho layCaiDatHeThong() và getSettingsSafe_() từ Google Apps Script
 """
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field, validator
+from pydantic import Field
 import os
 
 
@@ -44,9 +44,10 @@ class Settings(BaseSettings):
     JOB_RATE_LIMIT_SECONDS: int = Field(default=30, env="JOB_RATE_LIMIT_SECONDS")
     JOB_MAX_ATTEMPTS: int = Field(default=3, env="JOB_MAX_ATTEMPTS")
     
-    @validator('AD_ACCOUNT_IDS', pre=True)
-    def parse_ad_account_ids(cls, v):
+    def parse_ad_account_ids(self, v: str = None) -> List[str]:
         """Parse AD_ACCOUNT_IDS từ string sang list"""
+        if v is None:
+            v = self.AD_ACCOUNT_IDS
         if isinstance(v, list):
             return v
         if not v:
@@ -69,8 +70,6 @@ class Settings(BaseSettings):
     @property
     def ad_account_ids_list(self) -> List[str]:
         """Trả về AD_ACCOUNT_IDS dạng list"""
-        if isinstance(self.AD_ACCOUNT_IDS, list):
-            return self.AD_ACCOUNT_IDS
         return self.parse_ad_account_ids(self.AD_ACCOUNT_IDS)
     
     def get_settings_dict(self) -> dict:
