@@ -297,6 +297,22 @@ Dùng /help để xem danh sách lệnh.
                 lines.append(f'\n⏰ **Thời gian:** {datetime.now().strftime("%H:%M ngày %d/%m/%Y")}')
                 
                 report = '\n'.join(lines)
+                
+                # Edit message cuối cùng thay vì trả về (để tránh duplicate)
+                chat_id = payload.get('chat_id')
+                progress_message_id = payload.get('progress_message_id')
+                if chat_id and progress_message_id:
+                    from app.services.telegram_bot import edit_message
+                    from app.core.config import get_settings
+                    settings = get_settings()
+                    try:
+                        edit_message(chat_id, progress_message_id, report, settings.TELEGRAM_BOT_TOKEN)
+                        return None  # Không trả về để worker không gửi message mới
+                    except Exception as e:
+                        logger.error(f"❌ Error editing final message: {e}")
+                        # Fallback: trả về để worker gửi message mới
+                        return report
+                
                 return report
             except Exception as e:
                 logger.error(f"❌ Error generating report: {e}", exc_info=True)
@@ -588,6 +604,17 @@ Dùng /help để xem danh sách lệnh.
                 lines.append(f'\n⏰ **Thời gian:** {datetime.now().strftime("%H:%M ngày %d/%m/%Y")}')
                 
                 report = '\n'.join(lines)
+                
+                # Edit message cuối cùng thay vì trả về (để tránh duplicate)
+                if chat_id and progress_message_id:
+                    try:
+                        edit_message(chat_id, progress_message_id, report, settings.TELEGRAM_BOT_TOKEN)
+                        return None  # Không trả về để worker không gửi message mới
+                    except Exception as e:
+                        logger.error(f"❌ Error editing final message: {e}")
+                        # Fallback: trả về để worker gửi message mới
+                        return report
+                
                 return report
             except Exception as e:
                 error_msg = f"❌ **LỖI khi đọc database:** {str(e)}"

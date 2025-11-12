@@ -84,7 +84,7 @@ def process_job(job_id: int):
             try:
                 response = handler(payload)
                 
-                # Gửi response
+                # Gửi response (chỉ nếu handler không edit message - trả về None)
                 if response:
                     send_message(
                         chat_id,
@@ -92,6 +92,9 @@ def process_job(job_id: int):
                         settings.TELEGRAM_BOT_TOKEN,
                         reply_to_message_id=message_id
                     )
+                else:
+                    # Handler đã edit message, không cần gửi thêm
+                    logger.info(f"✅ Handler đã edit message cho command {command}, không gửi thêm")
                 
                 job_queue.complete_job(job.id)
                 logger.info(f"✅ Processed telegram_command job {job.id}: {command}")
