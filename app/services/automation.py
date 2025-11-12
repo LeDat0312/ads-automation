@@ -166,11 +166,6 @@ def check_and_toggle_ads(
     db = get_db_session()
     
     try:
-        # Lấy dữ liệu từ database
-        ad_metrics = db.query(AdMetrics).filter(
-            AdMetrics.adset_status == "ACTIVE"
-        ).all()
-        
         # Lấy daily breakdown data
         settings = get_settings()
         daily_breakdown_data = get_daily_breakdown_data(
@@ -182,8 +177,12 @@ def check_and_toggle_ads(
         adsets_to_pause = {}
         adsets_to_resume = {}
         
-        # Kiểm tra từng ad
-        for ad_metric in ad_metrics:
+        # BƯỚC 1: Kiểm tra adsets ACTIVE để tắt (Logic 1 và Logic 2)
+        active_metrics = db.query(AdMetrics).filter(
+            AdMetrics.adset_status == "ACTIVE"
+        ).all()
+        
+        for ad_metric in active_metrics:
             adset_id = ad_metric.adset_id
             account_id = ad_metric.account_id
             campaign_name = ad_metric.campaign_name
@@ -218,8 +217,24 @@ def check_and_toggle_ads(
                         'prefix': prefix,
                         'accountId': account_id
                     }
+        
+        # BƯỚC 2: Kiểm tra adsets PAUSED để bật lại (Logic 3)
+        # QUAN TRỌNG: Logic 3 chỉ chạy trên adsets đã bị tắt (PAUSED), không phải ACTIVE
+        paused_metrics = db.query(AdMetrics).filter(
+            AdMetrics.adset_status == "PAUSED"
+        ).all()
+        
+        for ad_metric in paused_metrics:
+            adset_id = ad_metric.adset_id
+            account_id = ad_metric.account_id
+            campaign_name = ad_metric.campaign_name
+            prefix = get_prefix_from_name(campaign_name)
             
-            # Kiểm tra Logic 3 (bật lại)
+            spend = ad_metric.spend or 0
+            results = ad_metric.results or 0
+            gia_data = ad_metric.gia_data or 0
+            
+            # Kiểm tra Logic 3 (bật lại) - chỉ trên adsets PAUSED
             if check_logic_3(spend, results, logic_map, account_id, prefix):
                 if adset_id not in adsets_to_resume:
                     adsets_to_resume[adset_id] = {
@@ -228,7 +243,8 @@ def check_and_toggle_ads(
                         'adsetName': ad_metric.adset_name,
                         'campaignName': campaign_name,
                         'reason': 'Logic 3: Đáp ứng điều kiện bật lại',
-                        'prefix': prefix
+                        'prefix': prefix,
+                        'accountId': account_id
                     }
         
         # Tắt adsets

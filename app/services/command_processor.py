@@ -304,8 +304,10 @@ Dùng /help để xem danh sách lệnh.
                         lines.append(f'    • Giá SĐT: {cpphone:,.0f} ₫')
                         lines.append(f'    • Tỷ lệ SĐT/Tương tác: {phone_rate:.1f}%')
                 
-                # Thêm thời gian báo cáo
-                now = datetime.now()
+                # Thêm thời gian báo cáo (dùng timezone Asia/Ho_Chi_Minh - UTC+7)
+                from pytz import timezone
+                tz = timezone('Asia/Ho_Chi_Minh')
+                now = datetime.now(tz)
                 time_str = now.strftime('%H:%M')
                 date_str = now.strftime('%d/%m/%Y')
                 lines.append(f'\n⏰ **Thời gian:** {time_str} ngày {date_str}')
