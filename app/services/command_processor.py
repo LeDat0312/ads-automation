@@ -5,7 +5,7 @@ Xử lý các lệnh Telegram (nhẹ và nặng)
 import logging
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime
-from app.services.telegram_bot import send_message, send_chat_action, parse_command, edit_message
+from app.services.telegram_bot import send_message, send_chat_action, parse_command, edit_message, delete_message
 from app.services.job_queue import JobQueue, JobPriority
 from app.core.config import get_settings
 
@@ -230,20 +230,70 @@ Dùng /help để xem danh sách lệnh.
             if pull_msg.startswith("❌"):
                 return pull_msg
             
-            # Bước 2: Tạo báo cáo tổng hợp
+            # Bước 2: Tạo báo cáo tổng hợp (theo logic tongKetCuoiNgay)
             send_progress("📊 Đang tạo báo cáo tổng hợp...")
-            # TODO: Implement detailed report logic
-            report = f"""📊 **BÁO CÁO TỔNG HỢP**
-
-**Dữ liệu mới:**
-{pull_msg}
-⏰ Pull lúc: `{pull_time}`
-
-**Báo cáo chi tiết đang được tạo...**
-
-_Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
-"""
-            return report
+            
+            from app.core.database import get_db_session, AdMetrics
+            from sqlalchemy import func
+            from collections import defaultdict
+            
+            db = get_db_session()
+            try:
+                # Tổng kết theo account và prefix
+                # Chỉ tính các ad có impressions > 0
+                today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                metrics = db.query(AdMetrics).filter(
+                    AdMetrics.impressions > 0,
+                    AdMetrics.date >= today
+                ).all()
+                
+                # Aggregate: { account_id: { prefix: {spend, interactions, phones} } }
+                agg = defaultdict(lambda: defaultdict(lambda: {'spend': 0, 'interactions': 0, 'phones': 0}))
+                
+                for m in metrics:
+                    if not m.account_id or not m.prefix:
+                        continue
+                    
+                    # Interactions = results (comments + messages)
+                    interactions = m.results or 0
+                    # Phones = purchases (checkouts initiated)
+                    phones = m.purchases or 0
+                    
+                    agg[m.account_id][m.prefix]['spend'] += m.spend or 0
+                    agg[m.account_id][m.prefix]['interactions'] += interactions
+                    agg[m.account_id][m.prefix]['phones'] += phones
+                
+                # Tạo báo cáo
+                lines = []
+                lines.append('🧾 **TỔNG KẾT CUỐI NGÀY**')
+                lines.append('━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+                
+                for account_id in sorted(agg.keys()):
+                    lines.append(f'\n📛 **Tài khoản:** `{account_id}`')
+                    
+                    for prefix in sorted(agg[account_id].keys()):
+                        a = agg[account_id][prefix]
+                        cpd = (a['spend'] / a['interactions']) if a['interactions'] > 0 else 0
+                        cpphone = (a['spend'] / a['phones']) if a['phones'] > 0 else 0
+                        phone_rate = (a['phones'] / a['interactions'] * 100) if a['interactions'] > 0 else 0
+                        
+                        lines.append(f'  — **{prefix}:**')
+                        lines.append(f'    • Chi tiêu: {a["spend"]:,.0f} ₫')
+                        lines.append(f'    • Tương tác: {int(a["interactions"])}')
+                        lines.append(f'    • Giá DATA: {cpd:,.0f} ₫')
+                        lines.append(f'    • SĐT (checkout): {int(a["phones"])}')
+                        lines.append(f'    • Giá SĐT: {cpphone:,.0f} ₫')
+                        lines.append(f'    • Tỷ lệ SĐT/Tương tác: {phone_rate:.1f}%')
+                
+                lines.append(f'\n⏰ **Thời gian:** {datetime.now().strftime("%H:%M ngày %d/%m/%Y")}')
+                
+                report = '\n'.join(lines)
+                return report
+            except Exception as e:
+                logger.error(f"❌ Error generating report: {e}", exc_info=True)
+                return f"❌ Lỗi tạo báo cáo: {str(e)}"
+            finally:
+                db.close()
             
         except Exception as e:
             error_msg = f"❌ **LỖI NGHIÊM TRỌNG:** {str(e)}"
@@ -272,28 +322,22 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
         start_time = datetime.now()
         
         def send_progress(msg: str):
-            """Gửi progress update - edit message nếu có progress_message_id, không thì gửi mới"""
+            """Gửi progress update - chỉ edit 1 message duy nhất"""
             if progress_callback:
                 progress_callback(msg)
-            elif chat_id:
+            elif chat_id and progress_message_id:
                 try:
-                    if progress_message_id:
-                        # Edit message hiện có
-                        edit_message(chat_id, progress_message_id, msg, settings.TELEGRAM_BOT_TOKEN)
-                    else:
-                        # Gửi message mới (fallback)
-                        send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
+                    # Chỉ edit message hiện có, không tạo mới
+                    edit_message(chat_id, progress_message_id, msg, settings.TELEGRAM_BOT_TOKEN)
                 except Exception as e:
-                    logger.error(f"❌ Error sending progress: {e}")
+                    logger.error(f"❌ Error editing progress: {e}")
                     pass
         
         try:
-            # Bước 1: Bắt đầu pull
-            send_progress("📥 Đang kết nối Facebook API...")
+            # Bước 1: Pull data - chỉ hiển thị 1 lần
+            send_progress("📥 Đang pull dữ liệu từ Facebook...")
             logger.info("📥 Đang pull dữ liệu từ Facebook API...")
             
-            # Pull data
-            send_progress("📥 Đang pull dữ liệu từ Facebook...\n⏳ Vui lòng đợi, có thể mất 10-60 giây...")
             ad_metrics_list = pull_facebook_data(
                 settings.ACCESS_TOKEN,
                 settings.ad_account_ids_list,
@@ -304,17 +348,14 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
                 send_progress("⚠️ Không có dữ liệu mới từ Facebook")
                 return "⚠️ Không có dữ liệu mới từ Facebook", 0
             
-            # Bước 2: Lưu vào database
+            # Bước 2: Lưu vào database - chỉ hiển thị khi bắt đầu và kết thúc
             send_progress(f"💾 Đang lưu {len(ad_metrics_list)} ads vào database...")
             db = get_db_session()
             try:
                 count = 0
                 total = len(ad_metrics_list)
                 for idx, ad_metric in enumerate(ad_metrics_list):
-                    # Progress update mỗi 20%
-                    if total > 10 and idx % max(1, total // 5) == 0:
-                        progress_pct = int((idx / total) * 100)
-                        send_progress(f"💾 Đang lưu: {progress_pct}% ({idx}/{total} ads)...")
+                    # KHÔNG gửi progress update trong loop - chỉ edit khi hoàn thành
                     
                     # Kiểm tra xem đã có chưa
                     existing = db.query(AdMetrics).filter(
@@ -354,7 +395,8 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
                 elapsed = (datetime.now() - start_time).total_seconds()
                 message = f"✅ Đã pull {len(ad_metrics_list)} ads ({count} mới) trong {elapsed:.1f}s"
                 logger.info(message)
-                send_progress(f"✅ {message}")
+                # Không gửi progress ở đây - để handler gửi kết quả cuối cùng
+                # Chỉ log, không gửi Telegram
                 return message, len(ad_metrics_list)
             except Exception as e:
                 db.rollback()
@@ -426,31 +468,97 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
             if pull_msg.startswith("❌"):
                 return pull_msg
             
-            # Bước 2: Tạo báo cáo
+            # Bước 2: Tạo báo cáo (theo logic từ Google Script)
             send_progress("📊 Đang tạo báo cáo...")
             db = get_db_session()
             
             try:
-                # Đếm adsets theo status
-                active_adsets = db.query(func.count(distinct(AdMetrics.adset_id))).filter(
-                    AdMetrics.adset_status == "ACTIVE"
-                ).scalar() or 0
+                from collections import defaultdict
                 
-                paused_adsets = db.query(func.count(distinct(AdMetrics.adset_id))).filter(
-                    AdMetrics.adset_status == "PAUSED"
-                ).scalar() or 0
+                # Lấy tất cả metrics hôm nay
+                today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                metrics = db.query(AdMetrics).filter(
+                    AdMetrics.date >= today
+                ).all()
                 
-                # Tổng số adsets
-                total_adsets = db.query(func.count(distinct(AdMetrics.adset_id))).scalar() or 0
+                # Thống kê theo account và prefix: { accountId: { prefix: { enabled, active, paused, total } } }
+                stats_by_account = defaultdict(lambda: defaultdict(lambda: {
+                    'enabled': 0,  # Ads bật hôm nay (impressions > 0 và status = ACTIVE)
+                    'active': 0,   # Adsets đang bật
+                    'paused': 0,   # Adsets đã tắt
+                    'total': 0     # Tổng adsets
+                }))
                 
-                # Tổng số ads
-                total_ads = db.query(func.count(AdMetrics.ad_id)).scalar() or 0
+                adset_ids_seen = set()  # Để đếm unique adsets
                 
-                # Tổng spend
-                total_spend = db.query(func.sum(AdMetrics.spend)).scalar() or 0
+                for m in metrics:
+                    if not m.account_id or not m.prefix or not m.adset_id:
+                        continue
+                    
+                    # Key để check unique adset
+                    adset_key = f"{m.account_id}|{m.adset_id}"
+                    
+                    if adset_key not in adset_ids_seen:
+                        adset_ids_seen.add(adset_key)
+                        stats_by_account[m.account_id][m.prefix]['total'] += 1
+                        
+                        # Đếm ads bật hôm nay (impressions > 0 và status = ACTIVE)
+                        if m.adset_status == 'ACTIVE' and (m.impressions or 0) > 0:
+                            stats_by_account[m.account_id][m.prefix]['enabled'] += 1
+                            stats_by_account[m.account_id][m.prefix]['active'] += 1
+                        elif m.adset_status == 'ACTIVE':
+                            stats_by_account[m.account_id][m.prefix]['active'] += 1
+                        elif m.adset_status == 'PAUSED':
+                            stats_by_account[m.account_id][m.prefix]['paused'] += 1
                 
-                # Tổng results
-                total_results = db.query(func.sum(AdMetrics.results)).scalar() or 0
+                # Tạo báo cáo
+                lines = []
+                lines.append('📊 **BÁO CÁO TỔNG KẾT**')
+                lines.append('━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+                
+                total_enabled_all = 0
+                total_active_all = 0
+                total_paused_all = 0
+                total_adsets_all = 0
+                
+                for account_id in sorted(stats_by_account.keys()):
+                    lines.append(f'\n📌 **Tài khoản:** `{account_id}`')
+                    
+                    account_enabled = 0
+                    account_active = 0
+                    account_paused = 0
+                    account_total = 0
+                    
+                    for prefix in sorted(stats_by_account[account_id].keys()):
+                        prefix_stats = stats_by_account[account_id][prefix]
+                        lines.append(f'  • **{prefix}:**')
+                        lines.append(f'    - Ads bật hôm nay (impressions > 0): {prefix_stats["enabled"]}')
+                        lines.append(f'    - Adsets đang bật: {prefix_stats["active"]}')
+                        lines.append(f'    - Adsets đã tắt: {prefix_stats["paused"]}')
+                        lines.append(f'    - Tổng adsets: {prefix_stats["total"]}')
+                        
+                        account_enabled += prefix_stats['enabled']
+                        account_active += prefix_stats['active']
+                        account_paused += prefix_stats['paused']
+                        account_total += prefix_stats['total']
+                    
+                    lines.append(f'  **Tổng Account:** Bật={account_enabled}, Đang bật={account_active}, Đã tắt={account_paused}, Tổng={account_total}\n')
+                    
+                    total_enabled_all += account_enabled
+                    total_active_all += account_active
+                    total_paused_all += account_paused
+                    total_adsets_all += account_total
+                
+                lines.append('━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+                lines.append('**TỔNG TẤT CẢ:**')
+                lines.append(f'  • Ads bật hôm nay (impressions > 0): {total_enabled_all}')
+                lines.append(f'  • Adsets đang bật: {total_active_all}')
+                lines.append(f'  • Adsets đã tắt: {total_paused_all}')
+                lines.append(f'  • Tổng adsets: {total_adsets_all}')
+                lines.append(f'\n⏰ **Thời gian:** {datetime.now().strftime("%H:%M ngày %d/%m/%Y")}')
+                
+                report = '\n'.join(lines)
+                return report
             except Exception as e:
                 error_msg = f"❌ **LỖI khi đọc database:** {str(e)}"
                 logger.error(error_msg, exc_info=True)
@@ -458,27 +566,6 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
                 return error_msg
             finally:
                 db.close()
-            
-            # Format báo cáo
-            report = f"""📊 **BÁO CÁO TRẠNG THÁI ADS**
-
-**Dữ liệu mới:**
-{pull_msg}
-⏰ Pull lúc: `{pull_time}`
-
-**Trạng thái Adsets:**
-• ✅ Đang bật: `{active_adsets:,}`
-• ⏸️ Đã tắt: `{paused_adsets:,}`
-• 📊 Tổng: `{total_adsets:,}`
-
-**Tổng quan:**
-• 📈 Tổng Ads: `{total_ads:,}`
-• 💰 Tổng Spend: `{total_spend:,.0f}`
-• 🎯 Tổng Results: `{total_results:,}`
-
-_Thời gian báo cáo: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
-"""
-            return report
             
         except Exception as e:
             error_msg = f"❌ **LỖI NGHIÊM TRỌNG:** {str(e)}"

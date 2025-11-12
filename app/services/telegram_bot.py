@@ -172,6 +172,57 @@ def send_chat_action(chat_id: str, action: str, bot_token: str) -> bool:
         return False
 
 
+def delete_message(
+    chat_id: str,
+    message_id: int,
+    bot_token: str,
+    max_retries: int = 3
+) -> Tuple[bool, Optional[str]]:
+    """
+    Xóa message đã gửi
+    
+    Returns:
+        (success, error_message)
+    """
+    if not bot_token or not chat_id or not message_id:
+        return False, "Missing required parameters"
+    
+    url = f"https://api.telegram.org/bot{bot_token}/deleteMessage"
+    payload = {
+        'chat_id': str(chat_id).strip(),
+        'message_id': int(message_id)
+    }
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+            
+            if response.status_code == 429:
+                retry_after = int(response.headers.get('Retry-After', 60))
+                logger.warning(f"⚠️ Rate limited. Waiting {retry_after}s...")
+                time.sleep(retry_after)
+                continue
+            
+            response.raise_for_status()
+            json_response = response.json()
+            
+            if json_response.get('ok') is True:
+                return True, None
+            
+            error_desc = json_response.get('description', '')
+            return False, error_desc
+            
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:
+                wait_time = 2.0 ** attempt
+                logger.warning(f"⚠️ Request failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                return False, str(e)
+    
+    return False, "Max retries exceeded"
+
+
 def edit_message(
     chat_id: str,
     message_id: int,
