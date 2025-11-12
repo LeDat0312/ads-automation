@@ -124,7 +124,10 @@ def send_message(
             json_response = response.json()
             
             if json_response.get('ok') is True:
-                return True, None
+                # Trả về message_id nếu có
+                result = json_response.get('result', {})
+                message_id = result.get('message_id')
+                return True, message_id
             
             # Parse error - thử plain text
             error_desc = json_response.get('description', '')

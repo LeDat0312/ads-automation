@@ -49,21 +49,25 @@ async def telegram_webhook(
         if not update_id:
             return Response(status_code=200)  # Trả 200 OK ngay
         
-        # Check idempotency - INSERT ON CONFLICT DO NOTHING
-        try:
-            telegram_update = TelegramUpdate(
-                update_id=update_id,
-                chat_id=str(update.get('message', {}).get('chat', {}).get('id', '')),
-                user_id=str(update.get('message', {}).get('from', {}).get('id', '')),
-                processed=False
-            )
-            db.add(telegram_update)
-            db.commit()
-        except Exception as e:
+        # Check idempotency - Kiểm tra xem update_id đã được xử lý chưa
+        existing_update = db.query(TelegramUpdate).filter(
+            TelegramUpdate.update_id == update_id
+        ).first()
+        
+        if existing_update:
             # Update đã tồn tại (duplicate) - bỏ qua
-            db.rollback()
             logger.info(f"⏭️ Duplicate update {update_id}, skipping")
             return Response(status_code=200)  # Trả 200 OK ngay
+        
+        # Tạo record mới để đánh dấu đã nhận update này
+        telegram_update = TelegramUpdate(
+            update_id=update_id,
+            chat_id=str(update.get('message', {}).get('chat', {}).get('id', '')),
+            user_id=str(update.get('message', {}).get('from', {}).get('id', '')),
+            processed=False
+        )
+        db.add(telegram_update)
+        db.commit()
         
         # Parse command
         parsed = parse_command(update)
@@ -76,7 +80,7 @@ async def telegram_webhook(
         message_id = parsed.get('message_id')
         settings = get_settings()
         
-        # Lệnh nhẹ - xử lý inline
+        # Lệnh nhẹ - xử lý inline và gửi trực tiếp (KHÔNG enqueue job)
         if cmd in LIGHT_COMMANDS:
             processor = CommandProcessor()
             try:
@@ -85,17 +89,12 @@ async def telegram_webhook(
                 if handler:
                     response = handler(parsed)
                     if response:
-                        # Enqueue job siêu nhẹ để gửi message
-                        job_queue = JobQueue(db=db)
-                        job_queue.enqueue_job(
-                            job_type='send_message',
-                            payload={
-                                'chat_id': chat_id,
-                                'text': response,
-                                'reply_to_message_id': message_id
-                            },
-                            priority=JobPriority.HIGH,
-                            chat_id=chat_id
+                        # Gửi trực tiếp, không enqueue job để tránh duplicate
+                        send_message(
+                            chat_id,
+                            response,
+                            settings.TELEGRAM_BOT_TOKEN,
+                            reply_to_message_id=message_id
                         )
             except Exception as e:
                 logger.error(f"❌ Error handling light command {cmd}: {e}")
