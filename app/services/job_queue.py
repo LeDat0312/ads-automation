@@ -18,8 +18,14 @@ class JobQueue:
     """Service để quản lý job queue"""
     
     def __init__(self, db: Session = None):
-        self.db = db or get_db_session()
+        self._db = db  # Optional external session
         self.settings = get_settings()
+    
+    def _get_db(self) -> Session:
+        """Get database session (create new if not provided)"""
+        if self._db:
+            return self._db
+        return get_db_session()
     
     def enqueue_job(
         self,
