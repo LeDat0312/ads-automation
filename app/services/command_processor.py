@@ -179,7 +179,7 @@ Dùng /help để xem danh sách lệnh.
     # ===== Heavy command handlers (sẽ được gọi từ worker) =====
     
     @staticmethod
-    def handle_report(payload: Dict[str, Any]) -> str:
+    def handle_report(payload: Dict[str, Any]) -> Optional[str]:
         """Xử lý /report - Pull data mới và tạo báo cáo tổng hợp"""
         from app.services.telegram_bot import send_message, edit_message
         from app.core.config import get_settings
@@ -234,11 +234,15 @@ Dùng /help để xem danh sách lệnh.
             send_progress("📊 Đang tạo báo cáo tổng hợp...")
             
             from app.core.database import get_db_session, AdMetrics
+            from app.services.prefix_helper import extract_prefixes_from_logic_rules, has_allowed_prefix
             from sqlalchemy import func
             from collections import defaultdict
             
             db = get_db_session()
             try:
+                # Lấy danh sách prefix được phép từ LogicRules
+                allowed_prefixes = extract_prefixes_from_logic_rules()
+                
                 # Tổng kết theo account và prefix
                 # Chỉ tính các ad có impressions > 0
                 today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -251,17 +255,22 @@ Dùng /help để xem danh sách lệnh.
                 agg = defaultdict(lambda: defaultdict(lambda: {'spend': 0, 'interactions': 0, 'phones': 0}))
                 
                 for m in metrics:
-                    if not m.account_id or not m.prefix:
+                    if not m.account_id or not m.campaign_name:
                         continue
+                    
+                    # Kiểm tra prefix có trong LogicRules không
+                    prefix = has_allowed_prefix(m.campaign_name, allowed_prefixes)
+                    if not prefix:
+                        continue  # Bỏ qua nếu không match prefix nào
                     
                     # Interactions = results (comments + messages)
                     interactions = m.results or 0
-                    # Phones = purchases (checkouts initiated)
-                    phones = m.purchases or 0
+                    # Phones = checkouts initiated (sdt field)
+                    phones = m.sdt or 0
                     
-                    agg[m.account_id][m.prefix]['spend'] += m.spend or 0
-                    agg[m.account_id][m.prefix]['interactions'] += interactions
-                    agg[m.account_id][m.prefix]['phones'] += phones
+                    agg[m.account_id][prefix]['spend'] += m.spend or 0
+                    agg[m.account_id][prefix]['interactions'] += interactions
+                    agg[m.account_id][prefix]['phones'] += phones
                 
                 # Tạo báo cáo
                 lines = []
@@ -415,7 +424,7 @@ Dùng /help để xem danh sách lệnh.
             return error_msg, 0
     
     @staticmethod
-    def handle_statusads(payload: Dict[str, Any]) -> str:
+    def handle_statusads(payload: Dict[str, Any]) -> Optional[str]:
         """Xử lý /statusads - Pull data mới và tạo báo cáo trạng thái"""
         from app.core.database import get_db_session, AdMetrics
         from app.services.telegram_bot import send_message, edit_message
@@ -474,6 +483,10 @@ Dùng /help để xem danh sách lệnh.
             
             try:
                 from collections import defaultdict
+                from app.services.prefix_helper import extract_prefixes_from_logic_rules, has_allowed_prefix
+                
+                # Lấy danh sách prefix được phép từ LogicRules
+                allowed_prefixes = extract_prefixes_from_logic_rules()
                 
                 # Lấy tất cả metrics hôm nay
                 today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -481,35 +494,45 @@ Dùng /help để xem danh sách lệnh.
                     AdMetrics.date >= today
                 ).all()
                 
-                # Thống kê theo account và prefix: { accountId: { prefix: { enabled, active, paused, total } } }
+                # Thống kê theo account và prefix: { accountId: { prefix: { enabled, active, paused, total, spend } } }
                 stats_by_account = defaultdict(lambda: defaultdict(lambda: {
                     'enabled': 0,  # Ads bật hôm nay (impressions > 0 và status = ACTIVE)
                     'active': 0,   # Adsets đang bật
                     'paused': 0,   # Adsets đã tắt
-                    'total': 0     # Tổng adsets
+                    'total': 0,   # Tổng adsets
+                    'spend': 0.0  # Tổng số tiền chi tiêu
                 }))
                 
                 adset_ids_seen = set()  # Để đếm unique adsets
                 
                 for m in metrics:
-                    if not m.account_id or not m.prefix or not m.adset_id:
+                    if not m.account_id or not m.campaign_name or not m.adset_id:
                         continue
+                    
+                    # Kiểm tra prefix có trong LogicRules không
+                    prefix = has_allowed_prefix(m.campaign_name, allowed_prefixes)
+                    if not prefix:
+                        continue  # Bỏ qua nếu không match prefix nào
                     
                     # Key để check unique adset
                     adset_key = f"{m.account_id}|{m.adset_id}"
                     
                     if adset_key not in adset_ids_seen:
                         adset_ids_seen.add(adset_key)
-                        stats_by_account[m.account_id][m.prefix]['total'] += 1
+                        stats_by_account[m.account_id][prefix]['total'] += 1
                         
                         # Đếm ads bật hôm nay (impressions > 0 và status = ACTIVE)
                         if m.adset_status == 'ACTIVE' and (m.impressions or 0) > 0:
-                            stats_by_account[m.account_id][m.prefix]['enabled'] += 1
-                            stats_by_account[m.account_id][m.prefix]['active'] += 1
+                            stats_by_account[m.account_id][prefix]['enabled'] += 1
+                            stats_by_account[m.account_id][prefix]['active'] += 1
                         elif m.adset_status == 'ACTIVE':
-                            stats_by_account[m.account_id][m.prefix]['active'] += 1
+                            stats_by_account[m.account_id][prefix]['active'] += 1
                         elif m.adset_status == 'PAUSED':
-                            stats_by_account[m.account_id][m.prefix]['paused'] += 1
+                            stats_by_account[m.account_id][prefix]['paused'] += 1
+                    
+                    # Tính tổng số tiền chi tiêu (chỉ tính các ad có impressions > 0)
+                    if (m.impressions or 0) > 0:
+                        stats_by_account[m.account_id][prefix]['spend'] += m.spend or 0
                 
                 # Tạo báo cáo
                 lines = []
@@ -520,6 +543,7 @@ Dùng /help để xem danh sách lệnh.
                 total_active_all = 0
                 total_paused_all = 0
                 total_adsets_all = 0
+                total_spend_all = 0.0
                 
                 for account_id in sorted(stats_by_account.keys()):
                     lines.append(f'\n📌 **Tài khoản:** `{account_id}`')
@@ -536,6 +560,7 @@ Dùng /help để xem danh sách lệnh.
                         lines.append(f'    - Adsets đang bật: {prefix_stats["active"]}')
                         lines.append(f'    - Adsets đã tắt: {prefix_stats["paused"]}')
                         lines.append(f'    - Tổng adsets: {prefix_stats["total"]}')
+                        lines.append(f'    - Tổng số tiền chi tiêu: {prefix_stats["spend"]:,.0f} ₫')
                         
                         account_enabled += prefix_stats['enabled']
                         account_active += prefix_stats['active']
@@ -548,6 +573,10 @@ Dùng /help để xem danh sách lệnh.
                     total_active_all += account_active
                     total_paused_all += account_paused
                     total_adsets_all += account_total
+                    
+                    # Tính tổng số tiền chi tiêu cho account
+                    account_spend = sum(stats_by_account[account_id][p]['spend'] for p in stats_by_account[account_id].keys())
+                    total_spend_all += account_spend
                 
                 lines.append('━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
                 lines.append('**TỔNG TẤT CẢ:**')
@@ -555,6 +584,7 @@ Dùng /help để xem danh sách lệnh.
                 lines.append(f'  • Adsets đang bật: {total_active_all}')
                 lines.append(f'  • Adsets đã tắt: {total_paused_all}')
                 lines.append(f'  • Tổng adsets: {total_adsets_all}')
+                lines.append(f'  • Tổng số tiền đã chi tiêu: {total_spend_all:,.0f} ₫')
                 lines.append(f'\n⏰ **Thời gian:** {datetime.now().strftime("%H:%M ngày %d/%m/%Y")}')
                 
                 report = '\n'.join(lines)

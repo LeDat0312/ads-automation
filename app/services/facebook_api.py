@@ -307,14 +307,25 @@ def pull_facebook_data(
                     results = 0
                     comments = 0
                     messages = 0
+                    checkouts = 0
+                    purchases = 0
                     
                     for action in actions:
-                        action_type = action.get('action_type', '')
+                        action_type = action.get('action_type', '').lower()
                         value = int(action.get('value', 0) or 0)
-                        if action_type == 'comment':
+                        
+                        # Comments
+                        if action_type == 'comment' or 'comment' in action_type:
                             comments += value
-                        elif action_type == 'onsite_conversion.messaging_conversation_started_7d':
+                        # Messages
+                        elif 'messaging_conversation_started' in action_type:
                             messages += value
+                        # Checkouts (phones/SĐT)
+                        elif 'initiate_checkout' in action_type or 'checkout' in action_type:
+                            checkouts += value
+                        # Purchases
+                        elif action_type == 'purchase' or 'purchase' in action_type:
+                            purchases += value
                     
                     results = comments + messages
                     
@@ -369,9 +380,10 @@ def pull_facebook_data(
                         'gia_data': gia_data,
                         'percent_ads': percent_ads,
                         'cost_per_checkout_initiated': cost_per_checkout,
-                        'checkouts_initiated': 0,  # Cần parse từ actions
+                        'checkouts_initiated': checkouts,  # Đã parse từ actions
                         'cost_per_purchase': cost_per_purchase,
-                        'purchases': 0,  # Cần parse từ actions
+                        'purchases': purchases,  # Đã parse từ actions
+                        'sdt': checkouts,  # SĐT = checkouts (alias)
                         'gia_tri_chuyen_doi_tu_luot_mua': purchase_value,
                         'cpm': cpm,
                         'impressions': impressions,

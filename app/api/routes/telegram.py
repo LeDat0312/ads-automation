@@ -104,7 +104,7 @@ async def telegram_webhook(
             job_queue = JobQueue(db=db)
             try:
                 # Gửi "Đang xử lý..." ngay và lưu message_id để edit sau
-                success, error = send_message(
+                success, result = send_message(
                     chat_id,
                     "⏳ Đang xử lý...",
                     settings.TELEGRAM_BOT_TOKEN,
@@ -113,14 +113,11 @@ async def telegram_webhook(
                 
                 # Lấy message_id từ response (nếu có)
                 progress_message_id = None
-                if success:
-                    # Note: send_message không trả về message_id, sẽ cần parse từ response
-                    # Tạm thời dùng message_id của user message để reply
-                    # Worker sẽ gửi message mới và edit nó
-                    pass
+                if success and isinstance(result, int):
+                    progress_message_id = result
                 
                 # Enqueue job với progress_message_id
-                parsed['progress_message_id'] = progress_message_id  # Sẽ được set trong worker
+                parsed['progress_message_id'] = progress_message_id
                 job_queue.enqueue_job(
                     job_type='telegram_command',
                     payload=parsed,
