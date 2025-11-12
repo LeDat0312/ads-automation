@@ -142,8 +142,8 @@ class CommandProcessor:
 /check_webhook - Kiểm tra webhook
 
 **Lệnh báo cáo:**
-/report - Báo cáo tổng hợp
-/statusads - Trạng thái quảng cáo
+/report - Báo cáo tổng hợp (tài chính + trạng thái)
+/statusads - Tương tự /report (đã được kết hợp)
 /run - Chạy automation
 /test - Test automation (bỏ qua khung giờ)
 """
