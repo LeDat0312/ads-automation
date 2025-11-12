@@ -180,28 +180,17 @@ Dùng /help để xem danh sách lệnh.
     
     @staticmethod
     def handle_report(payload: Dict[str, Any]) -> Optional[str]:
-        """Xử lý /report - Pull data mới và tạo báo cáo tổng hợp"""
+        """
+        Xử lý /report - Pull data mới và tạo báo cáo tổng hợp
+        Logic tương tự hàm tongKetCuoiNgay() từ Code.gs
+        """
         from app.services.telegram_bot import send_message, edit_message
         from app.core.config import get_settings
         
         settings = get_settings()
         chat_id = payload.get('chat_id')
         message_id = payload.get('message_id')
-        
-        # Gửi message ban đầu và lấy message_id để edit
-        progress_message_id = None
-        if chat_id:
-            try:
-                success, result = send_message(
-                    chat_id,
-                    "⏳ Đang xử lý...",
-                    settings.TELEGRAM_BOT_TOKEN,
-                    reply_to_message_id=message_id
-                )
-                if success and isinstance(result, int):
-                    progress_message_id = result
-            except Exception as e:
-                logger.error(f"❌ Error sending initial message: {e}")
+        progress_message_id = payload.get('progress_message_id')
         
         def send_progress(msg: str):
             """Gửi progress update - edit message nếu có progress_message_id"""
@@ -224,66 +213,87 @@ Dùng /help để xem danh sách lệnh.
                 progress_message_id=progress_message_id,
                 progress_callback=send_progress
             )
-            pull_time = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
             
             # Nếu có lỗi khi pull, trả về luôn
             if pull_msg.startswith("❌"):
                 return pull_msg
             
-            # Bước 2: Tạo báo cáo tổng hợp (theo logic tongKetCuoiNgay)
+            # Bước 2: Tạo báo cáo tổng hợp (theo logic tongKetCuoiNgay từ Code.gs)
             send_progress("📊 Đang tạo báo cáo tổng hợp...")
             
             from app.core.database import get_db_session, AdMetrics
             from app.services.prefix_helper import extract_prefixes_from_logic_rules, has_allowed_prefix
-            from sqlalchemy import func
             from collections import defaultdict
             
             db = get_db_session()
             try:
-                # Lấy danh sách prefix được phép từ LogicRules
+                # Lấy danh sách prefix được phép từ LogicRules (tự động đọc từ LogicRules)
                 allowed_prefixes = extract_prefixes_from_logic_rules()
                 
-                # Tổng kết theo account và prefix
-                # Chỉ tính các ad có impressions > 0
-                today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                if not allowed_prefixes:
+                    logger.warning("⚠️ Không đọc được prefix từ LogicRules, dùng danh sách mặc định")
+                    allowed_prefixes = ['PX', 'TL', 'FL', 'NM', 'CCHL', 'DHHL', 'HSHL', 'CCB']
+                
+                logger.info(f"📋 Prefix được sử dụng cho tổng kết: {', '.join(allowed_prefixes)}")
+                
+                # Tổng kết theo account và prefix: { accountId: { prefix: {spend, interactions, phones} } }
+                # QUAN TRỌNG: Chỉ lấy ads có impressions > 0 (giống Google Script)
+                # KHÔNG filter theo date - lấy tất cả dữ liệu có impressions > 0
                 metrics = db.query(AdMetrics).filter(
-                    AdMetrics.impressions > 0,
-                    AdMetrics.date >= today
+                    AdMetrics.impressions > 0
                 ).all()
                 
                 # Aggregate: { account_id: { prefix: {spend, interactions, phones} } }
-                agg = defaultdict(lambda: defaultdict(lambda: {'spend': 0, 'interactions': 0, 'phones': 0}))
+                agg = defaultdict(lambda: defaultdict(lambda: {'spend': 0.0, 'interactions': 0, 'phones': 0}))
+                account_ids = set()  # Để lưu danh sách account IDs đã gặp
                 
                 for m in metrics:
                     if not m.account_id or not m.campaign_name:
                         continue
                     
-                    # Kiểm tra prefix có trong LogicRules không
+                    # Lấy prefix từ campaign name và kiểm tra có trong LogicRules không
                     prefix = has_allowed_prefix(m.campaign_name, allowed_prefixes)
                     if not prefix:
                         continue  # Bỏ qua nếu không match prefix nào
                     
-                    # Interactions = results (comments + messages)
-                    interactions = m.results or 0
-                    # Phones = checkouts initiated (sdt field)
-                    phones = m.sdt or 0
+                    # Khởi tạo cấu trúc nếu chưa có
+                    account_id = str(m.account_id).strip()
+                    account_ids.add(account_id)
                     
-                    agg[m.account_id][prefix]['spend'] += m.spend or 0
-                    agg[m.account_id][prefix]['interactions'] += interactions
-                    agg[m.account_id][prefix]['phones'] += phones
+                    # Interactions = results (comments + messages) - đã được tính trong facebook_api.py
+                    interactions = int(m.results or 0)
+                    # Phones = checkouts initiated (sdt field)
+                    phones = int(m.sdt or 0)
+                    spend = float(m.spend or 0)
+                    
+                    # Cộng dồn
+                    agg[account_id][prefix]['spend'] += spend
+                    agg[account_id][prefix]['interactions'] += interactions
+                    agg[account_id][prefix]['phones'] += phones
                 
-                # Tạo báo cáo
+                # Tạo báo cáo (format giống Google Script)
                 lines = []
                 lines.append('🧾 **TỔNG KẾT CUỐI NGÀY**')
                 lines.append('━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
                 
-                for account_id in sorted(agg.keys()):
+                # Sắp xếp account IDs để hiển thị
+                sorted_account_ids = sorted(account_ids)
+                
+                # Tổng kết theo từng account
+                for account_id in sorted_account_ids:
+                    account_data = agg[account_id]
+                    account_prefixes = sorted(account_data.keys())
+                    
                     lines.append(f'\n📛 **Tài khoản:** `{account_id}`')
                     
-                    for prefix in sorted(agg[account_id].keys()):
-                        a = agg[account_id][prefix]
+                    # Tổng kết theo từng prefix trong account
+                    for prefix in account_prefixes:
+                        a = account_data[prefix]
+                        # Giá DATA = Spend / Interactions
                         cpd = (a['spend'] / a['interactions']) if a['interactions'] > 0 else 0
+                        # Giá SĐT = Spend / Phones
                         cpphone = (a['spend'] / a['phones']) if a['phones'] > 0 else 0
+                        # Tỷ lệ SĐT/Tương tác = (Phones / Interactions) * 100
                         phone_rate = (a['phones'] / a['interactions'] * 100) if a['interactions'] > 0 else 0
                         
                         lines.append(f'  — **{prefix}:**')
@@ -294,17 +304,16 @@ Dùng /help để xem danh sách lệnh.
                         lines.append(f'    • Giá SĐT: {cpphone:,.0f} ₫')
                         lines.append(f'    • Tỷ lệ SĐT/Tương tác: {phone_rate:.1f}%')
                 
-                lines.append(f'\n⏰ **Thời gian:** {datetime.now().strftime("%H:%M ngày %d/%m/%Y")}')
+                # Thêm thời gian báo cáo
+                now = datetime.now()
+                time_str = now.strftime('%H:%M')
+                date_str = now.strftime('%d/%m/%Y')
+                lines.append(f'\n⏰ **Thời gian:** {time_str} ngày {date_str}')
                 
                 report = '\n'.join(lines)
                 
                 # Edit message cuối cùng thay vì trả về (để tránh duplicate)
-                chat_id = payload.get('chat_id')
-                progress_message_id = payload.get('progress_message_id')
                 if chat_id and progress_message_id:
-                    from app.services.telegram_bot import edit_message
-                    from app.core.config import get_settings
-                    settings = get_settings()
                     try:
                         edit_message(chat_id, progress_message_id, report, settings.TELEGRAM_BOT_TOKEN)
                         return None  # Không trả về để worker không gửi message mới
@@ -316,7 +325,9 @@ Dùng /help để xem danh sách lệnh.
                 return report
             except Exception as e:
                 logger.error(f"❌ Error generating report: {e}", exc_info=True)
-                return f"❌ Lỗi tạo báo cáo: {str(e)}"
+                error_msg = f"❌ **LỖI tạo báo cáo:** {str(e)}"
+                send_progress(error_msg)
+                return error_msg
             finally:
                 db.close()
             
