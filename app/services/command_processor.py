@@ -5,7 +5,7 @@ Xử lý các lệnh Telegram (nhẹ và nặng)
 import logging
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime
-from app.services.telegram_bot import send_message, send_chat_action, parse_command
+from app.services.telegram_bot import send_message, send_chat_action, parse_command, edit_message
 from app.services.job_queue import JobQueue, JobPriority
 from app.core.config import get_settings
 
@@ -124,7 +124,7 @@ class CommandProcessor:
         # Command không tồn tại
         send_message(
             chat_id,
-            f"❓ Lệnh không tồn tại. Dùng /help để xem danh sách lệnh.",
+            f"❌ **Lệnh không hợp lệ**\n\nLệnh `{cmd}` không tồn tại.\n\nVui lòng sử dụng lệnh `/help` để xem danh sách lệnh có sẵn.",
             self.settings.TELEGRAM_BOT_TOKEN,
             reply_to_message_id=message_id
         )
@@ -181,33 +181,47 @@ Dùng /help để xem danh sách lệnh.
     @staticmethod
     def handle_report(payload: Dict[str, Any]) -> str:
         """Xử lý /report - Pull data mới và tạo báo cáo tổng hợp"""
-        from app.services.telegram_bot import send_message
+        from app.services.telegram_bot import send_message, edit_message
         from app.core.config import get_settings
         
         settings = get_settings()
         chat_id = payload.get('chat_id')
         message_id = payload.get('message_id')
-        last_progress_msg = None  # Track last message để tránh duplicate
+        
+        # Gửi message ban đầu và lấy message_id để edit
+        progress_message_id = None
+        if chat_id:
+            try:
+                success, result = send_message(
+                    chat_id,
+                    "⏳ Đang xử lý...",
+                    settings.TELEGRAM_BOT_TOKEN,
+                    reply_to_message_id=message_id
+                )
+                if success and isinstance(result, int):
+                    progress_message_id = result
+            except Exception as e:
+                logger.error(f"❌ Error sending initial message: {e}")
         
         def send_progress(msg: str):
-            """Gửi progress update - chỉ gửi nếu message khác message trước"""
-            nonlocal last_progress_msg
-            if msg == last_progress_msg:
-                return  # Skip duplicate
-            last_progress_msg = msg
-            
+            """Gửi progress update - edit message nếu có progress_message_id"""
             if chat_id:
                 try:
-                    send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
+                    if progress_message_id:
+                        edit_message(chat_id, progress_message_id, msg, settings.TELEGRAM_BOT_TOKEN)
+                    else:
+                        # Fallback: gửi message mới
+                        send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
                 except Exception as e:
                     logger.error(f"❌ Error sending progress: {e}")
         
         try:
             # Bước 1: Pull data mới từ Facebook
-            send_progress("📥 **Bắt đầu pull dữ liệu từ Facebook...**")
+            send_progress("📥 Đang pull dữ liệu từ Facebook...")
             pull_msg, pull_count = CommandProcessor._pull_and_save_data(
                 chat_id=chat_id,
                 message_id=message_id,
+                progress_message_id=progress_message_id,
                 progress_callback=send_progress
             )
             pull_time = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
@@ -217,7 +231,7 @@ Dùng /help để xem danh sách lệnh.
                 return pull_msg
             
             # Bước 2: Tạo báo cáo tổng hợp
-            send_progress("📊 **Đang tạo báo cáo tổng hợp...**")
+            send_progress("📊 Đang tạo báo cáo tổng hợp...")
             # TODO: Implement detailed report logic
             report = f"""📊 **BÁO CÁO TỔNG HỢP**
 
@@ -238,7 +252,7 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
             return error_msg
     
     @staticmethod
-    def _pull_and_save_data(chat_id: Optional[str] = None, message_id: Optional[int] = None, progress_callback=None) -> Tuple[str, int]:
+    def _pull_and_save_data(chat_id: Optional[str] = None, message_id: Optional[int] = None, progress_message_id: Optional[int] = None, progress_callback=None) -> Tuple[str, int]:
         """
         Pull data từ Facebook và lưu vào database
         Returns: (message, count)
@@ -246,39 +260,40 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
         Args:
             chat_id: Chat ID để gửi progress updates
             message_id: Message ID để reply
+            progress_message_id: Message ID của progress message (để edit)
             progress_callback: Callback function(progress_msg) để gửi updates
         """
         from app.services.facebook_api import pull_facebook_data
         from app.core.database import get_db_session, AdMetrics
         from app.core.config import get_settings
-        from app.services.telegram_bot import send_message
+        from app.services.telegram_bot import send_message, edit_message
         
         settings = get_settings()
         start_time = datetime.now()
-        last_progress_msg = None  # Track last message để tránh duplicate
         
         def send_progress(msg: str):
-            """Gửi progress update - chỉ gửi nếu message khác message trước"""
-            nonlocal last_progress_msg
-            if msg == last_progress_msg:
-                return  # Skip duplicate
-            last_progress_msg = msg
-            
+            """Gửi progress update - edit message nếu có progress_message_id, không thì gửi mới"""
             if progress_callback:
                 progress_callback(msg)
             elif chat_id:
                 try:
-                    send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
-                except:
+                    if progress_message_id:
+                        # Edit message hiện có
+                        edit_message(chat_id, progress_message_id, msg, settings.TELEGRAM_BOT_TOKEN)
+                    else:
+                        # Gửi message mới (fallback)
+                        send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
+                except Exception as e:
+                    logger.error(f"❌ Error sending progress: {e}")
                     pass
         
         try:
             # Bước 1: Bắt đầu pull
-            send_progress("📥 **Bước 1/3:** Đang kết nối Facebook API...")
+            send_progress("📥 Đang kết nối Facebook API...")
             logger.info("📥 Đang pull dữ liệu từ Facebook API...")
             
             # Pull data
-            send_progress("📥 **Bước 2/3:** Đang pull dữ liệu từ Facebook...\n⏳ Vui lòng đợi, có thể mất 10-60 giây...")
+            send_progress("📥 Đang pull dữ liệu từ Facebook...\n⏳ Vui lòng đợi, có thể mất 10-60 giây...")
             ad_metrics_list = pull_facebook_data(
                 settings.ACCESS_TOKEN,
                 settings.ad_account_ids_list,
@@ -290,7 +305,7 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
                 return "⚠️ Không có dữ liệu mới từ Facebook", 0
             
             # Bước 2: Lưu vào database
-            send_progress(f"💾 **Bước 3/3:** Đang lưu {len(ad_metrics_list)} ads vào database...")
+            send_progress(f"💾 Đang lưu {len(ad_metrics_list)} ads vào database...")
             db = get_db_session()
             try:
                 count = 0
@@ -316,6 +331,7 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
                         existing.updated_at = datetime.now()
                     else:
                         # Create new - chỉ lấy các fields hợp lệ cho AdMetrics
+                        # Chỉ giữ các fields có trong model AdMetrics
                         valid_fields = {
                             'adset_id', 'ad_id', 'ad_name', 'adset_name', 'campaign_name',
                             'account_id', 'prefix', 'spend', 'impressions', 'clicks', 'results',
@@ -323,7 +339,11 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
                             'adset_status', 'effective_status', 'date', 'date_preset',
                             'campaign_type', 'campaign_objective', 'amount_spent', 'ket_qua',
                             'purchases', 'purchase_value', 'revenue', 'leads', 'phone_calls',
-                            'cost_per_lead', 'reach', 'frequency'
+                            'cost_per_lead'
+                            # Loại bỏ: 'reach', 'frequency', 'account_name', 'percent_ads', 
+                            # 'cost_per_checkout_initiated', 'checkouts_initiated', 'gia_tri_chuyen_doi_tu_luot_mua',
+                            # 'cpm', 'clicks_all', 'ctr_all', 'cpc_all', 'cost_per_comment',
+                            # 'cost_per_messaging_conversation', 'post_comments', 'messaging_conversations_started'
                         }
                         filtered_metric = {k: v for k, v in ad_metric.items() if k in valid_fields}
                         new_metric = AdMetrics(**filtered_metric)
@@ -356,34 +376,48 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
     def handle_statusads(payload: Dict[str, Any]) -> str:
         """Xử lý /statusads - Pull data mới và tạo báo cáo trạng thái"""
         from app.core.database import get_db_session, AdMetrics
-        from app.services.telegram_bot import send_message
+        from app.services.telegram_bot import send_message, edit_message
         from app.core.config import get_settings
         from sqlalchemy import func, distinct
         
         settings = get_settings()
         chat_id = payload.get('chat_id')
         message_id = payload.get('message_id')
-        last_progress_msg = None  # Track last message để tránh duplicate
+        
+        # Gửi message ban đầu và lấy message_id để edit
+        progress_message_id = None
+        if chat_id:
+            try:
+                success, result = send_message(
+                    chat_id,
+                    "⏳ Đang xử lý...",
+                    settings.TELEGRAM_BOT_TOKEN,
+                    reply_to_message_id=message_id
+                )
+                if success and isinstance(result, int):
+                    progress_message_id = result
+            except Exception as e:
+                logger.error(f"❌ Error sending initial message: {e}")
         
         def send_progress(msg: str):
-            """Gửi progress update - chỉ gửi nếu message khác message trước"""
-            nonlocal last_progress_msg
-            if msg == last_progress_msg:
-                return  # Skip duplicate
-            last_progress_msg = msg
-            
+            """Gửi progress update - edit message nếu có progress_message_id"""
             if chat_id:
                 try:
-                    send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
+                    if progress_message_id:
+                        edit_message(chat_id, progress_message_id, msg, settings.TELEGRAM_BOT_TOKEN)
+                    else:
+                        # Fallback: gửi message mới
+                        send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
                 except Exception as e:
                     logger.error(f"❌ Error sending progress: {e}")
         
         try:
             # Bước 1: Pull data mới từ Facebook
-            send_progress("📥 **Bắt đầu pull dữ liệu từ Facebook...**")
+            send_progress("📥 Đang pull dữ liệu từ Facebook...")
             pull_msg, pull_count = CommandProcessor._pull_and_save_data(
                 chat_id=chat_id,
                 message_id=message_id,
+                progress_message_id=progress_message_id,
                 progress_callback=send_progress
             )
             pull_time = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
@@ -393,7 +427,7 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
                 return pull_msg
             
             # Bước 2: Tạo báo cáo
-            send_progress("📊 **Đang tạo báo cáo...**")
+            send_progress("📊 Đang tạo báo cáo...")
             db = get_db_session()
             
             try:

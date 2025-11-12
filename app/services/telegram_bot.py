@@ -69,13 +69,15 @@ def send_message(
     parse_mode: str = 'HTML',
     max_retries: int = 3,
     backoff_factor: float = 2.0
-) -> Tuple[bool, Optional[str]]:
+) -> Tuple[bool, Optional[Any]]:
     """
     Gửi message với retry và backoff
     Tuân thủ rate limit 429
     
     Returns:
-        (success, error_message)
+        (success, message_id_or_error)
+        - Nếu success=True: trả về message_id (int)
+        - Nếu success=False: trả về error_message (str)
     """
     # Kiểm tra tham số
     if not text or not bot_token or not chat_id:
@@ -129,10 +131,11 @@ def send_message(
             if 'parse' in error_desc.lower() or 'entities' in error_desc.lower():
                 if parse_mode == 'HTML':
                     logger.warning("⚠️ HTML parse error, retrying with plain text...")
-                    return send_message(
+                    result = send_message(
                         chat_id, text, bot_token, reply_to_message_id,
                         parse_mode='', max_retries=1, backoff_factor=0
                     )
+                    return result
             
             return False, error_desc
             
@@ -164,6 +167,69 @@ def send_chat_action(chat_id: str, action: str, bot_token: str) -> bool:
     except Exception as e:
         logger.error(f"🚨 Error sending chat action: {e}")
         return False
+
+
+def edit_message(
+    chat_id: str,
+    message_id: int,
+    text: str,
+    bot_token: str,
+    parse_mode: str = 'HTML',
+    max_retries: int = 3
+) -> Tuple[bool, Optional[str]]:
+    """
+    Edit message đã gửi (dùng cho progress updates)
+    
+    Returns:
+        (success, error_message)
+    """
+    if not text or not bot_token or not chat_id or not message_id:
+        return False, "Missing required parameters"
+    
+    url = f"https://api.telegram.org/bot{bot_token}/editMessageText"
+    
+    # Convert markdown to HTML if needed
+    if parse_mode == 'HTML':
+        text = markdown_to_html(text)
+    
+    payload = {
+        'chat_id': str(chat_id).strip(),
+        'message_id': int(message_id),
+        'text': text,
+        'parse_mode': parse_mode,
+        'disable_web_page_preview': False
+    }
+    
+    # Retry với exponential backoff
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+            
+            # Handle rate limit 429
+            if response.status_code == 429:
+                retry_after = int(response.headers.get('Retry-After', 60))
+                logger.warning(f"⚠️ Rate limited. Waiting {retry_after}s...")
+                time.sleep(retry_after)
+                continue
+            
+            response.raise_for_status()
+            json_response = response.json()
+            
+            if json_response.get('ok') is True:
+                return True, None
+            
+            error_desc = json_response.get('description', '')
+            return False, error_desc
+            
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:
+                wait_time = 2.0 ** attempt
+                logger.warning(f"⚠️ Request failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                return False, str(e)
+    
+    return False, "Max retries exceeded"
 
 
 def send_telegram_message_safe(
