@@ -23,7 +23,6 @@ LIGHT_COMMANDS = {
 # Lệnh nặng - cần enqueue job
 HEAVY_COMMANDS = {
     '/report': 'handle_report',  # Kết hợp cả báo cáo tài chính và trạng thái
-    '/statusads': 'handle_report',  # Redirect sang /report
     '/run': 'handle_run_automation',
     '/test': 'handle_test_automation',
 }
@@ -143,7 +142,6 @@ class CommandProcessor:
 
 **Lệnh báo cáo:**
 /report - Báo cáo tổng hợp (tài chính + trạng thái)
-/statusads - Tương tự /report (đã được kết hợp)
 /run - Chạy automation
 /test - Test automation (bỏ qua khung giờ)
 """

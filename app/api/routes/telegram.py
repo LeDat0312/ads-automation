@@ -104,13 +104,12 @@ async def telegram_webhook(
         elif cmd in HEAVY_COMMANDS:
             job_queue = JobQueue(db=db)
             try:
-                # Kiểm tra duplicate job trước khi gửi "Đang xử lý..."
+                # Kiểm tra duplicate job TRƯỚC KHI gửi "Đang xử lý..."
                 # Tạo unique key để check
                 command = parsed.get('cmd')
                 message_id = parsed.get('message_id')
-                unique_key = f"{chat_id}:{command}:{message_id or 'none'}"
                 
-                # Check xem đã có job đang xử lý chưa
+                # Check xem đã có job đang xử lý chưa (cùng command và chat_id)
                 existing_jobs = db.query(Job).filter(
                     and_(
                         Job.job_type == 'telegram_command',
@@ -121,11 +120,9 @@ async def telegram_webhook(
                 
                 for existing_job in existing_jobs:
                     job_cmd = existing_job.payload.get('cmd') or existing_job.payload.get('command')
-                    job_msg_id = existing_job.payload.get('message_id')
-                    existing_key = f"{chat_id}:{job_cmd}:{job_msg_id or 'none'}"
-                    
-                    if existing_key == unique_key:
-                        logger.info(f"⏭️ Duplicate command {command} for chat {chat_id}, skipping")
+                    # Nếu cùng command, bỏ qua (tránh duplicate)
+                    if job_cmd == command:
+                        logger.info(f"⏭️ Duplicate command {command} for chat {chat_id} (existing job: {existing_job.id}), skipping")
                         return Response(status_code=200)  # Trả 200 OK ngay, không xử lý
                 
                 # Gửi "Đang xử lý..." ngay và lưu message_id để edit sau
@@ -151,7 +148,7 @@ async def telegram_webhook(
                     user_id=parsed.get('user_id')
                 )
             except ValueError as e:
-                # Rate limit hoặc duplicate job
+                # Rate limit hoặc duplicate job (từ enqueue_job)
                 logger.warning(f"⚠️ {str(e)}")
                 # Không gửi message vì có thể đã có job đang xử lý
             except Exception as e:
