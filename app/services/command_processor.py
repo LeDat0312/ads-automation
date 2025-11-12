@@ -468,32 +468,16 @@ Dùng /help để xem danh sách lệnh.
         chat_id = payload.get('chat_id')
         message_id = payload.get('message_id')
         
-        # Gửi message ban đầu và lấy message_id để edit
-        progress_message_id = None
-        if chat_id:
-            try:
-                success, result = send_message(
-                    chat_id,
-                    "⏳ Đang xử lý...",
-                    settings.TELEGRAM_BOT_TOKEN,
-                    reply_to_message_id=message_id
-                )
-                if success and isinstance(result, int):
-                    progress_message_id = result
-            except Exception as e:
-                logger.error(f"❌ Error sending initial message: {e}")
+        # Lấy progress_message_id từ payload (đã được webhook gửi)
+        progress_message_id = payload.get('progress_message_id')
         
         def send_progress(msg: str):
-            """Gửi progress update - edit message nếu có progress_message_id"""
-            if chat_id:
+            """Gửi progress update - chỉ edit message, không tạo mới"""
+            if chat_id and progress_message_id:
                 try:
-                    if progress_message_id:
-                        edit_message(chat_id, progress_message_id, msg, settings.TELEGRAM_BOT_TOKEN)
-                    else:
-                        # Fallback: gửi message mới
-                        send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
+                    edit_message(chat_id, progress_message_id, msg, settings.TELEGRAM_BOT_TOKEN)
                 except Exception as e:
-                    logger.error(f"❌ Error sending progress: {e}")
+                    logger.error(f"❌ Error editing progress: {e}")
         
         try:
             # Bước 1: Pull data mới từ Facebook
@@ -521,10 +505,27 @@ Dùng /help để xem danh sách lệnh.
                 # Lấy danh sách prefix được phép từ LogicRules
                 allowed_prefixes = extract_prefixes_from_logic_rules()
                 
-                # Lấy tất cả metrics hôm nay (cả ACTIVE và PAUSED)
+                # Lấy tất cả unique adsets (không chỉ hôm nay) để đếm status chính xác
+                # Query để lấy adset_id, account_id, campaign_name, status mới nhất
                 today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-                metrics = db.query(AdMetrics).filter(
+                
+                # Lấy metrics hôm nay để tính spend và enabled
+                metrics_today = db.query(AdMetrics).filter(
                     AdMetrics.date >= today
+                ).all()
+                
+                # Lấy tất cả unique adsets (lấy status mới nhất) - không chỉ hôm nay
+                all_adsets = db.query(
+                    AdMetrics.adset_id,
+                    AdMetrics.account_id,
+                    AdMetrics.campaign_name,
+                    AdMetrics.adset_status,
+                    func.max(AdMetrics.updated_at).label('latest_update')
+                ).group_by(
+                    AdMetrics.adset_id,
+                    AdMetrics.account_id,
+                    AdMetrics.campaign_name,
+                    AdMetrics.adset_status
                 ).all()
                 
                 # Thống kê theo account và prefix: { accountId: { prefix: { enabled, active, paused, total, spend } } }
@@ -536,58 +537,61 @@ Dùng /help để xem danh sách lệnh.
                     'spend': 0.0  # Tổng số tiền chi tiêu
                 }))
                 
-                adset_ids_seen = {}  # { adset_key: { status, impressions } } để đếm unique adsets
+                # Dictionary để lưu status mới nhất của mỗi adset
+                adset_status_map = {}  # { adset_key: { status, account_id, prefix, campaign_name } }
                 
-                for m in metrics:
-                    if not m.account_id or not m.campaign_name or not m.adset_id:
+                # Thu thập status của tất cả adsets
+                for row in all_adsets:
+                    if not row.account_id or not row.campaign_name or not row.adset_id:
                         continue
                     
-                    # Kiểm tra prefix có trong LogicRules không
-                    prefix = has_allowed_prefix(m.campaign_name, allowed_prefixes)
+                    prefix = has_allowed_prefix(row.campaign_name, allowed_prefixes)
                     if not prefix:
-                        continue  # Bỏ qua nếu không match prefix nào
+                        continue
                     
-                    # Key để check unique adset
-                    adset_key = f"{m.account_id}|{m.adset_id}"
-                    impressions = m.impressions or 0
-                    
-                    # Lưu thông tin adset (lấy status và impressions từ record đầu tiên hoặc tốt nhất)
-                    if adset_key not in adset_ids_seen:
-                        adset_ids_seen[adset_key] = {
-                            'status': m.adset_status,
-                            'impressions': impressions,
-                            'account_id': m.account_id,
-                            'prefix': prefix
+                    adset_key = f"{row.account_id}|{row.adset_id}"
+                    if adset_key not in adset_status_map:
+                        adset_status_map[adset_key] = {
+                            'status': row.adset_status,
+                            'account_id': row.account_id,
+                            'prefix': prefix,
+                            'campaign_name': row.campaign_name
                         }
-                        stats_by_account[m.account_id][prefix]['total'] += 1
-                    else:
-                        # Nếu đã có, cập nhật nếu impressions cao hơn hoặc status tốt hơn
-                        existing = adset_ids_seen[adset_key]
-                        if impressions > existing['impressions']:
-                            existing['impressions'] = impressions
-                            existing['status'] = m.adset_status
-                    
-                    # Tính tổng số tiền chi tiêu (chỉ tính các ad có impressions > 0)
-                    if impressions > 0:
-                        stats_by_account[m.account_id][prefix]['spend'] += m.spend or 0
                 
-                # Đếm adsets theo status sau khi đã thu thập tất cả
-                for adset_key, adset_info in adset_ids_seen.items():
+                # Đếm adsets theo status
+                for adset_key, adset_info in adset_status_map.items():
                     account_id = adset_info['account_id']
                     prefix = adset_info['prefix']
                     status = adset_info['status']
-                    impressions = adset_info['impressions']
                     
-                    # Đếm ads bật hôm nay (impressions > 0 và status = ACTIVE)
-                    if status == 'ACTIVE' and impressions > 0:
-                        stats_by_account[account_id][prefix]['enabled'] += 1
-                        stats_by_account[account_id][prefix]['active'] += 1
-                    elif status == 'ACTIVE':
+                    stats_by_account[account_id][prefix]['total'] += 1
+                    
+                    if status == 'ACTIVE':
                         stats_by_account[account_id][prefix]['active'] += 1
                     elif status == 'PAUSED':
                         stats_by_account[account_id][prefix]['paused'] += 1
                 
-                # Tạo báo cáo
+                # Tính spend và enabled từ metrics hôm nay
+                for m in metrics_today:
+                    if not m.account_id or not m.campaign_name or not m.adset_id:
+                        continue
+                    
+                    prefix = has_allowed_prefix(m.campaign_name, allowed_prefixes)
+                    if not prefix:
+                        continue
+                    
+                    impressions = m.impressions or 0
+                    adset_key = f"{m.account_id}|{m.adset_id}"
+                    
+                    # Tính tổng số tiền chi tiêu (chỉ tính các ad có impressions > 0)
+                    if impressions > 0:
+                        stats_by_account[m.account_id][prefix]['spend'] += m.spend or 0
+                        
+                        # Đếm ads bật hôm nay (impressions > 0 và status = ACTIVE)
+                        if adset_key in adset_status_map and adset_status_map[adset_key]['status'] == 'ACTIVE':
+                            stats_by_account[m.account_id][prefix]['enabled'] += 1
+                
+                # Tạo báo cáo với format đẹp và chuyên nghiệp
                 lines = []
                 lines.append('📊 **BÁO CÁO TỔNG KẾT**')
                 lines.append('━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
@@ -605,39 +609,40 @@ Dùng /help để xem danh sách lệnh.
                     account_active = 0
                     account_paused = 0
                     account_total = 0
+                    account_spend = 0.0
                     
                     for prefix in sorted(stats_by_account[account_id].keys()):
                         prefix_stats = stats_by_account[account_id][prefix]
-                        lines.append(f'  • **{prefix}:**')
-                        lines.append(f'    - Ads bật hôm nay (impressions > 0): {prefix_stats["enabled"]}')
-                        lines.append(f'    - Adsets đang bật: {prefix_stats["active"]}')
-                        lines.append(f'    - Adsets đã tắt: {prefix_stats["paused"]}')
-                        lines.append(f'    - Tổng adsets: {prefix_stats["total"]}')
-                        lines.append(f'    - Tổng số tiền chi tiêu: {prefix_stats["spend"]:,.0f} ₫')
+                        lines.append(f'\n  🔹 **{prefix}:**')
+                        lines.append(f'     ✅ Ads bật hôm nay: `{prefix_stats["enabled"]}`')
+                        lines.append(f'     🟢 Adsets đang bật: `{prefix_stats["active"]}`')
+                        lines.append(f'     🔴 Adsets đã tắt: `{prefix_stats["paused"]}`')
+                        lines.append(f'     📦 Tổng adsets: `{prefix_stats["total"]}`')
+                        lines.append(f'     💰 Chi tiêu: `{prefix_stats["spend"]:,.0f} ₫`')
                         
                         account_enabled += prefix_stats['enabled']
                         account_active += prefix_stats['active']
                         account_paused += prefix_stats['paused']
                         account_total += prefix_stats['total']
+                        account_spend += prefix_stats['spend']
                     
-                    lines.append(f'  **Tổng Account:** Bật={account_enabled}, Đang bật={account_active}, Đã tắt={account_paused}, Tổng={account_total}\n')
+                    lines.append(f'\n  📈 **Tổng Account:**')
+                    lines.append(f'     ✅ Bật: `{account_enabled}` | 🟢 Đang bật: `{account_active}` | 🔴 Đã tắt: `{account_paused}` | 📦 Tổng: `{account_total}`')
+                    lines.append(f'     💰 Chi tiêu: `{account_spend:,.0f} ₫`')
                     
                     total_enabled_all += account_enabled
                     total_active_all += account_active
                     total_paused_all += account_paused
                     total_adsets_all += account_total
-                    
-                    # Tính tổng số tiền chi tiêu cho account
-                    account_spend = sum(stats_by_account[account_id][p]['spend'] for p in stats_by_account[account_id].keys())
                     total_spend_all += account_spend
                 
-                lines.append('━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-                lines.append('**TỔNG TẤT CẢ:**')
-                lines.append(f'  • Ads bật hôm nay (impressions > 0): {total_enabled_all}')
-                lines.append(f'  • Adsets đang bật: {total_active_all}')
-                lines.append(f'  • Adsets đã tắt: {total_paused_all}')
-                lines.append(f'  • Tổng adsets: {total_adsets_all}')
-                lines.append(f'  • Tổng số tiền đã chi tiêu: {total_spend_all:,.0f} ₫')
+                lines.append('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+                lines.append('📊 **TỔNG TẤT CẢ:**')
+                lines.append(f'  ✅ Ads bật hôm nay: `{total_enabled_all}`')
+                lines.append(f'  🟢 Adsets đang bật: `{total_active_all}`')
+                lines.append(f'  🔴 Adsets đã tắt: `{total_paused_all}`')
+                lines.append(f'  📦 Tổng adsets: `{total_adsets_all}`')
+                lines.append(f'  💰 Tổng chi tiêu: `{total_spend_all:,.0f} ₫`')
                 
                 # Thêm thời gian báo cáo (dùng timezone Asia/Ho_Chi_Minh - UTC+7)
                 tz_vn = tz('Asia/Ho_Chi_Minh')
