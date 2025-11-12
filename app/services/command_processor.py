@@ -22,8 +22,8 @@ LIGHT_COMMANDS = {
 
 # Lệnh nặng - cần enqueue job
 HEAVY_COMMANDS = {
-    '/report': 'handle_report',
-    '/statusads': 'handle_statusads',
+    '/report': 'handle_report',  # Kết hợp cả báo cáo tài chính và trạng thái
+    '/statusads': 'handle_report',  # Redirect sang /report
     '/run': 'handle_run_automation',
     '/test': 'handle_test_automation',
 }
@@ -181,11 +181,18 @@ Dùng /help để xem danh sách lệnh.
     @staticmethod
     def handle_report(payload: Dict[str, Any]) -> Optional[str]:
         """
-        Xử lý /report - Pull data mới và tạo báo cáo tổng hợp
-        Logic tương tự hàm tongKetCuoiNgay() từ Code.gs
+        Xử lý /report - Kết hợp báo cáo tài chính và trạng thái
+        Bao gồm:
+        1. Báo cáo tài chính (từ tongKetCuoiNgay): Chi tiêu, Tương tác, Giá DATA, SĐT, Giá SĐT
+        2. Báo cáo trạng thái (từ generateSummaryReport): Ads bật, Adsets đang bật, Adsets đã tắt
         """
         from app.services.telegram_bot import send_message, edit_message
         from app.core.config import get_settings
+        from app.core.database import get_db_session, AdMetrics
+        from app.services.prefix_helper import extract_prefixes_from_logic_rules, has_allowed_prefix
+        from collections import defaultdict
+        from sqlalchemy import func, and_
+        from pytz import timezone as tz
         
         settings = get_settings()
         chat_id = payload.get('chat_id')
@@ -193,20 +200,16 @@ Dùng /help để xem danh sách lệnh.
         progress_message_id = payload.get('progress_message_id')
         
         def send_progress(msg: str):
-            """Gửi progress update - edit message nếu có progress_message_id"""
-            if chat_id:
+            """Gửi progress update - chỉ edit message, không tạo mới"""
+            if chat_id and progress_message_id:
                 try:
-                    if progress_message_id:
-                        edit_message(chat_id, progress_message_id, msg, settings.TELEGRAM_BOT_TOKEN)
-                    else:
-                        # Fallback: gửi message mới
-                        send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
+                    edit_message(chat_id, progress_message_id, msg, settings.TELEGRAM_BOT_TOKEN)
                 except Exception as e:
-                    logger.error(f"❌ Error sending progress: {e}")
+                    logger.error(f"❌ Error editing progress: {e}")
         
         try:
             # Bước 1: Pull data mới từ Facebook
-            send_progress("📥 Đang pull dữ liệu từ Facebook...")
+            # _pull_and_save_data sẽ tự gửi progress qua progress_callback
             pull_msg, pull_count = CommandProcessor._pull_and_save_data(
                 chat_id=chat_id,
                 message_id=message_id,
@@ -214,114 +217,245 @@ Dùng /help để xem danh sách lệnh.
                 progress_callback=send_progress
             )
             
-            # Nếu có lỗi khi pull, trả về luôn
+            # Nếu có lỗi khi pull, edit message và return None
             if pull_msg.startswith("❌"):
-                return pull_msg
+                if chat_id and progress_message_id:
+                    try:
+                        edit_message(chat_id, progress_message_id, pull_msg, settings.TELEGRAM_BOT_TOKEN)
+                    except:
+                        pass
+                return None  # Không trả về để worker không gửi duplicate
             
-            # Bước 2: Tạo báo cáo tổng hợp (theo logic tongKetCuoiNgay từ Code.gs)
+            # Bước 2: Tạo báo cáo kết hợp (tài chính + trạng thái)
             send_progress("📊 Đang tạo báo cáo tổng hợp...")
-            
-            from app.core.database import get_db_session, AdMetrics
-            from app.services.prefix_helper import extract_prefixes_from_logic_rules, has_allowed_prefix
-            from collections import defaultdict
             
             db = get_db_session()
             try:
-                # Lấy danh sách prefix được phép từ LogicRules (tự động đọc từ LogicRules)
+                # Lấy danh sách prefix được phép từ LogicRules
                 allowed_prefixes = extract_prefixes_from_logic_rules()
                 
                 if not allowed_prefixes:
                     logger.warning("⚠️ Không đọc được prefix từ LogicRules, dùng danh sách mặc định")
                     allowed_prefixes = ['PX', 'TL', 'FL', 'NM', 'CCHL', 'DHHL', 'HSHL', 'CCB']
                 
-                logger.info(f"📋 Prefix được sử dụng cho tổng kết: {', '.join(allowed_prefixes)}")
+                logger.info(f"📋 Prefix được sử dụng: {', '.join(allowed_prefixes)}")
                 
-                # Tổng kết theo account và prefix: { accountId: { prefix: {spend, interactions, phones} } }
-                # QUAN TRỌNG: Chỉ lấy ads có impressions > 0 (giống Google Script)
-                # KHÔNG filter theo date - lấy tất cả dữ liệu có impressions > 0
-                metrics = db.query(AdMetrics).filter(
+                today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                
+                # ===== PHẦN 1: BÁO CÁO TÀI CHÍNH (từ tongKetCuoiNgay) =====
+                # Lấy metrics có impressions > 0 để tính tài chính
+                metrics_financial = db.query(AdMetrics).filter(
                     AdMetrics.impressions > 0
                 ).all()
                 
-                # Aggregate: { account_id: { prefix: {spend, interactions, phones} } }
-                agg = defaultdict(lambda: defaultdict(lambda: {'spend': 0.0, 'interactions': 0, 'phones': 0}))
-                account_ids = set()  # Để lưu danh sách account IDs đã gặp
+                # Aggregate tài chính: { account_id: { prefix: {spend, interactions, phones} } }
+                agg_financial = defaultdict(lambda: defaultdict(lambda: {'spend': 0.0, 'interactions': 0, 'phones': 0}))
+                account_ids = set()
                 
-                for m in metrics:
+                for m in metrics_financial:
                     if not m.account_id or not m.campaign_name:
                         continue
                     
-                    # Lấy prefix từ campaign name và kiểm tra có trong LogicRules không
                     prefix = has_allowed_prefix(m.campaign_name, allowed_prefixes)
                     if not prefix:
-                        continue  # Bỏ qua nếu không match prefix nào
+                        continue
                     
-                    # Khởi tạo cấu trúc nếu chưa có
                     account_id = str(m.account_id).strip()
                     account_ids.add(account_id)
                     
-                    # Interactions = results (comments + messages) - đã được tính trong facebook_api.py
                     interactions = int(m.results or 0)
-                    # Phones = checkouts initiated (sdt field)
                     phones = int(m.sdt or 0)
                     spend = float(m.spend or 0)
                     
-                    # Cộng dồn
-                    agg[account_id][prefix]['spend'] += spend
-                    agg[account_id][prefix]['interactions'] += interactions
-                    agg[account_id][prefix]['phones'] += phones
+                    agg_financial[account_id][prefix]['spend'] += spend
+                    agg_financial[account_id][prefix]['interactions'] += interactions
+                    agg_financial[account_id][prefix]['phones'] += phones
                 
-                # Tạo báo cáo (format giống Google Script)
+                # ===== PHẦN 2: BÁO CÁO TRẠNG THÁI (từ generateSummaryReport) =====
+                # Lấy metrics hôm nay để tính spend và enabled
+                metrics_today = db.query(AdMetrics).filter(
+                    AdMetrics.date >= today
+                ).all()
+                
+                # Lấy tất cả unique adsets với status mới nhất
+                latest_updates = db.query(
+                    AdMetrics.adset_id,
+                    AdMetrics.account_id,
+                    func.max(AdMetrics.updated_at).label('max_updated_at')
+                ).group_by(
+                    AdMetrics.adset_id,
+                    AdMetrics.account_id
+                ).subquery()
+                
+                all_adsets = db.query(
+                    AdMetrics.adset_id,
+                    AdMetrics.account_id,
+                    AdMetrics.campaign_name,
+                    AdMetrics.adset_status
+                ).join(
+                    latest_updates,
+                    and_(
+                        AdMetrics.adset_id == latest_updates.c.adset_id,
+                        AdMetrics.account_id == latest_updates.c.account_id,
+                        AdMetrics.updated_at == latest_updates.c.max_updated_at
+                    )
+                ).distinct().all()
+                
+                # Thống kê trạng thái: { accountId: { prefix: { enabled, active, paused, total, spend } } }
+                stats_by_account = defaultdict(lambda: defaultdict(lambda: {
+                    'enabled': 0,  # Ads bật hôm nay (impressions > 0 và status = ACTIVE)
+                    'active': 0,   # Adsets đang bật (status = ACTIVE)
+                    'paused': 0,   # Adsets đã tắt (status = PAUSED)
+                    'total': 0,   # Tổng adsets
+                    'spend': 0.0  # Tổng số tiền chi tiêu (hôm nay)
+                }))
+                
+                # Dictionary để lưu status mới nhất của mỗi adset
+                adset_status_map = {}
+                
+                # Thu thập status của tất cả adsets
+                for row in all_adsets:
+                    if not row.account_id or not row.campaign_name or not row.adset_id:
+                        continue
+                    
+                    prefix = has_allowed_prefix(row.campaign_name, allowed_prefixes)
+                    if not prefix:
+                        continue
+                    
+                    adset_key = f"{row.account_id}|{row.adset_id}"
+                    if adset_key not in adset_status_map:
+                        adset_status_map[adset_key] = {
+                            'status': row.adset_status,
+                            'account_id': row.account_id,
+                            'prefix': prefix,
+                            'campaign_name': row.campaign_name
+                        }
+                
+                # Đếm adsets theo status
+                for adset_key, adset_info in adset_status_map.items():
+                    account_id = adset_info['account_id']
+                    prefix = adset_info['prefix']
+                    status = adset_info['status']
+                    
+                    stats_by_account[account_id][prefix]['total'] += 1
+                    
+                    if status == 'ACTIVE':
+                        stats_by_account[account_id][prefix]['active'] += 1
+                    elif status == 'PAUSED':
+                        stats_by_account[account_id][prefix]['paused'] += 1
+                
+                # Tính spend và enabled từ metrics hôm nay
+                for m in metrics_today:
+                    if not m.account_id or not m.campaign_name or not m.adset_id:
+                        continue
+                    
+                    prefix = has_allowed_prefix(m.campaign_name, allowed_prefixes)
+                    if not prefix:
+                        continue
+                    
+                    impressions = m.impressions or 0
+                    adset_key = f"{m.account_id}|{m.adset_id}"
+                    
+                    if impressions > 0:
+                        stats_by_account[m.account_id][prefix]['spend'] += m.spend or 0
+                        
+                        if adset_key in adset_status_map and adset_status_map[adset_key]['status'] == 'ACTIVE':
+                            stats_by_account[m.account_id][prefix]['enabled'] += 1
+                
+                # ===== TẠO BÁO CÁO KẾT HỢP =====
                 lines = []
-                lines.append('🧾 **TỔNG KẾT CUỐI NGÀY**')
+                lines.append('📊 **BÁO CÁO TỔNG HỢP**')
                 lines.append('━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
                 
-                # Sắp xếp account IDs để hiển thị
+                # Tổng kết theo từng account
                 sorted_account_ids = sorted(account_ids)
                 
-                # Tổng kết theo từng account
-                for account_id in sorted_account_ids:
-                    account_data = agg[account_id]
-                    account_prefixes = sorted(account_data.keys())
-                    
-                    lines.append(f'\n📛 **Tài khoản:** `{account_id}`')
-                    
-                    # Tổng kết theo từng prefix trong account
-                    for prefix in account_prefixes:
-                        a = account_data[prefix]
-                        # Giá DATA = Spend / Interactions
-                        cpd = (a['spend'] / a['interactions']) if a['interactions'] > 0 else 0
-                        # Giá SĐT = Spend / Phones
-                        cpphone = (a['spend'] / a['phones']) if a['phones'] > 0 else 0
-                        # Tỷ lệ SĐT/Tương tác = (Phones / Interactions) * 100
-                        phone_rate = (a['phones'] / a['interactions'] * 100) if a['interactions'] > 0 else 0
-                        
-                        lines.append(f'  — **{prefix}:**')
-                        lines.append(f'    • Chi tiêu: {a["spend"]:,.0f} ₫')
-                        lines.append(f'    • Tương tác: {int(a["interactions"])}')
-                        lines.append(f'    • Giá DATA: {cpd:,.0f} ₫')
-                        lines.append(f'    • SĐT (checkout): {int(a["phones"])}')
-                        lines.append(f'    • Giá SĐT: {cpphone:,.0f} ₫')
-                        lines.append(f'    • Tỷ lệ SĐT/Tương tác: {phone_rate:.1f}%')
+                total_enabled_all = 0
+                total_active_all = 0
+                total_paused_all = 0
+                total_adsets_all = 0
+                total_spend_all = 0.0
                 
-                # Thêm thời gian báo cáo (dùng timezone Asia/Ho_Chi_Minh - UTC+7)
-                from pytz import timezone
-                tz = timezone('Asia/Ho_Chi_Minh')
-                now = datetime.now(tz)
+                for account_id in sorted_account_ids:
+                    lines.append(f'\n📌 **Tài khoản:** `{account_id}`')
+                    
+                    account_enabled = 0
+                    account_active = 0
+                    account_paused = 0
+                    account_total = 0
+                    account_spend_today = 0.0
+                    
+                    # Lấy danh sách prefix từ cả 2 báo cáo
+                    financial_prefixes = set(agg_financial[account_id].keys())
+                    status_prefixes = set(stats_by_account[account_id].keys())
+                    all_prefixes = sorted(financial_prefixes | status_prefixes)
+                    
+                    for prefix in all_prefixes:
+                        lines.append(f'\n  🔹 **{prefix}:**')
+                        
+                        # Phần tài chính
+                        if prefix in agg_financial[account_id]:
+                            a = agg_financial[account_id][prefix]
+                            cpd = (a['spend'] / a['interactions']) if a['interactions'] > 0 else 0
+                            cpphone = (a['spend'] / a['phones']) if a['phones'] > 0 else 0
+                            phone_rate = (a['phones'] / a['interactions'] * 100) if a['interactions'] > 0 else 0
+                            
+                            lines.append(f'     💰 **Chi tiêu:** `{a["spend"]:,.0f} ₫`')
+                            lines.append(f'     📈 **Tương tác:** `{int(a["interactions"])}`')
+                            lines.append(f'     💵 **Giá DATA:** `{cpd:,.0f} ₫`')
+                            lines.append(f'     📱 **SĐT (checkout):** `{int(a["phones"])}`')
+                            lines.append(f'     💳 **Giá SĐT:** `{cpphone:,.0f} ₫`')
+                            lines.append(f'     📊 **Tỷ lệ SĐT/Tương tác:** `{phone_rate:.1f}%`')
+                        
+                        # Phần trạng thái
+                        if prefix in stats_by_account[account_id]:
+                            s = stats_by_account[account_id][prefix]
+                            lines.append(f'     ✅ **Ads bật hôm nay:** `{s["enabled"]}`')
+                            lines.append(f'     🟢 **Adsets đang bật:** `{s["active"]}`')
+                            lines.append(f'     🔴 **Adsets đã tắt:** `{s["paused"]}`')
+                            lines.append(f'     📦 **Tổng adsets:** `{s["total"]}`')
+                            
+                            account_enabled += s['enabled']
+                            account_active += s['active']
+                            account_paused += s['paused']
+                            account_total += s['total']
+                            account_spend_today += s['spend']
+                    
+                    lines.append(f'\n  📈 **Tổng Account:**')
+                    lines.append(f'     ✅ Bật: `{account_enabled}` | 🟢 Đang bật: `{account_active}` | 🔴 Đã tắt: `{account_paused}` | 📦 Tổng: `{account_total}`')
+                    lines.append(f'     💰 Chi tiêu hôm nay: `{account_spend_today:,.0f} ₫`')
+                    
+                    total_enabled_all += account_enabled
+                    total_active_all += account_active
+                    total_paused_all += account_paused
+                    total_adsets_all += account_total
+                    total_spend_all += account_spend_today
+                
+                # Tổng kết tất cả
+                lines.append('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+                lines.append('📊 **TỔNG TẤT CẢ:**')
+                lines.append(f'  ✅ Ads bật hôm nay: `{total_enabled_all}`')
+                lines.append(f'  🟢 Adsets đang bật: `{total_active_all}`')
+                lines.append(f'  🔴 Adsets đã tắt: `{total_paused_all}`')
+                lines.append(f'  📦 Tổng adsets: `{total_adsets_all}`')
+                lines.append(f'  💰 Tổng chi tiêu hôm nay: `{total_spend_all:,.0f} ₫`')
+                
+                # Thêm thời gian báo cáo
+                tz_vn = tz('Asia/Ho_Chi_Minh')
+                now = datetime.now(tz_vn)
                 time_str = now.strftime('%H:%M')
                 date_str = now.strftime('%d/%m/%Y')
                 lines.append(f'\n⏰ **Thời gian:** {time_str} ngày {date_str}')
                 
                 report = '\n'.join(lines)
                 
-                # Edit message cuối cùng thay vì trả về (để tránh duplicate)
+                # Edit message cuối cùng và return None để tránh duplicate
                 if chat_id and progress_message_id:
                     try:
                         edit_message(chat_id, progress_message_id, report, settings.TELEGRAM_BOT_TOKEN)
-                        return None  # Không trả về để worker không gửi message mới
+                        return None  # QUAN TRỌNG: Return None để worker không gửi duplicate
                     except Exception as e:
                         logger.error(f"❌ Error editing final message: {e}")
-                        # Fallback: trả về để worker gửi message mới
                         return report
                 
                 return report
@@ -329,7 +463,12 @@ Dùng /help để xem danh sách lệnh.
                 logger.error(f"❌ Error generating report: {e}", exc_info=True)
                 error_msg = f"❌ **LỖI tạo báo cáo:** {str(e)}"
                 send_progress(error_msg)
-                return error_msg
+                if chat_id and progress_message_id:
+                    try:
+                        edit_message(chat_id, progress_message_id, error_msg, settings.TELEGRAM_BOT_TOKEN)
+                    except:
+                        pass
+                return None  # Return None để tránh duplicate
             finally:
                 db.close()
             
@@ -337,7 +476,12 @@ Dùng /help để xem danh sách lệnh.
             error_msg = f"❌ **LỖI NGHIÊM TRỌNG:** {str(e)}"
             logger.error(f"❌ Error generating report: {e}", exc_info=True)
             send_progress(error_msg)
-            return error_msg
+            if chat_id and progress_message_id:
+                try:
+                    edit_message(chat_id, progress_message_id, error_msg, settings.TELEGRAM_BOT_TOKEN)
+                except:
+                    pass
+            return None  # Return None để tránh duplicate
     
     @staticmethod
     def _pull_and_save_data(chat_id: Optional[str] = None, message_id: Optional[int] = None, progress_message_id: Optional[int] = None, progress_callback=None) -> Tuple[str, int]:
