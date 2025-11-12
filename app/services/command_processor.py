@@ -187,9 +187,15 @@ Dùng /help để xem danh sách lệnh.
         settings = get_settings()
         chat_id = payload.get('chat_id')
         message_id = payload.get('message_id')
+        last_progress_msg = None  # Track last message để tránh duplicate
         
         def send_progress(msg: str):
-            """Gửi progress update"""
+            """Gửi progress update - chỉ gửi nếu message khác message trước"""
+            nonlocal last_progress_msg
+            if msg == last_progress_msg:
+                return  # Skip duplicate
+            last_progress_msg = msg
+            
             if chat_id:
                 try:
                     send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
@@ -249,9 +255,15 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
         
         settings = get_settings()
         start_time = datetime.now()
+        last_progress_msg = None  # Track last message để tránh duplicate
         
         def send_progress(msg: str):
-            """Gửi progress update"""
+            """Gửi progress update - chỉ gửi nếu message khác message trước"""
+            nonlocal last_progress_msg
+            if msg == last_progress_msg:
+                return  # Skip duplicate
+            last_progress_msg = msg
+            
             if progress_callback:
                 progress_callback(msg)
             elif chat_id:
@@ -297,14 +309,24 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
                     ).first()
                     
                     if existing:
-                        # Update
+                        # Update - chỉ update các fields hợp lệ
                         for key, value in ad_metric.items():
-                            if hasattr(existing, key):
+                            if hasattr(existing, key) and not key.startswith('_'):
                                 setattr(existing, key, value)
                         existing.updated_at = datetime.now()
                     else:
-                        # Create new
-                        new_metric = AdMetrics(**ad_metric)
+                        # Create new - chỉ lấy các fields hợp lệ cho AdMetrics
+                        valid_fields = {
+                            'adset_id', 'ad_id', 'ad_name', 'adset_name', 'campaign_name',
+                            'account_id', 'prefix', 'spend', 'impressions', 'clicks', 'results',
+                            'ctr', 'cpc', 'cpa', 'roas', 'gia_data', 'sdt', 'gia_sdt', 'ty_le_sdt',
+                            'adset_status', 'effective_status', 'date', 'date_preset',
+                            'campaign_type', 'campaign_objective', 'amount_spent', 'ket_qua',
+                            'purchases', 'purchase_value', 'revenue', 'leads', 'phone_calls',
+                            'cost_per_lead', 'reach', 'frequency'
+                        }
+                        filtered_metric = {k: v for k, v in ad_metric.items() if k in valid_fields}
+                        new_metric = AdMetrics(**filtered_metric)
                         db.add(new_metric)
                         count += 1
                 
@@ -341,9 +363,15 @@ _Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}_
         settings = get_settings()
         chat_id = payload.get('chat_id')
         message_id = payload.get('message_id')
+        last_progress_msg = None  # Track last message để tránh duplicate
         
         def send_progress(msg: str):
-            """Gửi progress update"""
+            """Gửi progress update - chỉ gửi nếu message khác message trước"""
+            nonlocal last_progress_msg
+            if msg == last_progress_msg:
+                return  # Skip duplicate
+            last_progress_msg = msg
+            
             if chat_id:
                 try:
                     send_message(chat_id, msg, settings.TELEGRAM_BOT_TOKEN, reply_to_message_id=message_id)
