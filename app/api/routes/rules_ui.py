@@ -456,13 +456,15 @@ async def rules_management_page():
                         body: JSON.stringify(formData)
                     }});
                     
+                    const responseData = await response.json();
+                    
                     if (response.ok) {{
                         showAlert(ruleId ? 'Đã cập nhật rule!' : 'Đã tạo rule mới!', 'success');
                         resetForm();
                         loadRules();
                     }} else {{
-                        const error = await response.json();
-                        showAlert('Lỗi: ' + (error.detail || 'Unknown error'), 'error');
+                        const errorMsg = responseData.detail || responseData.message || (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
+                        showAlert('Lỗi: ' + errorMsg, 'error');
                     }}
                 }} catch (error) {{
                     showAlert('Lỗi: ' + error.message, 'error');
