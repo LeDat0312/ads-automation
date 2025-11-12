@@ -481,7 +481,7 @@ Dùng /help để xem danh sách lệnh.
         
         try:
             # Bước 1: Pull data mới từ Facebook
-            send_progress("📥 Đang pull dữ liệu từ Facebook...")
+            # _pull_and_save_data sẽ tự gửi progress qua progress_callback, KHÔNG gửi ở đây
             pull_msg, pull_count = CommandProcessor._pull_and_save_data(
                 chat_id=chat_id,
                 message_id=message_id,
@@ -489,9 +489,14 @@ Dùng /help để xem danh sách lệnh.
                 progress_callback=send_progress
             )
             
-            # Nếu có lỗi khi pull, trả về luôn
+            # Nếu có lỗi khi pull, edit message và return None
             if pull_msg.startswith("❌"):
-                return pull_msg
+                if chat_id and progress_message_id:
+                    try:
+                        edit_message(chat_id, progress_message_id, pull_msg, settings.TELEGRAM_BOT_TOKEN)
+                    except:
+                        pass
+                return None  # Không trả về để worker không gửi duplicate
             
             # Bước 2: Tạo báo cáo (theo logic từ Google Script)
             send_progress("📊 Đang tạo báo cáo...")
@@ -514,19 +519,34 @@ Dùng /help để xem danh sách lệnh.
                     AdMetrics.date >= today
                 ).all()
                 
-                # Lấy tất cả unique adsets (lấy status mới nhất) - không chỉ hôm nay
+                # Lấy tất cả unique adsets với status mới nhất
+                # Dùng subquery để lấy record mới nhất của mỗi adset
+                from sqlalchemy import desc, and_
+                
+                # Subquery: Lấy updated_at mới nhất của mỗi adset
+                latest_updates = db.query(
+                    AdMetrics.adset_id,
+                    AdMetrics.account_id,
+                    func.max(AdMetrics.updated_at).label('max_updated_at')
+                ).group_by(
+                    AdMetrics.adset_id,
+                    AdMetrics.account_id
+                ).subquery()
+                
+                # Query chính: Lấy status từ record có updated_at mới nhất
                 all_adsets = db.query(
                     AdMetrics.adset_id,
                     AdMetrics.account_id,
                     AdMetrics.campaign_name,
-                    AdMetrics.adset_status,
-                    func.max(AdMetrics.updated_at).label('latest_update')
-                ).group_by(
-                    AdMetrics.adset_id,
-                    AdMetrics.account_id,
-                    AdMetrics.campaign_name,
                     AdMetrics.adset_status
-                ).all()
+                ).join(
+                    latest_updates,
+                    and_(
+                        AdMetrics.adset_id == latest_updates.c.adset_id,
+                        AdMetrics.account_id == latest_updates.c.account_id,
+                        AdMetrics.updated_at == latest_updates.c.max_updated_at
+                    )
+                ).distinct().all()
                 
                 # Thống kê theo account và prefix: { accountId: { prefix: { enabled, active, paused, total, spend } } }
                 stats_by_account = defaultdict(lambda: defaultdict(lambda: {
