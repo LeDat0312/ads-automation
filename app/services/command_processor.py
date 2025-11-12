@@ -329,10 +329,11 @@ Dùng /help để xem danh sách lệnh.
                         }
                 
                 # Tính spend, enabled, active, paused từ metrics hôm nay
-                # enabled: đếm số ads (không phải adsets) có impressions > 0 hôm nay
-                # active: đếm số adsets unique có impressions > 0 và status = ACTIVE
-                # paused: đếm số adsets unique có impressions > 0 và status = PAUSED
-                adset_keys_with_impressions = set()  # Để đếm unique adsets có impressions > 0
+                # Logic chính xác:
+                # - enabled: đếm số ads có impressions > 0 hôm nay (theo prefix)
+                # - active: đếm số adsets unique có impressions > 0 và status = ACTIVE (theo prefix)
+                # - paused: đếm số adsets unique có impressions > 0 và status = PAUSED (theo prefix)
+                adset_keys_with_impressions = {}  # {adset_key: {account_id, prefix, status}} để đếm unique adsets
                 
                 for m in metrics_today:
                     if not m.account_id or not m.campaign_name or not m.adset_id:
@@ -352,23 +353,30 @@ Dùng /help để xem danh sách lệnh.
                         # Đếm ads bật hôm nay (mỗi ad có impressions > 0 = 1 ads bật)
                         stats_by_account[m.account_id][prefix]['enabled'] += 1
                         
-                        # Đếm unique adsets có impressions > 0
+                        # Lưu thông tin adset có impressions > 0 (chỉ lưu 1 lần cho mỗi adset)
                         if adset_key not in adset_keys_with_impressions:
-                            adset_keys_with_impressions.add(adset_key)
-                            
-                            # Kiểm tra status của adset này
+                            # Lấy status từ adset_status_map
+                            status = None
                             if adset_key in adset_status_map:
                                 status = adset_status_map[adset_key]['status']
-                                if status == 'ACTIVE':
-                                    stats_by_account[m.account_id][prefix]['active'] += 1
-                                elif status == 'PAUSED':
-                                    stats_by_account[m.account_id][prefix]['paused'] += 1
+                            
+                            adset_keys_with_impressions[adset_key] = {
+                                'account_id': m.account_id,
+                                'prefix': prefix,
+                                'status': status
+                            }
+                            
+                            # Đếm adsets theo status (chỉ đếm 1 lần cho mỗi adset)
+                            if status == 'ACTIVE':
+                                stats_by_account[m.account_id][prefix]['active'] += 1
+                            elif status == 'PAUSED':
+                                stats_by_account[m.account_id][prefix]['paused'] += 1
                 
                 # ===== TẠO BÁO CÁO KẾT HỢP =====
-                # Format compact và dễ nhìn hơn cho cả máy tính và điện thoại
+                # Format block card style - dễ đọc trên cả mobile và desktop
                 lines = []
-                lines.append('📊 **BÁO CÁO TỔNG HỢP**')
-                lines.append('━' * 28)
+                lines.append('📊 *BÁO CÁO TỔNG HỢP*')
+                lines.append('━' * 23)
                 
                 # Tổng kết theo từng account
                 sorted_account_ids = sorted(account_ids)
@@ -379,7 +387,7 @@ Dùng /help để xem danh sách lệnh.
                 total_spend_all = 0.0
                 
                 for account_id in sorted_account_ids:
-                    lines.append(f'\n📌 **Account:** `{account_id}`')
+                    lines.append(f'\n📌 *Tài khoản:* `{account_id}`')
                     
                     account_enabled = 0
                     account_active = 0
@@ -392,49 +400,60 @@ Dùng /help để xem danh sách lệnh.
                     all_prefixes = sorted(financial_prefixes | status_prefixes)
                     
                     for prefix in all_prefixes:
-                        lines.append(f'\n🔹 **{prefix}**')
+                        lines.append(f'\n🏷 *{prefix}*')
                         
-                        # Phần tài chính - format table-like
+                        # Phần tài chính - format block card
                         if prefix in agg_financial[account_id]:
                             a = agg_financial[account_id][prefix]
                             cpd = (a['spend'] / a['interactions']) if a['interactions'] > 0 else 0
                             cpphone = (a['spend'] / a['phones']) if a['phones'] > 0 else 0
                             phone_rate = (a['phones'] / a['interactions'] * 100) if a['interactions'] > 0 else 0
                             
-                            # Format compact trên 2 dòng
-                            lines.append(f'💰 {a["spend"]:,.0f}₫ | 📈 {int(a["interactions"])} | 💵 {cpd:,.0f}₫')
-                            lines.append(f'📱 {int(a["phones"])} | 💳 {cpphone:,.0f}₫ | 📊 {phone_rate:.1f}%')
+                            # Format block card - mỗi metric 1 dòng
+                            lines.append(f'💰 *Chi tiêu:* {a["spend"]:,.0f}₫')
+                            lines.append(f'📈 *Tương tác:* {int(a["interactions"])}')
+                            lines.append(f'💵 *Giá DATA:* {cpd:,.0f}₫')
+                            lines.append(f'📞 *SĐT:* {int(a["phones"])}')
+                            lines.append(f'💳 *Giá SĐT:* {cpphone:,.0f}₫')
+                            lines.append(f'📊 *Tỷ lệ SĐT/Tương tác:* {phone_rate:.1f}%')
                         
-                        # Phần trạng thái - format compact
+                        # Phần trạng thái - format block card
                         if prefix in stats_by_account[account_id]:
                             s = stats_by_account[account_id][prefix]
-                            lines.append(f'✅ {s["enabled"]} | 🟢 {s["active"]} | 🔴 {s["paused"]}')
+                            lines.append(f'🟢 *Ads bật hôm nay:* {s["enabled"]}')
+                            lines.append(f'🟩 *Adsets ACTIVE:* {s["active"]}')
+                            lines.append(f'🟥 *Adsets PAUSED:* {s["paused"]}')
                             
                             account_enabled += s['enabled']
                             account_active += s['active']
                             account_paused += s['paused']
                             account_spend_today += s['spend']
+                        
+                        # Separator giữa các prefix
+                        lines.append('━' * 23)
                     
                     # Tổng account - format compact
-                    lines.append(f'\n📈 **Tổng:** ✅{account_enabled} 🟢{account_active} 🔴{account_paused} | 💰{account_spend_today:,.0f}₫')
+                    lines.append(f'\n📈 *Tổng Account*')
+                    lines.append(f'✅ Bật: {account_enabled} | 🟩 Đang bật: {account_active} | 🟥 Đã tắt: {account_paused}')
+                    lines.append(f'💰 *Chi tiêu hôm nay:* {account_spend_today:,.0f}₫')
                     
                     total_enabled_all += account_enabled
                     total_active_all += account_active
                     total_paused_all += account_paused
                     total_spend_all += account_spend_today
                 
-                # Tổng kết tất cả - format compact
-                lines.append('\n' + '━' * 28)
-                lines.append('📊 **TỔNG TẤT CẢ**')
-                lines.append(f'✅ {total_enabled_all} | 🟢 {total_active_all} | 🔴 {total_paused_all}')
-                lines.append(f'💰 {total_spend_all:,.0f} ₫')
+                # Tổng kết tất cả
+                lines.append('\n' + '━' * 23)
+                lines.append('📊 *TỔNG TẤT CẢ*')
+                lines.append(f'✅ Bật: {total_enabled_all} | 🟩 Đang bật: {total_active_all} | 🟥 Đã tắt: {total_paused_all}')
+                lines.append(f'💰 *Chi tiêu hôm nay:* {total_spend_all:,.0f}₫')
                 
                 # Thêm thời gian báo cáo
                 tz_vn = tz('Asia/Ho_Chi_Minh')
                 now = datetime.now(tz_vn)
                 time_str = now.strftime('%H:%M')
                 date_str = now.strftime('%d/%m/%Y')
-                lines.append(f'\n⏰ {time_str} {date_str}')
+                lines.append(f'\n⏰ *Cập nhật:* {time_str} ngày {date_str}')
                 
                 report = '\n'.join(lines)
                 
