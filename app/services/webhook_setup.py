@@ -48,13 +48,19 @@ async def setup_webhook(webhook_url: Optional[str] = None, drop_pending: bool = 
                 except Exception as e:
                     logger.warning(f"⚠️ Lỗi khi xóa webhook cũ: {e}")
             
-            # Bước 2: Set webhook mới
+            # Bước 2: Set webhook mới với secret_token
             set_url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
             payload = {
                 'url': webhook,
                 'allowed_updates': ['message'],  # Chỉ nhận message updates
                 'drop_pending_updates': drop_pending
             }
+            
+            # Thêm secret_token nếu có
+            webhook_secret = settings.TELEGRAM_WEBHOOK_SECRET
+            if webhook_secret:
+                payload['secret_token'] = webhook_secret
+                logger.info("🔐 Sử dụng webhook secret token để xác thực")
             
             response = await client.post(set_url, data=payload)
             result = response.json()
