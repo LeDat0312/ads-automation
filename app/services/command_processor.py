@@ -368,7 +368,7 @@ Dùng /help để xem danh sách lệnh.
                 # Format compact và dễ nhìn hơn cho cả máy tính và điện thoại
                 lines = []
                 lines.append('📊 **BÁO CÁO TỔNG HỢP**')
-                lines.append('━' * 25)
+                lines.append('━' * 28)
                 
                 # Tổng kết theo từng account
                 sorted_account_ids = sorted(account_ids)
@@ -379,7 +379,7 @@ Dùng /help để xem danh sách lệnh.
                 total_spend_all = 0.0
                 
                 for account_id in sorted_account_ids:
-                    lines.append(f'\n📌 **{account_id}**')
+                    lines.append(f'\n📌 **Account:** `{account_id}`')
                     
                     account_enabled = 0
                     account_active = 0
@@ -392,34 +392,31 @@ Dùng /help để xem danh sách lệnh.
                     all_prefixes = sorted(financial_prefixes | status_prefixes)
                     
                     for prefix in all_prefixes:
-                        # Format compact: prefix và các metrics trên cùng 1 dòng khi có thể
-                        prefix_lines = [f'**{prefix}:**']
+                        lines.append(f'\n🔹 **{prefix}**')
                         
-                        # Phần tài chính
+                        # Phần tài chính - format table-like
                         if prefix in agg_financial[account_id]:
                             a = agg_financial[account_id][prefix]
                             cpd = (a['spend'] / a['interactions']) if a['interactions'] > 0 else 0
                             cpphone = (a['spend'] / a['phones']) if a['phones'] > 0 else 0
                             phone_rate = (a['phones'] / a['interactions'] * 100) if a['interactions'] > 0 else 0
                             
-                            # Format compact: nhóm các metrics liên quan
-                            prefix_lines.append(f'💰 {a["spend"]:,.0f}₫ | 📈 {int(a["interactions"])} | 💵 {cpd:,.0f}₫')
-                            prefix_lines.append(f'📱 {int(a["phones"])} SĐT | 💳 {cpphone:,.0f}₫ | 📊 {phone_rate:.1f}%')
+                            # Format compact trên 2 dòng
+                            lines.append(f'💰 {a["spend"]:,.0f}₫ | 📈 {int(a["interactions"])} | 💵 {cpd:,.0f}₫')
+                            lines.append(f'📱 {int(a["phones"])} | 💳 {cpphone:,.0f}₫ | 📊 {phone_rate:.1f}%')
                         
                         # Phần trạng thái - format compact
                         if prefix in stats_by_account[account_id]:
                             s = stats_by_account[account_id][prefix]
-                            prefix_lines.append(f'✅ {s["enabled"]} | 🟢 {s["active"]} | 🔴 {s["paused"]}')
+                            lines.append(f'✅ {s["enabled"]} | 🟢 {s["active"]} | 🔴 {s["paused"]}')
                             
                             account_enabled += s['enabled']
                             account_active += s['active']
                             account_paused += s['paused']
                             account_spend_today += s['spend']
-                        
-                        lines.append('  ' + ' | '.join(prefix_lines))
                     
                     # Tổng account - format compact
-                    lines.append(f'  **Tổng:** ✅{account_enabled} 🟢{account_active} 🔴{account_paused} | 💰{account_spend_today:,.0f}₫')
+                    lines.append(f'\n📈 **Tổng:** ✅{account_enabled} 🟢{account_active} 🔴{account_paused} | 💰{account_spend_today:,.0f}₫')
                     
                     total_enabled_all += account_enabled
                     total_active_all += account_active
@@ -427,8 +424,8 @@ Dùng /help để xem danh sách lệnh.
                     total_spend_all += account_spend_today
                 
                 # Tổng kết tất cả - format compact
-                lines.append('\n' + '━' * 25)
-                lines.append('📊 **TỔNG:**')
+                lines.append('\n' + '━' * 28)
+                lines.append('📊 **TỔNG TẤT CẢ**')
                 lines.append(f'✅ {total_enabled_all} | 🟢 {total_active_all} | 🔴 {total_paused_all}')
                 lines.append(f'💰 {total_spend_all:,.0f} ₫')
                 
