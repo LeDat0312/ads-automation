@@ -41,9 +41,16 @@ def list_rules(
 @router.post("/", response_model=LogicRuleResponse, status_code=201)
 def create_rule(rule_data: LogicRuleCreate, db: Session = Depends(get_db)):
     """Tạo rule mới"""
-    manager = RuleManager(db)
-    rule = manager.create_rule(rule_data)
-    return LogicRuleResponse.from_orm(rule)
+    try:
+        manager = RuleManager(db)
+        rule = manager.create_rule(rule_data)
+        return LogicRuleResponse.from_orm(rule)
+    except Exception as e:
+        from fastapi import HTTPException
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error creating rule: {e}", exc_info=True)
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 @router.get("/{rule_id}", response_model=LogicRuleResponse)

@@ -593,18 +593,40 @@ async def rules_management_v2():
                 items.forEach(item => {{
                     const metric = item.querySelector('.condition-metric').value;
                     const operator = item.querySelector('.condition-operator').value;
-                    const value = parseFloat(item.querySelector('.condition-value').value);
+                    const valueInput = item.querySelector('.condition-value').value;
                     const timeframe = item.querySelector('.condition-timeframe').value;
                     
-                    if (metric && operator && !isNaN(value)) {{
-                        conditions.push({{
-                            metric: metric,
-                            operator: operator,
-                            value: value,
-                            timeframe: timeframe
-                        }});
+                    // Validate
+                    if (!metric || !operator || !timeframe) {{
+                        return; // Skip invalid condition
                     }}
+                    
+                    // Parse value - có thể là số hoặc string
+                    let value;
+                    if (valueInput === '' || valueInput === null || valueInput === undefined) {{
+                        return; // Skip if value is empty
+                    }}
+                    
+                    // Try parse as number first
+                    const numValue = parseFloat(valueInput);
+                    if (!isNaN(numValue)) {{
+                        value = numValue;
+                    }} else {{
+                        value = valueInput; // Keep as string if not a number
+                    }}
+                    
+                    conditions.push({{
+                        metric: metric,
+                        operator: operator,
+                        value: value,
+                        timeframe: timeframe
+                    }});
                 }});
+                
+                // Phải có ít nhất 1 condition
+                if (conditions.length === 0) {{
+                    return null;
+                }}
                 
                 return {{ AND: conditions }};
             }}
@@ -675,8 +697,8 @@ async def rules_management_v2():
                 }}
                 
                 const conditions = buildConditions();
-                if (conditions.AND.length === 0) {{
-                    showAlert('Vui lòng thêm ít nhất 1 điều kiện!', 'error');
+                if (!conditions || !conditions.AND || conditions.AND.length === 0) {{
+                    showAlert('Vui lòng thêm ít nhất 1 điều kiện hợp lệ! (Metric, Operator, Value, Timeframe)', 'error');
                     return;
                 }}
                 
