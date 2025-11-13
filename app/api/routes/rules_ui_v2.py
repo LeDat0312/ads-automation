@@ -606,6 +606,7 @@ async def rules_management_v2(db: Session = Depends(get_db)):
             // Load rules khi trang load
             window.addEventListener('DOMContentLoaded', () => {{
                 loadRules();
+                load7DaysConfigs();
                 setupFormHandlers();
             }});
             
@@ -615,6 +616,33 @@ async def rules_management_v2(db: Session = Depends(get_db)):
                     e.preventDefault();
                     await saveRule();
                 }});
+                
+                const configForm = document.getElementById('7days-config-form');
+                if (configForm) {{
+                    configForm.addEventListener('submit', async (e) => {{
+                        e.preventDefault();
+                        await save7DaysConfig();
+                    }});
+                }}
+            }}
+            
+            // Switch tab
+            function switchTab(tabName) {{
+                // Hide all tabs
+                document.getElementById('rules-tab').style.display = 'none';
+                document.getElementById('7days-tab').style.display = 'none';
+                
+                // Show selected tab
+                document.getElementById(tabName + '-tab').style.display = 'block';
+                
+                // Update tab buttons
+                document.querySelectorAll('[data-tab]').forEach(btn => {{
+                    btn.classList.remove('active');
+                }});
+                const activeBtn = document.querySelector(`[data-tab="${{tabName}}"]`);
+                if (activeBtn) {{
+                    activeBtn.classList.add('active');
+                }}
             }}
             
             // Select objective
@@ -660,6 +688,24 @@ async def rules_management_v2(db: Session = Depends(get_db)):
                 }} else if (type === 'prefix') {{
                     document.getElementById('display-account').value = account;
                     document.getElementById('display-prefix').value = prefix;
+                }}
+                
+                // Update 7 days config form nếu đang ở tab 7days
+                const tab7days = document.getElementById('7days-tab');
+                if (tab7days && tab7days.style.display !== 'none') {{
+                    document.getElementById('config-account').value = account || '';
+                    document.getElementById('config-prefix').value = prefix || '';
+                    
+                    if (type === 'all') {{
+                        document.getElementById('display-config-account').value = '';
+                        document.getElementById('display-config-prefix').value = '';
+                    }} else if (type === 'account') {{
+                        document.getElementById('display-config-account').value = account;
+                        document.getElementById('display-config-prefix').value = '';
+                    }} else if (type === 'prefix') {{
+                        document.getElementById('display-config-account').value = account;
+                        document.getElementById('display-config-prefix').value = prefix;
+                    }}
                 }}
             }}
             

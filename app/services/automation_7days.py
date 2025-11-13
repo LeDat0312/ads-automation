@@ -121,7 +121,8 @@ def check_and_toggle_ads_7days(
         days_ago = (now - timedelta(days=default_days)).replace(hour=0, minute=0, second=0, microsecond=0)
         
         # Lấy metrics trong N ngày qua, group by adset_id để tính tổng
-        seven_days_metrics = db.query(
+        # Filter theo account_ids và prefixes nếu có
+        query = db.query(
             AdMetrics.adset_id,
             AdMetrics.campaign_id,
             AdMetrics.campaign_name,
@@ -135,7 +136,26 @@ def check_and_toggle_ads_7days(
         ).filter(
             AdMetrics.date >= days_ago,
             AdMetrics.impressions > 0
-        ).group_by(
+        )
+        
+        # Filter theo account_ids nếu có
+        if account_ids:
+            query = query.filter(AdMetrics.account_id.in_(account_ids))
+        
+        # Filter theo prefixes nếu có (qua campaign_name)
+        if prefixes:
+            # Lấy tất cả campaign_names có prefix trong list
+            all_campaigns = db.query(AdMetrics.campaign_name).distinct().all()
+            matching_campaigns = []
+            for (campaign_name,) in all_campaigns:
+                if campaign_name:
+                    prefix = get_prefix_from_name(campaign_name)
+                    if prefix in prefixes:
+                        matching_campaigns.append(campaign_name)
+            if matching_campaigns:
+                query = query.filter(AdMetrics.campaign_name.in_(matching_campaigns))
+        
+        seven_days_metrics = query.group_by(
             AdMetrics.adset_id,
             AdMetrics.campaign_id,
             AdMetrics.campaign_name,
