@@ -4,7 +4,8 @@ Quản lý và apply rule templates tương tự Madgicx
 """
 import logging
 from typing import Dict, Any, List, Optional
-from app.core.database import get_db_session, LogicRule
+from app.core.database import get_db_session
+from app.models.logic_rule import LogicRule
 from app.models.rule_template import RuleTemplate
 
 logger = logging.getLogger(__name__)
