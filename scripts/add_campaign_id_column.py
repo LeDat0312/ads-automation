@@ -41,7 +41,7 @@ def add_campaign_id_column():
                 ADD COLUMN IF NOT EXISTS campaign_id VARCHAR
             """)
             try:
-            conn.execute(alter_query)
+                conn.execute(alter_query)
             except Exception as e:
                 # Nếu lỗi do cú pháp IF NOT EXISTS không hỗ trợ, thử cách khác
                 if "IF NOT EXISTS" in str(e):
