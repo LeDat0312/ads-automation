@@ -324,7 +324,7 @@ async def rules_management_v2():
                     {"".join([f'''
                     <li class="tree-item" data-account="{acc}">
                         <div class="tree-label" onclick="toggleNode(this)">
-                            <span class="tree-icon">▶</span>
+                            <span class="tree-icon">\u25B6</span>
                             <span>{acc}</span>
                         </div>
                         <ul class="tree-children">
