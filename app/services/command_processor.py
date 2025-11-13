@@ -524,6 +524,16 @@ Dùng /help để xem danh sách lệnh.
                 return None  # Return None để tránh duplicate
             finally:
                 db.close()
+        except Exception as e:
+            error_msg = f"❌ **LỖI NGHIÊM TRỌNG:** {str(e)}"
+            logger.error(f"❌ Error in handle_report: {e}", exc_info=True)
+            send_progress(error_msg)
+            if chat_id and progress_message_id:
+                try:
+                    edit_message(chat_id, progress_message_id, error_msg, settings.TELEGRAM_BOT_TOKEN)
+                except:
+                    pass
+            return None  # Return None để tránh duplicate
     
     @staticmethod
     def _pull_and_save_data(chat_id: Optional[str] = None, message_id: Optional[int] = None, progress_message_id: Optional[int] = None, progress_callback=None) -> Tuple[str, int]:
