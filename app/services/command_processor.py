@@ -976,7 +976,4 @@ Dùng /help để xem danh sách lệnh.
             logger.error(f"❌ Error running 7days filter: {e}", exc_info=True)
             send_progress(error_msg)
             return None
-        except Exception as e:
-            logger.error(f"❌ Error running test automation: {e}", exc_info=True)
-            return f"❌ Lỗi khi chạy test automation: {str(e)}"
 
