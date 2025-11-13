@@ -937,6 +937,9 @@ Dùng /help để xem danh sách lệnh.
             thread.start()
             
             return "🧪 Test automation đã được khởi động!\n\n⏳ Đang chạy trong background (bỏ qua khung giờ)..."
+        except Exception as e:
+            logger.error(f"❌ Error running test automation: {e}", exc_info=True)
+            return f"❌ Lỗi khi chạy test automation: {str(e)}"
     
     @staticmethod
     def handle_run_7days_filter(payload: Dict[str, Any]) -> Optional[str]:
