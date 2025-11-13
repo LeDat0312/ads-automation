@@ -1287,6 +1287,175 @@ async def rules_management_v2(db: Session = Depends(get_db)):
                     alert('Lỗi: ' + error.message);
                 }}
             }}
+            
+            // ===== LOGIC 7 DAYS CONFIG FUNCTIONS =====
+            async function load7DaysConfigs() {{
+                try {{
+                    const response = await fetch('/api/logic-7days-config/');
+                    if (!response.ok) {{
+                        throw new Error('Failed to load configs');
+                    }}
+                    const configs = await response.json();
+                    render7DaysConfigs(configs);
+                }} catch (error) {{
+                    const container = document.getElementById('7days-configs-container');
+                    if (container) {{
+                        container.innerHTML = 
+                            '<p style="color: #ef4444;">Lỗi khi tải configs: ' + error.message + '</p>';
+                    }}
+                }}
+            }}
+            
+            function render7DaysConfigs(configs) {{
+                const container = document.getElementById('7days-configs-container');
+                if (!container) return;
+                
+                if (configs.length === 0) {{
+                    container.innerHTML = '<p>Chưa có config nào. Tạo config mới ở trên.</p>';
+                    return;
+                }}
+                
+                container.innerHTML = configs.map(config => `
+                    <div class="rule-card">
+                        <div class="rule-header">
+                            <div>
+                                <div class="rule-title">
+                                    Account: ${{config.account_id || 'Tất cả'}} | Prefix: ${{config.prefix || 'Tất cả'}}
+                                </div>
+                                <div class="rule-badges">
+                                    <span class="badge ${{config.enabled ? 'badge-enabled' : 'badge-disabled'}}">
+                                        ${{config.enabled ? 'Bật' : 'Tắt'}}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 5px;">
+                                <button class="btn btn-secondary" onclick="edit7DaysConfig(${{config.id}})">✏️ Sửa</button>
+                                <button class="btn btn-danger" onclick="delete7DaysConfig(${{config.id}})">🗑️ Xóa</button>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px; color: #666; font-size: 14px;">
+                            <div>Ngưỡng chi tiêu: ${{config.spend_threshold.toLocaleString('vi-VN')}}₫</div>
+                            <div>Ngưỡng giá DATA: ${{config.gia_data_threshold > 0 ? config.gia_data_threshold.toLocaleString('vi-VN') + '₫' : 'Dùng từ Logic Rules'}}</div>
+                            <div>Ngưỡng giữ lại Cost/Purchase: ${{config.cost_per_purchase_keep_threshold.toLocaleString('vi-VN')}}₫</div>
+                            <div>Số ngày: ${{config.days}} ngày</div>
+                        </div>
+                    </div>
+                `).join('');
+            }}
+            
+            async function save7DaysConfig() {{
+                try {{
+                    const configId = document.getElementById('config-id').value;
+                    const accountId = document.getElementById('config-account').value || null;
+                    const prefix = document.getElementById('config-prefix').value || null;
+                    const spendThreshold = parseFloat(document.getElementById('config-spend-threshold').value);
+                    const giaDataThreshold = parseFloat(document.getElementById('config-gia-data-threshold').value);
+                    const costPerPurchase = parseFloat(document.getElementById('config-cost-per-purchase').value);
+                    const days = parseInt(document.getElementById('config-days').value);
+                    const enabled = document.getElementById('config-enabled').checked;
+                    
+                    const configData = {{
+                        account_id: accountId,
+                        prefix: prefix,
+                        spend_threshold: spendThreshold,
+                        gia_data_threshold: giaDataThreshold,
+                        cost_per_purchase_keep_threshold: costPerPurchase,
+                        days: days,
+                        enabled: enabled
+                    }};
+                    
+                    let response;
+                    if (configId) {{
+                        // Update
+                        response = await fetch(`/api/logic-7days-config/${{configId}}`, {{
+                            method: 'PUT',
+                            headers: {{ 'Content-Type': 'application/json' }},
+                            body: JSON.stringify(configData)
+                        }});
+                    }} else {{
+                        // Create
+                        response = await fetch('/api/logic-7days-config/', {{
+                            method: 'POST',
+                            headers: {{ 'Content-Type': 'application/json' }},
+                            body: JSON.stringify(configData)
+                        }});
+                    }}
+                    
+                    if (response.ok) {{
+                        showAlert('Đã lưu config!', 'success');
+                        reset7DaysForm();
+                        load7DaysConfigs();
+                    }} else {{
+                        const error = await response.json();
+                        showAlert('Lỗi: ' + (error.detail || 'Unknown error'), 'error');
+                    }}
+                }} catch (error) {{
+                    showAlert('Lỗi: ' + error.message, 'error');
+                }}
+            }}
+            
+            async function edit7DaysConfig(configId) {{
+                try {{
+                    const response = await fetch(`/api/logic-7days-config/${{configId}}`);
+                    if (!response.ok) {{
+                        throw new Error('Failed to load config');
+                    }}
+                    const config = await response.json();
+                    
+                    // Switch to 7days tab
+                    switchTab('7days');
+                    
+                    // Fill form
+                    document.getElementById('config-id').value = config.id;
+                    document.getElementById('config-account').value = config.account_id || '';
+                    document.getElementById('config-prefix').value = config.prefix || '';
+                    document.getElementById('display-config-account').value = config.account_id || '';
+                    document.getElementById('display-config-prefix').value = config.prefix || '';
+                    document.getElementById('config-spend-threshold').value = config.spend_threshold;
+                    document.getElementById('config-gia-data-threshold').value = config.gia_data_threshold;
+                    document.getElementById('config-cost-per-purchase').value = config.cost_per_purchase_keep_threshold;
+                    document.getElementById('config-days').value = config.days;
+                    document.getElementById('config-enabled').checked = config.enabled;
+                    
+                    window.scrollTo({{ top: 0, behavior: 'smooth' }});
+                }} catch (error) {{
+                    showAlert('Lỗi khi tải config: ' + error.message, 'error');
+                }}
+            }}
+            
+            async function delete7DaysConfig(configId) {{
+                if (!confirm('Bạn có chắc muốn xóa config này?')) return;
+                
+                try {{
+                    const response = await fetch(`/api/logic-7days-config/${{configId}}`, {{
+                        method: 'DELETE'
+                    }});
+                    
+                    if (response.ok) {{
+                        showAlert('Đã xóa config!', 'success');
+                        load7DaysConfigs();
+                    }} else {{
+                        const error = await response.json();
+                        showAlert('Lỗi: ' + (error.detail || 'Unknown error'), 'error');
+                    }}
+                }} catch (error) {{
+                    showAlert('Lỗi: ' + error.message, 'error');
+                }}
+            }}
+            
+            function reset7DaysForm() {{
+                document.getElementById('7days-config-form').reset();
+                document.getElementById('config-id').value = '';
+                document.getElementById('config-account').value = '';
+                document.getElementById('config-prefix').value = '';
+                document.getElementById('display-config-account').value = '';
+                document.getElementById('display-config-prefix').value = '';
+                document.getElementById('config-spend-threshold').value = '100000';
+                document.getElementById('config-gia-data-threshold').value = '0';
+                document.getElementById('config-cost-per-purchase').value = '150000';
+                document.getElementById('config-days').value = '7';
+                document.getElementById('config-enabled').checked = true;
+            }}
         </script>
     </body>
     </html>
