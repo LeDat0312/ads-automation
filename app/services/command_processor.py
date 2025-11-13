@@ -238,16 +238,23 @@ Dùng /help để xem danh sách lệnh.
                 
                 logger.info(f"📋 Prefix được sử dụng: {', '.join(allowed_prefixes)}")
                 
-                today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                tz_vn = tz('Asia/Ho_Chi_Minh')
+                now_vn = datetime.now(tz_vn)
+                today = now_vn.replace(hour=0, minute=0, second=0, microsecond=0)
+                
+                # Lưu thời gian pull data
+                pull_data_time = payload.get('pull_data_time', now_vn)
                 
                 # ===== PHẦN 1: BÁO CÁO TÀI CHÍNH (từ tongKetCuoiNgay) =====
-                # Lấy metrics có impressions > 0 để tính tài chính
+                # CHỈ lấy metrics HÔM NAY có impressions > 0 để tính tài chính
                 metrics_financial = db.query(AdMetrics).filter(
+                    AdMetrics.date >= today,
                     AdMetrics.impressions > 0
                 ).all()
                 
-                # Aggregate tài chính: { account_id: { prefix: {spend, interactions, phones} } }
+                # Aggregate tài chính: { account_id: { prefix: {spend, interactions, phones, account_name} } }
                 agg_financial = defaultdict(lambda: defaultdict(lambda: {'spend': 0.0, 'interactions': 0, 'phones': 0}))
+                account_info = {}  # {account_id: account_name}
                 account_ids = set()
                 
                 for m in metrics_financial:
@@ -260,6 +267,10 @@ Dùng /help để xem danh sách lệnh.
                     
                     account_id = str(m.account_id).strip()
                     account_ids.add(account_id)
+                    
+                    # Lưu account_name nếu có
+                    if account_id not in account_info and m.account_name:
+                        account_info[account_id] = m.account_name
                     
                     interactions = int(m.results or 0)
                     phones = int(m.sdt or 0)
@@ -379,10 +390,10 @@ Dùng /help để xem danh sách lệnh.
                                 stats_by_account[m.account_id][prefix]['paused'] += 1
                 
                 # ===== TẠO BÁO CÁO KẾT HỢP =====
-                # Format block card style - dễ đọc trên cả mobile và desktop
+                # Format block card style với bố cục rõ ràng hơn
                 lines = []
                 lines.append('📊 *BÁO CÁO TỔNG HỢP*')
-                lines.append('━' * 23)
+                lines.append('═' * 30)
                 
                 # Tổng kết theo từng account
                 sorted_account_ids = sorted(account_ids)
@@ -391,14 +402,25 @@ Dùng /help để xem danh sách lệnh.
                 total_active_all = 0
                 total_paused_all = 0
                 total_spend_all = 0.0
+                total_interactions_all = 0
+                total_phones_all = 0
                 
                 for account_id in sorted_account_ids:
-                    lines.append(f'\n📌 *Tài khoản:* `{account_id}`')
+                    # Hiển thị account với tên nếu có
+                    account_name_display = account_info.get(account_id, '')
+                    if account_name_display:
+                        lines.append(f'\n📌 *Tài khoản:* `{account_id}`')
+                        lines.append(f'   *Tên:* {account_name_display}')
+                    else:
+                        lines.append(f'\n📌 *Tài khoản:* `{account_id}`')
+                    lines.append('─' * 30)
                     
                     account_enabled = 0
                     account_active = 0
                     account_paused = 0
                     account_spend_today = 0.0
+                    account_interactions = 0
+                    account_phones = 0
                     
                     # Lấy danh sách prefix từ cả 2 báo cáo
                     financial_prefixes = set(agg_financial[account_id].keys())
@@ -416,19 +438,22 @@ Dùng /help để xem danh sách lệnh.
                             phone_rate = (a['phones'] / a['interactions'] * 100) if a['interactions'] > 0 else 0
                             
                             # Format block card - mỗi metric 1 dòng
-                            lines.append(f'💰 *Chi tiêu:* {a["spend"]:,.0f}₫')
-                            lines.append(f'📈 *Tương tác:* {int(a["interactions"])}')
-                            lines.append(f'💵 *Giá DATA:* {cpd:,.0f}₫')
-                            lines.append(f'📞 *SĐT:* {int(a["phones"])}')
-                            lines.append(f'💳 *Giá SĐT:* {cpphone:,.0f}₫')
-                            lines.append(f'📊 *Tỷ lệ SĐT/Tương tác:* {phone_rate:.1f}%')
+                            lines.append(f'  💰 Chi tiêu: {a["spend"]:,.0f}₫')
+                            lines.append(f'  📈 Tương tác: {int(a["interactions"])}')
+                            lines.append(f'  💵 Giá DATA: {cpd:,.0f}₫')
+                            lines.append(f'  📞 SĐT: {int(a["phones"])}')
+                            lines.append(f'  💳 Giá SĐT: {cpphone:,.0f}₫')
+                            lines.append(f'  📊 Tỷ lệ SĐT/Tương tác: {phone_rate:.1f}%')
+                            
+                            account_interactions += a['interactions']
+                            account_phones += a['phones']
                         
                         # Phần trạng thái - format block card
                         if prefix in stats_by_account[account_id]:
                             s = stats_by_account[account_id][prefix]
-                            lines.append(f'🟢 *Ads bật hôm nay:* {s["enabled"]}')
-                            lines.append(f'🟩 *Adsets ACTIVE:* {s["active"]}')
-                            lines.append(f'🟥 *Adsets PAUSED:* {s["paused"]}')
+                            lines.append(f'  🟢 Ads bật hôm nay: {s["enabled"]}')
+                            lines.append(f'  🟩 Adsets ACTIVE: {s["active"]}')
+                            lines.append(f'  🟥 Adsets PAUSED: {s["paused"]}')
                             
                             account_enabled += s['enabled']
                             account_active += s['active']
@@ -436,30 +461,36 @@ Dùng /help để xem danh sách lệnh.
                             account_spend_today += s['spend']
                         
                         # Separator giữa các prefix
-                        lines.append('━' * 23)
+                        lines.append('  ─' * 15)
                     
-                    # Tổng account - format compact
+                    # Tổng account - format compact với box
                     lines.append(f'\n📈 *Tổng Account*')
-                    lines.append(f'✅ Bật: {account_enabled} | 🟩 Đang bật: {account_active} | 🟥 Đã tắt: {account_paused}')
-                    lines.append(f'💰 *Chi tiêu hôm nay:* {account_spend_today:,.0f}₫')
+                    lines.append(f'  ✅ Bật: {account_enabled} | 🟩 Đang bật: {account_active} | 🟥 Đã tắt: {account_paused}')
+                    lines.append(f'  💰 Chi tiêu hôm nay: {account_spend_today:,.0f}₫')
+                    lines.append('═' * 30)
                     
                     total_enabled_all += account_enabled
                     total_active_all += account_active
                     total_paused_all += account_paused
                     total_spend_all += account_spend_today
+                    total_interactions_all += account_interactions
+                    total_phones_all += account_phones
                 
-                # Tổng kết tất cả
-                lines.append('\n' + '━' * 23)
+                # Tổng kết tất cả - format box rõ ràng
+                lines.append('\n' + '═' * 30)
                 lines.append('📊 *TỔNG TẤT CẢ*')
-                lines.append(f'✅ Bật: {total_enabled_all} | 🟩 Đang bật: {total_active_all} | 🟥 Đã tắt: {total_paused_all}')
-                lines.append(f'💰 *Chi tiêu hôm nay:* {total_spend_all:,.0f}₫')
+                lines.append(f'  ✅ Bật: {total_enabled_all} | 🟩 Đang bật: {total_active_all} | 🟥 Đã tắt: {total_paused_all}')
+                lines.append(f'  💰 Chi tiêu hôm nay: {total_spend_all:,.0f}₫')
+                lines.append('═' * 30)
                 
-                # Thêm thời gian báo cáo
-                tz_vn = tz('Asia/Ho_Chi_Minh')
-                now = datetime.now(tz_vn)
-                time_str = now.strftime('%H:%M')
-                date_str = now.strftime('%d/%m/%Y')
-                lines.append(f'\n⏰ *Cập nhật:* {time_str} ngày {date_str}')
+                # Thêm thời gian: pull data và send report
+                pull_time_str = pull_data_time.strftime('%H:%M:%S') if isinstance(pull_data_time, datetime) else now_vn.strftime('%H:%M:%S')
+                pull_date_str = pull_data_time.strftime('%d/%m/%Y') if isinstance(pull_data_time, datetime) else now_vn.strftime('%d/%m/%Y')
+                send_time_str = now_vn.strftime('%H:%M:%S')
+                send_date_str = now_vn.strftime('%d/%m/%Y')
+                
+                lines.append(f'\n⏰ *Thời gian lấy dữ liệu:* {pull_time_str} ngày {pull_date_str}')
+                lines.append(f'⏰ *Thời gian gửi báo cáo:* {send_time_str} ngày {send_date_str}')
                 
                 report = '\n'.join(lines)
                 
