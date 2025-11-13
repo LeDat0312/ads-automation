@@ -34,6 +34,18 @@ async def rules_management_v2():
     emoji_folder = '\U0001F4C1'  # 📁
     emoji_label = '\U0001F3F7'  # 🏷
     
+    # Helper function để tạo prefix items HTML
+    def build_prefix_items(account_id, prefix_list):
+        items = []
+        for prefix in prefix_list:
+            items.append(f'''                            <li class="tree-item" data-account="{account_id}" data-prefix="{prefix}">
+                                <div class="tree-label" onclick="selectNode(this, 'prefix', '{account_id}', '{prefix}')">
+                                    <span class="tree-icon">{emoji_label}</span>
+                                    <span>{prefix}</span>
+                                </div>
+                            </li>''')
+        return '\n'.join(items)
+    
     html = f"""
     <!DOCTYPE html>
     <html lang="vi">
@@ -341,14 +353,7 @@ async def rules_management_v2():
                                     <span>Tất cả Prefix</span>
                                 </div>
                             </li>
-                            {"".join([f'''
-                            <li class="tree-item" data-account="{acc}" data-prefix="{prefix}">
-                                <div class="tree-label" onclick="selectNode(this, 'prefix', '{acc}', '{prefix}')">
-                                    <span class="tree-icon">{emoji_label}</span>
-                                    <span>{prefix}</span>
-                                </div>
-                            </li>
-                            ''' for prefix in prefixes])}
+                            {build_prefix_items(acc, prefixes)}
                         </ul>
                     </li>
                     ''' for acc in account_ids])}
