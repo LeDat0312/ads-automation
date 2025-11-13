@@ -628,13 +628,13 @@ Dùng /help để xem danh sách lệnh.
                         # Chỉ giữ các fields có trong model AdMetrics
                         valid_fields = {
                             'adset_id', 'ad_id', 'ad_name', 'adset_name', 'campaign_name',
-                            'account_id', 'prefix', 'spend', 'impressions', 'clicks', 'results',
+                            'account_id', 'account_name', 'prefix', 'spend', 'impressions', 'clicks', 'results',
                             'ctr', 'cpc', 'cpa', 'roas', 'gia_data', 'sdt', 'gia_sdt', 'ty_le_sdt',
                             'adset_status', 'effective_status', 'date', 'date_preset',
                             'campaign_type', 'campaign_objective', 'amount_spent', 'ket_qua',
                             'purchases', 'purchase_value', 'revenue', 'leads', 'phone_calls',
                             'cost_per_lead'
-                            # Loại bỏ: 'reach', 'frequency', 'account_name', 'percent_ads', 
+                            # Loại bỏ: 'reach', 'frequency', 'percent_ads', 
                             # 'cost_per_checkout_initiated', 'checkouts_initiated', 'gia_tri_chuyen_doi_tu_luot_mua',
                             # 'cpm', 'clicks_all', 'ctr_all', 'cpc_all', 'cost_per_comment',
                             # 'cost_per_messaging_conversation', 'post_comments', 'messaging_conversations_started'
