@@ -160,6 +160,98 @@ async def run_7days_automation_endpoint(
         )
 
 
+from fastapi.responses import StreamingResponse
+import json as json_lib
+import asyncio
+from typing import AsyncGenerator
+
+
+async def stream_automation_logs(automation_func, *args, **kwargs) -> AsyncGenerator[str, None]:
+    """Stream automation logs as JSON lines"""
+    import logging
+    import sys
+    from io import StringIO
+    
+    # Capture logs
+    log_capture = StringIO()
+    handler = logging.StreamHandler(log_capture)
+    handler.setLevel(logging.INFO)
+    
+    # Get automation logger
+    automation_logger = logging.getLogger('app.services.automation')
+    automation_logger.addHandler(handler)
+    
+    try:
+        # Send start message
+        yield json_lib.dumps({"type": "log", "message": "🚀 Bắt đầu chạy automation...", "level": "info"}) + "\n"
+        
+        # Run automation in background thread
+        import threading
+        result = {"success": False, "error": None}
+        
+        def run_automation():
+            try:
+                automation_result = automation_func(*args, **kwargs)
+                result.update(automation_result if isinstance(automation_result, dict) else {"success": True, "result": automation_result})
+            except Exception as e:
+                result.update({"success": False, "error": str(e)})
+        
+        thread = threading.Thread(target=run_automation, daemon=True)
+        thread.start()
+        
+        # Poll for logs and completion
+        while thread.is_alive():
+            # Read captured logs
+            log_content = log_capture.getvalue()
+            if log_content:
+                log_capture.seek(0)
+                log_capture.truncate(0)
+                for line in log_content.strip().split('\n'):
+                    if line.strip():
+                        yield json_lib.dumps({"type": "log", "message": line, "level": "info"}) + "\n"
+            
+            await asyncio.sleep(0.5)
+        
+        # Send completion message
+        if result.get('success'):
+            yield json_lib.dumps({"type": "complete", "result": result}) + "\n"
+        else:
+            yield json_lib.dumps({"type": "error", "message": result.get('error', 'Unknown error')}) + "\n"
+            
+    finally:
+        automation_logger.removeHandler(handler)
+
+
+@app.post("/api/automation/run-web")
+async def run_automation_web():
+    """Run automation with streaming logs for web UI"""
+    from app.services.automation import run_automation
+    return StreamingResponse(
+        stream_automation_logs(run_automation),
+        media_type="application/x-ndjson"
+    )
+
+
+@app.post("/api/automation/test-web")
+async def test_automation_web():
+    """Test automation (skip time window) with streaming logs for web UI"""
+    from app.services.automation import test_run_automation
+    return StreamingResponse(
+        stream_automation_logs(test_run_automation),
+        media_type="application/x-ndjson"
+    )
+
+
+@app.post("/api/automation/run-7days-web")
+async def run_7days_automation_web():
+    """Run 7 days filter automation with streaming logs for web UI"""
+    from app.services.automation_7days import run_7days_filter_automation
+    return StreamingResponse(
+        stream_automation_logs(run_7days_filter_automation),
+        media_type="application/x-ndjson"
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

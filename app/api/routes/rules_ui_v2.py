@@ -384,13 +384,16 @@ async def rules_management_v2(db: Session = Depends(get_db)):
             <div class="main-content">
                 <div id="alert-container"></div>
                 
-                <!-- Tabs: Rules vs Logic 7 Days Config -->
+                <!-- Tabs: Rules vs Logic 7 Days Config vs Run Automation -->
                 <div class="objective-selector" style="margin-bottom: 20px;">
                     <div class="objective-btn active" data-tab="rules" onclick="switchTab('rules')">
                         📋 Logic Rules
                     </div>
                     <div class="objective-btn" data-tab="7days" onclick="switchTab('7days')">
                         🔍 Logic 7 Ngày
+                    </div>
+                    <div class="objective-btn" data-tab="run" onclick="switchTab('run')">
+                        ▶️ Chạy Automation
                     </div>
                 </div>
                 
@@ -593,6 +596,30 @@ async def rules_management_v2(db: Session = Depends(get_db)):
                         <div id="7days-configs-container">Đang tải...</div>
                     </div>
                 </div>
+                
+                <!-- Run Automation Tab -->
+                <div id="run-tab" class="tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 20px;">▶️ Chạy Automation</h3>
+                    <p style="color: #666; margin-bottom: 20px;">
+                        Chạy automation trực tiếp từ website. Logs sẽ hiển thị real-time bên dưới.
+                    </p>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <button class="btn btn-primary" onclick="runAutomation()" id="run-btn" style="padding: 12px 24px; font-size: 16px;">
+                            ▶️ Chạy Automation
+                        </button>
+                        <button class="btn btn-secondary" onclick="runTestAutomation()" id="test-run-btn" style="padding: 12px 24px; font-size: 16px; margin-left: 10px;">
+                            🧪 Test (Bỏ qua khung giờ)
+                        </button>
+                        <button class="btn btn-secondary" onclick="run7DaysFilter()" id="7days-run-btn" style="padding: 12px 24px; font-size: 16px; margin-left: 10px;">
+                            🔍 Chạy Logic 7 Ngày
+                        </button>
+                    </div>
+                    
+                    <div style="background: #1e1e1e; color: #d4d4d4; padding: 20px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; max-height: 600px; overflow-y: auto;" id="log-container">
+                        <div style="color: #888;">Chờ lệnh chạy...</div>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -631,6 +658,7 @@ async def rules_management_v2(db: Session = Depends(get_db)):
                 // Hide all tabs
                 document.getElementById('rules-tab').style.display = 'none';
                 document.getElementById('7days-tab').style.display = 'none';
+                document.getElementById('run-tab').style.display = 'none';
                 
                 // Show selected tab
                 document.getElementById(tabName + '-tab').style.display = 'block';
@@ -642,6 +670,209 @@ async def rules_management_v2(db: Session = Depends(get_db)):
                 const activeBtn = document.querySelector(`[data-tab="${{tabName}}"]`);
                 if (activeBtn) {{
                     activeBtn.classList.add('active');
+                }}
+            }}
+            
+            // Run automation functions
+            function addLog(message, type = 'info') {{
+                const container = document.getElementById('log-container');
+                const timestamp = new Date().toLocaleTimeString('vi-VN');
+                const colors = {{
+                    'info': '#d4d4d4',
+                    'success': '#4ec9b0',
+                    'error': '#f48771',
+                    'warning': '#dcdcaa'
+                }};
+                const color = colors[type] || colors.info;
+                const logEntry = document.createElement('div');
+                logEntry.style.color = color;
+                logEntry.style.marginBottom = '4px';
+                logEntry.innerHTML = `[${{timestamp}}] ${{message}}`;
+                container.appendChild(logEntry);
+                container.scrollTop = container.scrollHeight;
+            }}
+            
+            async function runAutomation() {{
+                const btn = document.getElementById('run-btn');
+                const testBtn = document.getElementById('test-run-btn');
+                const daysBtn = document.getElementById('7days-run-btn');
+                const logContainer = document.getElementById('log-container');
+                
+                btn.disabled = true;
+                testBtn.disabled = true;
+                daysBtn.disabled = true;
+                logContainer.innerHTML = '';
+                addLog('🚀 Bắt đầu chạy automation...', 'info');
+                
+                try {{
+                    const response = await fetch('/api/automation/run-web', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }}
+                    }});
+                    
+                    if (!response.ok) {{
+                        const error = await response.json();
+                        addLog('❌ Lỗi: ' + (error.error || 'Unknown error'), 'error');
+                        return;
+                    }}
+                    
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    
+                    while (true) {{
+                        const {{ done, value }} = await reader.read();
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\\n').filter(l => l.trim());
+                        
+                        for (const line of lines) {{
+                            try {{
+                                const data = JSON.parse(line);
+                                if (data.type === 'log') {{
+                                    addLog(data.message, data.level || 'info');
+                                }} else if (data.type === 'complete') {{
+                                    addLog('✅ Hoàn thành!', 'success');
+                                    addLog('Kết quả: ' + JSON.stringify(data.result, null, 2), 'info');
+                                }} else if (data.type === 'error') {{
+                                    addLog('❌ Lỗi: ' + data.message, 'error');
+                                }}
+                            }} catch (e) {{
+                                // Nếu không parse được JSON, hiển thị raw text
+                                if (line.trim()) {{
+                                    addLog(line, 'info');
+                                }}
+                            }}
+                        }}
+                    }}
+                }} catch (error) {{
+                    addLog('❌ Lỗi kết nối: ' + error.message, 'error');
+                }} finally {{
+                    btn.disabled = false;
+                    testBtn.disabled = false;
+                    daysBtn.disabled = false;
+                }}
+            }}
+            
+            async function runTestAutomation() {{
+                const btn = document.getElementById('run-btn');
+                const testBtn = document.getElementById('test-run-btn');
+                const daysBtn = document.getElementById('7days-run-btn');
+                const logContainer = document.getElementById('log-container');
+                
+                btn.disabled = true;
+                testBtn.disabled = true;
+                daysBtn.disabled = true;
+                logContainer.innerHTML = '';
+                addLog('🧪 Bắt đầu chạy test automation (bỏ qua khung giờ)...', 'info');
+                
+                try {{
+                    const response = await fetch('/api/automation/test-web', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }}
+                    }});
+                    
+                    if (!response.ok) {{
+                        const error = await response.json();
+                        addLog('❌ Lỗi: ' + (error.error || 'Unknown error'), 'error');
+                        return;
+                    }}
+                    
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    
+                    while (true) {{
+                        const {{ done, value }} = await reader.read();
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\\n').filter(l => l.trim());
+                        
+                        for (const line of lines) {{
+                            try {{
+                                const data = JSON.parse(line);
+                                if (data.type === 'log') {{
+                                    addLog(data.message, data.level || 'info');
+                                }} else if (data.type === 'complete') {{
+                                    addLog('✅ Hoàn thành!', 'success');
+                                    addLog('Kết quả: ' + JSON.stringify(data.result, null, 2), 'info');
+                                }} else if (data.type === 'error') {{
+                                    addLog('❌ Lỗi: ' + data.message, 'error');
+                                }}
+                            }} catch (e) {{
+                                if (line.trim()) {{
+                                    addLog(line, 'info');
+                                }}
+                            }}
+                        }}
+                    }}
+                }} catch (error) {{
+                    addLog('❌ Lỗi kết nối: ' + error.message, 'error');
+                }} finally {{
+                    btn.disabled = false;
+                    testBtn.disabled = false;
+                    daysBtn.disabled = false;
+                }}
+            }}
+            
+            async function run7DaysFilter() {{
+                const btn = document.getElementById('run-btn');
+                const testBtn = document.getElementById('test-run-btn');
+                const daysBtn = document.getElementById('7days-run-btn');
+                const logContainer = document.getElementById('log-container');
+                
+                btn.disabled = true;
+                testBtn.disabled = true;
+                daysBtn.disabled = true;
+                logContainer.innerHTML = '';
+                addLog('🔍 Bắt đầu chạy logic lọc 7 ngày...', 'info');
+                
+                try {{
+                    const response = await fetch('/api/automation/run-7days-web', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }}
+                    }});
+                    
+                    if (!response.ok) {{
+                        const error = await response.json();
+                        addLog('❌ Lỗi: ' + (error.error || 'Unknown error'), 'error');
+                        return;
+                    }}
+                    
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    
+                    while (true) {{
+                        const {{ done, value }} = await reader.read();
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\\n').filter(l => l.trim());
+                        
+                        for (const line of lines) {{
+                            try {{
+                                const data = JSON.parse(line);
+                                if (data.type === 'log') {{
+                                    addLog(data.message, data.level || 'info');
+                                }} else if (data.type === 'complete') {{
+                                    addLog('✅ Hoàn thành!', 'success');
+                                    addLog('Kết quả: ' + JSON.stringify(data.result, null, 2), 'info');
+                                }} else if (data.type === 'error') {{
+                                    addLog('❌ Lỗi: ' + data.message, 'error');
+                                }}
+                            }} catch (e) {{
+                                if (line.trim()) {{
+                                    addLog(line, 'info');
+                                }}
+                            }}
+                        }}
+                    }}
+                }} catch (error) {{
+                    addLog('❌ Lỗi kết nối: ' + error.message, 'error');
+                }} finally {{
+                    btn.disabled = false;
+                    testBtn.disabled = false;
+                    daysBtn.disabled = false;
                 }}
             }}
             
