@@ -218,17 +218,24 @@ def check_and_toggle_ads(
                         'accountId': account_id
                     }
         
-        # BƯỚC 2: Logic lọc 7 ngày (Logic mới)
-        # Lọc adsets trong 7 ngày qua (kể cả hôm nay)
+        # BƯỚC 2: Logic lọc 7 ngày (Logic mới - có thể cấu hình)
+        # Lọc adsets trong N ngày qua (kể cả hôm nay) - N có thể cấu hình
         from datetime import datetime, timedelta
         from pytz import timezone as tz
         from sqlalchemy import func
+        from app.services.logics import get_7days_config
         
         tz_vn = tz('Asia/Ho_Chi_Minh')
         now = datetime.now(tz_vn)
-        seven_days_ago = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Lấy metrics trong 7 ngày qua, group by adset_id để tính tổng
+        # Lấy số ngày từ config (mặc định 7)
+        # Sẽ lấy từ config của account/prefix đầu tiên, hoặc dùng default
+        default_days = 7
+        days_ago = (now - timedelta(days=default_days)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Lấy metrics trong N ngày qua, group by adset_id để tính tổng
+        # Lấy config cho từng adset để biết số ngày cần lọc
+        # Tạm thời dùng default_days, sẽ optimize sau
         seven_days_metrics = db.query(
             AdMetrics.adset_id,
             AdMetrics.campaign_id,
@@ -241,7 +248,7 @@ def check_and_toggle_ads(
             func.sum(AdMetrics.purchases).label('total_purchases'),
             func.sum(AdMetrics.purchase_value).label('total_purchase_value')
         ).filter(
-            AdMetrics.date >= seven_days_ago,
+            AdMetrics.date >= days_ago,
             AdMetrics.impressions > 0
         ).group_by(
             AdMetrics.adset_id,

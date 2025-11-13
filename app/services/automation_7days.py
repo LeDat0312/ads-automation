@@ -1,0 +1,222 @@
+"""
+Automation Service cho Logic 7 Ngày
+Chạy riêng logic lọc 7 ngày, không chạy logic 1, 2, 3
+"""
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, Any, List
+from pytz import timezone as tz
+from sqlalchemy import func
+
+from app.core.config import get_settings
+from app.core.database import get_db_session, AdMetrics
+from app.services.facebook_api import pause_adsets, pause_campaign, get_campaign_adsets_count
+from app.services.logics import build_logic_map, check_logic_7days_filter, get_prefix_from_name, get_7days_config
+from app.services.telegram_bot import send_telegram_message_safe
+
+logger = logging.getLogger(__name__)
+
+
+def run_7days_filter_automation():
+    """
+    Chạy logic lọc 7 ngày riêng
+    Không chạy logic 1, 2, 3
+    """
+    settings = get_settings()
+    bot_token = settings.TELEGRAM_BOT_TOKEN
+    chat_id = settings.TELEGRAM_CHAT_ID
+    access_token = settings.ACCESS_TOKEN
+    delay_ms = settings.DELAY_KHI_TAT_BATCH
+    
+    try:
+        # Xây dựng logic map (để lấy SL_2_GIA_DATA)
+        logic_map = build_logic_map()
+        
+        # Chạy logic 7 ngày
+        result = check_and_toggle_ads_7days(logic_map, access_token, bot_token, chat_id, delay_ms)
+        
+        return result
+    except Exception as e:
+        error_msg = f"LỖI LOGIC 7 NGÀY: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        send_telegram_message_safe(error_msg, bot_token, chat_id)
+        return {"success": False, "error": str(e)}
+
+
+def check_and_toggle_ads_7days(
+    logic_map: Dict[str, Dict[str, Any]],
+    access_token: str,
+    bot_token: str,
+    chat_id: str,
+    delay_ms: int
+) -> Dict[str, Any]:
+    """
+    Chỉ chạy logic lọc 7 ngày
+    """
+    db = get_db_session()
+    
+    try:
+        tz_vn = tz('Asia/Ho_Chi_Minh')
+        now = datetime.now(tz_vn)
+        
+        # Lấy số ngày từ config (mặc định 7)
+        # Tạm thời dùng default, sẽ optimize sau để lấy theo từng account/prefix
+        default_days = 7
+        days_ago = (now - timedelta(days=default_days)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Lấy metrics trong N ngày qua, group by adset_id để tính tổng
+        seven_days_metrics = db.query(
+            AdMetrics.adset_id,
+            AdMetrics.campaign_id,
+            AdMetrics.campaign_name,
+            AdMetrics.account_id,
+            func.sum(AdMetrics.impressions).label('total_impressions'),
+            func.sum(AdMetrics.spend).label('total_spend'),
+            func.avg(AdMetrics.gia_data).label('avg_gia_data'),
+            func.sum(AdMetrics.results).label('total_results'),
+            func.sum(AdMetrics.purchases).label('total_purchases'),
+            func.sum(AdMetrics.purchase_value).label('total_purchase_value')
+        ).filter(
+            AdMetrics.date >= days_ago,
+            AdMetrics.impressions > 0
+        ).group_by(
+            AdMetrics.adset_id,
+            AdMetrics.campaign_id,
+            AdMetrics.campaign_name,
+            AdMetrics.account_id
+        ).all()
+        
+        # Kiểm tra từng adset trong 7 ngày
+        violations_7days = []  # List các adsets vi phạm
+        
+        for metric_row in seven_days_metrics:
+            adset_id = metric_row.adset_id
+            campaign_id = metric_row.campaign_id
+            campaign_name = metric_row.campaign_name
+            account_id = metric_row.account_id
+            prefix = get_prefix_from_name(campaign_name)
+            
+            total_impressions = int(metric_row.total_impressions or 0)
+            total_spend = float(metric_row.total_spend or 0)
+            avg_gia_data = float(metric_row.avg_gia_data or 0)
+            total_results = int(metric_row.total_results or 0)
+            total_purchases = int(metric_row.total_purchases or 0)
+            
+            # Tính cost_per_purchase
+            cost_per_purchase = (total_spend / total_purchases) if total_purchases > 0 else 0
+            
+            # Kiểm tra logic 7 ngày
+            should_pause, reason = check_logic_7days_filter(
+                total_impressions,
+                total_spend,
+                avg_gia_data,
+                cost_per_purchase,
+                total_results,
+                logic_map,
+                account_id,
+                prefix
+            )
+            
+            if should_pause:
+                # Lấy thông tin adset từ database
+                adset_info = db.query(AdMetrics).filter(
+                    AdMetrics.adset_id == adset_id
+                ).first()
+                
+                if adset_info:
+                    violations_7days.append({
+                        'adset_id': adset_id,
+                        'adset_name': adset_info.adset_name or 'N/A',
+                        'campaign_id': campaign_id,
+                        'campaign_name': campaign_name,
+                        'account_id': account_id,
+                        'prefix': prefix,
+                        'reason': reason,
+                        'total_spend': total_spend,
+                        'avg_gia_data': avg_gia_data,
+                        'total_results': total_results
+                    })
+        
+        # Xử lý vi phạm: Tắt adset hoặc campaign
+        campaigns_to_pause = set()  # Campaigns chỉ có 1 adset
+        adsets_to_pause_7days = []  # Adsets trong campaigns có nhiều adsets
+        
+        for violation in violations_7days:
+            campaign_id = violation['campaign_id']
+            
+            if not campaign_id:
+                # Nếu không có campaign_id, tắt adset trực tiếp
+                adsets_to_pause_7days.append(violation['adset_id'])
+                continue
+            
+            # Lấy số adsets trong campaign
+            try:
+                adsets_count = get_campaign_adsets_count(campaign_id, access_token)
+                
+                if adsets_count <= 1:
+                    # Campaign chỉ có 1 adset → tắt campaign
+                    campaigns_to_pause.add(campaign_id)
+                else:
+                    # Campaign có nhiều adsets → chỉ tắt adset vi phạm
+                    adsets_to_pause_7days.append(violation['adset_id'])
+            except Exception as e:
+                logger.error(f"🚨 Lỗi kiểm tra số adsets của campaign {campaign_id}: {e}")
+                # Fallback: tắt adset
+                adsets_to_pause_7days.append(violation['adset_id'])
+        
+        # Tắt campaigns (chỉ có 1 adset)
+        paused_campaigns = 0
+        for campaign_id in campaigns_to_pause:
+            try:
+                result = pause_campaign(campaign_id, access_token)
+                if result.get('success'):
+                    logger.info(f"✅ Đã tắt Campaign {campaign_id} (chỉ có 1 adset)")
+                    paused_campaigns += 1
+                else:
+                    logger.error(f"❌ Lỗi tắt Campaign {campaign_id}: {result.get('error')}")
+            except Exception as e:
+                logger.error(f"🚨 Lỗi tắt Campaign {campaign_id}: {e}")
+        
+        # Tắt adsets (trong campaigns có nhiều adsets)
+        paused_adsets = 0
+        if adsets_to_pause_7days:
+            pause_result = pause_adsets(adsets_to_pause_7days, access_token, delay_ms)
+            paused_adsets = pause_result.get('success', 0)
+            logger.info(f"✅ Logic 7 ngày: Đã tắt {paused_adsets} adsets")
+        
+        # Gửi thông báo Telegram về các vi phạm
+        if violations_7days:
+            violation_msg = "🚨 *BÁO CÁO VI PHẠM 7 NGÀY QUA*\n\n"
+            violation_msg += f"Tổng số adsets vi phạm: {len(violations_7days)}\n"
+            violation_msg += f"Đã tắt: {paused_campaigns} campaigns, {paused_adsets} adsets\n\n"
+            
+            for idx, violation in enumerate(violations_7days[:20], 1):  # Giới hạn 20 adsets
+                violation_msg += f"*{idx}. {violation['adset_name']}*\n"
+                violation_msg += f"   Campaign: {violation['campaign_name']}\n"
+                violation_msg += f"   Prefix: {violation['prefix']}\n"
+                violation_msg += f"   Lý do: {violation['reason']}\n"
+                violation_msg += f"   Chi tiêu: {violation['total_spend']:,.0f}₫\n"
+                violation_msg += f"   Giá DATA TB: {violation['avg_gia_data']:,.0f}₫\n"
+                violation_msg += f"   Kết quả: {violation['total_results']}\n\n"
+            
+            if len(violations_7days) > 20:
+                violation_msg += f"... và {len(violations_7days) - 20} adsets khác\n"
+            
+            send_telegram_message_safe(violation_msg, bot_token, chat_id)
+        else:
+            send_telegram_message_safe("✅ Logic 7 ngày: Không có adsets vi phạm", bot_token, chat_id)
+        
+        return {
+            "success": True,
+            "violations": len(violations_7days),
+            "paused_campaigns": paused_campaigns,
+            "paused_adsets": paused_adsets
+        }
+        
+    except Exception as e:
+        logger.error(f"🚨 Lỗi khi chạy logic 7 ngày: {e}", exc_info=True)
+        send_telegram_message_safe(f"🚨 Lỗi logic 7 ngày: {str(e)}", bot_token, chat_id)
+        return {"success": False, "error": str(e)}
+    finally:
+        db.close()
+

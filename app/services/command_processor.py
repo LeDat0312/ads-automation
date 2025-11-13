@@ -25,6 +25,7 @@ HEAVY_COMMANDS = {
     '/report': 'handle_report',  # Kết hợp cả báo cáo tài chính và trạng thái
     '/run': 'handle_run_automation',
     '/test': 'handle_test_automation',
+    '/run-7days': 'handle_run_7days_filter',  # Logic lọc 7 ngày riêng
 }
 
 

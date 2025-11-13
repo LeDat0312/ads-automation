@@ -143,6 +143,66 @@ def check_logic_3(
     return False
 
 
+def get_7days_config(account_id: str, prefix: str) -> Dict[str, Any]:
+    """
+    Lấy config logic 7 ngày cho account_id và prefix
+    Tìm theo thứ tự: account_id+prefix → account_id+null → null+prefix → null+null (default)
+    """
+    from app.core.database import get_db_session
+    from app.models.logic_7days_config import Logic7DaysConfig
+    
+    db = get_db_session()
+    try:
+        # Tìm config theo thứ tự ưu tiên
+        config = db.query(Logic7DaysConfig).filter(
+            Logic7DaysConfig.account_id == account_id,
+            Logic7DaysConfig.prefix == prefix,
+            Logic7DaysConfig.enabled == True
+        ).first()
+        
+        if not config:
+            # Thử account_id + null (tất cả prefixes)
+            config = db.query(Logic7DaysConfig).filter(
+                Logic7DaysConfig.account_id == account_id,
+                Logic7DaysConfig.prefix == None,
+                Logic7DaysConfig.enabled == True
+            ).first()
+        
+        if not config:
+            # Thử null + prefix (tất cả accounts)
+            config = db.query(Logic7DaysConfig).filter(
+                Logic7DaysConfig.account_id == None,
+                Logic7DaysConfig.prefix == prefix,
+                Logic7DaysConfig.enabled == True
+            ).first()
+        
+        if not config:
+            # Dùng default
+            config = db.query(Logic7DaysConfig).filter(
+                Logic7DaysConfig.account_id == None,
+                Logic7DaysConfig.prefix == None,
+                Logic7DaysConfig.enabled == True
+            ).first()
+        
+        if config:
+            return {
+                'spend_threshold': config.spend_threshold or 100000.0,
+                'gia_data_threshold': config.gia_data_threshold or 0.0,
+                'cost_per_purchase_keep_threshold': config.cost_per_purchase_keep_threshold or 150000.0,
+                'days': config.days or 7
+            }
+        else:
+            # Default values nếu không có config
+            return {
+                'spend_threshold': 100000.0,
+                'gia_data_threshold': 0.0,  # Sẽ dùng từ logic_map
+                'cost_per_purchase_keep_threshold': 150000.0,
+                'days': 7
+            }
+    finally:
+        db.close()
+
+
 def check_logic_7days_filter(
     total_impressions: int,
     total_spend: float,
@@ -154,37 +214,44 @@ def check_logic_7days_filter(
     prefix: str
 ) -> Tuple[bool, str]:
     """
-    Kiểm tra Logic lọc 7 ngày:
-    - Điều kiện 1: impressions > 0, spend > 100,000, gia_data > ngưỡng
-      + Ngoại lệ: cost_per_purchase < 150,000 thì giữ lại
+    Kiểm tra Logic lọc 7 ngày (có thể cấu hình):
+    - Điều kiện 1: impressions > 0, spend > ngưỡng, gia_data > ngưỡng
+      + Ngoại lệ: cost_per_purchase < ngưỡng_giữ_lại thì giữ lại
       + Ngoại lệ: gia_data >= 2x ngưỡng thì tắt bất kể cost_per_purchase
-    - Điều kiện 2: impressions > 0, spend > 100,000, results = 0
+    - Điều kiện 2: impressions > 0, spend > ngưỡng, results = 0
     
     Returns: (should_pause: bool, reason: str)
     """
-    rule_key = f"{account_id}|{prefix}"
-    logic = logic_map.get(rule_key) or logic_map.get("DEFAULT|DEFAULT", {})
+    # Lấy config từ database
+    config = get_7days_config(account_id, prefix)
     
-    # Lấy ngưỡng giá DATA từ logic map (dùng SL_2_GIA_DATA)
-    gia_data_threshold = logic.get("SL_2_GIA_DATA", 0)
-    spend_threshold = 100000  # 100,000 VND
+    spend_threshold = config['spend_threshold']
+    cost_per_purchase_keep_threshold = config['cost_per_purchase_keep_threshold']
+    
+    # Lấy ngưỡng giá DATA: từ config hoặc từ logic_map (SL_2_GIA_DATA)
+    gia_data_threshold = config['gia_data_threshold']
+    if gia_data_threshold == 0:
+        # Dùng từ logic_map
+        rule_key = f"{account_id}|{prefix}"
+        logic = logic_map.get(rule_key) or logic_map.get("DEFAULT|DEFAULT", {})
+        gia_data_threshold = logic.get("SL_2_GIA_DATA", 0)
     
     # Kiểm tra điều kiện cơ bản
     if total_impressions <= 0 or total_spend <= spend_threshold:
         return False, ""
     
     # ĐIỀU KIỆN 1: Giá DATA vượt ngưỡng
-    if avg_gia_data > gia_data_threshold:
-        # Ngoại lệ 1: cost_per_purchase < 150,000 thì giữ lại
-        if cost_per_purchase > 0 and cost_per_purchase < 150000:
+    if gia_data_threshold > 0 and avg_gia_data > gia_data_threshold:
+        # Ngoại lệ 1: cost_per_purchase < ngưỡng_giữ_lại thì giữ lại
+        if cost_per_purchase > 0 and cost_per_purchase < cost_per_purchase_keep_threshold:
             return False, ""
         
         # Ngoại lệ 2: gia_data >= 2x ngưỡng thì tắt bất kể cost_per_purchase
         if avg_gia_data >= (gia_data_threshold * 2):
             return True, f"Giá DATA ({avg_gia_data:,.0f}₫) gấp đôi ngưỡng ({gia_data_threshold:,.0f}₫)"
         
-        # Trường hợp thường: gia_data > ngưỡng và cost_per_purchase >= 150,000
-        return True, f"Giá DATA ({avg_gia_data:,.0f}₫) vượt ngưỡng ({gia_data_threshold:,.0f}₫) và chi phí mua >= 150,000₫"
+        # Trường hợp thường: gia_data > ngưỡng và cost_per_purchase >= ngưỡng_giữ_lại
+        return True, f"Giá DATA ({avg_gia_data:,.0f}₫) vượt ngưỡng ({gia_data_threshold:,.0f}₫) và chi phí mua >= {cost_per_purchase_keep_threshold:,.0f}₫"
     
     # ĐIỀU KIỆN 2: Kết quả = 0
     if total_results == 0:
