@@ -14,11 +14,7 @@ from app.core.config import get_settings
 Base = declarative_base()
 
 # Import all models để Base.metadata có thể tạo tables
-# Models được import ở đây để tránh circular import
-    from app.models.telegram_update import TelegramUpdate
-    from app.models.job import Job
-    from app.models.logic_rule import LogicRule
-    from app.models.account_prefix import Account, Prefix  # Import models mới
+# Models được import trong init_db() để tránh circular import
 
 
 # Models
@@ -127,6 +123,12 @@ SessionLocal = None
 def init_db():
     """Initialize database connection"""
     global engine, SessionLocal
+    
+    # Import models để Base.metadata có thể tạo tables
+    from app.models.telegram_update import TelegramUpdate
+    from app.models.job import Job
+    from app.models.logic_rule import LogicRule
+    from app.models.account_prefix import Account, Prefix  # Import models mới
     
     settings = get_settings()
     database_url = settings.DATABASE_URL
