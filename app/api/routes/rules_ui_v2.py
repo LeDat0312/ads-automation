@@ -338,8 +338,15 @@ async def rules_management_v2(db: Session = Depends(get_db)):
     </head>
     <body>
         <div class="header">
-            <h1>⚙️ Quản lý Logic Rules V2</h1>
-            <p>Giao diện trực quan để cấu hình rules cho từng tài khoản và prefix</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1>⚙️ Quản lý Logic Rules V2</h1>
+                    <p>Giao diện trực quan để cấu hình rules cho từng tài khoản và prefix</p>
+                </div>
+                <button class="btn btn-primary" onclick="openManageModal()" style="padding: 10px 20px; font-size: 14px;">
+                    ⚙️ Quản lý Accounts & Prefixes
+                </button>
+            </div>
         </div>
         
         <div class="container">
@@ -866,6 +873,282 @@ async def rules_management_v2(db: Session = Depends(get_db)):
                 setTimeout(() => {{
                     container.innerHTML = '';
                 }}, 5000);
+            }}
+            // ===== QUẢN LÝ ACCOUNTS & PREFIXES =====
+            let manageModal = null;
+            
+            function openManageModal() {{
+                if (!manageModal) {{
+                    createManageModal();
+                }}
+                manageModal.style.display = 'block';
+                loadAccounts();
+                loadPrefixes();
+            }}
+            
+            function closeManageModal() {{
+                if (manageModal) {{
+                    manageModal.style.display = 'none';
+                }}
+            }}
+            
+            function createManageModal() {{
+                const modal = document.createElement('div');
+                modal.id = 'manage-modal';
+                modal.style.cssText = 'display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;';
+                modal.innerHTML = `
+                    <div style="max-width: 900px; margin: 50px auto; background: white; border-radius: 8px; padding: 30px; position: relative;">
+                        <button onclick="closeManageModal()" style="position: absolute; top: 10px; right: 10px; background: #ef4444; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer;">✕ Đóng</button>
+                        <h2 style="margin-bottom: 20px;">⚙️ Quản lý Accounts & Prefixes</h2>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <!-- Accounts Section -->
+                            <div>
+                                <h3 style="margin-bottom: 15px;">📊 Accounts</h3>
+                                <div id="accounts-list" style="margin-bottom: 15px; max-height: 400px; overflow-y: auto;"></div>
+                                <div style="border-top: 1px solid #ddd; padding-top: 15px;">
+                                    <h4>Thêm Account mới</h4>
+                                    <input type="text" id="new-account-id" placeholder="Account ID (VD: 2827767517395636)" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <input type="text" id="new-account-name" placeholder="Tên Account (tùy chọn)" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <button class="btn btn-primary" onclick="addAccount()" style="width: 100%;">➕ Thêm Account</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Prefixes Section -->
+                            <div>
+                                <h3 style="margin-bottom: 15px;">🏷 Prefixes</h3>
+                                <div id="prefixes-list" style="margin-bottom: 15px; max-height: 400px; overflow-y: auto;"></div>
+                                <div style="border-top: 1px solid #ddd; padding-top: 15px;">
+                                    <h4>Thêm Prefix mới</h4>
+                                    <input type="text" id="new-prefix" placeholder="Prefix (VD: FL, PX, TL)" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <input type="text" id="new-prefix-name" placeholder="Tên Prefix (tùy chọn)" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <button class="btn btn-primary" onclick="addPrefix()" style="width: 100%;">➕ Thêm Prefix</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                manageModal = modal;
+                
+                // Close modal when clicking outside
+                modal.addEventListener('click', function(e) {{
+                    if (e.target === modal) {{
+                        closeManageModal();
+                    }}
+                }});
+            }}
+            
+            async function loadAccounts() {{
+                try {{
+                    const response = await fetch('/api/accounts-prefixes/accounts');
+                    const accounts = await response.json();
+                    const container = document.getElementById('accounts-list');
+                    
+                    if (accounts.length === 0) {{
+                        container.innerHTML = '<p style="color: #666;">Chưa có account nào</p>';
+                        return;
+                    }}
+                    
+                    container.innerHTML = accounts.map(acc => `
+                        <div style="padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>${{acc.account_id}}</strong>
+                                ${{acc.account_name ? '<br><small style="color: #666;">' + acc.account_name + '</small>' : ''}}
+                                <br><small style="color: ${{acc.enabled ? '#10b981' : '#ef4444'}};">${{acc.enabled ? '✓ Bật' : '✗ Tắt'}}</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary" onclick="toggleAccount('${{acc.account_id}}', ${{!acc.enabled}})" style="padding: 4px 8px; font-size: 12px; margin-right: 5px;">
+                                    ${{acc.enabled ? 'Tắt' : 'Bật'}}
+                                </button>
+                                <button class="btn btn-danger" onclick="deleteAccount('${{acc.account_id}}')" style="padding: 4px 8px; font-size: 12px;">Xóa</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }} catch (error) {{
+                    console.error('Error loading accounts:', error);
+                }}
+            }}
+            
+            async function loadPrefixes() {{
+                try {{
+                    const response = await fetch('/api/accounts-prefixes/prefixes');
+                    const prefixes = await response.json();
+                    const container = document.getElementById('prefixes-list');
+                    
+                    if (prefixes.length === 0) {{
+                        container.innerHTML = '<p style="color: #666;">Chưa có prefix nào</p>';
+                        return;
+                    }}
+                    
+                    container.innerHTML = prefixes.map(prefix => `
+                        <div style="padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>${{prefix.prefix}}</strong>
+                                ${{prefix.prefix_name ? '<br><small style="color: #666;">' + prefix.prefix_name + '</small>' : ''}}
+                                <br><small style="color: ${{prefix.enabled ? '#10b981' : '#ef4444'}};">${{prefix.enabled ? '✓ Bật' : '✗ Tắt'}}</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary" onclick="togglePrefix('${{prefix.prefix}}', ${{!prefix.enabled}})" style="padding: 4px 8px; font-size: 12px; margin-right: 5px;">
+                                    ${{prefix.enabled ? 'Tắt' : 'Bật'}}
+                                </button>
+                                <button class="btn btn-danger" onclick="deletePrefix('${{prefix.prefix}}')" style="padding: 4px 8px; font-size: 12px;">Xóa</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }} catch (error) {{
+                    console.error('Error loading prefixes:', error);
+                }}
+            }}
+            
+            async function addAccount() {{
+                const accountId = document.getElementById('new-account-id').value.trim();
+                const accountName = document.getElementById('new-account-name').value.trim();
+                
+                if (!accountId) {{
+                    alert('Vui lòng nhập Account ID');
+                    return;
+                }}
+                
+                try {{
+                    const response = await fetch('/api/accounts-prefixes/accounts', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{
+                            account_id: accountId,
+                            account_name: accountName || null,
+                            enabled: true
+                        }})
+                    }});
+                    
+                    if (response.ok) {{
+                        document.getElementById('new-account-id').value = '';
+                        document.getElementById('new-account-name').value = '';
+                        loadAccounts();
+                        // Reload tree view
+                        location.reload();
+                    }} else {{
+                        const error = await response.json();
+                        alert('Lỗi: ' + (error.detail || 'Unknown error'));
+                    }}
+                }} catch (error) {{
+                    alert('Lỗi: ' + error.message);
+                }}
+            }}
+            
+            async function addPrefix() {{
+                const prefix = document.getElementById('new-prefix').value.trim().toUpperCase();
+                const prefixName = document.getElementById('new-prefix-name').value.trim();
+                
+                if (!prefix) {{
+                    alert('Vui lòng nhập Prefix');
+                    return;
+                }}
+                
+                try {{
+                    const response = await fetch('/api/accounts-prefixes/prefixes', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{
+                            prefix: prefix,
+                            prefix_name: prefixName || null,
+                            enabled: true
+                        }})
+                    }});
+                    
+                    if (response.ok) {{
+                        document.getElementById('new-prefix').value = '';
+                        document.getElementById('new-prefix-name').value = '';
+                        loadPrefixes();
+                        // Reload tree view
+                        location.reload();
+                    }} else {{
+                        const error = await response.json();
+                        alert('Lỗi: ' + (error.detail || 'Unknown error'));
+                    }}
+                }} catch (error) {{
+                    alert('Lỗi: ' + error.message);
+                }}
+            }}
+            
+            async function toggleAccount(accountId, enabled) {{
+                try {{
+                    const response = await fetch(`/api/accounts-prefixes/accounts/${{accountId}}`, {{
+                        method: 'PUT',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ enabled: enabled }})
+                    }});
+                    
+                    if (response.ok) {{
+                        loadAccounts();
+                        location.reload();
+                    }} else {{
+                        const error = await response.json();
+                        alert('Lỗi: ' + (error.detail || 'Unknown error'));
+                    }}
+                }} catch (error) {{
+                    alert('Lỗi: ' + error.message);
+                }}
+            }}
+            
+            async function togglePrefix(prefix, enabled) {{
+                try {{
+                    const response = await fetch(`/api/accounts-prefixes/prefixes/${{prefix}}`, {{
+                        method: 'PUT',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ enabled: enabled }})
+                    }});
+                    
+                    if (response.ok) {{
+                        loadPrefixes();
+                        location.reload();
+                    }} else {{
+                        const error = await response.json();
+                        alert('Lỗi: ' + (error.detail || 'Unknown error'));
+                    }}
+                }} catch (error) {{
+                    alert('Lỗi: ' + error.message);
+                }}
+            }}
+            
+            async function deleteAccount(accountId) {{
+                if (!confirm(`Bạn có chắc muốn xóa account ${{accountId}}?`)) return;
+                
+                try {{
+                    const response = await fetch(`/api/accounts-prefixes/accounts/${{accountId}}`, {{
+                        method: 'DELETE'
+                    }});
+                    
+                    if (response.ok) {{
+                        loadAccounts();
+                        location.reload();
+                    }} else {{
+                        const error = await response.json();
+                        alert('Lỗi: ' + (error.detail || 'Unknown error'));
+                    }}
+                }} catch (error) {{
+                    alert('Lỗi: ' + error.message);
+                }}
+            }}
+            
+            async function deletePrefix(prefix) {{
+                if (!confirm(`Bạn có chắc muốn xóa prefix ${{prefix}}?`)) return;
+                
+                try {{
+                    const response = await fetch(`/api/accounts-prefixes/prefixes/${{prefix}}`, {{
+                        method: 'DELETE'
+                    }});
+                    
+                    if (response.ok) {{
+                        loadPrefixes();
+                        location.reload();
+                    }} else {{
+                        const error = await response.json();
+                        alert('Lỗi: ' + (error.detail || 'Unknown error'));
+                    }}
+                }} catch (error) {{
+                    alert('Lỗi: ' + error.message);
+                }}
             }}
         </script>
     </body>
