@@ -19,13 +19,26 @@ router = APIRouter(prefix="/rules-v2", tags=["rules_ui_v2"])
 
 
 @router.get("/", response_class=HTMLResponse)
-async def rules_management_v2():
+async def rules_management_v2(db: Session = Depends(get_db)):
     """Giao diện quản lý rules V2 - Trực quan và mạnh mẽ hơn"""
-    settings = get_settings()
-    account_ids = settings.ad_account_ids_list
+    from app.models.account_prefix import Account, Prefix
     
-    # Lấy prefixes từ database hoặc hardcode
-    prefixes = ['FL', 'PX', 'TL', 'NM', 'CCHL', 'DHHL', 'HSHL', 'CCB', 'CCB', 'LAKVDH']
+    # Lấy accounts từ database
+    accounts = db.query(Account).filter(Account.enabled == True).order_by(Account.account_id).all()
+    account_ids = [acc.account_id for acc in accounts]
+    
+    # Nếu không có account trong DB, fallback về settings
+    if not account_ids:
+        settings = get_settings()
+        account_ids = settings.ad_account_ids_list
+    
+    # Lấy prefixes từ database
+    prefix_objs = db.query(Prefix).filter(Prefix.enabled == True).order_by(Prefix.prefix).all()
+    prefixes = [p.prefix for p in prefix_objs]
+    
+    # Nếu không có prefix trong DB, fallback về hardcode
+    if not prefixes:
+        prefixes = ['FL', 'PX', 'TL', 'NM', 'CCHL', 'DHHL', 'HSHL', 'CCB', 'LAKVDH']
     
     # Emoji constants để tránh lỗi backslash trong f-string
     emoji_clipboard = '\U0001F4CB'  # 📋

@@ -15,9 +15,10 @@ Base = declarative_base()
 
 # Import all models để Base.metadata có thể tạo tables
 # Models được import ở đây để tránh circular import
-from app.models.telegram_update import TelegramUpdate
-from app.models.job import Job
-from app.models.logic_rule import LogicRule
+    from app.models.telegram_update import TelegramUpdate
+    from app.models.job import Job
+    from app.models.logic_rule import LogicRule
+    from app.models.account_prefix import Account, Prefix  # Import models mới
 
 
 # Models

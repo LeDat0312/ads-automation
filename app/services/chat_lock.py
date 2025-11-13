@@ -77,3 +77,5 @@ def is_chat_locked(chat_id: str) -> bool:
     lock = _chat_locks.get(chat_id)
     return lock is not None and lock.locked()
 
+
+

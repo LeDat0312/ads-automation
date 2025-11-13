@@ -278,3 +278,5 @@ Dựa trên [Google Sheet LogicRules](https://docs.google.com/spreadsheets/d/1U6
 
 Bây giờ bạn có giao diện trực quan và mạnh mẽ để quản lý logic rules cho từng account và prefix!
 
+
+

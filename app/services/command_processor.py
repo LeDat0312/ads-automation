@@ -355,10 +355,16 @@ Dùng /help để xem danh sách lệnh.
                         
                         # Lưu thông tin adset có impressions > 0 (chỉ lưu 1 lần cho mỗi adset)
                         if adset_key not in adset_keys_with_impressions:
-                            # Lấy status từ adset_status_map
-                            status = None
-                            if adset_key in adset_status_map:
-                                status = adset_status_map[adset_key]['status']
+                            # Ưu tiên lấy status từ metric hiện tại (chính xác nhất)
+                            # Nếu không có, lấy từ adset_status_map
+                            status = m.adset_status
+                            if not status or status == '':
+                                if adset_key in adset_status_map:
+                                    status = adset_status_map[adset_key]['status']
+                            
+                            # Nếu vẫn không có, mặc định là ACTIVE
+                            if not status or status == '':
+                                status = 'ACTIVE'
                             
                             adset_keys_with_impressions[adset_key] = {
                                 'account_id': m.account_id,
@@ -464,7 +470,7 @@ Dùng /help để xem danh sách lệnh.
                         return None  # QUAN TRỌNG: Return None để worker không gửi duplicate
                     except Exception as e:
                         logger.error(f"❌ Error editing final message: {e}")
-                        return report
+            return report
                 
                 return report
             except Exception as e:
@@ -516,7 +522,7 @@ Dùng /help để xem danh sách lệnh.
             # Ưu tiên dùng progress_callback nếu có (để tránh duplicate)
             if progress_callback:
                 try:
-                    progress_callback(msg)
+                progress_callback(msg)
                 except Exception as e:
                     logger.error(f"❌ Error in progress_callback: {e}")
             elif chat_id and progress_message_id:

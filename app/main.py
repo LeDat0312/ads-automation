@@ -11,7 +11,7 @@ from app.core.config import get_settings, init_db
 from app.services.automation import run_automation, test_run_automation
 from app.services.telegram_bot import send_telegram_message_safe
 from app.services.webhook_setup import setup_webhook
-from app.api.routes import dashboard, templates, templates_ui, rules, rules_ui, rules_ui_v2, telegram
+from app.api.routes import dashboard, templates, templates_ui, rules, rules_ui, rules_ui_v2, telegram, accounts_prefixes
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,6 +35,7 @@ app.include_router(rules.router)
 app.include_router(rules_ui.router)
 app.include_router(rules_ui_v2.router)
 app.include_router(telegram.router)
+app.include_router(accounts_prefixes.router)
 
 # Initialize database on startup
 @app.on_event("startup")
