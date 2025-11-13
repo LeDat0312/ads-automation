@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Rules Management UI V2 - Giao diện trực quan và mạnh mẽ hơn
 - Tree view: Account → Prefix → Rules
@@ -329,14 +330,14 @@ async def rules_management_v2():
                         <ul class="tree-children">
                             <li class="tree-item" data-account="{acc}" data-prefix="all">
                                 <div class="tree-label" onclick="selectNode(this, 'account', '{acc}', null)">
-                                    <span class="tree-icon">📁</span>
+                                    <span class="tree-icon">\U0001F4C1</span>
                                     <span>Tất cả Prefix</span>
                                 </div>
                             </li>
                             {"".join([f'''
                             <li class="tree-item" data-account="{acc}" data-prefix="{prefix}">
                                 <div class="tree-label" onclick="selectNode(this, 'prefix', '{acc}', '{prefix}')">
-                                    <span class="tree-icon">🏷</span>
+                                    <span class="tree-icon">\U0001F3F7</span>
                                     <span>{prefix}</span>
                                 </div>
                             </li>
