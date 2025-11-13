@@ -524,7 +524,6 @@ Dùng /help để xem danh sách lệnh.
                 return None  # Return None để tránh duplicate
             finally:
                 db.close()
-            
         except Exception as e:
             error_msg = f"❌ **LỖI NGHIÊM TRỌNG:** {str(e)}"
             logger.error(f"❌ Error generating report: {e}", exc_info=True)
