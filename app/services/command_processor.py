@@ -627,7 +627,7 @@ Dùng /help để xem danh sách lệnh.
                         # Create new - chỉ lấy các fields hợp lệ cho AdMetrics
                         # Chỉ giữ các fields có trong model AdMetrics
                         valid_fields = {
-                            'adset_id', 'ad_id', 'ad_name', 'adset_name', 'campaign_name',
+                            'adset_id', 'ad_id', 'ad_name', 'adset_name', 'campaign_name', 'campaign_id',
                             'account_id', 'account_name', 'prefix', 'spend', 'impressions', 'clicks', 'results',
                             'ctr', 'cpc', 'cpa', 'roas', 'gia_data', 'sdt', 'gia_sdt', 'ty_le_sdt',
                             'adset_status', 'effective_status', 'date', 'date_preset',

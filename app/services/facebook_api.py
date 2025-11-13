@@ -154,6 +154,84 @@ def pause_adsets(
     }
 
 
+def pause_campaign(
+    campaign_id: str,
+    access_token: str
+) -> Dict[str, Any]:
+    """
+    Tắt một Campaign
+    """
+    try:
+        url = f"{FB_GRAPH_API_BASE}/{campaign_id}"
+        params = {
+            'access_token': access_token
+        }
+        data = {
+            'status': 'PAUSED'
+        }
+        
+        response = requests.post(url, params=params, data=data, timeout=30)
+        response.raise_for_status()
+        
+        return {"success": True, "campaign_id": campaign_id}
+    except Exception as e:
+        logger.error(f"🚨 Lỗi tắt Campaign {campaign_id}: {e}")
+        return {"success": False, "campaign_id": campaign_id, "error": str(e)}
+
+
+def get_campaign_adsets_count(
+    campaign_id: str,
+    access_token: str
+) -> int:
+    """
+    Lấy số lượng adsets trong một campaign
+    """
+    try:
+        url = f"{FB_GRAPH_API_BASE}/{campaign_id}/adsets"
+        params = {
+            'access_token': access_token,
+            'fields': 'id',
+            'limit': 1
+        }
+        
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        
+        json_data = response.json()
+        # Lấy total count từ paging nếu có
+        if 'paging' in json_data and 'cursors' in json_data['paging']:
+            # Nếu có paging, cần đếm tất cả
+            count = 0
+            url_with_count = f"{FB_GRAPH_API_BASE}/{campaign_id}/adsets"
+            params_count = {
+                'access_token': access_token,
+                'fields': 'id',
+                'limit': 100
+            }
+            
+            while url_with_count:
+                response = requests.get(url_with_count, params=params_count, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                
+                if 'data' in data:
+                    count += len(data['data'])
+                
+                # Check for next page
+                if 'paging' in data and 'next' in data['paging']:
+                    url_with_count = data['paging']['next']
+                else:
+                    url_with_count = None
+            
+            return count
+        else:
+            # Không có paging, trả về số lượng trong data
+            return len(json_data.get('data', []))
+    except Exception as e:
+        logger.error(f"🚨 Lỗi lấy số adsets của Campaign {campaign_id}: {e}")
+        return 0
+
+
 def resume_adsets(
     adset_id_list: List[str],
     access_token: str,

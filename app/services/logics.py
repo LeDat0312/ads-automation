@@ -142,3 +142,52 @@ def check_logic_3(
     
     return False
 
+
+def check_logic_7days_filter(
+    total_impressions: int,
+    total_spend: float,
+    avg_gia_data: float,
+    cost_per_purchase: float,
+    total_results: int,
+    logic_map: Dict[str, Dict[str, Any]],
+    account_id: str,
+    prefix: str
+) -> Tuple[bool, str]:
+    """
+    Kiểm tra Logic lọc 7 ngày:
+    - Điều kiện 1: impressions > 0, spend > 100,000, gia_data > ngưỡng
+      + Ngoại lệ: cost_per_purchase < 150,000 thì giữ lại
+      + Ngoại lệ: gia_data >= 2x ngưỡng thì tắt bất kể cost_per_purchase
+    - Điều kiện 2: impressions > 0, spend > 100,000, results = 0
+    
+    Returns: (should_pause: bool, reason: str)
+    """
+    rule_key = f"{account_id}|{prefix}"
+    logic = logic_map.get(rule_key) or logic_map.get("DEFAULT|DEFAULT", {})
+    
+    # Lấy ngưỡng giá DATA từ logic map (dùng SL_2_GIA_DATA)
+    gia_data_threshold = logic.get("SL_2_GIA_DATA", 0)
+    spend_threshold = 100000  # 100,000 VND
+    
+    # Kiểm tra điều kiện cơ bản
+    if total_impressions <= 0 or total_spend <= spend_threshold:
+        return False, ""
+    
+    # ĐIỀU KIỆN 1: Giá DATA vượt ngưỡng
+    if avg_gia_data > gia_data_threshold:
+        # Ngoại lệ 1: cost_per_purchase < 150,000 thì giữ lại
+        if cost_per_purchase > 0 and cost_per_purchase < 150000:
+            return False, ""
+        
+        # Ngoại lệ 2: gia_data >= 2x ngưỡng thì tắt bất kể cost_per_purchase
+        if avg_gia_data >= (gia_data_threshold * 2):
+            return True, f"Giá DATA ({avg_gia_data:,.0f}₫) gấp đôi ngưỡng ({gia_data_threshold:,.0f}₫)"
+        
+        # Trường hợp thường: gia_data > ngưỡng và cost_per_purchase >= 150,000
+        return True, f"Giá DATA ({avg_gia_data:,.0f}₫) vượt ngưỡng ({gia_data_threshold:,.0f}₫) và chi phí mua >= 150,000₫"
+    
+    # ĐIỀU KIỆN 2: Kết quả = 0
+    if total_results == 0:
+        return True, f"Chi tiêu {total_spend:,.0f}₫ nhưng không có kết quả (bình luận + tin nhắn = 0)"
+    
+    return False, ""
