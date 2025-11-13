@@ -46,7 +46,6 @@ def create_rule(rule_data: LogicRuleCreate, db: Session = Depends(get_db)):
         rule = manager.create_rule(rule_data)
         return LogicRuleResponse.from_orm(rule)
     except Exception as e:
-        from fastapi import HTTPException
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error creating rule: {e}", exc_info=True)
