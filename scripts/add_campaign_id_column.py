@@ -8,7 +8,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.core.database import engine
+from app.core.database import init_db, engine
 from sqlalchemy import text
 import logging
 
@@ -18,6 +18,12 @@ logger = logging.getLogger(__name__)
 
 def add_campaign_id_column():
     """Thêm cột campaign_id vào bảng ads_metrics nếu chưa có"""
+    # Khởi tạo database trước
+    init_db()
+    
+    if engine is None:
+        raise ValueError("Database engine chưa được khởi tạo")
+    
     try:
         with engine.begin() as conn:  # Dùng begin() để tự động commit/rollback
             # Kiểm tra xem cột đã tồn tại chưa
