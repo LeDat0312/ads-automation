@@ -5,6 +5,7 @@ Entry point cho Facebook Ads Automation System
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 import logging
 
 from app.core.config import get_settings, init_db
