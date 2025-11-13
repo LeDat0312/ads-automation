@@ -313,7 +313,7 @@ async def rules_management_v2():
         <div class="container">
             <!-- Sidebar: Tree view -->
             <div class="sidebar">
-                <h3 style="margin-bottom: 15px;">📋 Chọn Account & Prefix</h3>
+                <h3 style="margin-bottom: 15px;">\U0001F4CB Chọn Account & Prefix</h3>
                 <ul class="tree-view" id="tree-view">
                     <li class="tree-item" data-type="all">
                         <div class="tree-label" onclick="selectNode(this, 'all', null, null)">
