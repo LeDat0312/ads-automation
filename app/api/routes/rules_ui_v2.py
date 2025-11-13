@@ -27,6 +27,13 @@ async def rules_management_v2():
     # Lấy prefixes từ database hoặc hardcode
     prefixes = ['FL', 'PX', 'TL', 'NM', 'CCHL', 'DHHL', 'HSHL', 'CCB', 'CCB', 'LAKVDH']
     
+    # Emoji constants để tránh lỗi backslash trong f-string
+    emoji_clipboard = '\U0001F4CB'  # 📋
+    emoji_chart = '\U0001F4CA'  # 📊
+    emoji_play = '\u25B6'  # ▶
+    emoji_folder = '\U0001F4C1'  # 📁
+    emoji_label = '\U0001F3F7'  # 🏷
+    
     html = f"""
     <!DOCTYPE html>
     <html lang="vi">
@@ -313,31 +320,31 @@ async def rules_management_v2():
         <div class="container">
             <!-- Sidebar: Tree view -->
             <div class="sidebar">
-                <h3 style="margin-bottom: 15px;">\U0001F4CB Chọn Account & Prefix</h3>
+                <h3 style="margin-bottom: 15px;">{emoji_clipboard} Chọn Account & Prefix</h3>
                 <ul class="tree-view" id="tree-view">
                     <li class="tree-item" data-type="all">
                         <div class="tree-label" onclick="selectNode(this, 'all', null, null)">
-                            <span class="tree-icon">\U0001F4CA</span>
+                            <span class="tree-icon">{emoji_chart}</span>
                             <span>Tất cả</span>
                         </div>
                     </li>
                     {"".join([f'''
                     <li class="tree-item" data-account="{acc}">
                         <div class="tree-label" onclick="toggleNode(this)">
-                            <span class="tree-icon">\u25B6</span>
+                            <span class="tree-icon">{emoji_play}</span>
                             <span>{acc}</span>
                         </div>
                         <ul class="tree-children">
                             <li class="tree-item" data-account="{acc}" data-prefix="all">
                                 <div class="tree-label" onclick="selectNode(this, 'account', '{acc}', null)">
-                                    <span class="tree-icon">\U0001F4C1</span>
+                                    <span class="tree-icon">{emoji_folder}</span>
                                     <span>Tất cả Prefix</span>
                                 </div>
                             </li>
                             {"".join([f'''
                             <li class="tree-item" data-account="{acc}" data-prefix="{prefix}">
                                 <div class="tree-label" onclick="selectNode(this, 'prefix', '{acc}', '{prefix}')">
-                                    <span class="tree-icon">\U0001F3F7</span>
+                                    <span class="tree-icon">{emoji_label}</span>
                                     <span>{prefix}</span>
                                 </div>
                             </li>
