@@ -509,9 +509,9 @@ Dùng /help để xem danh sách lệnh.
                         return None  # QUAN TRỌNG: Return None để worker không gửi duplicate
                     except Exception as e:
                         logger.error(f"❌ Error editing final message: {e}")
-            return report
-                
-                return report
+                        return report  # Nếu edit fail, return report để worker gửi
+                else:
+                    return report  # Nếu không có chat_id/progress_message_id, return report
             except Exception as e:
                 logger.error(f"❌ Error generating report: {e}", exc_info=True)
                 error_msg = f"❌ **LỖI tạo báo cáo:** {str(e)}"
