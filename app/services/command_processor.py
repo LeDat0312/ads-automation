@@ -938,6 +938,44 @@ Dùng /help để xem danh sách lệnh.
             thread.start()
             
             return "🧪 Test automation đã được khởi động!\n\n⏳ Đang chạy trong background (bỏ qua khung giờ)..."
+    
+    @staticmethod
+    def handle_run_7days_filter(payload: Dict[str, Any]) -> Optional[str]:
+        """Xử lý /run-7days - Chạy logic lọc 7 ngày riêng"""
+        from app.services.automation_7days import run_7days_filter_automation
+        from app.services.telegram_bot import edit_message
+        from app.core.config import get_settings
+        
+        settings = get_settings()
+        chat_id = payload.get('chat_id')
+        progress_message_id = payload.get('progress_message_id')
+        
+        def send_progress(msg: str):
+            """Gửi progress update"""
+            if chat_id and progress_message_id:
+                try:
+                    edit_message(chat_id, progress_message_id, msg, settings.TELEGRAM_BOT_TOKEN)
+                except Exception as e:
+                    logger.error(f"❌ Error editing progress: {e}")
+        
+        try:
+            send_progress("🔍 Đang chạy logic lọc 7 ngày...")
+            result = run_7days_filter_automation()
+            
+            if result.get('success'):
+                msg = f"✅ *Hoàn thành logic 7 ngày*\n\n"
+                msg += f"Vi phạm: {result.get('violations', 0)}\n"
+                msg += f"Đã tắt: {result.get('paused_campaigns', 0)} campaigns, {result.get('paused_adsets', 0)} adsets"
+            else:
+                msg = f"❌ *Lỗi:* {result.get('error', 'Unknown error')}"
+            
+            send_progress(msg)
+            return None  # Không trả về để tránh duplicate
+        except Exception as e:
+            error_msg = f"❌ **LỖI:** {str(e)}"
+            logger.error(f"❌ Error running 7days filter: {e}", exc_info=True)
+            send_progress(error_msg)
+            return None
         except Exception as e:
             logger.error(f"❌ Error running test automation: {e}", exc_info=True)
             return f"❌ Lỗi khi chạy test automation: {str(e)}"
