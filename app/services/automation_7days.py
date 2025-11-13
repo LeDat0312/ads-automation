@@ -4,7 +4,7 @@ Chạy riêng logic lọc 7 ngày, không chạy logic 1, 2, 3
 """
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pytz import timezone as tz
 from sqlalchemy import func
 
@@ -17,10 +17,17 @@ from app.services.telegram_bot import send_telegram_message_safe
 logger = logging.getLogger(__name__)
 
 
-def run_7days_filter_automation():
+def run_7days_filter_automation(
+    account_ids: Optional[List[str]] = None,
+    prefixes: Optional[List[str]] = None
+):
     """
     Chạy logic lọc 7 ngày riêng
     Không chạy logic 1, 2, 3
+    
+    Args:
+        account_ids: List account IDs cụ thể để chạy (None = tất cả accounts có config enabled)
+        prefixes: List prefixes cụ thể để chạy (None = tất cả prefixes có config enabled)
     """
     settings = get_settings()
     bot_token = settings.TELEGRAM_BOT_TOKEN
@@ -32,8 +39,55 @@ def run_7days_filter_automation():
         # Xây dựng logic map (để lấy SL_2_GIA_DATA)
         logic_map = build_logic_map()
         
-        # Chạy logic 7 ngày
-        result = check_and_toggle_ads_7days(logic_map, access_token, bot_token, chat_id, delay_ms)
+        # Nếu không chỉ định account_ids/prefixes, lấy từ config enabled
+        if account_ids is None or prefixes is None:
+            from app.core.database import get_db_session
+            from app.models.logic_7days_config import Logic7DaysConfig
+            
+            db = get_db_session()
+            try:
+                configs = db.query(Logic7DaysConfig).filter(
+                    Logic7DaysConfig.enabled == True
+                ).all()
+                
+                if account_ids is None:
+                    # Lấy tất cả account_ids có config enabled
+                    account_ids_set = set()
+                    for config in configs:
+                        if config.account_id:
+                            account_ids_set.add(config.account_id)
+                        else:
+                            # Config cho tất cả accounts → dùng settings
+                            account_ids_set.update(settings.ad_account_ids_list)
+                            break
+                    account_ids = list(account_ids_set) if account_ids_set else settings.ad_account_ids_list
+                
+                if prefixes is None:
+                    # Lấy tất cả prefixes có config enabled
+                    prefixes_set = set()
+                    for config in configs:
+                        if config.prefix:
+                            prefixes_set.add(config.prefix)
+                        else:
+                            # Config cho tất cả prefixes → lấy từ database
+                            from app.models.account_prefix import Prefix
+                            all_prefixes = db.query(Prefix).filter(Prefix.enabled == True).all()
+                            prefixes_set.update([p.prefix for p in all_prefixes])
+                            break
+                    prefixes = list(prefixes_set) if prefixes_set else []
+            finally:
+                db.close()
+        
+        # Chạy logic 7 ngày với filter
+        result = check_and_toggle_ads_7days(
+            logic_map, 
+            access_token, 
+            bot_token, 
+            chat_id, 
+            delay_ms,
+            account_ids=account_ids,
+            prefixes=prefixes
+        )
         
         return result
     except Exception as e:
@@ -48,7 +102,9 @@ def check_and_toggle_ads_7days(
     access_token: str,
     bot_token: str,
     chat_id: str,
-    delay_ms: int
+    delay_ms: int,
+    account_ids: Optional[List[str]] = None,
+    prefixes: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     Chỉ chạy logic lọc 7 ngày

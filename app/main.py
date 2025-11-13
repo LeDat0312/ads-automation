@@ -125,6 +125,39 @@ async def test_automation_endpoint():
         )
 
 
+@app.post("/automation/run-7days")
+async def run_7days_automation_endpoint(
+    account_id: Optional[str] = None,
+    prefix: Optional[str] = None
+):
+    """Run 7 days filter automation"""
+    try:
+        from app.services.automation_7days import run_7days_filter_automation
+        
+        account_ids = [account_id] if account_id else None
+        prefixes = [prefix] if prefix else None
+        
+        result = run_7days_filter_automation(account_ids=account_ids, prefixes=prefixes)
+        
+        if result.get('success'):
+            return {
+                "message": "7 days filter automation completed",
+                "status": "success",
+                "result": result
+            }
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"error": result.get('error', 'Unknown error')}
+            )
+    except Exception as e:
+        logger.error(f"🚨 Error running 7days filter: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

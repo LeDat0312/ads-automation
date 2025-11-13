@@ -941,7 +941,13 @@ Dùng /help để xem danh sách lệnh.
     
     @staticmethod
     def handle_run_7days_filter(payload: Dict[str, Any]) -> Optional[str]:
-        """Xử lý /run-7days - Chạy logic lọc 7 ngày riêng"""
+        """
+        Xử lý /run-7days - Chạy logic lọc 7 ngày riêng
+        Có thể nhận args: /run-7days [account_id] [prefix]
+        - /run-7days → chạy tất cả accounts/prefixes có config enabled
+        - /run-7days account_id → chạy cho account đó (tất cả prefixes)
+        - /run-7days account_id prefix → chạy cho account + prefix cụ thể
+        """
         from app.services.automation_7days import run_7days_filter_automation
         from app.services.telegram_bot import edit_message
         from app.core.config import get_settings
@@ -949,6 +955,18 @@ Dùng /help để xem danh sách lệnh.
         settings = get_settings()
         chat_id = payload.get('chat_id')
         progress_message_id = payload.get('progress_message_id')
+        args = payload.get('args', '').strip()
+        
+        # Parse args: account_id [prefix]
+        account_ids = None
+        prefixes = None
+        
+        if args:
+            parts = args.split()
+            if len(parts) >= 1:
+                account_ids = [parts[0]]
+            if len(parts) >= 2:
+                prefixes = [parts[1]]
         
         def send_progress(msg: str):
             """Gửi progress update"""
@@ -959,11 +977,22 @@ Dùng /help để xem danh sách lệnh.
                     logger.error(f"❌ Error editing progress: {e}")
         
         try:
-            send_progress("🔍 Đang chạy logic lọc 7 ngày...")
-            result = run_7days_filter_automation()
+            if account_ids:
+                if prefixes:
+                    send_progress(f"🔍 Đang chạy logic 7 ngày cho account {account_ids[0]}, prefix {prefixes[0]}...")
+                else:
+                    send_progress(f"🔍 Đang chạy logic 7 ngày cho account {account_ids[0]}...")
+            else:
+                send_progress("🔍 Đang chạy logic lọc 7 ngày cho tất cả accounts/prefixes có config...")
+            
+            result = run_7days_filter_automation(account_ids=account_ids, prefixes=prefixes)
             
             if result.get('success'):
                 msg = f"✅ *Hoàn thành logic 7 ngày*\n\n"
+                if account_ids:
+                    msg += f"Account: {', '.join(account_ids)}\n"
+                if prefixes:
+                    msg += f"Prefix: {', '.join(prefixes)}\n"
                 msg += f"Vi phạm: {result.get('violations', 0)}\n"
                 msg += f"Đã tắt: {result.get('paused_campaigns', 0)} campaigns, {result.get('paused_adsets', 0)} adsets"
             else:

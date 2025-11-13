@@ -384,15 +384,27 @@ async def rules_management_v2(db: Session = Depends(get_db)):
             <div class="main-content">
                 <div id="alert-container"></div>
                 
-                <!-- Objective Selector -->
-                <div class="objective-selector">
-                    <div class="objective-btn active" data-objective="ECOMMERCE" onclick="selectObjective('ECOMMERCE')">
-                        🛒 Thương mại điện tử
+                <!-- Tabs: Rules vs Logic 7 Days Config -->
+                <div class="objective-selector" style="margin-bottom: 20px;">
+                    <div class="objective-btn active" data-tab="rules" onclick="switchTab('rules')">
+                        📋 Logic Rules
                     </div>
-                    <div class="objective-btn" data-objective="LEAD" onclick="selectObjective('LEAD')">
-                        📞 Số lượng khách hàng tiềm năng
+                    <div class="objective-btn" data-tab="7days" onclick="switchTab('7days')">
+                        🔍 Logic 7 Ngày
                     </div>
                 </div>
+                
+                <!-- Rules Tab -->
+                <div id="rules-tab" class="tab-content">
+                    <!-- Objective Selector -->
+                    <div class="objective-selector">
+                        <div class="objective-btn active" data-objective="ECOMMERCE" onclick="selectObjective('ECOMMERCE')">
+                            🛒 Thương mại điện tử
+                        </div>
+                        <div class="objective-btn" data-objective="LEAD" onclick="selectObjective('LEAD')">
+                            📞 Số lượng khách hàng tiềm năng
+                        </div>
+                    </div>
                 
                 <!-- Form -->
                 <form id="rule-form">
@@ -501,6 +513,85 @@ async def rules_management_v2(db: Session = Depends(get_db)):
                 <div class="rules-list" id="rules-list">
                     <h3 style="margin-top: 30px; margin-bottom: 15px;">📋 Danh sách Rules</h3>
                     <p>Đang tải...</p>
+                </div>
+                </div>
+                
+                <!-- Logic 7 Days Config Tab -->
+                <div id="7days-tab" class="tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 20px;">🔍 Cấu hình Logic Lọc 7 Ngày</h3>
+                    <p style="color: #666; margin-bottom: 20px;">
+                        Cấu hình ngưỡng và điều kiện cho logic lọc adsets trong N ngày qua.
+                        Mỗi account + prefix có thể có config riêng. Để trống account/prefix = áp dụng cho tất cả.
+                    </p>
+                    
+                    <!-- 7 Days Config Form -->
+                    <form id="7days-config-form">
+                        <input type="hidden" id="config-id" value="">
+                        <input type="hidden" id="config-account" value="">
+                        <input type="hidden" id="config-prefix" value="">
+                        
+                        <div class="form-section">
+                            <h3>📝 Thông tin cơ bản</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Account</label>
+                                    <input type="text" id="display-config-account" readonly placeholder="Chọn từ tree view bên trái">
+                                    <small style="color: #666;">Để trống = áp dụng cho tất cả accounts</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Prefix</label>
+                                    <input type="text" id="display-config-prefix" readonly placeholder="Chọn từ tree view bên trái">
+                                    <small style="color: #666;">Để trống = áp dụng cho tất cả prefixes</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <h3>⚙️ Ngưỡng cấu hình</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Ngưỡng chi tiêu (VND) *</label>
+                                    <input type="number" id="config-spend-threshold" value="100000" min="0" step="1000" required>
+                                    <small style="color: #666;">Mặc định: 100,000₫</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Ngưỡng giá DATA (VND)</label>
+                                    <input type="number" id="config-gia-data-threshold" value="0" min="0" step="1000">
+                                    <small style="color: #666;">0 = dùng từ SL_2_GIA_DATA trong Logic Rules</small>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Ngưỡng giữ lại Cost/Purchase (VND) *</label>
+                                    <input type="number" id="config-cost-per-purchase" value="150000" min="0" step="1000" required>
+                                    <small style="color: #666;">Nếu cost_per_purchase < ngưỡng này thì giữ lại dù gia_data > ngưỡng</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Số ngày lọc *</label>
+                                    <input type="number" id="config-days" value="7" min="1" max="30" required>
+                                    <small style="color: #666;">Mặc định: 7 ngày</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="config-enabled" checked>
+                                Bật config này
+                            </label>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px;">
+                            <button type="submit" class="btn btn-primary">💾 Lưu Config</button>
+                            <button type="button" class="btn btn-secondary" onclick="reset7DaysForm()">🔄 Reset</button>
+                        </div>
+                    </form>
+                    
+                    <!-- 7 Days Config List -->
+                    <div class="rules-list" style="margin-top: 30px;">
+                        <h3>📋 Danh sách Config Logic 7 Ngày</h3>
+                        <div id="7days-configs-container">Đang tải...</div>
+                    </div>
                 </div>
             </div>
         </div>
