@@ -9,7 +9,8 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, distinct
 
-from app.core.database import get_db, AdMetrics, LogicRule, AutomationStatus
+from app.core.database import get_db, AdMetrics, AutomationStatus
+from app.models.logic_rule import LogicRule
 from app.core.config import get_settings
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
