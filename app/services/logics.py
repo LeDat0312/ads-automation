@@ -5,7 +5,8 @@ Thay thế cho Logics.gs từ Google Apps Script
 import re
 import logging
 from typing import Dict, Any, List, Optional, Tuple
-from app.core.database import get_db_session, LogicRule
+from app.core.database import get_db_session
+from app.models.logic_rule import LogicRule
 
 logger = logging.getLogger(__name__)
 
