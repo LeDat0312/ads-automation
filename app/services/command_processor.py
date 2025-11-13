@@ -207,6 +207,10 @@ Dùng /help để xem danh sách lệnh.
         
         try:
             # Bước 1: Pull data mới từ Facebook
+            # Lưu thời gian pull để hiển thị trong báo cáo
+            tz_vn = tz('Asia/Ho_Chi_Minh')
+            pull_start_time = datetime.now(tz_vn)
+            
             # _pull_and_save_data sẽ tự gửi progress qua progress_callback
             pull_msg, pull_count = CommandProcessor._pull_and_save_data(
                 chat_id=chat_id,
@@ -214,6 +218,9 @@ Dùng /help để xem danh sách lệnh.
                 progress_message_id=progress_message_id,
                 progress_callback=send_progress
             )
+            
+            # Lưu thời gian pull vào payload để dùng trong báo cáo
+            payload['pull_data_time'] = pull_start_time
             
             # Nếu có lỗi khi pull, edit message và return None
             if pull_msg.startswith("❌"):
@@ -566,17 +573,26 @@ Dùng /help để xem danh sách lệnh.
         
         try:
             # Bước 1: Pull data - chỉ hiển thị 1 lần
-            send_progress("📥 Đang pull dữ liệu từ Facebook...")
-            logger.info("📥 Đang pull dữ liệu từ Facebook API...")
+            send_progress("📥 Đang pull dữ liệu mới từ Facebook...")
+            logger.info("📥 Đang pull dữ liệu mới từ Facebook API...")
             
+            # Lưu thời gian bắt đầu pull
+            from pytz import timezone as tz
+            tz_vn = tz('Asia/Ho_Chi_Minh')
+            pull_start_time = datetime.now(tz_vn)
+            
+            # Pull data với date_preset = "today" để lấy dữ liệu hôm nay
             ad_metrics_list = pull_facebook_data(
                 settings.ACCESS_TOKEN,
                 settings.ad_account_ids_list,
-                settings.DATA_DATE_PRESET
+                "today"  # CHỈ lấy dữ liệu hôm nay
             )
             
+            pull_end_time = datetime.now(tz_vn)
+            logger.info(f"✅ Đã pull {len(ad_metrics_list)} ads từ Facebook trong {(pull_end_time - pull_start_time).total_seconds():.1f}s")
+            
             if not ad_metrics_list:
-                send_progress("⚠️ Không có dữ liệu mới từ Facebook")
+                send_progress("⚠️ Không có dữ liệu mới từ Facebook (có thể chưa có dữ liệu hôm nay)")
                 return "⚠️ Không có dữ liệu mới từ Facebook", 0
             
             # Bước 2: Lưu vào database - chỉ hiển thị khi bắt đầu và kết thúc
@@ -588,11 +604,17 @@ Dùng /help để xem danh sách lệnh.
                 for idx, ad_metric in enumerate(ad_metrics_list):
                     # KHÔNG gửi progress update trong loop - chỉ edit khi hoàn thành
                     
-                    # Kiểm tra xem đã có chưa
+                    # Đảm bảo date là hôm nay
+                    from pytz import timezone as tz
+                    tz_vn = tz('Asia/Ho_Chi_Minh')
+                    today = datetime.now(tz_vn).replace(hour=0, minute=0, second=0, microsecond=0)
+                    ad_metric['date'] = datetime.now(tz_vn)  # Set date là hôm nay
+                    
+                    # Kiểm tra xem đã có chưa (chỉ check trong ngày hôm nay)
                     existing = db.query(AdMetrics).filter(
                         AdMetrics.adset_id == ad_metric.get('adset_id'),
                         AdMetrics.ad_id == ad_metric.get('ad_id'),
-                        AdMetrics.date >= datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                        AdMetrics.date >= today
                     ).first()
                     
                     if existing:
