@@ -32,13 +32,17 @@ async def rules_management_v2(db: Session = Depends(get_db)):
         settings = get_settings()
         account_ids = settings.ad_account_ids_list
     
-    # Lấy prefixes từ database
-    prefix_objs = db.query(Prefix).filter(Prefix.enabled == True).order_by(Prefix.prefix).all()
+    # Lấy prefixes từ database - CHỈ lấy 4 prefixes được chỉ định
+    allowed_prefixes = ['FL', 'NM', 'PX', 'TL']
+    prefix_objs = db.query(Prefix).filter(
+        Prefix.enabled == True,
+        Prefix.prefix.in_(allowed_prefixes)
+    ).order_by(Prefix.prefix).all()
     prefixes = [p.prefix for p in prefix_objs]
     
-    # Nếu không có prefix trong DB, fallback về hardcode
+    # Nếu không có prefix trong DB, fallback về 4 prefixes được chỉ định
     if not prefixes:
-        prefixes = ['FL', 'PX', 'TL', 'NM', 'CCHL', 'DHHL', 'HSHL', 'CCB', 'LAKVDH']
+        prefixes = allowed_prefixes
     
     # Emoji constants để tránh lỗi backslash trong f-string
     emoji_clipboard = '\U0001F4CB'  # 📋
