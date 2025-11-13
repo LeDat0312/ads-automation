@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def add_campaign_id_column():
     """Thêm cột campaign_id vào bảng ads_metrics nếu chưa có"""
     try:
-        with engine.connect() as conn:
+        with engine.begin() as conn:  # Dùng begin() để tự động commit/rollback
             # Kiểm tra xem cột đã tồn tại chưa
             check_query = text("""
                 SELECT column_name 
@@ -34,23 +34,46 @@ def add_campaign_id_column():
                 logger.info("✅ Cột campaign_id đã tồn tại")
                 return
             
-            # Thêm cột campaign_id
+            # Thêm cột campaign_id (nếu chưa có)
             logger.info("📝 Đang thêm cột campaign_id vào bảng ads_metrics...")
             alter_query = text("""
                 ALTER TABLE ads_metrics 
-                ADD COLUMN campaign_id VARCHAR
+                ADD COLUMN IF NOT EXISTS campaign_id VARCHAR
             """)
+            try:
             conn.execute(alter_query)
-            conn.commit()
+            except Exception as e:
+                # Nếu lỗi do cú pháp IF NOT EXISTS không hỗ trợ, thử cách khác
+                if "IF NOT EXISTS" in str(e):
+                    # PostgreSQL không hỗ trợ IF NOT EXISTS trong ALTER TABLE ADD COLUMN
+                    # Thử thêm trực tiếp và bỏ qua lỗi nếu đã tồn tại
+                    try:
+                        alter_query2 = text("""
+                            ALTER TABLE ads_metrics 
+                            ADD COLUMN campaign_id VARCHAR
+                        """)
+                        conn.execute(alter_query2)
+                    except Exception as e2:
+                        if "already exists" in str(e2).lower() or "duplicate" in str(e2).lower():
+                            logger.info("⚠️ Cột campaign_id đã tồn tại, bỏ qua...")
+                        else:
+                            raise
+                else:
+                    raise
             
-            # Thêm index cho campaign_id
+            # Thêm index cho campaign_id (nếu chưa có)
             logger.info("📝 Đang thêm index cho campaign_id...")
             index_query = text("""
                 CREATE INDEX IF NOT EXISTS ix_ads_metrics_campaign_id 
                 ON ads_metrics(campaign_id)
             """)
-            conn.execute(index_query)
-            conn.commit()
+            try:
+                conn.execute(index_query)
+            except Exception as e:
+                if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                    logger.info("⚠️ Index đã tồn tại, bỏ qua...")
+                else:
+                    raise
             
             logger.info("✅ Đã thêm cột campaign_id và index thành công!")
             
