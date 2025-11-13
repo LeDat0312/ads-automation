@@ -29,6 +29,7 @@ class AdMetrics(Base):
     adset_name = Column(String)
     campaign_name = Column(String)
     account_id = Column(String, index=True)
+    account_name = Column(String)  # Tên tài khoản quảng cáo
     prefix = Column(String, index=True)
     
     # Metrics

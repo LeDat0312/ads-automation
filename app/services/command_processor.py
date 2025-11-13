@@ -553,7 +553,7 @@ Dùng /help để xem danh sách lệnh.
             # Ưu tiên dùng progress_callback nếu có (để tránh duplicate)
             if progress_callback:
                 try:
-                progress_callback(msg)
+                    progress_callback(msg)
                 except Exception as e:
                     logger.error(f"❌ Error in progress_callback: {e}")
             elif chat_id and progress_message_id:
