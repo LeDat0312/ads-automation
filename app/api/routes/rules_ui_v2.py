@@ -317,7 +317,7 @@ async def rules_management_v2():
                 <ul class="tree-view" id="tree-view">
                     <li class="tree-item" data-type="all">
                         <div class="tree-label" onclick="selectNode(this, 'all', null, null)">
-                            <span class="tree-icon">📊</span>
+                            <span class="tree-icon">\U0001F4CA</span>
                             <span>Tất cả</span>
                         </div>
                     </li>
