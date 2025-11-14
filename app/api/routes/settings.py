@@ -510,6 +510,115 @@ async def update_account_type(
         raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật loại account: {str(e)}")
 
 
+@router.post("/accounts/fetch-info")
+async def fetch_account_info(
+    request: Request,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Lấy thông tin account từ Facebook API (name, timezone) - dùng khi thêm account mới"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    try:
+        body = await request.json()
+        account_id = body.get("account_id")
+        
+        if not account_id:
+            raise HTTPException(status_code=400, detail="Missing account_id in request body")
+        
+        # Get token
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=404, detail="Chưa có token. Vui lòng lưu token trước.")
+        
+        try:
+            token = decrypt_token(user_settings.facebook_token_encrypted)
+        except Exception as e:
+            logger.error(f"Error decrypting token: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail=f"Lỗi giải mã token: {str(e)}")
+        
+        # Normalize account_id
+        account_id_for_api = account_id
+        if not account_id_for_api.startswith("act_"):
+            account_id_for_api = f"act_{account_id_for_api}"
+        
+        # Fetch account info from Facebook API
+        try:
+            import requests
+            from app.services.facebook_token_service import FB_GRAPH_API_BASE
+            
+            url = f"{FB_GRAPH_API_BASE}/{account_id_for_api}"
+            params = {
+                "fields": "id,name,account_id,timezone_name",
+                "access_token": token
+            }
+            
+            response = requests.get(url, params=params, timeout=30)
+            
+            # Parse error response từ Facebook API
+            if response.status_code != 200:
+                try:
+                    error_data = response.json()
+                    if 'error' in error_data:
+                        error_info = error_data['error']
+                        error_message = error_info.get('message', 'Unknown error')
+                        error_code = error_info.get('code', 0)
+                        error_type = error_info.get('type', 'Unknown')
+                        
+                        # Map common error codes to user-friendly messages
+                        if error_code == 190:
+                            error_message = "Token không hợp lệ hoặc đã hết hạn"
+                        elif error_code == 200:
+                            error_message = f"Không có quyền truy cập tài khoản này: {error_message}"
+                        elif error_code == 100:
+                            error_message = f"Account ID không hợp lệ: {error_message}"
+                        
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Facebook API error ({error_type}, Code {error_code}): {error_message}"
+                        )
+                    else:
+                        raise HTTPException(status_code=400, detail=f"HTTP {response.status_code}: {response.text[:200]}")
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"HTTP {response.status_code}: {response.text[:200]}")
+            
+            data = response.json()
+            if 'error' in data:
+                error_info = data['error']
+                error_message = error_info.get('message', 'Unknown error')
+                error_code = error_info.get('code', 0)
+                error_type = error_info.get('type', 'Unknown')
+                
+                if error_code == 190:
+                    error_message = "Token không hợp lệ hoặc đã hết hạn"
+                elif error_code == 200:
+                    error_message = f"Không có quyền truy cập tài khoản này: {error_message}"
+                elif error_code == 100:
+                    error_message = f"Account ID không hợp lệ: {error_message}"
+                
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Facebook API error ({error_type}, Code {error_code}): {error_message}"
+                )
+            
+            return {
+                "account_id": data.get('account_id') or data.get('id', account_id),
+                "name": data.get('name', ''),
+                "timezone": data.get('timezone_name', 'Asia/Ho_Chi_Minh')
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error fetching account info from Facebook: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail=f"Lỗi khi lấy thông tin từ Facebook: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in fetch_account_info: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi lấy thông tin account: {str(e)}")
+
+
 @router.post("/accounts/{account_id}/refresh")
 def refresh_account(
     request: Request,
@@ -1537,13 +1646,16 @@ async def settings_page(
                     <input type="hidden" id="accountId" />
                     <div class="form-group">
                         <label>Account ID *</label>
-                        <input type="text" id="accountAccountId" required placeholder="act_123456789" readonly style="background: #f8fafc; cursor: not-allowed;" />
-                        <small style="color: #64748b; margin-top: 4px; display: block;">ID tài khoản không thể chỉnh sửa</small>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="accountAccountId" required placeholder="act_123456789" style="flex: 1;" />
+                            <button type="button" class="btn btn-secondary" onclick="syncAccountInfo()" id="syncAccountInfoBtn" style="white-space: nowrap;">🔄 Đồng Bộ</button>
+                        </div>
+                        <small style="color: #64748b; margin-top: 4px; display: block;">Nhập Account ID và click "Đồng Bộ" để lấy thông tin từ Facebook</small>
                     </div>
                     <div class="form-group">
                         <label>Tên Account</label>
-                        <input type="text" id="accountName" placeholder="Tên hiển thị" readonly style="background: #f8fafc; cursor: not-allowed;" />
-                        <small style="color: #64748b; margin-top: 4px; display: block;">Tên tài khoản không thể chỉnh sửa</small>
+                        <input type="text" id="accountName" placeholder="Tên hiển thị (sẽ được điền tự động sau khi đồng bộ)" readonly style="background: #f8fafc; cursor: not-allowed;" />
+                        <small style="color: #64748b; margin-top: 4px; display: block;">Tên tài khoản sẽ được lấy từ Facebook sau khi đồng bộ</small>
                     </div>
                     <div class="form-group">
                         <label>Loại Account</label>
@@ -2195,10 +2307,74 @@ async def settings_page(
                 document.getElementById('accountModalTitle').textContent = 'Thêm Account';
                 document.getElementById('accountForm').reset();
                 document.getElementById('accountId').value = '';
+                document.getElementById('accountAccountId').value = '';
+                document.getElementById('accountAccountId').readOnly = false;
+                document.getElementById('accountAccountId').style.background = 'white';
+                document.getElementById('accountAccountId').style.cursor = 'text';
+                document.getElementById('accountName').value = '';
+                document.getElementById('accountName').readOnly = true;
+                document.getElementById('accountName').style.background = '#f8fafc';
+                document.getElementById('accountName').style.cursor = 'not-allowed';
                 document.getElementById('accountType').value = 'UNKNOWN';
                 document.getElementById('accountTimezone').value = 'Asia/Ho_Chi_Minh';
+                document.getElementById('accountTimezone').readOnly = true;
+                document.getElementById('accountTimezone').style.background = '#f8fafc';
+                document.getElementById('accountTimezone').style.cursor = 'not-allowed';
                 document.getElementById('accountPrefixesGroup').style.display = 'none';
+                document.getElementById('syncAccountInfoBtn').style.display = 'inline-flex';
                 document.getElementById('accountModal').classList.add('show');
+            }}
+            
+            // Sync account info from Facebook (chỉ lấy name và timezone)
+            async function syncAccountInfo() {{
+                const accountIdInput = document.getElementById('accountAccountId');
+                const accountId = accountIdInput.value.trim();
+                
+                if (!accountId) {{
+                    showToast('Cảnh báo', 'Vui lòng nhập Account ID trước', 'warning');
+                    accountIdInput.focus();
+                    return;
+                }}
+                
+                const syncBtn = document.getElementById('syncAccountInfoBtn');
+                const originalText = syncBtn.innerHTML;
+                syncBtn.disabled = true;
+                syncBtn.innerHTML = '⏳ Đang đồng bộ...';
+                
+                try {{
+                    const response = await fetch('/settings/accounts/fetch-info', {{
+                        method: 'POST',
+                        headers: getAuthHeaders('application/json'),
+                        body: JSON.stringify({{ account_id: accountId }})
+                    }});
+                    
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        let errorMsg = 'Không thể lấy thông tin account';
+                        try {{
+                            const errorJson = JSON.parse(errorText);
+                            errorMsg = errorJson.detail || errorMsg;
+                        }} catch {{
+                            errorMsg = errorText.substring(0, 200);
+                        }}
+                        showToast('Lỗi', errorMsg, 'error');
+                        return;
+                    }}
+                    
+                    const data = await response.json();
+                    
+                    // Điền thông tin vào form
+                    document.getElementById('accountAccountId').value = data.account_id;
+                    document.getElementById('accountName').value = data.name || '';
+                    document.getElementById('accountTimezone').value = data.timezone || 'Asia/Ho_Chi_Minh';
+                    
+                    showToast('Thành công', 'Đã lấy thông tin account từ Facebook thành công!', 'success');
+                }} catch (error) {{
+                    showToast('Lỗi', 'Lỗi khi đồng bộ thông tin: ' + error.message, 'error');
+                }} finally {{
+                    syncBtn.disabled = false;
+                    syncBtn.innerHTML = originalText;
+                }}
             }}
             
             // Load prefixes để chọn trong modal edit account
@@ -2448,7 +2624,7 @@ async def settings_page(
                             showToast('Lỗi', error.detail || 'Không thể lưu account', 'error');
                         }}
                     }} else {{
-                        // Create new account
+                        // Create new account - sau khi tạo, fetch status và spend
                         response = await fetch('/settings/accounts', {{
                             method: 'POST',
                             headers: getAuthHeaders('application/json'),
@@ -2456,7 +2632,24 @@ async def settings_page(
                         }});
                         
                         if (response.ok) {{
-                            showToast('Thành công', 'Đã thêm account thành công!', 'success');
+                            const newAccount = await response.json();
+                            
+                            // Sau khi tạo account, fetch status và spend từ Facebook
+                            try {{
+                                const refreshResponse = await fetch('/settings/accounts/' + newAccount.id + '/refresh', {{
+                                    method: 'POST',
+                                    headers: getAuthHeaders()
+                                }});
+                                
+                                if (refreshResponse.ok) {{
+                                    showToast('Thành công', 'Đã thêm account và cập nhật thông tin từ Facebook thành công!', 'success');
+                                }} else {{
+                                    showToast('Thành công', 'Đã thêm account thành công! (Lưu ý: Không thể cập nhật trạng thái và chi tiêu từ Facebook)', 'warning');
+                                }}
+                            }} catch (refreshError) {{
+                                showToast('Thành công', 'Đã thêm account thành công! (Lưu ý: Không thể cập nhật trạng thái và chi tiêu từ Facebook)', 'warning');
+                            }}
+                            
                             closeAccountModal();
                             loadAccounts();
                         }} else {{
