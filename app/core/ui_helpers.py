@@ -145,6 +145,7 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
             min-width: 220px;
             overflow: hidden;
             border: 1px solid #e2e8f0;
+            z-index: 1002;
         }}
         
         .menu-item {{
