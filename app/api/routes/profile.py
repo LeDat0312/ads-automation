@@ -633,8 +633,14 @@ def upload_avatar(
             raise HTTPException(status_code=400, detail="Chỉ chấp nhận file ảnh")
         
         # Create avatars directory if not exists
-        avatars_dir = "app/static/avatars"
-        os.makedirs(avatars_dir, exist_ok=True)
+        # Static files are served from "static/" (same level as "app/")
+        # So we need to save to "../static/avatars" relative to app/api/routes/
+        # Or use absolute path from project root
+        import pathlib
+        project_root = pathlib.Path(__file__).parent.parent.parent.parent
+        avatars_dir = project_root / "static" / "avatars"
+        avatars_dir.mkdir(parents=True, exist_ok=True)
+        avatars_dir = str(avatars_dir)
         logger.info(f"Avatars directory: {avatars_dir}, exists: {os.path.exists(avatars_dir)}")
         
         # Read file content to check size
@@ -713,8 +719,11 @@ def remove_avatar(
     
     # Delete avatar file if exists
     if current_user.avatar and current_user.avatar != 'default_avatar.png':
-        avatars_dir = "app/static/avatars"
-        filepath = os.path.join(avatars_dir, current_user.avatar)
+        import pathlib
+        project_root = pathlib.Path(__file__).parent.parent.parent.parent
+        avatars_dir = project_root / "static" / "avatars"
+        filepath = avatars_dir / current_user.avatar
+        filepath = str(filepath)
         if os.path.exists(filepath):
             os.remove(filepath)
     
