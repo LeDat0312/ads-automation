@@ -2,7 +2,6 @@
 
 ## Các thay đổi mới nhất:
 - ✅ Tách biệt trang cá nhân và trang thay đổi mật khẩu
-- ✅ Thêm tính năng xóa tài khoản
 - ✅ Xóa card "Thông Tin Tài Khoản" khỏi trang chủ (đã có dropdown menu)
 
 ## Lệnh Pull Code:
@@ -53,10 +52,8 @@ sudo supervisorctl status ads-automation-api
 
 ## Các route mới:
 - `GET /change-password` - Trang thay đổi mật khẩu riêng biệt
-- `DELETE /profile/delete` - Xóa tài khoản và tất cả dữ liệu liên quan
 
 ## Lưu ý:
 - Trang chủ đã bỏ card "Thông Tin Tài Khoản"
 - Người dùng truy cập thông tin tài khoản qua dropdown menu ở góc phải
-- Tính năng xóa tài khoản yêu cầu xác nhận kép (confirm + nhập "XÓA")
 
