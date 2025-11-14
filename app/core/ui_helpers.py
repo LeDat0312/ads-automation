@@ -18,12 +18,20 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
     display_name = current_user.display_name or current_user.username
     username = current_user.username
     
+    # Build avatar HTML separately to avoid backslash in f-string
+    if avatar_url:
+        avatar_html = f'<img src="{avatar_url}" alt="Avatar" onerror="handleAvatarError(this)">'
+        placeholder_display = 'none'
+    else:
+        avatar_html = ''
+        placeholder_display = 'flex'
+    
     return f"""
     <div class="user-menu-container" id="userMenuContainer">
         <div class="user-menu-trigger" onclick="toggleUserMenu()">
             <div class="user-avatar">
-                {f'<img src="{avatar_url}" alt="Avatar" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'flex\';">' if avatar_url else ''}
-                <div class="avatar-placeholder" style="display: {'none' if avatar_url else 'flex'}">
+                {avatar_html}
+                <div class="avatar-placeholder" style="display: {placeholder_display}">
                     {display_name[0].upper()}
                 </div>
             </div>
@@ -197,6 +205,15 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
                 }}
             }}
         }});
+        
+        // Handle avatar error
+        function handleAvatarError(img) {{
+            img.style.display = 'none';
+            const placeholder = img.nextElementSibling;
+            if (placeholder) {{
+                placeholder.style.display = 'flex';
+            }}
+        }}
     </script>
     """
 

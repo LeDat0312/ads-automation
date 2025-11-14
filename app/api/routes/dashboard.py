@@ -326,14 +326,14 @@ async def dashboard_home(
                 const dateFrom = document.getElementById('dateFrom').value;
                 const dateTo = document.getElementById('dateTo').value;
                 
-                try {
+                try {{
                     // Load stats
-                    const statsResponse = await fetch(`/api/dashboard/stats?account_id=${accountId}&prefix=${prefix}&status=${status}&date_from=${dateFrom}&date_to=${dateTo}`);
+                    const statsResponse = await fetch('/api/dashboard/stats?account_id=' + accountId + '&prefix=' + prefix + '&status=' + status + '&date_from=' + dateFrom + '&date_to=' + dateTo);
                     const stats = await statsResponse.json();
                     updateStats(stats);
                     
                     // Load ads data
-                    const adsResponse = await fetch(`/api/dashboard/ads?account_id=${accountId}&prefix=${prefix}&status=${status}&date_from=${dateFrom}&date_to=${dateTo}&page=${currentPage}&page_size=${pageSize}`);
+                    const adsResponse = await fetch('/api/dashboard/ads?account_id=' + accountId + '&prefix=' + prefix + '&status=' + status + '&date_from=' + dateFrom + '&date_to=' + dateTo + '&page=' + currentPage + '&page_size=' + pageSize);
                     const adsData = await adsResponse.json();
                     updateTable(adsData);
                 } catch (error) {
@@ -417,15 +417,15 @@ async def dashboard_home(
                 return new Intl.NumberFormat('vi-VN').format(num);
             }
             
-            async function exportData() {
+            async function exportData() {{
                 const accountId = document.getElementById('accountFilter').value;
                 const prefix = document.getElementById('prefixFilter').value;
                 const status = document.getElementById('statusFilter').value;
                 const dateFrom = document.getElementById('dateFrom').value;
                 const dateTo = document.getElementById('dateTo').value;
                 
-                window.open(`/api/dashboard/export?account_id=${accountId}&prefix=${prefix}&status=${status}&date_from=${dateFrom}&date_to=${dateTo}`, '_blank');
-            }
+                window.open('/api/dashboard/export?account_id=' + accountId + '&prefix=' + prefix + '&status=' + status + '&date_from=' + dateFrom + '&date_to=' + dateTo, '_blank');
+            }}
             
             // Load filters options on page load
             async function loadFilters() {
