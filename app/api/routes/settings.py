@@ -1046,7 +1046,7 @@ async def settings_page(
                 </div>
                 
                 <div class="form-group">
-                    <label>Nhập Facebook Access Token {<span id="tokenActionText">mới</span>}</label>
+                    <label>Nhập Facebook Access Token <span id="tokenActionText">mới</span></label>
                     <input type="password" id="tokenInput" placeholder="EAAxxxxxxxxxxxxx" />
                     <small style="color: #64748b; margin-top: 4px; display: block;">Nhập token mới để thay thế token hiện tại</small>
                 </div>
