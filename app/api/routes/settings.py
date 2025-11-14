@@ -2456,6 +2456,7 @@ async def settings_page(
                             
                         }} catch (error) {{
                             syncInProgress = false;
+                            const syncBtn = document.querySelector('button[onclick="syncAccounts()"]');
                             if (syncBtn) {{
                                 syncBtn.disabled = false;
                                 syncBtn.innerHTML = '🔄 Đồng Bộ Từ Facebook';
