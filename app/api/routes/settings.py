@@ -1843,6 +1843,7 @@ async def settings_page(
                     <!-- Tạm thời ẩn nút đồng bộ, chỉ dùng thêm thủ công -->
                     <!-- <button class="btn btn-success" onclick="syncAccounts()">🔄 Đồng Bộ Từ Facebook</button> -->
                     <button class="btn btn-primary" onclick="showAddAccountModal()">➕ Thêm Account Thủ Công</button>
+                    <button class="btn btn-danger" onclick="deleteAllAccounts()">🗑️ Xóa Tất Cả Accounts</button>
                 </div>
                 
                 <!-- Progress indicator for sync -->
@@ -3117,6 +3118,32 @@ async def settings_page(
                 }} catch (error) {{
                     showToast('Lỗi', 'Lỗi khi lưu account: ' + error.message, 'error');
                 }}
+            }}
+            
+            async function deleteAllAccounts() {{
+                showConfirm(
+                    'Xác nhận Xóa Tất Cả Accounts',
+                    'Bạn có chắc muốn xóa TẤT CẢ accounts? Hành động này không thể hoàn tác! Tất cả các liên kết với prefixes cũng sẽ bị xóa.',
+                    async () => {{
+                        try {{
+                            const response = await fetch('/settings/accounts/all', {{
+                                method: 'DELETE',
+                                headers: getAuthHeaders()
+                            }});
+                            
+                            if (response.ok) {{
+                                const data = await response.json();
+                                showToast('Thành công', data.message || 'Đã xóa tất cả accounts thành công!', 'success');
+                                loadAccounts();
+                            }} else {{
+                                const error = await response.json();
+                                showToast('Lỗi', error.detail || 'Lỗi khi xóa accounts', 'error');
+                            }}
+                        }} catch (error) {{
+                            showToast('Lỗi', 'Lỗi khi xóa accounts: ' + error.message, 'error');
+                        }}
+                    }}
+                );
             }}
             
             async function deleteAccount(id) {{
