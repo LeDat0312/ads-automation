@@ -2,7 +2,7 @@
 """
 Authentication Routes - Login/Register/Logout
 """
-from fastapi import APIRouter, Depends, Request, Form, HTTPException, status, Request
+from fastapi import APIRouter, Depends, Request, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
