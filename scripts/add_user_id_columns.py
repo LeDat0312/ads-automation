@@ -10,13 +10,23 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import text
+from sqlalchemy import text, create_engine
 from app.core.database import init_db, engine, SessionLocal
 from app.core.config import get_settings
+import os
+from dotenv import load_dotenv
 
 def add_user_id_columns():
     """Thêm cột user_id vào các bảng nếu thiếu"""
     print("🔍 Đang kiểm tra và thêm cột user_id...")
+    
+    # Load .env file
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        print(f"✅ Đã load .env từ {env_path}")
+    else:
+        print(f"⚠️  Không tìm thấy .env tại {env_path}")
     
     # Initialize database
     try:
@@ -24,6 +34,13 @@ def add_user_id_columns():
     except Exception as e:
         print(f"⚠️  Lỗi khi khởi tạo database: {e}")
         print("   Đang thử kết nối trực tiếp...")
+        # Try to create engine directly
+        settings = get_settings()
+        if settings.DATABASE_URL:
+            global engine
+            from sqlalchemy import create_engine
+            engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+            print("✅ Đã tạo engine trực tiếp từ DATABASE_URL")
     
     # Ensure engine is initialized
     if engine is None:
