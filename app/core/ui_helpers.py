@@ -148,6 +148,11 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
             z-index: 1002;
         }}
         
+        /* Khi user menu nằm trong header */
+        .header-actions .user-menu-container {{
+            position: relative;
+        }}
+        
         .menu-item {{
             display: flex;
             align-items: center;
