@@ -218,50 +218,24 @@ def list_accounts(
     limit: int = 15  # Chỉ lấy 15 accounts được sử dụng gần đây
 ):
     """
-    Lấy danh sách accounts của user - chỉ lấy accounts có activity trên META ADS gần đây
-    Logic: Accounts có dữ liệu trong ads_metrics (impressions > 0) trong 30 ngày gần nhất
-    = Accounts đang được sử dụng trên META ADS (trình quản lý quảng cáo)
-    Nếu không có activity thì không lấy account đó
+    Lấy danh sách TẤT CẢ accounts của user (không filter theo activity)
+    Sắp xếp theo: enabled (bật trước), last_30_days_spend, account_name
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
     try:
-        from sqlalchemy import func, desc, distinct
-        from datetime import datetime, timedelta
-        from app.core.database import AdMetrics
+        from sqlalchemy import desc
         
-        # Lấy accounts có activity trong 7 ngày gần nhất (có impressions > 0)
-        # Điều này cho thấy account đang được sử dụng trên META ADS (chỉnh sửa quảng cáo, bật/tắt, tăng/giảm ngân sách)
-        seven_days_ago = datetime.now() - timedelta(days=7)
-        
-        # Subquery để lấy accounts có activity gần đây (impressions > 0) trong 7 ngày qua
-        # và thời gian activity gần nhất
-        active_accounts_subq = db.query(
-            AdMetrics.account_id,
-            func.max(AdMetrics.date).label('last_activity_date'),
-            func.sum(AdMetrics.impressions).label('total_impressions')
-        ).filter(
-            AdMetrics.date >= seven_days_ago,
-            AdMetrics.account_id.isnot(None),
-            AdMetrics.impressions > 0  # Chỉ lấy accounts có impressions > 0
-        ).group_by(AdMetrics.account_id).having(
-            func.sum(AdMetrics.impressions) > 0  # Đảm bảo có activity
-        ).subquery()
-        
-        # Query chính: chỉ lấy accounts của user CÓ activity trên META ADS
+        # Query chính: lấy TẤT CẢ accounts của user
         # Sắp xếp theo:
-        # 1. last_activity_date (activity gần đây nhất)
-        # 2. total_impressions (activity nhiều nhất)
-        # 3. last_30_days_spend (spend cao nhất)
+        # 1. enabled (bật trước, tắt sau)
+        # 2. last_30_days_spend (spend cao nhất)
+        # 3. account_name (tên)
         accounts_query = db.query(Account).filter(
             Account.user_id == current_user.id
-        ).join(
-            active_accounts_subq,
-            Account.account_id == active_accounts_subq.c.account_id
         ).order_by(
-            desc(active_accounts_subq.c.last_activity_date),  # Activity gần đây nhất
-            desc(active_accounts_subq.c.total_impressions),  # Activity nhiều nhất
+            desc(Account.enabled),  # Enabled accounts trước
             desc(Account.last_30_days_spend),  # Spend cao nhất
             Account.account_name  # Cuối cùng mới sort theo tên
         ).limit(limit)
@@ -464,6 +438,43 @@ def update_account(
     except Exception as e:
         logger.error(f"Error updating account {account_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật account: {str(e)}")
+
+
+@router.patch("/accounts/{account_id}/toggle-enabled")
+def toggle_account_enabled(
+    request: Request,
+    account_id: int,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Bật/tắt account (enabled/disabled) - ảnh hưởng đến việc áp dụng logic tự động"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    try:
+        account = db.query(Account).filter(
+            Account.id == account_id,
+            Account.user_id == current_user.id
+        ).first()
+        
+        if not account:
+            raise HTTPException(status_code=404, detail="Account không tồn tại")
+        
+        account.enabled = not account.enabled
+        db.commit()
+        db.refresh(account)
+        
+        status_text = "bật" if account.enabled else "tắt"
+        return {
+            "message": f"Đã {status_text} account thành công",
+            "enabled": account.enabled
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error toggling account enabled: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi bật/tắt account: {str(e)}")
 
 
 @router.patch("/accounts/{account_id}/type")
@@ -2444,6 +2455,40 @@ async def settings_page(
             
             function closeAccountModal() {{
                 document.getElementById('accountModal').classList.remove('show');
+            }}
+            
+            // Toggle account enabled/disabled
+            async function toggleAccountEnabled(accountId, enabled) {{
+                try {{
+                    const response = await fetch('/settings/accounts/' + accountId + '/toggle-enabled', {{
+                        method: 'PATCH',
+                        headers: getAuthHeaders()
+                    }});
+                    
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        let errorMsg = 'Không thể bật/tắt account';
+                        try {{
+                            const errorJson = JSON.parse(errorText);
+                            errorMsg = errorJson.detail || errorMsg;
+                        }} catch {{
+                            errorMsg = errorText.substring(0, 100);
+                        }}
+                        showToast('Lỗi', errorMsg, 'error');
+                        // Reload để revert toggle
+                        loadAccounts();
+                        return;
+                    }}
+                    
+                    const data = await response.json();
+                    showToast('Thành công', data.message, 'success');
+                    // Reload để cập nhật UI
+                    loadAccounts();
+                }} catch (error) {{
+                    showToast('Lỗi', 'Lỗi khi bật/tắt account: ' + error.message, 'error');
+                    // Reload để revert toggle
+                    loadAccounts();
+                }}
             }}
             
             // Update account type inline
