@@ -74,9 +74,10 @@ echo "9️⃣ Kiểm tra kết nối database:"
 echo "-----------------------------------"
 python -c "
 from app.core.database import get_db_session
+from sqlalchemy import text
 try:
     db = get_db_session()
-    db.execute('SELECT 1')
+    db.execute(text('SELECT 1'))
     print('✅ Database connection OK')
     db.close()
 except Exception as e:
