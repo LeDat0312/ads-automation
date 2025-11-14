@@ -347,7 +347,7 @@ def profile_page(
                     
                     <div class="avatar-section">
                         <div id="avatarPreview">
-                            {f'<img src="/static/avatars/{current_user.avatar}" class="avatar-preview" alt="Avatar" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'flex\';">' if current_user.avatar and current_user.avatar != 'default_avatar.png' else ''}
+                            {('<img src="/static/avatars/' + current_user.avatar + '" class="avatar-preview" alt="Avatar" onerror="handleAvatarError(this)">') if current_user.avatar and current_user.avatar != 'default_avatar.png' else ''}
                             <div class="avatar-placeholder" style="display: {'none' if current_user.avatar and current_user.avatar != 'default_avatar.png' else 'flex'}">
                                 {(current_user.display_name or current_user.username)[0].upper()}
                             </div>
