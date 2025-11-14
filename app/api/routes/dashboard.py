@@ -15,6 +15,7 @@ from app.models.account_prefix import Account
 from app.core.config import get_settings
 from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
+from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
 from typing import Optional
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -26,7 +27,21 @@ async def dashboard_home(
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Serve dashboard HTML page"""
-    html_content = """
+    
+    # Check if user is locked
+    if current_user and not current_user.is_active:
+        return HTMLResponse(content=get_account_locked_message())
+    
+    if not current_user:
+        return HTMLResponse(content="""
+        <script>
+            window.location.href = '/auth/login';
+        </script>
+        """)
+    
+    user_menu = get_user_dropdown_menu(current_user)
+    
+    html_content = f"""
     <!DOCTYPE html>
     <html lang="vi">
     <head>
@@ -223,6 +238,7 @@ async def dashboard_home(
         </style>
     </head>
     <body>
+        {user_menu}
         <div class="header">
             <h1>🚀 Facebook Ads Automation Dashboard</h1>
             <p>Automation Overview & Performance Metrics</p>
