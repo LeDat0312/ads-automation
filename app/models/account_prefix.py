@@ -17,10 +17,11 @@ class Account(Base):
     account_id = Column(String, nullable=False, index=True)  # act_123456789 (không unique nữa, unique per user)
     account_name = Column(String)  # Tên hiển thị
     account_type = Column(String, default="UNKNOWN")  # E-COMMERCE, LEAD_GENERATION, MOBILE_APP
+    currency = Column(String, default="USD")  # USD, VND, etc.
     timezone = Column(String, default="Asia/Ho_Chi_Minh")  # Timezone của account
     enabled = Column(Boolean, default=True)  # Bật/tắt account
     status = Column(String, default="ACTIVE")  # ACTIVE, PAUSED, ARCHIVED
-    last_30_days_spend = Column(Float, default=0.0)  # Chi tiêu 30 ngày qua (USD)
+    last_30_days_spend = Column(Float, default=0.0)  # Chi tiêu 30 ngày qua (theo currency của account)
     description = Column(Text)  # Mô tả
     
     # Timestamps

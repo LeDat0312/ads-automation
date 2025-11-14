@@ -40,6 +40,7 @@ class AccountResponse(BaseModel):
     account_id: str
     account_name: Optional[str]
     account_type: str
+    currency: str
     timezone: str
     enabled: bool
     status: str
@@ -53,6 +54,7 @@ class AccountCreate(BaseModel):
     account_id: str
     account_name: Optional[str] = None
     account_type: str = "UNKNOWN"
+    currency: str = "USD"
     timezone: str = "Asia/Ho_Chi_Minh"
     enabled: bool = True
 
@@ -60,6 +62,7 @@ class AccountCreate(BaseModel):
 class AccountUpdate(BaseModel):
     account_name: Optional[str] = None
     account_type: Optional[str] = None
+    currency: Optional[str] = None
     timezone: Optional[str] = None
     enabled: Optional[bool] = None
     status: Optional[str] = None
@@ -380,6 +383,26 @@ def create_account(
     db.add(account)
     db.commit()
     db.refresh(account)
+    return account
+
+
+@router.get("/accounts/{account_id}", response_model=AccountResponse)
+def get_account(
+    account_id: int,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Lấy thông tin một account"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    account = db.query(Account).filter(
+        Account.id == account_id,
+        Account.user_id == current_user.id
+    ).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
     return account
 
 
