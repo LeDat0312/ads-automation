@@ -2149,9 +2149,24 @@ async def settings_page(
                         const accName = acc.account_name || acc.account_id;
                         const accAccountId = acc.account_id;
                         const accType = acc.account_type || 'UNKNOWN';
+                        const isEnabled = acc.enabled !== false; // Default true nếu undefined
+                        
                         html += `
-                            <tr>
-                                <td><span class="status-badge ${{statusClass}}">${{accStatus}}</span></td>
+                            <tr style="opacity: ${{isEnabled ? '1' : '0.6'}};">
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" ${{isEnabled ? 'checked' : ''}} 
+                                                   onchange="toggleAccountEnabled(${{accId}}, this.checked)"
+                                                   style="display: none;">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                        <span class="status-badge ${{statusClass}}" style="margin-left: 4px;">${{accStatus}}</span>
+                                    </div>
+                                    <small style="color: #64748b; font-size: 11px; display: block; margin-top: 4px;">
+                                        ${{isEnabled ? '✅ Áp dụng logic' : '⛔ Tắt logic'}}
+                                    </small>
+                                </td>
                                 <td><strong>${{accName}}</strong><br><small style="color: #64748b;">${{accAccountId}}</small></td>
                                 <td>${{spendDisplay}}</td>
                                 <td>
