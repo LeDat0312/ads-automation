@@ -456,11 +456,16 @@ def profile_page(
                 .then(data => {{
                     if (data.success) {{
                         showToast('Cập nhật ảnh đại diện thành công!');
+                        // Reload page to show new avatar
+                        setTimeout(() => {{
+                            window.location.reload();
+                        }}, 1000);
                     }} else {{
                         showToast(data.message || 'Lỗi khi cập nhật ảnh', 'error');
                     }}
                 }})
                 .catch(error => {{
+                    console.error('Error uploading avatar:', error);
                     showToast('Lỗi khi cập nhật ảnh', 'error');
                 }});
             }}
