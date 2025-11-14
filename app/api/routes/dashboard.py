@@ -463,6 +463,21 @@ async def dashboard_home(
             // Load data on page load
             loadFilters();
             loadData();
+            
+            // Helper function to get cookie
+            function getCookie(name) {{
+                const value = `; ${{document.cookie}}`;
+                const parts = value.split(`; ${{name}}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }}
+            
+            function logout() {{
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                window.location.href = '/auth/login';
+            }}
         </script>
     </body>
     </html>
