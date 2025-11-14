@@ -22,6 +22,14 @@ def check_and_fix_database():
     # Initialize database
     init_db()
     
+    # Ensure engine is initialized
+    if engine is None:
+        print("❌ Engine chưa được khởi tạo. Đang thử lại...")
+        init_db()
+        if engine is None:
+            print("❌ Không thể khởi tạo database engine. Vui lòng kiểm tra DATABASE_URL trong .env")
+            return
+    
     # Get inspector
     inspector = inspect(engine)
     
