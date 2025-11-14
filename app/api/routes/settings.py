@@ -1402,8 +1402,10 @@ async def settings_page(
             }}
             
             function getCookie(name) {{
-                const value = `; ${{document.cookie}}`;
-                const parts = value.split(`; ${{name}}=`);
+                const cookieStr = document.cookie;
+                const value = '; ' + cookieStr;
+                const nameStr = name;
+                const parts = value.split('; ' + nameStr + '=');
                 if (parts.length === 2) return parts.pop().split(';').shift();
                 return null;
             }}
@@ -1417,7 +1419,7 @@ async def settings_page(
                 // Cookie will be sent automatically, but we can also send Bearer token
                 const token = getAuthToken();
                 if (token) {{
-                    headers['Authorization'] = `Bearer ${{token}}`;
+                    headers['Authorization'] = 'Bearer ' + token;
                 }}
                 return headers;
             }}
@@ -1853,9 +1855,9 @@ async def settings_page(
                     html += '</tbody></table>';
                     tableDiv.innerHTML = html;
                 }} catch (error) {{
-                    document.getElementById('prefixesTable').innerHTML = `
-                        <div class="token-status invalid">Lỗi khi tải prefixes: ${{error.message}}</div>
-                    `;
+                    const errorMsg = error.message;
+                    document.getElementById('prefixesTable').innerHTML = 
+                        '<div class="token-status invalid">Lỗi khi tải prefixes: ' + errorMsg + '</div>';
                 }}
             }}
             
