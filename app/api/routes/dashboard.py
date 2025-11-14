@@ -466,8 +466,8 @@ async def dashboard_home(
             
             // Helper function to get cookie
             function getCookie(name) {{
-                const value = `; ${{document.cookie}}`;
-                const parts = value.split(`; ${{name}}=`);
+                const value = '; ' + document.cookie;
+                const parts = value.split('; ' + name + '=');
                 if (parts.length === 2) return parts.pop().split(';').shift();
                 return null;
             }}
