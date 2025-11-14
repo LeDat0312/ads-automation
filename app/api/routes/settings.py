@@ -26,6 +26,7 @@ from app.services.facebook_token_service import (
 )
 from app.api.routes.auth import get_current_user_optional
 from app.services.telegram_token_service import test_telegram_bot_token
+from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
 import requests
 import re
 
@@ -1310,6 +1311,12 @@ async def settings_page(
             status_code=200
         )
     
+    # Check if user is locked
+    if not current_user.is_active:
+        return HTMLResponse(content=get_account_locked_message())
+    
+    user_menu = get_user_dropdown_menu(current_user)
+    
     html_content = f"""
     <!DOCTYPE html>
     <html lang="vi">
@@ -1409,6 +1416,40 @@ async def settings_page(
                 padding: 100px 32px 40px;
                 position: relative;
                 z-index: 1;
+            }}
+            
+            @media (max-width: 768px) {{
+                .container {{
+                    padding: 100px 16px 40px;
+                }}
+                
+                .section {{
+                    padding: 24px;
+                }}
+                
+                .section-title {{
+                    font-size: 20px;
+                }}
+                
+                .header {{
+                    padding: 12px 16px;
+                }}
+                
+                .header h1 {{
+                    font-size: 20px;
+                }}
+                
+                table {{
+                    font-size: 12px;
+                }}
+                
+                th, td {{
+                    padding: 8px;
+                }}
+                
+                .action-buttons {{
+                    flex-direction: column;
+                }}
             }}
             
             .section {{
@@ -1690,6 +1731,42 @@ async def settings_page(
                 text-align: center;
                 padding: 40px;
                 color: #64748b;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 16px;
+            }}
+            
+            .loading::before {{
+                content: '';
+                width: 40px;
+                height: 40px;
+                border: 4px solid #e2e8f0;
+                border-top-color: #667eea;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }}
+            
+            @keyframes spin {{
+                to {{ transform: rotate(360deg); }}
+            }}
+            
+            /* Skeleton Loader */
+            .skeleton {{
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%;
+                animation: loading 1.5s ease-in-out infinite;
+                border-radius: 4px;
+            }}
+            
+            @keyframes loading {{
+                0% {{ background-position: 200% 0; }}
+                100% {{ background-position: -200% 0; }}
+            }}
+            
+            .skeleton-row {{
+                height: 48px;
+                margin-bottom: 12px;
             }}
             
             .empty-state {{
@@ -1702,6 +1779,46 @@ async def settings_page(
                 font-size: 64px;
                 margin-bottom: 16px;
                 opacity: 0.5;
+            }}
+            
+            .empty-state h3 {{
+                font-size: 18px;
+                font-weight: 600;
+                color: #475569;
+                margin-bottom: 8px;
+            }}
+            
+            .empty-state p {{
+                font-size: 14px;
+                color: #64748b;
+                margin-bottom: 20px;
+            }}
+            
+            /* Button disabled state */
+            .btn:disabled {{
+                opacity: 0.6;
+                cursor: not-allowed;
+                pointer-events: none;
+            }}
+            
+            .btn.loading {{
+                position: relative;
+                color: transparent;
+            }}
+            
+            .btn.loading::after {{
+                content: '';
+                position: absolute;
+                width: 16px;
+                height: 16px;
+                top: 50%;
+                left: 50%;
+                margin-left: -8px;
+                margin-top: -8px;
+                border: 2px solid #ffffff;
+                border-top-color: transparent;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
             }}
             
             /* Modal styles */
@@ -1903,10 +2020,10 @@ async def settings_page(
         </style>
     </head>
     <body>
+        {user_menu}
         <div class="header">
             <h1>⚙️ Cài Đặt</h1>
             <div class="header-actions">
-                <span style="color: #475569; font-weight: 500;">{current_user.display_name or current_user.username}</span>
                 <a href="/" class="btn-back">← Về Trang Chủ</a>
             </div>
         </div>
@@ -2342,6 +2459,13 @@ async def settings_page(
                     return;
                 }}
                 
+                const saveBtn = document.querySelector('button[onclick="saveToken()"]');
+                const originalText = saveBtn ? saveBtn.innerHTML : '';
+                if (saveBtn) {{
+                    saveBtn.disabled = true;
+                    saveBtn.classList.add('loading');
+                }}
+                
                 try {{
                     const response = await fetch('/settings/token/save', {{
                         method: 'POST',
@@ -2368,6 +2492,12 @@ async def settings_page(
                     loadTokenStatus();
                 }} catch (error) {{
                     showToast('Lỗi', 'Lỗi khi lưu token: ' + error.message, 'error');
+                }} finally {{
+                    if (saveBtn) {{
+                        saveBtn.disabled = false;
+                        saveBtn.classList.remove('loading');
+                        saveBtn.innerHTML = originalText;
+                    }}
                 }}
             }}
             
@@ -2475,7 +2605,11 @@ async def settings_page(
                         tableDiv.innerHTML = `
                             <div class="empty-state">
                                 <div class="icon">📭</div>
-                                <div>Chưa có accounts. Hãy đồng bộ từ Facebook hoặc thêm thủ công.</div>
+                                <h3>Chưa có tài khoản quảng cáo</h3>
+                                <p>Bạn chưa có tài khoản quảng cáo nào. Hãy thêm tài khoản thủ công để bắt đầu.</p>
+                                <button class="btn btn-primary" onclick="showAddAccountModal()" style="margin-top: 16px;">
+                                    ➕ Thêm Account Thủ Công
+                                </button>
                             </div>
                         `;
                         return;
@@ -2819,7 +2953,11 @@ async def settings_page(
                         tableDiv.innerHTML = `
                             <div class="empty-state">
                                 <div class="icon">🏷️</div>
-                                <div>Chưa có prefixes. Hãy thêm prefix mới.</div>
+                                <h3>Chưa có prefixes</h3>
+                                <p>Bạn chưa có prefix nào. Hãy thêm prefix mới để bắt đầu quản lý.</p>
+                                <button class="btn btn-primary" onclick="showAddPrefixModal()" style="margin-top: 16px;">
+                                    ➕ Thêm Prefix
+                                </button>
                             </div>
                         `;
                         return;
