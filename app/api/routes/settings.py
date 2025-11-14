@@ -211,14 +211,55 @@ def delete_token(
 def list_accounts(
     request: Request,
     current_user: User = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    limit: int = 15  # Chỉ lấy 15 accounts được sử dụng gần đây
 ):
-    """Lấy danh sách accounts của user"""
+    """
+    Lấy danh sách accounts của user - chỉ lấy 15 accounts được sử dụng gần đây nhất
+    Accounts được ưu tiên theo:
+    1. Có dữ liệu trong ads_metrics trong 7 ngày gần nhất
+    2. Có last_30_days_spend > 0
+    3. Được update gần đây nhất
+    """
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
     try:
-        accounts = db.query(Account).filter(Account.user_id == current_user.id).order_by(Account.account_name).all()
+        from sqlalchemy import func, desc, distinct
+        from datetime import datetime, timedelta
+        from app.core.database import AdMetrics
+        
+        # Lấy accounts có dữ liệu trong 7 ngày gần nhất
+        seven_days_ago = datetime.now() - timedelta(days=7)
+        
+        # Query để lấy accounts có dữ liệu gần đây, sắp xếp theo:
+        # 1. Có dữ liệu trong 7 ngày gần nhất (max date)
+        # 2. last_30_days_spend (cao nhất)
+        # 3. updated_at (gần đây nhất)
+        
+        # Subquery để lấy max date của mỗi account trong ads_metrics
+        recent_accounts_subq = db.query(
+            AdMetrics.account_id,
+            func.max(AdMetrics.date).label('last_activity_date')
+        ).filter(
+            AdMetrics.date >= seven_days_ago,
+            AdMetrics.account_id.isnot(None)
+        ).group_by(AdMetrics.account_id).subquery()
+        
+        # Query chính: lấy accounts của user, join với recent_accounts để ưu tiên
+        accounts_query = db.query(Account).filter(
+            Account.user_id == current_user.id
+        ).outerjoin(
+            recent_accounts_subq,
+            Account.account_id == recent_accounts_subq.c.account_id
+        ).order_by(
+            desc(recent_accounts_subq.c.last_activity_date),  # Accounts có activity gần đây nhất
+            desc(Account.last_30_days_spend),  # Accounts có spend cao nhất
+            desc(Account.updated_at),  # Accounts được update gần đây nhất
+            Account.account_name  # Cuối cùng mới sort theo tên
+        ).limit(limit)
+        
+        accounts = accounts_query.all()
         return accounts
     except Exception as e:
         logger.error(f"Error listing accounts: {e}", exc_info=True)
@@ -1244,7 +1285,20 @@ async def settings_page(
                         statusDiv.className = `token-status ${{statusInfo.class}}`;
                         statusDiv.textContent = statusInfo.text;
                         if (data.last_checked) {{
-                            statusDiv.textContent += ` (Kiểm tra lần cuối: ${{new Date(data.last_checked).toLocaleString('vi-VN')}})`;
+                            // Format theo timezone Hồ Chí Minh (UTC+7)
+                            const date = new Date(data.last_checked);
+                            const hcmDate = new Date(date.toLocaleString('en-US', {{ timeZone: 'Asia/Ho_Chi_Minh' }}));
+                            const formatted = hcmDate.toLocaleString('vi-VN', {{
+                                timeZone: 'Asia/Ho_Chi_Minh',
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false
+                            }});
+                            statusDiv.textContent += ` (Kiểm tra lần cuối: ${{formatted}})`;
                         }}
                         
                         // Show token info (masked)
