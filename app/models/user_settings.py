@@ -18,6 +18,7 @@ class UserSettings(Base):
     facebook_token_encrypted = Column(Text)  # Token được encrypt
     token_status = Column(String, default="NOT_SET")  # NOT_SET, VALID, INVALID, EXPIRED
     token_last_checked = Column(DateTime)  # Thời gian check token lần cuối
+    token_owner_name = Column(String)  # Tên của người tạo token (ví dụ: "Jr Toralba Singson Amer")
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.now)

@@ -17,7 +17,13 @@ from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.models.account_prefix import Account, Prefix, AccountPrefix
 from app.core.security import encrypt_token, decrypt_token
-from app.services.facebook_token_service import test_facebook_token, fetch_facebook_ad_accounts, fetch_account_30_days_spend, check_account_has_activity_last_7_days
+from app.services.facebook_token_service import (
+    test_facebook_token, 
+    fetch_facebook_ad_accounts, 
+    fetch_account_30_days_spend, 
+    check_account_has_activity_last_7_days,
+    check_account_has_activity_from_token_owner_or_bm
+)
 from app.api.routes.auth import get_current_user_optional
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -63,7 +69,7 @@ class AccountCreate(BaseModel):
     account_type: str = "UNKNOWN"
     currency: str = "USD"
     timezone: str = "Asia/Ho_Chi_Minh"
-    enabled: bool = True
+    enabled: bool = False  # Accounts thêm thủ công mặc định tắt logic tự động
 
 
 class AccountUpdate(BaseModel):
@@ -160,9 +166,12 @@ def test_token(
     # Test token
     test_result = test_facebook_token(token)
     
-    # Update status
+    # Update status và lưu token owner name
     user_settings.token_status = test_result["status"]
     user_settings.token_last_checked = datetime.now()
+    # Lưu tên của người tạo token để dùng cho activity log tracking
+    if test_result.get("user_info", {}).get("name"):
+        user_settings.token_owner_name = test_result["user_info"]["name"]
     db.commit()
     
     return test_result
@@ -227,74 +236,67 @@ def list_accounts(
     """
     Lấy danh sách accounts hay sử dụng của user
     Logic: 
-    - Chỉ lấy dữ liệu 7 ngày gần nhất
-    - Kết hợp nhiều tiêu chí: impressions > 0, spend > 0, activity gần đây, accounts thêm thủ công
-    - Ưu tiên accounts có activity trong 7 ngày qua
-    - Accounts được thêm thủ công (không có activity) vẫn hiển thị nhưng ưu tiên thấp hơn
-    Sắp xếp theo: enabled (bật trước), có activity trong 7 ngày, activity gần đây, total impressions, total spend
+    - Chỉ hiển thị accounts có activity từ token owner hoặc BM trong 7 ngày qua
+    - Activity được xác định từ Facebook Activity Log API
+    - Không cần hiển thị đủ 10 accounts, chỉ hiển thị những accounts có activity
+    - Accounts được thêm thủ công mặc định enabled=False (không áp dụng logic tự động)
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
     try:
-        from sqlalchemy import func, desc, distinct, case
-        from datetime import datetime, timedelta
-        from app.core.database import AdMetrics
+        # Lấy token owner name từ user settings
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        token_owner_name = None
+        token = None
         
-        # Lấy accounts có activity trong 7 ngày gần nhất
-        seven_days_ago = datetime.now() - timedelta(days=7)
+        if user_settings and user_settings.facebook_token_encrypted:
+            try:
+                token = decrypt_token(user_settings.facebook_token_encrypted)
+                token_owner_name = user_settings.token_owner_name
+            except Exception as e:
+                logger.warning(f"Could not decrypt token for user {current_user.id}: {e}")
         
-        # Subquery để lấy accounts có activity trong 7 ngày qua với nhiều tiêu chí
-        # Kết hợp: impressions > 0 HOẶC spend > 0
-        active_accounts_subq = db.query(
-            AdMetrics.account_id,
-            func.max(AdMetrics.date).label('last_activity_date'),
-            func.sum(AdMetrics.impressions).label('total_impressions'),
-            func.sum(AdMetrics.spend).label('total_spend')
-        ).filter(
-            AdMetrics.date >= seven_days_ago,
-            AdMetrics.account_id.isnot(None),
-            # Có activity: impressions > 0 HOẶC spend > 0
-            ((AdMetrics.impressions > 0) | (AdMetrics.spend > 0))
-        ).group_by(AdMetrics.account_id).having(
-            # Phải có ít nhất impressions > 0 hoặc spend > 0
-            (func.sum(AdMetrics.impressions) > 0) | (func.sum(AdMetrics.spend) > 0)
-        ).subquery()
+        # Lấy tất cả accounts của user
+        all_accounts = db.query(Account).filter(
+            Account.user_id == current_user.id
+        ).all()
         
-        # Query chính: lấy accounts của user
-        # Ưu tiên accounts có activity trong 7 ngày, nhưng vẫn hiển thị accounts thêm thủ công
-        # Sắp xếp theo:
-        # 1. enabled (bật trước, tắt sau)
-        # 2. has_activity (có activity trong 7 ngày qua)
-        # 3. last_activity_date (activity gần đây nhất)
-        # 4. total_impressions (impressions nhiều nhất)
-        # 5. total_spend (spend cao nhất)
-        # 6. last_30_days_spend (spend 30 ngày - fallback)
-        # 7. account_name (tên)
+        # Filter accounts có activity từ token owner hoặc BM trong 7 ngày qua
+        accounts_with_activity = []
         
-        # Tạo case statement để đánh dấu accounts có activity trong 7 ngày
-        has_activity_case = case(
-            (active_accounts_subq.c.account_id.isnot(None), 1),
-            else_=0
+        if token and token_owner_name:
+            for account in all_accounts:
+                try:
+                    has_activity = check_account_has_activity_from_token_owner_or_bm(
+                        token,
+                        account.account_id,
+                        token_owner_name,
+                        days=7
+                    )
+                    if has_activity:
+                        accounts_with_activity.append(account)
+                except Exception as e:
+                    logger.warning(f"Error checking activity for account {account.account_id}: {e}")
+                    # Nếu có lỗi, vẫn thêm account vào để không bỏ sót
+                    accounts_with_activity.append(account)
+        else:
+            # Nếu không có token hoặc token owner name, hiển thị tất cả accounts
+            # (fallback để không làm mất accounts)
+            accounts_with_activity = all_accounts
+        
+        # Sắp xếp: enabled trước, sau đó theo last_30_days_spend, cuối cùng theo tên
+        accounts_with_activity.sort(
+            key=lambda x: (
+                not x.enabled,  # enabled=True trước
+                -(x.last_30_days_spend or 0),  # spend cao trước
+                x.account_name or ''  # tên alphabetically
+            )
         )
         
-        accounts_query = db.query(Account).filter(
-            Account.user_id == current_user.id
-        ).outerjoin(
-            active_accounts_subq,
-            Account.account_id == active_accounts_subq.c.account_id
-        ).order_by(
-            desc(Account.enabled),  # Enabled accounts trước
-            desc(has_activity_case),  # Accounts có activity trong 7 ngày trước
-            desc(active_accounts_subq.c.last_activity_date),  # Activity gần đây nhất
-            desc(active_accounts_subq.c.total_impressions),  # Impressions nhiều nhất
-            desc(active_accounts_subq.c.total_spend),  # Spend trong 7 ngày cao nhất
-            desc(Account.last_30_days_spend),  # Spend 30 ngày (fallback)
-            Account.account_name  # Cuối cùng mới sort theo tên
-        ).limit(limit)
+        # Giới hạn số lượng (nhưng không bắt buộc phải đủ limit)
+        return accounts_with_activity[:limit]
         
-        accounts = accounts_query.all()
-        return accounts
     except Exception as e:
         logger.error(f"Error listing accounts: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy danh sách accounts: {str(e)}")
@@ -378,7 +380,7 @@ def _sync_accounts_background(user_id: int, token: str):
                         timezone=fb_acc["timezone_name"],
                         currency=fb_acc.get("currency", "USD"),
                         account_type="UNKNOWN",
-                        enabled=True
+                        enabled=True  # Accounts sync từ Facebook mặc định enabled=True
                     )
                     # Try to get 30 days spend
                     try:
@@ -505,9 +507,13 @@ def create_account(
     if existing:
         raise HTTPException(status_code=400, detail=f"Account {account_data.account_id} đã tồn tại")
     
+    # Accounts thêm thủ công mặc định enabled=False (không áp dụng logic tự động)
+    account_dict = account_data.dict()
+    account_dict['enabled'] = False  # Đảm bảo accounts thêm thủ công luôn tắt logic tự động
+    
     account = Account(
         user_id=current_user.id,
-        **account_data.dict()
+        **account_dict
     )
     db.add(account)
     db.commit()
@@ -1817,7 +1823,7 @@ async def settings_page(
                 </div>
                 <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
                     <small style="color: #1e40af;">
-                        💡 <strong>Lưu ý:</strong> Hiển thị các tài khoản hay sử dụng (có hoạt động trong 7 ngày qua: impressions > 0 hoặc spend > 0) và các tài khoản được thêm thủ công. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động cho từng tài khoản. Tắt không làm mất tài khoản, chỉ ngừng áp dụng logic tự động.
+                        💡 <strong>Lưu ý:</strong> Chỉ hiển thị các tài khoản có hoạt động từ người tạo token hoặc BM (Business Manager) trong 7 ngày qua. Tài khoản thêm thủ công mặc định tắt logic tự động. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động. Nút xóa để xóa các tài khoản không sử dụng.
                     </small>
                 </div>
             </div>

@@ -299,3 +299,143 @@ def check_account_has_activity_last_7_days(access_token: str, account_id: str) -
         # Nếu có lỗi, giả sử có activity để không bỏ sót
         return True
 
+
+def fetch_account_activities(
+    access_token: str, 
+    account_id: str, 
+    token_owner_name: Optional[str] = None,
+    days: int = 7
+) -> List[Dict[str, Any]]:
+    """
+    Lấy activity log của account từ Facebook API
+    Xác định các hành động được thực hiện bởi token owner hoặc BM (Business Manager)
+    
+    Args:
+        access_token: Facebook access token
+        account_id: Account ID (có thể có hoặc không có prefix act_)
+        token_owner_name: Tên của người tạo token (để so sánh với actor_name)
+        days: Số ngày gần đây để lấy activity (mặc định 7 ngày)
+    
+    Returns:
+        List of activities với format:
+        {
+            "actor_id": str,
+            "actor_name": str,  # "Jr Toralba Singson Amer" hoặc "Quy tắc: Hạ Ngân sách CD"
+            "event_type": str,  # "ad_account_update_budget", "ad_account_update_status", etc.
+            "event_time": str,  # ISO timestamp
+            "object_id": str,  # ID của object bị thay đổi
+            "object_name": str  # Tên của object
+        }
+    """
+    try:
+        # Normalize account_id
+        account_id_for_api = account_id
+        if not account_id_for_api.startswith("act_"):
+            account_id_for_api = f"act_{account_id_for_api}"
+        
+        # Tính toán time range
+        from datetime import datetime, timedelta
+        since = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+        until = datetime.now().strftime('%Y-%m-%d')
+        
+        # Lấy activity log
+        url = f"{FB_GRAPH_API_BASE}/{account_id_for_api}/activities"
+        params = {
+            "fields": "actor_id,actor_name,event_type,event_time,object_id,object_name",
+            "since": since,
+            "until": until,
+            "limit": 100,
+            "access_token": access_token
+        }
+        
+        activities = []
+        while url:
+            response = requests.get(url, params=params if '?' not in url else None, timeout=30)
+            
+            if response.status_code != 200:
+                logger.warning(f"Could not fetch activities for {account_id}: HTTP {response.status_code}")
+                break
+            
+            data = response.json()
+            if 'error' in data:
+                error_msg = data['error'].get('message', 'Unknown')
+                # Một số accounts có thể không có quyền xem activity log
+                if 'permission' in error_msg.lower() or 'access' in error_msg.lower():
+                    logger.warning(f"No permission to view activities for {account_id}: {error_msg}")
+                else:
+                    logger.warning(f"Error fetching activities for {account_id}: {error_msg}")
+                break
+            
+            activities_data = data.get('data', [])
+            for activity in activities_data:
+                activities.append({
+                    "actor_id": activity.get('actor_id', ''),
+                    "actor_name": activity.get('actor_name', ''),
+                    "event_type": activity.get('event_type', ''),
+                    "event_time": activity.get('event_time', ''),
+                    "object_id": activity.get('object_id', ''),
+                    "object_name": activity.get('object_name', '')
+                })
+            
+            # Check for next page
+            paging = data.get('paging', {})
+            url = paging.get('next')
+            params = None  # Next URL đã có params
+            
+            # Giới hạn số lượng activities để tránh quá nhiều requests
+            if len(activities) >= 500:
+                break
+        
+        return activities
+        
+    except Exception as e:
+        logger.error(f"Error fetching activities for {account_id}: {e}")
+        return []
+
+
+def check_account_has_activity_from_token_owner_or_bm(
+    access_token: str,
+    account_id: str,
+    token_owner_name: Optional[str] = None,
+    days: int = 7
+) -> bool:
+    """
+    Kiểm tra xem account có activity từ token owner hoặc BM (Business Manager) trong N ngày qua không
+    
+    Args:
+        access_token: Facebook access token
+        account_id: Account ID
+        token_owner_name: Tên của người tạo token (ví dụ: "Jr Toralba Singson Amer")
+        days: Số ngày gần đây (mặc định 7 ngày)
+    
+    Returns:
+        bool: True nếu có activity từ token owner hoặc BM, False nếu không
+    """
+    try:
+        activities = fetch_account_activities(access_token, account_id, token_owner_name, days)
+        
+        if not activities:
+            return False
+        
+        # Kiểm tra xem có activity nào từ token owner hoặc BM không
+        for activity in activities:
+            actor_name = activity.get('actor_name', '').lower()
+            
+            # Kiểm tra nếu là token owner
+            if token_owner_name:
+                token_owner_lower = token_owner_name.lower()
+                if token_owner_lower in actor_name or actor_name in token_owner_lower:
+                    return True
+            
+            # Kiểm tra nếu là BM automation (có chứa "quy tắc", "rule", "automation", "business manager")
+            bm_keywords = ['quy tắc', 'rule', 'automation', 'business manager', 'bm', 'venus agency']
+            if any(keyword in actor_name for keyword in bm_keywords):
+                return True
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error checking activity from token owner/BM for {account_id}: {e}")
+        # Nếu có lỗi, giả sử có activity để không bỏ sót accounts quan trọng
+        return True
+
