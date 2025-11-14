@@ -1313,6 +1313,58 @@ async def settings_page(
                 font-weight: 500;
             }}
             
+            /* Toggle Switch */
+            .toggle-switch {{
+                position: relative;
+                display: inline-block;
+                width: 44px;
+                height: 24px;
+                cursor: pointer;
+            }}
+            
+            .toggle-switch input {{
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }}
+            
+            .toggle-slider {{
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: #cbd5e1;
+                transition: .3s;
+                border-radius: 24px;
+            }}
+            
+            .toggle-slider:before {{
+                position: absolute;
+                content: "";
+                height: 18px;
+                width: 18px;
+                left: 3px;
+                bottom: 3px;
+                background-color: white;
+                transition: .3s;
+                border-radius: 50%;
+            }}
+            
+            .toggle-switch input:checked + .toggle-slider {{
+                background-color: #10b981;
+            }}
+            
+            .toggle-switch input:checked + .toggle-slider:before {{
+                transform: translateX(20px);
+            }}
+            
+            .toggle-switch input:disabled + .toggle-slider {{
+                opacity: 0.5;
+                cursor: not-allowed;
+            }}
+            
             .type-ecommerce {{
                 background: #dbeafe;
                 color: #1e40af;
