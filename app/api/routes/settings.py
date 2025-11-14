@@ -218,24 +218,49 @@ def list_accounts(
     limit: int = 15  # Chỉ lấy 15 accounts được sử dụng gần đây
 ):
     """
-    Lấy danh sách TẤT CẢ accounts của user (không filter theo activity)
-    Sắp xếp theo: enabled (bật trước), last_30_days_spend, account_name
+    Lấy danh sách accounts hay dùng nhất của user
+    Logic: Accounts có activity trong ads_metrics (impressions > 0) trong 30 ngày gần nhất
+    Sắp xếp theo: enabled (bật trước), activity gần đây, total impressions, last_30_days_spend
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
     try:
-        from sqlalchemy import desc
+        from sqlalchemy import func, desc, distinct
+        from datetime import datetime, timedelta
+        from app.core.database import AdMetrics
         
-        # Query chính: lấy TẤT CẢ accounts của user
+        # Lấy accounts có activity trong 30 ngày gần nhất (có impressions > 0)
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
+        # Subquery để lấy accounts có activity gần đây và thống kê
+        active_accounts_subq = db.query(
+            AdMetrics.account_id,
+            func.max(AdMetrics.date).label('last_activity_date'),
+            func.sum(AdMetrics.impressions).label('total_impressions')
+        ).filter(
+            AdMetrics.date >= thirty_days_ago,
+            AdMetrics.account_id.isnot(None),
+            AdMetrics.impressions > 0
+        ).group_by(AdMetrics.account_id).having(
+            func.sum(AdMetrics.impressions) > 0
+        ).subquery()
+        
+        # Query chính: chỉ lấy accounts của user CÓ activity trong 30 ngày qua
         # Sắp xếp theo:
         # 1. enabled (bật trước, tắt sau)
-        # 2. last_30_days_spend (spend cao nhất)
-        # 3. account_name (tên)
+        # 2. last_activity_date (activity gần đây nhất)
+        # 3. total_impressions (activity nhiều nhất)
+        # 4. last_30_days_spend (spend cao nhất)
         accounts_query = db.query(Account).filter(
             Account.user_id == current_user.id
+        ).join(
+            active_accounts_subq,
+            Account.account_id == active_accounts_subq.c.account_id
         ).order_by(
             desc(Account.enabled),  # Enabled accounts trước
+            desc(active_accounts_subq.c.last_activity_date),  # Activity gần đây nhất
+            desc(active_accounts_subq.c.total_impressions),  # Activity nhiều nhất
             desc(Account.last_30_days_spend),  # Spend cao nhất
             Account.account_name  # Cuối cùng mới sort theo tên
         ).limit(limit)
@@ -1676,7 +1701,7 @@ async def settings_page(
                 </div>
                 <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
                     <small style="color: #1e40af;">
-                        💡 <strong>Lưu ý:</strong> Hiển thị tất cả tài khoản đã cấu hình. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động cho từng tài khoản.
+                        💡 <strong>Lưu ý:</strong> Chỉ hiển thị các tài khoản có hoạt động (impressions > 0) trong 30 ngày qua. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động cho từng tài khoản. Tắt không làm mất tài khoản, chỉ ngừng áp dụng logic tự động.
                     </small>
                 </div>
             </div>
@@ -1822,27 +1847,41 @@ async def settings_page(
                 
                 const toast = document.createElement('div');
                 toast.className = 'toast warning';
+                const toastId = 'toast-' + Date.now();
+                toast.id = toastId;
+                
                 toast.innerHTML = `
                     <span class="toast-icon">⚠️</span>
                     <div class="toast-content">
                         <div class="toast-title">${{title}}</div>
                         <div class="toast-message">${{message}}</div>
                         <div style="display: flex; gap: 8px; margin-top: 12px;">
-                            <button class="btn btn-primary" onclick="this.closest('.toast').querySelector('.confirm-btn').click()" style="padding: 6px 16px; font-size: 12px;">Xác nhận</button>
-                            <button class="btn btn-secondary" onclick="this.closest('.toast').querySelector('.cancel-btn').click()" style="padding: 6px 16px; font-size: 12px;">Hủy</button>
+                            <button class="btn btn-primary confirm-action-btn" style="padding: 6px 16px; font-size: 12px;">Xác nhận</button>
+                            <button class="btn btn-secondary cancel-action-btn" style="padding: 6px 16px; font-size: 12px;">Hủy</button>
                         </div>
                     </div>
-                    <button class="toast-close confirm-btn" style="display: none;" onclick="
-                        this.closest('.toast').remove();
-                        if (typeof ${{onConfirm}} === 'function') ${{onConfirm}}();
-                    ">×</button>
-                    <button class="toast-close cancel-btn" style="display: none;" onclick="
-                        this.closest('.toast').remove();
-                        if (typeof ${{onCancel}} === 'function') ${{onCancel}}();
-                    ">×</button>
+                    <button class="toast-close" onclick="document.getElementById('${{toastId}}').remove()">×</button>
                 `;
                 
                 container.appendChild(toast);
+                
+                // Attach event listeners
+                const confirmBtn = toast.querySelector('.confirm-action-btn');
+                const cancelBtn = toast.querySelector('.cancel-action-btn');
+                
+                confirmBtn.addEventListener('click', () => {{
+                    toast.remove();
+                    if (typeof onConfirm === 'function') {{
+                        onConfirm();
+                    }}
+                }});
+                
+                cancelBtn.addEventListener('click', () => {{
+                    toast.remove();
+                    if (typeof onCancel === 'function') {{
+                        onCancel();
+                    }}
+                }});
             }}
             
             // Helper function to get token
