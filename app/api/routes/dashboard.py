@@ -726,16 +726,16 @@ async def dashboard_page(
                             <div class="calendar-nav">
                                 <button onclick="changeMonth(-1)">‹</button>
                                 <select onchange="changeMonthBySelect(this.value)">
-                                    ${Array.from({{length: 12}}, (_, i) => `
-                                        <option value="${{i}}" ${{i === month ? 'selected' : ''}}>
-                                            Tháng ${{i + 1}}
+                                    ` + Array.from({length: 12}, (_, i) => `
+                                        <option value="` + i + `" ` + (i === month ? 'selected' : '') + `>
+                                            Tháng ` + (i + 1) + `
                                         </option>
-                                    `).join('')}
+                                    `).join('') + `
                                 </select>
                                 <select onchange="changeYearBySelect(this.value)">
-                                    ${Array.from({{length: 10}}, (_, i) => year - 5 + i).map(y => `
-                                        <option value="${{y}}" ${{y === year ? 'selected' : ''}}>${{y}}</option>
-                                    `).join('')}
+                                    ` + Array.from({length: 10}, (_, i) => year - 5 + i).map(y => `
+                                        <option value="` + y + `" ` + (y === year ? 'selected' : '') + `>` + y + `</option>
+                                    `).join('') + `
                                 </select>
                             </div>
                             <div class="calendar-nav">
@@ -767,8 +767,7 @@ async def dashboard_page(
                     const isEnd = selectedDateRange.end && 
                         dayDate.toDateString() === selectedDateRange.end.toDateString();
                     
-                    html += `<div class="calendar-day ${{isSelected ? 'selected' : ''}}" 
-                        onclick="selectDate(${{year}}, ${{month}}, ${{day}})">${{day}}</div>`;
+                    html += '<div class="calendar-day ' + (isSelected ? 'selected' : '') + '" onclick="selectDate(' + year + ', ' + month + ', ' + day + ')">' + day + '</div>';
                 }}
                 
                 html += '</div></div>';
