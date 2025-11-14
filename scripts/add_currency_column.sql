@@ -1,18 +1,5 @@
--- Script SQL để thêm cột currency vào bảng accounts
--- Chạy: psql -U adsuser -d ads_automation -f scripts/add_currency_column.sql
+-- Add currency column to accounts table if not exists
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'USD';
 
--- Thêm cột currency nếu chưa có
-ALTER TABLE accounts ADD COLUMN IF NOT EXISTS currency VARCHAR DEFAULT 'USD';
-
--- Cập nhật currency cho các accounts hiện có (nếu cần)
--- UPDATE accounts SET currency = 'USD' WHERE currency IS NULL;
-
--- Kiểm tra kết quả
-SELECT 
-    column_name,
-    data_type,
-    column_default,
-    is_nullable
-FROM information_schema.columns
-WHERE table_name = 'accounts' AND column_name = 'currency';
-
+-- Update existing accounts to have USD as default currency if NULL
+UPDATE accounts SET currency = 'USD' WHERE currency IS NULL;

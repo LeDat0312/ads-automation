@@ -1478,8 +1478,8 @@ async def settings_page(
                         if (data.last_checked) {{
                             // Format theo timezone Hồ Chí Minh (UTC+7)
                             const date = new Date(data.last_checked);
-                            const hcmDate = new Date(date.toLocaleString('en-US', {{ timeZone: 'Asia/Ho_Chi_Minh' }}));
-                            const formatted = hcmDate.toLocaleString('vi-VN', {{
+                            // Format trực tiếp với timezone Hồ Chí Minh
+                            const formatted = date.toLocaleString('vi-VN', {{
                                 timeZone: 'Asia/Ho_Chi_Minh',
                                 year: 'numeric',
                                 month: '2-digit',
