@@ -2,13 +2,15 @@
 """
 Settings API Routes - Quản lý token Facebook, accounts, và prefixes cho mỗi user
 """
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
 import logging
+import threading
+import time
 
 from app.core.database import get_db
 from app.models.user import User
@@ -20,6 +22,11 @@ from app.api.routes.auth import get_current_user_optional
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 logger = logging.getLogger(__name__)
+
+# In-memory storage for sync progress (per user)
+# Format: {user_id: {"status": "running"|"completed"|"error", "progress": 0-100, "current": 0, "total": 0, "message": ""}}
+sync_progress: Dict[int, Dict[str, Any]] = {}
+sync_progress_lock = threading.Lock()
 
 
 # Schemas
@@ -285,54 +292,67 @@ def list_accounts(
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy danh sách accounts: {str(e)}")
 
 
-@router.post("/accounts/sync")
-def sync_accounts(
-    request: Request,
-    current_user: User = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Sync accounts từ Facebook API"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+def _sync_accounts_background(user_id: int, token: str):
+    """Background task để sync accounts - chạy trong thread riêng"""
+    from app.core.database import get_db_session
     
+    db = get_db_session()
     try:
-        # Get token
-        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
-        if not user_settings or not user_settings.facebook_token_encrypted:
-            raise HTTPException(status_code=404, detail="Chưa có token. Vui lòng lưu token trước.")
-        
-        try:
-            token = decrypt_token(user_settings.facebook_token_encrypted)
-        except Exception as e:
-            logger.error(f"Error decrypting token: {e}", exc_info=True)
-            raise HTTPException(status_code=400, detail=f"Lỗi giải mã token: {str(e)}")
+        # Initialize progress
+        with sync_progress_lock:
+            sync_progress[user_id] = {
+                "status": "running",
+                "progress": 0,
+                "current": 0,
+                "total": 0,
+                "message": "Đang lấy danh sách accounts từ Facebook..."
+            }
         
         # Fetch accounts from Facebook
         try:
             fb_accounts = fetch_facebook_ad_accounts(token)
+            total = len(fb_accounts)
+            
+            with sync_progress_lock:
+                sync_progress[user_id]["total"] = total
+                sync_progress[user_id]["message"] = f"Đã lấy {total} accounts. Đang đồng bộ..."
         except Exception as e:
             logger.error(f"Error fetching accounts from Facebook: {e}", exc_info=True)
-            raise HTTPException(status_code=400, detail=f"Lỗi khi lấy accounts từ Facebook: {str(e)}")
+            with sync_progress_lock:
+                sync_progress[user_id] = {
+                    "status": "error",
+                    "progress": 0,
+                    "current": 0,
+                    "total": 0,
+                    "message": f"Lỗi khi lấy accounts từ Facebook: {str(e)}"
+                }
+            return
         
-        # Sync to database - lấy TẤT CẢ accounts mà user có quyền (không filter theo activity)
+        # Sync to database
         synced_count = 0
         updated_count = 0
         
-        for fb_acc in fb_accounts:
+        for idx, fb_acc in enumerate(fb_accounts):
             try:
+                # Update progress
+                progress = int((idx + 1) / total * 100)
+                with sync_progress_lock:
+                    sync_progress[user_id]["progress"] = progress
+                    sync_progress[user_id]["current"] = idx + 1
+                    sync_progress[user_id]["message"] = f"Đang đồng bộ account {idx + 1}/{total}: {fb_acc.get('name', fb_acc.get('account_id', 'Unknown'))}"
+                
                 # Check if account exists
                 existing = db.query(Account).filter(
-                    Account.user_id == current_user.id,
+                    Account.user_id == user_id,
                     Account.account_id == fb_acc["account_id"]
                 ).first()
                 
                 if existing:
-                    # Update existing - chỉ cập nhật thông tin từ Facebook, giữ nguyên các cấu hình của user
+                    # Update existing
                     existing.account_name = fb_acc["name"]
                     existing.status = "ACTIVE" if fb_acc["account_status"] == 1 else "PAUSED"
                     existing.timezone = fb_acc["timezone_name"]
-                    existing.currency = fb_acc.get("currency", "USD")  # Lưu currency từ Facebook
-                    # Update updated_at để đánh dấu account được sync gần đây
+                    existing.currency = fb_acc.get("currency", "USD")
                     existing.updated_at = datetime.now()
                     # Try to get 30 days spend
                     try:
@@ -341,14 +361,14 @@ def sync_accounts(
                         logger.warning(f"Could not fetch spend for account {fb_acc['account_id']}: {spend_error}")
                     updated_count += 1
                 else:
-                    # Create new - chỉ tạo nếu chưa tồn tại
+                    # Create new
                     new_account = Account(
-                        user_id=current_user.id,
+                        user_id=user_id,
                         account_id=fb_acc["account_id"],
                         account_name=fb_acc["name"],
                         status="ACTIVE" if fb_acc["account_status"] == 1 else "PAUSED",
                         timezone=fb_acc["timezone_name"],
-                        currency=fb_acc.get("currency", "USD"),  # Lưu currency từ Facebook
+                        currency=fb_acc.get("currency", "USD"),
                         account_type="UNKNOWN",
                         enabled=True
                     )
@@ -365,17 +385,92 @@ def sync_accounts(
         
         db.commit()
         
+        # Mark as completed
+        with sync_progress_lock:
+            sync_progress[user_id] = {
+                "status": "completed",
+                "progress": 100,
+                "current": total,
+                "total": total,
+                "message": f"Hoàn thành! Đã sync {synced_count} accounts mới, cập nhật {updated_count} accounts."
+            }
+    except Exception as e:
+        logger.error(f"Error in sync_accounts_background: {e}", exc_info=True)
+        with sync_progress_lock:
+            sync_progress[user_id] = {
+                "status": "error",
+                "progress": 0,
+                "current": 0,
+                "total": 0,
+                "message": f"Lỗi khi đồng bộ: {str(e)}"
+            }
+    finally:
+        db.close()
+
+
+@router.post("/accounts/sync")
+def sync_accounts(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Sync accounts từ Facebook API - chạy trong background để tránh timeout"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    # Check if sync is already running
+    with sync_progress_lock:
+        if current_user.id in sync_progress:
+            current_status = sync_progress[current_user.id].get("status")
+            if current_status == "running":
+                raise HTTPException(status_code=400, detail="Đang trong quá trình đồng bộ. Vui lòng đợi hoàn thành.")
+    
+    try:
+        # Get token
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=404, detail="Chưa có token. Vui lòng lưu token trước.")
+        
+        try:
+            token = decrypt_token(user_settings.facebook_token_encrypted)
+        except Exception as e:
+            logger.error(f"Error decrypting token: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail=f"Lỗi giải mã token: {str(e)}")
+        
+        # Start background task
+        background_tasks.add_task(_sync_accounts_background, current_user.id, token)
+        
         return {
-            "message": f"Đã sync {synced_count} accounts mới, cập nhật {updated_count} accounts từ Facebook.",
-            "synced": synced_count,
-            "updated": updated_count,
-            "total": len(fb_accounts)
+            "message": "Đã bắt đầu quá trình đồng bộ. Vui lòng theo dõi tiến trình ở bên dưới.",
+            "status": "started"
         }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in sync_accounts: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Lỗi khi đồng bộ accounts: {str(e)}")
+        logger.error(f"Error starting sync: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi bắt đầu đồng bộ: {str(e)}")
+
+
+@router.get("/accounts/sync/progress")
+def get_sync_progress(
+    request: Request,
+    current_user: User = Depends(get_current_user_optional)
+):
+    """Lấy tiến trình đồng bộ accounts"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    with sync_progress_lock:
+        progress = sync_progress.get(current_user.id, {
+            "status": "idle",
+            "progress": 0,
+            "current": 0,
+            "total": 0,
+            "message": "Chưa có quá trình đồng bộ nào"
+        })
+    
+    return progress
 
 
 @router.post("/accounts", response_model=AccountResponse, status_code=201)
@@ -1700,6 +1795,9 @@ async def settings_page(
                     <button class="btn btn-primary" onclick="showAddAccountModal()">➕ Thêm Account Thủ Công</button>
                 </div>
                 
+                <!-- Progress indicator for sync -->
+                <div id="syncProgressContainer" style="display: none; margin-bottom: 20px;"></div>
+                
                 <div id="accountsTable" class="table-container">
                     <div class="loading">Đang tải...</div>
                 </div>
@@ -2295,13 +2393,39 @@ async def settings_page(
                 }}
             }}
             
-            // Sync accounts from Facebook
+            // Sync accounts from Facebook with progress tracking
+            let syncInProgress = false;
+            let syncProgressInterval = null;
+            
             async function syncAccounts() {{
+                // Prevent duplicate sync
+                if (syncInProgress) {{
+                    showToast('Cảnh báo', 'Đang trong quá trình đồng bộ. Vui lòng đợi hoàn thành.', 'warning');
+                    return;
+                }}
+                
                 showConfirm(
                     'Xác nhận Đồng Bộ',
                     'Bạn có chắc muốn đồng bộ accounts từ Facebook? Tất cả accounts mà bạn có quyền sẽ được đồng bộ.',
                     async () => {{
                         try {{
+                            syncInProgress = true;
+                            
+                            // Disable sync button
+                            const syncBtn = document.querySelector('button[onclick="syncAccounts()"]');
+                            if (syncBtn) {{
+                                syncBtn.disabled = true;
+                                syncBtn.innerHTML = '⏳ Đang đồng bộ...';
+                            }}
+                            
+                            // Show progress container
+                            const progressContainer = document.getElementById('syncProgressContainer');
+                            if (progressContainer) {{
+                                progressContainer.style.display = 'block';
+                                progressContainer.innerHTML = '<div class="loading">Đang khởi động quá trình đồng bộ...</div>';
+                            }}
+                            
+                            // Start sync
                             const response = await fetch('/settings/accounts/sync', {{
                                 method: 'POST',
                                 headers: getAuthHeaders()
@@ -2310,28 +2434,140 @@ async def settings_page(
                             if (!response.ok) {{
                                 const errorText = await response.text();
                                 console.error('Error response:', errorText);
-                                // Try to parse as JSON for error detail
-                                const statusCode = response.status;
-                                let errorMessage = 'HTTP ' + statusCode + ': Internal Server Error';
+                                let errorMessage = 'HTTP ' + response.status + ': Internal Server Error';
                                 try {{
                                     const errorJson = JSON.parse(errorText);
                                     errorMessage = errorJson.detail || errorJson.message || errorMessage;
                                 }} catch {{
-                                    // If not JSON, use first 200 chars of error text
                                     const errorSubstr = errorText.substring(0, 200);
-                                    errorMessage = 'HTTP ' + statusCode + ': ' + errorSubstr;
+                                    errorMessage = 'HTTP ' + response.status + ': ' + errorSubstr;
                                 }}
                                 throw new Error(errorMessage);
                             }}
                             
                             const data = await response.json();
                             showToast('Thành công', data.message, 'success');
-                            loadAccounts();
+                            
+                            // Start polling for progress
+                            if (syncProgressInterval) {{
+                                clearInterval(syncProgressInterval);
+                            }}
+                            syncProgressInterval = setInterval(checkSyncProgress, 1000); // Check every 1 second
+                            
                         }} catch (error) {{
+                            syncInProgress = false;
+                            if (syncBtn) {{
+                                syncBtn.disabled = false;
+                                syncBtn.innerHTML = '🔄 Đồng Bộ Từ Facebook';
+                            }}
+                            if (syncProgressInterval) {{
+                                clearInterval(syncProgressInterval);
+                                syncProgressInterval = null;
+                            }}
                             showToast('Lỗi', 'Lỗi khi đồng bộ accounts: ' + error.message, 'error');
                         }}
                     }}
                 );
+            }}
+            
+            // Check sync progress
+            async function checkSyncProgress() {{
+                try {{
+                    const response = await fetch('/settings/accounts/sync/progress', {{
+                        headers: getAuthHeaders()
+                    }});
+                    
+                    if (!response.ok) {{
+                        return;
+                    }}
+                    
+                    const progress = await response.json();
+                    const progressContainer = document.getElementById('syncProgressContainer');
+                    
+                    if (!progressContainer) return;
+                    
+                    // Update progress display
+                    let progressHtml = '';
+                    if (progress.status === 'running') {{
+                        progressHtml = `
+                            <div style="padding: 16px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <strong style="color: #1e40af;">🔄 Đang đồng bộ...</strong>
+                                    <span style="color: #1e40af; font-weight: 600;">${{progress.progress}}%</span>
+                                </div>
+                                <div style="background: #e0e7ff; border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 8px;">
+                                    <div style="background: #3b82f6; height: 100%; width: ${{progress.progress}}%; transition: width 0.3s;"></div>
+                                </div>
+                                <div style="color: #64748b; font-size: 13px;">
+                                    ${{progress.message}} (${{progress.current}}/${{progress.total}})
+                                </div>
+                            </div>
+                        `;
+                    }} else if (progress.status === 'completed') {{
+                        progressHtml = `
+                            <div style="padding: 16px; background: #dcfce7; border-radius: 8px; border-left: 4px solid #10b981;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <strong style="color: #166534;">✅ Hoàn thành!</strong>
+                                    <span style="color: #166534; font-weight: 600;">100%</span>
+                                </div>
+                                <div style="background: #bbf7d0; border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 8px;">
+                                    <div style="background: #10b981; height: 100%; width: 100%;"></div>
+                                </div>
+                                <div style="color: #166534; font-size: 13px;">
+                                    ${{progress.message}}
+                                </div>
+                            </div>
+                        `;
+                        syncInProgress = false;
+                        if (syncProgressInterval) {{
+                            clearInterval(syncProgressInterval);
+                            syncProgressInterval = null;
+                        }}
+                        const syncBtn = document.querySelector('button[onclick="syncAccounts()"]');
+                        if (syncBtn) {{
+                            syncBtn.disabled = false;
+                            syncBtn.innerHTML = '🔄 Đồng Bộ Từ Facebook';
+                        }}
+                        // Reload accounts after 2 seconds
+                        setTimeout(() => {{
+                            loadAccounts();
+                            // Hide progress after 5 seconds
+                            setTimeout(() => {{
+                                if (progressContainer) {{
+                                    progressContainer.style.display = 'none';
+                                }}
+                            }}, 5000);
+                        }}, 2000);
+                    }} else if (progress.status === 'error') {{
+                        progressHtml = `
+                            <div style="padding: 16px; background: #fee2e2; border-radius: 8px; border-left: 4px solid #ef4444;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <strong style="color: #991b1b;">❌ Lỗi</strong>
+                                </div>
+                                <div style="color: #991b1b; font-size: 13px;">
+                                    ${{progress.message}}
+                                </div>
+                            </div>
+                        `;
+                        syncInProgress = false;
+                        if (syncProgressInterval) {{
+                            clearInterval(syncProgressInterval);
+                            syncProgressInterval = null;
+                        }}
+                        const syncBtn = document.querySelector('button[onclick="syncAccounts()"]');
+                        if (syncBtn) {{
+                            syncBtn.disabled = false;
+                            syncBtn.innerHTML = '🔄 Đồng Bộ Từ Facebook';
+                        }}
+                    }} else {{
+                        // Idle - hide progress
+                        progressContainer.style.display = 'none';
+                    }}
+                    
+                    progressContainer.innerHTML = progressHtml;
+                }} catch (error) {{
+                    console.error('Error checking sync progress:', error);
+                }}
             }}
             
             // Load prefixes
