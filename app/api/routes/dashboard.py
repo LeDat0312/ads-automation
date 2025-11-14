@@ -2,7 +2,7 @@
 Dashboard API Routes
 API endpoints cho automation overview dashboard
 """
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -11,13 +11,20 @@ from sqlalchemy import func, and_, or_, distinct
 
 from app.core.database import get_db, AdMetrics, AutomationStatus
 from app.models.logic_rule import LogicRule
+from app.models.account_prefix import Account
 from app.core.config import get_settings
+from app.api.routes.auth import get_current_user_optional
+from app.models.user import User
+from typing import Optional
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 @router.get("/")
-async def dashboard_home():
+async def dashboard_home(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Serve dashboard HTML page"""
     html_content = """
     <!DOCTYPE html>
@@ -449,18 +456,42 @@ async def dashboard_home():
 
 @router.get("/stats")
 async def get_stats(
+    request: Request,
     account_id: Optional[str] = Query(None),
     prefix: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Get dashboard statistics"""
+    """Get dashboard statistics - filtered by user_id"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
     try:
+        # Get user's account IDs
+        user_accounts = db.query(Account.account_id).filter(Account.user_id == current_user.id).all()
+        user_account_ids = [acc[0] for acc in user_accounts]
+        
+        if not user_account_ids:
+            # No accounts for this user, return empty stats
+            return {
+                "total_spend": 0.0,
+                "total_results": 0,
+                "avg_gia_data": 0.0,
+                "active_adsets": 0,
+                "paused_adsets": 0,
+                "total_ads": 0
+            }
+        
         # Build base filter conditions
-        filters = []
-        if account_id:
+        filters = [AdMetrics.account_id.in_(user_account_ids)]  # Filter by user's accounts
+        
+        if account_id and account_id in user_account_ids:
             filters.append(AdMetrics.account_id == account_id)
         if prefix:
             filters.append(AdMetrics.prefix == prefix)
@@ -513,6 +544,7 @@ async def get_stats(
 
 @router.get("/ads")
 async def get_ads(
+    request: Request,
     account_id: Optional[str] = Query(None),
     prefix: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -520,15 +552,34 @@ async def get_ads(
     date_to: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Get ads data with pagination"""
+    """Get ads data with pagination - filtered by user_id"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
     try:
-        # Build query
-        query = db.query(AdMetrics)
+        # Get user's account IDs
+        user_accounts = db.query(Account.account_id).filter(Account.user_id == current_user.id).all()
+        user_account_ids = [acc[0] for acc in user_accounts]
         
-        # Apply filters
-        if account_id:
+        if not user_account_ids:
+            return {
+                "ads": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size
+            }
+        
+        # Build query - filter by user's accounts
+        query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(user_account_ids))
+        
+        # Apply additional filters
+        if account_id and account_id in user_account_ids:
             query = query.filter(AdMetrics.account_id == account_id)
         if prefix:
             query = query.filter(AdMetrics.prefix == prefix)
@@ -580,15 +631,41 @@ async def get_ads(
 
 
 @router.get("/filters")
-async def get_filters(db: Session = Depends(get_db)):
-    """Get filter options (accounts, prefixes)"""
+async def get_filters(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Get filter options (accounts, prefixes) - filtered by user_id"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
     try:
-        # Get unique account IDs
-        accounts = db.query(AdMetrics.account_id.distinct()).filter(AdMetrics.account_id.isnot(None)).all()
+        # Get user's account IDs
+        user_accounts = db.query(Account.account_id).filter(Account.user_id == current_user.id).all()
+        user_account_ids = [acc[0] for acc in user_accounts]
+        
+        if not user_account_ids:
+            return {
+                "accounts": [],
+                "prefixes": []
+            }
+        
+        # Get unique account IDs from user's accounts only
+        accounts = db.query(AdMetrics.account_id.distinct()).filter(
+            AdMetrics.account_id.in_(user_account_ids),
+            AdMetrics.account_id.isnot(None)
+        ).all()
         accounts = [acc[0] for acc in accounts if acc[0]]
         
-        # Get unique prefixes
-        prefixes = db.query(AdMetrics.prefix.distinct()).filter(AdMetrics.prefix.isnot(None)).all()
+        # Get unique prefixes from user's accounts only
+        prefixes = db.query(AdMetrics.prefix.distinct()).filter(
+            AdMetrics.account_id.in_(user_account_ids),
+            AdMetrics.prefix.isnot(None)
+        ).all()
         prefixes = [pref[0] for pref in prefixes if pref[0]]
         
         return {
@@ -604,23 +681,51 @@ async def get_filters(db: Session = Depends(get_db)):
 
 @router.get("/export")
 async def export_data(
+    request: Request,
     account_id: Optional[str] = Query(None),
     prefix: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Export data to CSV"""
+    """Export data to CSV - filtered by user_id"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
     try:
         import csv
         from io import StringIO
         
-        # Build query
-        query = db.query(AdMetrics)
+        # Get user's account IDs
+        user_accounts = db.query(Account.account_id).filter(Account.user_id == current_user.id).all()
+        user_account_ids = [acc[0] for acc in user_accounts]
         
-        # Apply filters
-        if account_id:
+        if not user_account_ids:
+            # Return empty CSV
+            output = StringIO()
+            writer = csv.writer(output)
+            writer.writerow([
+                "Adset ID", "Adset Name", "Ad ID", "Ad Name", "Campaign Name",
+                "Prefix", "Account ID", "Status", "Spend", "Results", "Giá DATA",
+                "Impressions", "Clicks", "CTR", "CPC"
+            ])
+            from fastapi.responses import Response
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=ads_export.csv"}
+            )
+        
+        # Build query - filter by user's accounts
+        query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(user_account_ids))
+        
+        # Apply additional filters
+        if account_id and account_id in user_account_ids:
             query = query.filter(AdMetrics.account_id == account_id)
         if prefix:
             query = query.filter(AdMetrics.prefix == prefix)

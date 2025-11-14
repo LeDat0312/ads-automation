@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
+from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
 from typing import Optional
 import logging
 
@@ -22,17 +23,14 @@ async def home_page(
 ):
     """Trang chủ với các nút điều hướng"""
     
+    # Check if user is locked (even if authenticated)
+    if current_user and not current_user.is_active:
+        return HTMLResponse(content=get_account_locked_message())
+    
     # Don't redirect on server-side - let client-side handle it
     # This prevents redirect loops
     
-    user_info = ""
-    if current_user:
-        user_info = f"""
-        <div style="position: absolute; top: 20px; right: 20px; display: flex; align-items: center; gap: 12px;">
-            <span style="color: white; font-weight: 500;">{current_user.display_name or current_user.username}</span>
-            <button onclick="logout()" style="padding: 8px 16px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; color: white; cursor: pointer;">Đăng xuất</button>
-        </div>
-        """
+    user_info = get_user_dropdown_menu(current_user) if current_user else ""
     
     html_content = f"""
     <!DOCTYPE html>
@@ -254,6 +252,36 @@ async def home_page(
                 document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
                 window.location.href = '/auth/login';
             }}
+            
+            // Check if account is locked on page load
+            async function checkAccountStatus() {{
+                const token = localStorage.getItem('access_token') || getCookie('access_token');
+                if (!token) return;
+                
+                try {{
+                    const response = await fetch('/auth/me', {{
+                        headers: {{
+                            'Authorization': `Bearer ${{token}}`
+                        }}
+                    }});
+                    
+                    if (response.status === 401) {{
+                        // Token invalid or account locked
+                        logout();
+                    }} else if (response.ok) {{
+                        const user = await response.json();
+                        // Check if account is locked (this should be handled server-side, but double-check)
+                        if (!user.is_active) {{
+                            window.location.reload(); // Will show locked message
+                        }}
+                    }}
+                }} catch (error) {{
+                    console.error('Error checking account status:', error);
+                }}
+            }}
+            
+            // Run check on page load
+            checkAccountStatus();
         </script>
     </body>
     </html>

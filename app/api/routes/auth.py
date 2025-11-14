@@ -31,6 +31,7 @@ def get_current_user_optional(
 ) -> Optional[User]:
     """Get current user from token (optional, returns None if not authenticated)
     Checks both Bearer token in Authorization header and access_token cookie
+    Also checks if user is_active - returns None if account is locked
     """
     token = None
     
@@ -46,7 +47,12 @@ def get_current_user_optional(
         return None
     
     try:
-        return get_current_user(db, token)
+        user = get_current_user(db, token)
+        # Check if user is active
+        if user and not user.is_active:
+            # Return None if account is locked (will trigger login redirect)
+            return None
+        return user
     except:
         return None
 
@@ -419,6 +425,7 @@ async def get_me(
         "email": current_user.email,
         "display_name": current_user.display_name,
         "role": current_user.role,
-        "avatar": current_user.avatar
+        "avatar": current_user.avatar,
+        "is_active": current_user.is_active
     }
 
