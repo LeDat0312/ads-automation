@@ -888,6 +888,35 @@ def refresh_account(
         raise HTTPException(status_code=500, detail=f"Lỗi khi refresh account: {str(e)}")
 
 
+@router.delete("/accounts/all", status_code=200)
+def delete_all_accounts(
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Xóa tất cả accounts của user hiện tại"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    # Lấy tất cả accounts của user
+    accounts = db.query(Account).filter(Account.user_id == current_user.id).all()
+    
+    if not accounts:
+        return {"message": "Không có accounts nào để xóa", "deleted_count": 0}
+    
+    # Xóa tất cả account-prefix links
+    account_ids = [acc.id for acc in accounts]
+    db.query(AccountPrefix).filter(AccountPrefix.account_id.in_(account_ids)).delete(synchronize_session=False)
+    
+    # Xóa tất cả accounts
+    deleted_count = len(accounts)
+    for account in accounts:
+        db.delete(account)
+    
+    db.commit()
+    
+    return {"message": f"Đã xóa {deleted_count} accounts thành công", "deleted_count": deleted_count}
+
+
 @router.delete("/accounts/{account_id}", status_code=204)
 def delete_account(
     account_id: int,
