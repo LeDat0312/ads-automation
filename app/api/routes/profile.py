@@ -19,6 +19,7 @@ from app.core.security import verify_password, get_password_hash, get_current_us
 from app.api.routes.auth import get_current_user_optional
 
 router = APIRouter(prefix="/profile", tags=["profile"])
+change_password_router = APIRouter(tags=["profile"])  # Router riêng cho change-password không có prefix
 logger = logging.getLogger(__name__)
 
 # Schemas
@@ -386,31 +387,21 @@ def profile_page(
                     </button>
                 </div>
                 
-                <!-- Section 4: Đổi Mật Khẩu -->
+                <!-- Section 4: Các Hành Động Khác -->
                 <div class="section">
                     <div class="section-title">
-                        <span class="icon">🔒</span>
-                        <span>Đổi Mật Khẩu</span>
+                        <span class="icon">⚙️</span>
+                        <span>Các Hành Động Khác</span>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="currentPassword">Mật khẩu hiện tại:</label>
-                        <input type="password" id="currentPassword" placeholder="Nhập mật khẩu hiện tại">
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <a href="/change-password" class="btn btn-primary" style="text-decoration: none; display: inline-block;">
+                            🔒 Thay Đổi Mật Khẩu
+                        </a>
+                        <button class="btn btn-danger" onclick="showDeleteAccountConfirm()" style="background: #ef4444;">
+                            🗑️ Xóa Tài Khoản
+                        </button>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="newPassword">Mật khẩu mới:</label>
-                        <input type="password" id="newPassword" placeholder="Nhập mật khẩu mới">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="confirmPassword">Xác nhận mật khẩu mới:</label>
-                        <input type="password" id="confirmPassword" placeholder="Nhập lại mật khẩu mới">
-                    </div>
-                    
-                    <button class="btn btn-primary" onclick="changePassword()">
-                        🔄 Đổi Mật Khẩu
-                    </button>
                 </div>
             </div>
         </div>
@@ -549,49 +540,42 @@ def profile_page(
                 }});
             }}
             
-            function changePassword() {{
-                const currentPassword = document.getElementById('currentPassword').value;
-                const newPassword = document.getElementById('newPassword').value;
-                const confirmPassword = document.getElementById('confirmPassword').value;
-                
-                if (!currentPassword || !newPassword || !confirmPassword) {{
-                    showToast('Vui lòng điền đầy đủ thông tin', 'error');
+            function showDeleteAccountConfirm() {{
+                if (!confirm('⚠️ CẢNH BÁO: Bạn có chắc chắn muốn xóa tài khoản này không?\\n\\nHành động này sẽ:\\n- Xóa tất cả dữ liệu của bạn\\n- Xóa tất cả accounts và prefixes\\n- Xóa tất cả rules\\n- KHÔNG THỂ HOÀN TÁC!\\n\\nNhập "XÓA" để xác nhận:')) {{
                     return;
                 }}
                 
-                if (newPassword !== confirmPassword) {{
-                    showToast('Mật khẩu mới không khớp', 'error');
+                const confirmText = prompt('Nhập "XÓA" để xác nhận xóa tài khoản:');
+                if (confirmText !== 'XÓA') {{
+                    showToast('Hủy xóa tài khoản', 'info');
                     return;
                 }}
                 
-                if (newPassword.length < 6) {{
-                    showToast('Mật khẩu mới phải có ít nhất 6 ký tự', 'error');
-                    return;
-                }}
-                
-                fetch('/profile/password', {{
-                    method: 'PUT',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({{
-                        current_password: currentPassword,
-                        new_password: newPassword,
-                        confirm_password: confirmPassword
-                    }})
+                fetch('/profile/delete', {{
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
                 }})
                 .then(response => response.json())
                 .then(data => {{
                     if (data.success) {{
-                        document.getElementById('currentPassword').value = '';
-                        document.getElementById('newPassword').value = '';
-                        document.getElementById('confirmPassword').value = '';
-                        showToast('Đổi mật khẩu thành công!');
+                        showToast('Tài khoản đã được xóa. Đang chuyển hướng...', 'success');
+                        setTimeout(() => {{
+                            logout();
+                        }}, 2000);
                     }} else {{
-                        showToast(data.message || 'Lỗi khi đổi mật khẩu', 'error');
+                        showToast(data.message || 'Lỗi khi xóa tài khoản', 'error');
                     }}
                 }})
                 .catch(error => {{
-                    showToast('Lỗi khi đổi mật khẩu', 'error');
+                    showToast('Lỗi khi xóa tài khoản', 'error');
                 }});
+            }}
+            
+            function logout() {{
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                window.location.href = '/auth/login';
             }}
         </script>
     </body>
@@ -723,4 +707,200 @@ def remove_avatar(
     db.commit()
     
     return {"success": True, "message": "Đã xóa ảnh đại diện"}
+
+
+@change_password_router.get("/change-password", response_class=HTMLResponse)
+def change_password_page(
+    request: Request,
+    current_user: User = Depends(get_current_user_optional)
+):
+    """Trang thay đổi mật khẩu riêng biệt"""
+    if not current_user:
+        return HTMLResponse(content="""
+        <script>
+            window.location.href = '/auth/login';
+        </script>
+        """)
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Thay Đổi Mật Khẩu - {current_user.display_name}</title>
+        {_get_profile_css()}
+    </head>
+    <body>
+        <div class="profile-container">
+            <div class="profile-header">
+                <h1>🔒 Thay Đổi Mật Khẩu</h1>
+                <p>Bảo mật tài khoản của bạn</p>
+            </div>
+            
+            <div class="profile-content">
+                <a href="/profile" class="back-link">← Về Trang Cá Nhân</a>
+                
+                <div class="section">
+                    <div class="section-title">
+                        <span class="icon">🔐</span>
+                        <span>Đổi Mật Khẩu</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="currentPassword">Mật khẩu hiện tại:</label>
+                        <input type="password" id="currentPassword" placeholder="Nhập mật khẩu hiện tại">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="newPassword">Mật khẩu mới:</label>
+                        <input type="password" id="newPassword" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="confirmPassword">Xác nhận mật khẩu mới:</label>
+                        <input type="password" id="confirmPassword" placeholder="Nhập lại mật khẩu mới">
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="changePassword()">
+                        🔄 Đổi Mật Khẩu
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            function getAuthHeaders() {{
+                const token = localStorage.getItem('access_token') || getCookie('access_token');
+                return {{
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }};
+            }}
+            
+            function getCookie(name) {{
+                const value = '; ' + document.cookie;
+                const parts = value.split('; ' + name + '=');
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }}
+            
+            function showToast(message, type = 'success') {{
+                const toast = document.createElement('div');
+                toast.className = 'toast ' + type;
+                toast.textContent = message;
+                document.body.appendChild(toast);
+                
+                setTimeout(() => {{
+                    toast.remove();
+                }}, 3000);
+            }}
+            
+            function changePassword() {{
+                const currentPassword = document.getElementById('currentPassword').value;
+                const newPassword = document.getElementById('newPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                
+                if (!currentPassword || !newPassword || !confirmPassword) {{
+                    showToast('Vui lòng điền đầy đủ thông tin', 'error');
+                    return;
+                }}
+                
+                if (newPassword !== confirmPassword) {{
+                    showToast('Mật khẩu mới không khớp', 'error');
+                    return;
+                }}
+                
+                if (newPassword.length < 6) {{
+                    showToast('Mật khẩu mới phải có ít nhất 6 ký tự', 'error');
+                    return;
+                }}
+                
+                fetch('/profile/password', {{
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({{
+                        current_password: currentPassword,
+                        new_password: newPassword,
+                        confirm_password: confirmPassword
+                    }})
+                }})
+                .then(response => response.json())
+                .then(data => {{
+                    if (data.success) {{
+                        document.getElementById('currentPassword').value = '';
+                        document.getElementById('newPassword').value = '';
+                        document.getElementById('confirmPassword').value = '';
+                        showToast('Đổi mật khẩu thành công!');
+                        setTimeout(() => {{
+                            window.location.href = '/profile';
+                        }}, 1500);
+                    }} else {{
+                        showToast(data.message || 'Lỗi khi đổi mật khẩu', 'error');
+                    }}
+                }})
+                .catch(error => {{
+                    showToast('Lỗi khi đổi mật khẩu', 'error');
+                }});
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+
+
+@router.delete("/delete")
+def delete_account(
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Xóa tài khoản và tất cả dữ liệu liên quan"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    try:
+        from app.models.account_prefix import Account, Prefix, AccountPrefix
+        from app.models.logic_rule import LogicRule
+        from app.models.user_settings import UserSettings
+        
+        user_id = current_user.id
+        
+        # Xóa tất cả dữ liệu liên quan
+        # 1. Xóa AccountPrefix links
+        db.query(AccountPrefix).filter(AccountPrefix.user_id == user_id).delete()
+        
+        # 2. Xóa Accounts
+        accounts = db.query(Account).filter(Account.user_id == user_id).all()
+        for account in accounts:
+            # Xóa avatar files nếu có
+            if account.description:
+                pass  # Có thể xóa files nếu cần
+        db.query(Account).filter(Account.user_id == user_id).delete()
+        
+        # 3. Xóa Prefixes
+        db.query(Prefix).filter(Prefix.user_id == user_id).delete()
+        
+        # 4. Xóa Rules
+        db.query(LogicRule).filter(LogicRule.user_id == user_id).delete()
+        
+        # 5. Xóa UserSettings
+        db.query(UserSettings).filter(UserSettings.user_id == user_id).delete()
+        
+        # 6. Xóa avatar file nếu có
+        if current_user.avatar and current_user.avatar != 'default_avatar.png':
+            avatars_dir = "app/static/avatars"
+            filepath = os.path.join(avatars_dir, current_user.avatar)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        
+        # 7. Xóa User
+        db.delete(current_user)
+        db.commit()
+        
+        return {"success": True, "message": "Tài khoản đã được xóa thành công"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting account: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi xóa tài khoản: {str(e)}")
 

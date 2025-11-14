@@ -48,7 +48,7 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
                 </svg>
                 <span>Trang cá nhân</span>
             </a>
-            <a href="/profile#change-password" class="menu-item">
+            <a href="/change-password" class="menu-item">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M11.5 2.5L17.5 8.5M15.5 2.5L17.5 4.5M15.5 8.5L17.5 6.5M2.5 5.5V16.5C2.5 17.0523 2.94772 17.5 3.5 17.5H16.5C17.0523 17.5 17.5 17.0523 17.5 16.5V8.5M2.5 5.5C2.5 4.94772 2.94772 4.5 3.5 4.5H10.5M2.5 5.5L10.5 13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>

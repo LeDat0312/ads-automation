@@ -41,6 +41,7 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(home.router)  # Home page - phải include trước để handle "/"
 app.include_router(settings.router)  # Settings page - quản lý token, accounts, prefixes
 app.include_router(profile.router)  # Profile page - quản lý thông tin cá nhân
+app.include_router(profile.change_password_router)  # Change password page - riêng biệt
 app.include_router(user_management.router)  # User management page - quản lý người dùng (admin only)
 app.include_router(dashboard.router)
 app.include_router(templates.router)
