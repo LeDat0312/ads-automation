@@ -1811,7 +1811,8 @@ async def settings_page(
                 </div>
                 
                 <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-                    <button class="btn btn-success" onclick="syncAccounts()">🔄 Đồng Bộ Từ Facebook</button>
+                    <!-- Tạm thời ẩn nút đồng bộ, chỉ dùng thêm thủ công -->
+                    <!-- <button class="btn btn-success" onclick="syncAccounts()">🔄 Đồng Bộ Từ Facebook</button> -->
                     <button class="btn btn-primary" onclick="showAddAccountModal()">➕ Thêm Account Thủ Công</button>
                 </div>
                 
@@ -1823,7 +1824,7 @@ async def settings_page(
                 </div>
                 <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
                     <small style="color: #1e40af;">
-                        💡 <strong>Lưu ý:</strong> Chỉ hiển thị các tài khoản có hoạt động từ người tạo token hoặc BM (Business Manager) trong 7 ngày qua. Tài khoản thêm thủ công mặc định tắt logic tự động. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động. Nút xóa để xóa các tài khoản không sử dụng.
+                        💡 <strong>Lưu ý:</strong> Hiện tại chỉ hỗ trợ thêm tài khoản thủ công. Tài khoản thêm thủ công mặc định tắt logic tự động (enabled=False) để tránh lỗi. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động. Nút xóa để xóa các tài khoản không sử dụng.
                     </small>
                 </div>
             </div>
