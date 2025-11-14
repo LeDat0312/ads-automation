@@ -428,32 +428,32 @@ async def dashboard_home(
             }}
             
             // Load filters options on page load
-            async function loadFilters() {
-                try {
+            async function loadFilters() {{
+                try {{
                     const response = await fetch('/api/dashboard/filters');
                     const filters = await response.json();
                     
                     // Populate account filter
                     const accountFilter = document.getElementById('accountFilter');
-                    filters.accounts.forEach(account => {
+                    filters.accounts.forEach(account => {{
                         const option = document.createElement('option');
                         option.value = account;
                         option.textContent = account;
                         accountFilter.appendChild(option);
-                    });
+                    }});
                     
                     // Populate prefix filter
                     const prefixFilter = document.getElementById('prefixFilter');
-                    filters.prefixes.forEach(prefix => {
+                    filters.prefixes.forEach(prefix => {{
                         const option = document.createElement('option');
                         option.value = prefix;
                         option.textContent = prefix;
                         prefixFilter.appendChild(option);
-                    });
-                } catch (error) {
+                    }});
+                }} catch (error) {{
                     console.error('Error loading filters:', error);
-                }
-            }
+                }}
+            }}
             
             // Set default date to yesterday
             const yesterday = new Date();
