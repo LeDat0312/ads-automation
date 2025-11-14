@@ -132,6 +132,7 @@ def init_db():
     from app.models.logic_rule import LogicRule
     from app.models.account_prefix import Account, Prefix  # Import models mới
     from app.models.logic_7days_config import Logic7DaysConfig  # Import model config logic 7 ngày
+    from app.models.user import User  # User model for authentication
     
     settings = get_settings()
     database_url = settings.DATABASE_URL
