@@ -442,6 +442,14 @@ def profile_page(
                 }}, 3000);
             }}
             
+            function handleAvatarError(img) {{
+                img.style.display = 'none';
+                const placeholder = img.nextElementSibling;
+                if (placeholder) {{
+                    placeholder.style.display = 'flex';
+                }}
+            }}
+            
             function handleAvatarChange(event) {{
                 const file = event.target.files[0];
                 if (!file) return;
