@@ -387,19 +387,6 @@ def profile_page(
                     </button>
                 </div>
                 
-                <!-- Section 4: Các Hành Động Khác -->
-                <div class="section">
-                    <div class="section-title">
-                        <span class="icon">⚙️</span>
-                        <span>Các Hành Động Khác</span>
-                    </div>
-                    
-                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                        <a href="/change-password" class="btn btn-primary" style="text-decoration: none; display: inline-block;">
-                            🔒 Thay Đổi Mật Khẩu
-                        </a>
-                    </div>
-                </div>
             </div>
         </div>
         
@@ -610,17 +597,24 @@ def upload_avatar(
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
-    # Check file size (max 5MB)
-    if avatar.size > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Ảnh không được vượt quá 5MB")
-    
     # Check file type
-    if not avatar.content_type.startswith('image/'):
+    if not avatar.content_type or not avatar.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="Chỉ chấp nhận file ảnh")
     
     # Create avatars directory if not exists
     avatars_dir = "app/static/avatars"
     os.makedirs(avatars_dir, exist_ok=True)
+    
+    # Read file content to check size
+    file_content = avatar.file.read()
+    file_size = len(file_content)
+    
+    # Check file size (max 5MB)
+    if file_size > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Ảnh không được vượt quá 5MB")
+    
+    # Reset file pointer
+    avatar.file.seek(0)
     
     # Generate filename
     file_ext = avatar.filename.split('.')[-1] if '.' in avatar.filename else 'png'
@@ -628,19 +622,35 @@ def upload_avatar(
     filepath = os.path.join(avatars_dir, filename)
     
     # Save file
-    with open(filepath, "wb") as buffer:
-        shutil.copyfileobj(avatar.file, buffer)
+    try:
+        with open(filepath, "wb") as buffer:
+            shutil.copyfileobj(avatar.file, buffer)
+    except Exception as e:
+        logger.error(f"Error saving avatar file: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi lưu file: {str(e)}")
     
     # Delete old avatar if exists
     if current_user.avatar and current_user.avatar != 'default_avatar.png':
         old_filepath = os.path.join(avatars_dir, current_user.avatar)
         if os.path.exists(old_filepath):
-            os.remove(old_filepath)
+            try:
+                os.remove(old_filepath)
+            except Exception as e:
+                logger.warning(f"Error deleting old avatar: {e}")
     
     # Update user
-    current_user.avatar = filename
-    current_user.updated_at = datetime.now()
-    db.commit()
+    try:
+        current_user.avatar = filename
+        current_user.updated_at = datetime.now()
+        db.commit()
+        db.refresh(current_user)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating user avatar: {e}", exc_info=True)
+        # Delete the uploaded file if database update fails
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật database: {str(e)}")
     
     return {"success": True, "message": "Cập nhật ảnh đại diện thành công", "avatar": filename}
 
@@ -699,7 +709,7 @@ def change_password_page(
             </div>
             
             <div class="profile-content">
-                <a href="/profile" class="back-link">← Về Trang Cá Nhân</a>
+                <a href="/" class="back-link">← Về Trang Chủ</a>
                 
                 <div class="section">
                     <div class="section-title">
