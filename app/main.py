@@ -13,7 +13,7 @@ from app.services.automation import run_automation, test_run_automation
 from app.services.telegram_bot import send_telegram_message_safe
 from app.services.webhook_setup import setup_webhook
 from app.api.routes import dashboard, templates, templates_ui, rules, rules_ui, rules_ui_v2, telegram, accounts_prefixes
-from app.api.routes import logic_7days_config, rules_ui_birch
+from app.api.routes import logic_7days_config, rules_ui_birch, home, automation_tactics
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,6 +30,8 @@ app.add_middleware(
 )
 
 # Include routes
+app.include_router(home.router)  # Trang chủ - phải include đầu tiên để handle "/"
+app.include_router(automation_tactics.router)  # Trang tactics
 app.include_router(dashboard.router)
 app.include_router(templates.router)
 app.include_router(templates_ui.router)
@@ -66,14 +68,8 @@ async def startup_event():
         logger.error(f"🚨 Error setting up webhook: {e}")
 
 
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "message": "Facebook Ads Automation System",
-        "status": "running",
-        "version": "1.0.0"
-    }
+# Root endpoint "/" được handle bởi home.router
+# Đã chuyển sang app/api/routes/home.py để có giao diện đẹp hơn
 
 
 @app.get("/health")
