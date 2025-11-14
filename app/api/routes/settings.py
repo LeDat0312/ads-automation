@@ -218,22 +218,25 @@ def list_accounts(
     limit: int = 15  # Chỉ lấy 15 accounts được sử dụng gần đây
 ):
     """
-    Lấy danh sách accounts hay dùng nhất của user
-    Logic: Accounts có activity trong ads_metrics (impressions > 0) trong 30 ngày gần nhất
-    Sắp xếp theo: enabled (bật trước), activity gần đây, total impressions, last_30_days_spend
+    Lấy danh sách accounts của user
+    Logic: 
+    - Hiển thị TẤT CẢ accounts của user (có activity hoặc không)
+    - Ưu tiên accounts có activity trong 30 ngày qua
+    - Accounts được thêm thủ công (không có activity) vẫn hiển thị
+    Sắp xếp theo: enabled (bật trước), có activity, activity gần đây, total impressions, last_30_days_spend
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
     try:
-        from sqlalchemy import func, desc, distinct
+        from sqlalchemy import func, desc, distinct, case
         from datetime import datetime, timedelta
         from app.core.database import AdMetrics
         
         # Lấy accounts có activity trong 30 ngày gần nhất (có impressions > 0)
         thirty_days_ago = datetime.now() - timedelta(days=30)
         
-        # Subquery để lấy accounts có activity gần đây và thống kê
+        # Subquery để lấy accounts có activity gần đây và thống kê (LEFT JOIN để lấy cả accounts không có activity)
         active_accounts_subq = db.query(
             AdMetrics.account_id,
             func.max(AdMetrics.date).label('last_activity_date'),
@@ -246,26 +249,40 @@ def list_accounts(
             func.sum(AdMetrics.impressions) > 0
         ).subquery()
         
-        # Query chính: chỉ lấy accounts của user CÓ activity trong 30 ngày qua
+        # Query chính: lấy TẤT CẢ accounts của user (LEFT JOIN để lấy cả accounts không có activity)
         # Sắp xếp theo:
         # 1. enabled (bật trước, tắt sau)
-        # 2. last_activity_date (activity gần đây nhất)
-        # 3. total_impressions (activity nhiều nhất)
-        # 4. last_30_days_spend (spend cao nhất)
-        accounts_query = db.query(Account).filter(
+        # 2. has_activity (có activity trong 30 ngày qua)
+        # 3. last_activity_date (activity gần đây nhất)
+        # 4. total_impressions (activity nhiều nhất)
+        # 5. last_30_days_spend (spend cao nhất)
+        # 6. account_name (tên)
+        accounts_query = db.query(
+            Account,
+            active_accounts_subq.c.last_activity_date,
+            active_accounts_subq.c.total_impressions,
+            case(
+                (active_accounts_subq.c.account_id.isnot(None), 1),
+                else_=0
+            ).label('has_activity')
+        ).filter(
             Account.user_id == current_user.id
-        ).join(
+        ).outerjoin(
             active_accounts_subq,
             Account.account_id == active_accounts_subq.c.account_id
         ).order_by(
             desc(Account.enabled),  # Enabled accounts trước
+            desc('has_activity'),  # Accounts có activity trước
             desc(active_accounts_subq.c.last_activity_date),  # Activity gần đây nhất
             desc(active_accounts_subq.c.total_impressions),  # Activity nhiều nhất
             desc(Account.last_30_days_spend),  # Spend cao nhất
             Account.account_name  # Cuối cùng mới sort theo tên
         ).limit(limit)
         
-        accounts = accounts_query.all()
+        # Extract Account objects from query results
+        results = accounts_query.all()
+        accounts = [result[0] for result in results]
+        
         return accounts
     except Exception as e:
         logger.error(f"Error listing accounts: {e}", exc_info=True)
@@ -301,20 +318,12 @@ def sync_accounts(
             logger.error(f"Error fetching accounts from Facebook: {e}", exc_info=True)
             raise HTTPException(status_code=400, detail=f"Lỗi khi lấy accounts từ Facebook: {str(e)}")
         
-        # Sync to database - chỉ sync accounts có activity trong 7 ngày qua
+        # Sync to database - lấy TẤT CẢ accounts mà user có quyền (không filter theo activity)
         synced_count = 0
         updated_count = 0
-        skipped_count = 0
         
         for fb_acc in fb_accounts:
             try:
-                # Kiểm tra xem account có activity trong 7 ngày qua không
-                has_activity = check_account_has_activity_last_7_days(token, fb_acc["account_id"])
-                if not has_activity:
-                    skipped_count += 1
-                    logger.info(f"Skipping account {fb_acc['account_id']} - no activity in last 7 days")
-                    continue
-                
                 # Check if account exists
                 existing = db.query(Account).filter(
                     Account.user_id == current_user.id,
@@ -322,7 +331,7 @@ def sync_accounts(
                 ).first()
                 
                 if existing:
-                    # Update existing
+                    # Update existing - chỉ cập nhật thông tin từ Facebook, giữ nguyên các cấu hình của user
                     existing.account_name = fb_acc["name"]
                     existing.status = "ACTIVE" if fb_acc["account_status"] == 1 else "PAUSED"
                     existing.timezone = fb_acc["timezone_name"]
@@ -336,7 +345,7 @@ def sync_accounts(
                         logger.warning(f"Could not fetch spend for account {fb_acc['account_id']}: {spend_error}")
                     updated_count += 1
                 else:
-                    # Create new
+                    # Create new - chỉ tạo nếu chưa tồn tại
                     new_account = Account(
                         user_id=current_user.id,
                         account_id=fb_acc["account_id"],
@@ -361,10 +370,9 @@ def sync_accounts(
         db.commit()
         
         return {
-            "message": f"Đã sync {synced_count} accounts mới, cập nhật {updated_count} accounts. Bỏ qua {skipped_count} accounts không có activity trong 7 ngày qua.",
+            "message": f"Đã sync {synced_count} accounts mới, cập nhật {updated_count} accounts từ Facebook.",
             "synced": synced_count,
             "updated": updated_count,
-            "skipped": skipped_count,
             "total": len(fb_accounts)
         }
     except HTTPException:
@@ -1701,7 +1709,7 @@ async def settings_page(
                 </div>
                 <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
                     <small style="color: #1e40af;">
-                        💡 <strong>Lưu ý:</strong> Chỉ hiển thị các tài khoản có hoạt động (impressions > 0) trong 30 ngày qua. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động cho từng tài khoản. Tắt không làm mất tài khoản, chỉ ngừng áp dụng logic tự động.
+                        💡 <strong>Lưu ý:</strong> Hiển thị tất cả tài khoản đã cấu hình (đồng bộ từ Facebook hoặc thêm thủ công). Ưu tiên hiển thị các tài khoản có hoạt động gần đây. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động cho từng tài khoản. Tắt không làm mất tài khoản, chỉ ngừng áp dụng logic tự động.
                     </small>
                 </div>
             </div>
@@ -2295,7 +2303,7 @@ async def settings_page(
             async function syncAccounts() {{
                 showConfirm(
                     'Xác nhận Đồng Bộ',
-                    'Bạn có chắc muốn đồng bộ accounts từ Facebook? Chỉ các accounts có hoạt động trong 7 ngày qua sẽ được đồng bộ.',
+                    'Bạn có chắc muốn đồng bộ accounts từ Facebook? Tất cả accounts mà bạn có quyền sẽ được đồng bộ.',
                     async () => {{
                         try {{
                             const response = await fetch('/settings/accounts/sync', {{
