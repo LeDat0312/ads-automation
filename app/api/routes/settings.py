@@ -1715,6 +1715,7 @@ async def settings_page(
                             timezoneDisplay = timezone;
                         }}
                         
+                        const accId = acc.id;
                         html += `
                             <tr>
                                 <td><span class="status-badge ${{statusClass}}">${{acc.status}}</span></td>
@@ -1724,9 +1725,9 @@ async def settings_page(
                                 <td>${{timezoneDisplay}}</td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="btn-icon" style="background: #dcfce7; color: #166534;" onclick="refreshAccount(${{acc.id}})" title="Refresh account">🔄</button>
-                                        <button class="btn-icon" style="background: #dbeafe; color: #1e40af;" onclick="editAccount(${{acc.id}})" title="Sửa">✏️</button>
-                                        <button class="btn-icon" style="background: #fee2e2; color: #991b1b;" onclick="deleteAccount(${{acc.id}})" title="Xóa">🗑️</button>
+                                        <button class="btn-icon" style="background: #dcfce7; color: #166534;" onclick="refreshAccount(${{accId}})" title="Refresh account">🔄</button>
+                                        <button class="btn-icon" style="background: #dbeafe; color: #1e40af;" onclick="editAccount(${{accId}})" title="Sửa">✏️</button>
+                                        <button class="btn-icon" style="background: #fee2e2; color: #991b1b;" onclick="deleteAccount(${{accId}})" title="Xóa">🗑️</button>
                                     </div>
                                 </td>
                             </tr>
@@ -1826,6 +1827,7 @@ async def settings_page(
                     `;
                     
                     prefixes.forEach(prefix => {{
+                        const prefixId = prefix.id;
                         html += `
                             <tr>
                                 <td><strong>${{prefix.prefix}}</strong></td>
@@ -1833,8 +1835,8 @@ async def settings_page(
                                 <td><span class="status-badge ${{prefix.enabled ? 'status-active' : 'status-paused'}}">${{prefix.enabled ? 'Bật' : 'Tắt'}}</span></td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="btn-icon" style="background: #dbeafe; color: #1e40af;" onclick="editPrefix(${{prefix.id}})" title="Sửa">✏️</button>
-                                        <button class="btn-icon" style="background: #fee2e2; color: #991b1b;" onclick="deletePrefix(${{prefix.id}})" title="Xóa">🗑️</button>
+                                        <button class="btn-icon" style="background: #dbeafe; color: #1e40af;" onclick="editPrefix(${{prefixId}})" title="Sửa">✏️</button>
+                                        <button class="btn-icon" style="background: #fee2e2; color: #991b1b;" onclick="deletePrefix(${{prefixId}})" title="Xóa">🗑️</button>
                                     </div>
                                 </td>
                             </tr>
