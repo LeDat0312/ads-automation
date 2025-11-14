@@ -2064,7 +2064,7 @@ async def settings_page(
                     let response;
                     if (id) {{
                         // Update account
-                        const accountId = ${{id}};
+                        const accountId = id;
                         response = await fetch('/settings/accounts/' + accountId, {{
                             method: 'PUT',
                             headers: getAuthHeaders('application/json'),
@@ -2079,8 +2079,8 @@ async def settings_page(
                                 .map(cb => parseInt(cb.value));
                             
                             // Get current linked prefixes
-                            const accountId = ${{id}};
-                            const currentResponse = await fetch('/settings/accounts/' + accountId + '/prefixes', {{
+                            const accountIdForPrefixes = id;
+                            const currentResponse = await fetch('/settings/accounts/' + accountIdForPrefixes + '/prefixes', {{
                                 headers: getAuthHeaders()
                             }});
                             let currentPrefixIds = [];
@@ -2093,7 +2093,7 @@ async def settings_page(
                             for (const prefixId of selectedPrefixIds) {{
                                 if (!currentPrefixIds.includes(prefixId)) {{
                                     try {{
-                                        await fetch('/settings/accounts/' + accountId + '/prefixes/' + prefixId, {{
+                                        await fetch('/settings/accounts/' + accountIdForPrefixes + '/prefixes/' + prefixId, {{
                                             method: 'POST',
                                             headers: getAuthHeaders()
                                         }});
@@ -2107,7 +2107,7 @@ async def settings_page(
                             for (const prefixId of currentPrefixIds) {{
                                 if (!selectedPrefixIds.includes(prefixId)) {{
                                     try {{
-                                        await fetch('/settings/accounts/' + accountId + '/prefixes/' + prefixId, {{
+                                        await fetch('/settings/accounts/' + accountIdForPrefixes + '/prefixes/' + prefixId, {{
                                             method: 'DELETE',
                                             headers: getAuthHeaders()
                                         }});
@@ -2221,7 +2221,7 @@ async def settings_page(
                     let response;
                     if (id) {{
                         // Update
-                        const prefixId = ${{id}};
+                        const prefixId = id;
                         response = await fetch('/settings/prefixes/' + prefixId, {{
                             method: 'PUT',
                             headers: getAuthHeaders('application/json'),
