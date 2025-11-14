@@ -1828,11 +1828,15 @@ async def settings_page(
                     
                     prefixes.forEach(prefix => {{
                         const prefixId = prefix.id;
+                        const prefixValue = prefix.prefix;
+                        const prefixName = prefix.prefix_name || '-';
+                        const statusClass = prefix.enabled ? 'status-active' : 'status-paused';
+                        const statusText = prefix.enabled ? 'Bật' : 'Tắt';
                         html += `
                             <tr>
-                                <td><strong>${{prefix.prefix}}</strong></td>
-                                <td>${{prefix.prefix_name || '-'}}</td>
-                                <td><span class="status-badge ${{prefix.enabled ? 'status-active' : 'status-paused'}}">${{prefix.enabled ? 'Bật' : 'Tắt'}}</span></td>
+                                <td><strong>${{prefixValue}}</strong></td>
+                                <td>${{prefixName}}</td>
+                                <td><span class="status-badge ${{statusClass}}">${{statusText}}</span></td>
                                 <td>
                                     <div class="action-buttons">
                                         <button class="btn-icon" style="background: #dbeafe; color: #1e40af;" onclick="editPrefix(${{prefixId}})" title="Sửa">✏️</button>
