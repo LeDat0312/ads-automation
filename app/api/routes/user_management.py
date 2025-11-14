@@ -849,10 +849,10 @@ def user_management_page(
         </style>
     </head>
     <body>
-        {user_menu}
         <div class="header">
             <h1>👥 Quản Lý Người Dùng</h1>
             <div class="header-actions">
+                {user_menu}
                 <a href="/" class="btn-back">← Về Trang Chủ</a>
             </div>
         </div>
