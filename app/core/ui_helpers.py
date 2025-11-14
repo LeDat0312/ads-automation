@@ -70,7 +70,7 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
             position: fixed;
             top: 20px;
             right: 20px;
-            z-index: 1000;
+            z-index: 1001;
         }}
         
         .user-menu-trigger {{

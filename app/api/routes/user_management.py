@@ -211,15 +211,63 @@ def user_management_page(
                 background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
             }}
             
+            .stat-card {{
+                position: relative;
+                cursor: help;
+            }}
+            
             .stat-card .label {{
                 font-size: 14px;
                 opacity: 0.9;
                 margin-bottom: 8px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }}
+            
+            .stat-card .label .info-icon {{
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background: rgba(255, 255, 255, 0.3);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                cursor: help;
             }}
             
             .stat-card .value {{
                 font-size: 32px;
                 font-weight: 700;
+            }}
+            
+            .stat-card .description {{
+                font-size: 11px;
+                opacity: 0.8;
+                margin-top: 4px;
+            }}
+            
+            .stat-card .tooltip {{
+                position: absolute;
+                bottom: 100%;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.9);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 8px;
+                font-size: 12px;
+                white-space: nowrap;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.2s;
+                margin-bottom: 8px;
+                z-index: 10;
+            }}
+            
+            .stat-card:hover .tooltip {{
+                opacity: 1;
             }}
             
             .filters-bar {{
@@ -812,20 +860,40 @@ def user_management_page(
             <div class="section">
                 <div class="stats-grid" id="statsGrid">
                     <div class="stat-card">
-                        <div class="label">Tổng Người Dùng</div>
+                        <div class="tooltip">Tổng số tài khoản người dùng trong hệ thống</div>
+                        <div class="label">
+                            👥 Tổng Người Dùng
+                            <span class="info-icon">?</span>
+                        </div>
                         <div class="value" id="totalUsers">0</div>
+                        <div class="description">Tất cả tài khoản</div>
                     </div>
                     <div class="stat-card secondary">
-                        <div class="label">Người Dùng Hoạt Động</div>
+                        <div class="tooltip">Tài khoản chưa bị khóa, có thể đăng nhập và sử dụng hệ thống</div>
+                        <div class="label">
+                            ✅ Tài Khoản Kích Hoạt
+                            <span class="info-icon">?</span>
+                        </div>
                         <div class="value" id="activeUsers">0</div>
+                        <div class="description">Chưa bị khóa</div>
                     </div>
                     <div class="stat-card success">
-                        <div class="label">Quản Trị Viên</div>
+                        <div class="tooltip">Số lượng tài khoản có quyền quản trị viên</div>
+                        <div class="label">
+                            👑 Quản Trị Viên
+                            <span class="info-icon">?</span>
+                        </div>
                         <div class="value" id="adminUsers">0</div>
+                        <div class="description">Có quyền admin</div>
                     </div>
                     <div class="stat-card warning">
-                        <div class="label">Người Dùng Đã Khóa</div>
+                        <div class="tooltip">Tài khoản đã bị khóa, không thể đăng nhập</div>
+                        <div class="label">
+                            🔒 Tài Khoản Đã Khóa
+                            <span class="info-icon">?</span>
+                        </div>
                         <div class="value" id="inactiveUsers">0</div>
+                        <div class="description">Đã bị khóa</div>
                     </div>
                 </div>
             </div>
