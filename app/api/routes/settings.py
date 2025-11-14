@@ -1137,6 +1137,11 @@ async def settings_page(
                 <div id="accountsTable" class="table-container">
                     <div class="loading">Đang tải...</div>
                 </div>
+                <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                    <small style="color: #1e40af;">
+                        💡 <strong>Lưu ý:</strong> Chỉ hiển thị 15 tài khoản được sử dụng gần đây nhất (có dữ liệu trong 7 ngày qua hoặc có chi tiêu trong 30 ngày qua).
+                    </small>
+                </div>
             </div>
             
             <!-- Section 3: Quản Lý Prefixes -->
