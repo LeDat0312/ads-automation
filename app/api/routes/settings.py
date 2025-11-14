@@ -1676,7 +1676,7 @@ async def settings_page(
                 </div>
                 <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
                     <small style="color: #1e40af;">
-                        💡 <strong>Lưu ý:</strong> Chỉ hiển thị các tài khoản có hoạt động chỉnh sửa quảng cáo (bật, tắt, tăng/giảm ngân sách) trong 7 ngày qua trên trình quản lý quảng cáo Meta Ads.
+                        💡 <strong>Lưu ý:</strong> Hiển thị tất cả tài khoản đã cấu hình. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động cho từng tài khoản.
                     </small>
                 </div>
             </div>
