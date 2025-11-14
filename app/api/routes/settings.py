@@ -1330,7 +1330,7 @@ async def settings_page(
                     <h2 id="accountModalTitle">Thêm Account</h2>
                     <button class="modal-close" onclick="closeAccountModal()">×</button>
                 </div>
-                <form id="accountForm" onsubmit="saveAccount(event)">
+                <form id="accountForm" onsubmit="event.preventDefault(); saveAccount(event); return false;">
                     <input type="hidden" id="accountId" />
                     <div class="form-group">
                         <label>Account ID *</label>
@@ -1377,7 +1377,7 @@ async def settings_page(
                     <h2 id="prefixModalTitle">Thêm Prefix</h2>
                     <button class="modal-close" onclick="closePrefixModal()">×</button>
                 </div>
-                <form id="prefixForm" onsubmit="savePrefix(event)">
+                <form id="prefixForm" onsubmit="event.preventDefault(); savePrefix(event); return false;">
                     <input type="hidden" id="prefixId" />
                     <div class="form-group">
                         <label>Prefix *</label>
@@ -2253,10 +2253,46 @@ async def settings_page(
                 }}
             }}
             
-            // Load data on page load
-            loadTokenStatus();
-            loadAccounts();
-            loadPrefixes();
+            // Load data on page load - wait for DOM to be ready
+            document.addEventListener('DOMContentLoaded', function() {{
+                try {{
+                    loadTokenStatus();
+                }} catch (error) {{
+                    console.error('Error loading token status:', error);
+                }}
+                try {{
+                    loadAccounts();
+                }} catch (error) {{
+                    console.error('Error loading accounts:', error);
+                }}
+                try {{
+                    loadPrefixes();
+                }} catch (error) {{
+                    console.error('Error loading prefixes:', error);
+                }}
+            }});
+            
+            // Fallback: if DOMContentLoaded already fired, call immediately
+            if (document.readyState === 'loading') {{
+                // DOMContentLoaded has not fired yet
+            }} else {{
+                // DOMContentLoaded has already fired, call immediately
+                try {{
+                    loadTokenStatus();
+                }} catch (error) {{
+                    console.error('Error loading token status:', error);
+                }}
+                try {{
+                    loadAccounts();
+                }} catch (error) {{
+                    console.error('Error loading accounts:', error);
+                }}
+                try {{
+                    loadPrefixes();
+                }} catch (error) {{
+                    console.error('Error loading prefixes:', error);
+                }}
+            }}
         </script>
     </body>
     </html>
