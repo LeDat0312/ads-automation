@@ -218,11 +218,10 @@ def list_accounts(
     limit: int = 15  # Chỉ lấy 15 accounts được sử dụng gần đây
 ):
     """
-    Lấy danh sách accounts của user - chỉ lấy 15 accounts được sử dụng gần đây nhất
-    Accounts được ưu tiên theo:
-    1. Có dữ liệu trong ads_metrics trong 7 ngày gần nhất
-    2. Có last_30_days_spend > 0
-    3. Được update gần đây nhất
+    Lấy danh sách accounts của user - chỉ lấy accounts có activity trên META ADS gần đây
+    Logic: Accounts có dữ liệu trong ads_metrics (impressions > 0) trong 30 ngày gần nhất
+    = Accounts đang được sử dụng trên META ADS (trình quản lý quảng cáo)
+    Nếu không có activity thì không lấy account đó
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
@@ -232,34 +231,38 @@ def list_accounts(
         from datetime import datetime, timedelta
         from app.core.database import AdMetrics
         
-        # Lấy accounts có dữ liệu trong 7 ngày gần nhất
-        seven_days_ago = datetime.now() - timedelta(days=7)
+        # Lấy accounts có activity trong 30 ngày gần nhất (có impressions > 0)
+        # Điều này cho thấy account đang được sử dụng trên META ADS
+        thirty_days_ago = datetime.now() - timedelta(days=30)
         
-        # Query để lấy accounts có dữ liệu gần đây, sắp xếp theo:
-        # 1. Có dữ liệu trong 7 ngày gần nhất (max date)
-        # 2. last_30_days_spend (cao nhất)
-        # 3. updated_at (gần đây nhất)
-        
-        # Subquery để lấy max date của mỗi account trong ads_metrics
-        recent_accounts_subq = db.query(
+        # Subquery để lấy accounts có activity gần đây (impressions > 0)
+        # và thời gian activity gần nhất
+        active_accounts_subq = db.query(
             AdMetrics.account_id,
-            func.max(AdMetrics.date).label('last_activity_date')
+            func.max(AdMetrics.date).label('last_activity_date'),
+            func.sum(AdMetrics.impressions).label('total_impressions')
         ).filter(
-            AdMetrics.date >= seven_days_ago,
-            AdMetrics.account_id.isnot(None)
-        ).group_by(AdMetrics.account_id).subquery()
+            AdMetrics.date >= thirty_days_ago,
+            AdMetrics.account_id.isnot(None),
+            AdMetrics.impressions > 0  # Chỉ lấy accounts có impressions > 0
+        ).group_by(AdMetrics.account_id).having(
+            func.sum(AdMetrics.impressions) > 0  # Đảm bảo có activity
+        ).subquery()
         
-        # Query chính: lấy accounts của user, ưu tiên accounts được user sync/update gần đây
-        # Logic: Accounts được user quản lý thường xuyên sẽ có updated_at gần đây
+        # Query chính: chỉ lấy accounts của user CÓ activity trên META ADS
+        # Sắp xếp theo:
+        # 1. last_activity_date (activity gần đây nhất)
+        # 2. total_impressions (activity nhiều nhất)
+        # 3. last_30_days_spend (spend cao nhất)
         accounts_query = db.query(Account).filter(
             Account.user_id == current_user.id
-        ).outerjoin(
-            recent_accounts_subq,
-            Account.account_id == recent_accounts_subq.c.account_id
+        ).join(
+            active_accounts_subq,
+            Account.account_id == active_accounts_subq.c.account_id
         ).order_by(
-            desc(Account.updated_at),  # Accounts được user update/sync gần đây nhất (ưu tiên cao nhất)
-            desc(recent_accounts_subq.c.last_activity_date),  # Accounts có activity gần đây
-            desc(Account.last_30_days_spend),  # Accounts có spend cao
+            desc(active_accounts_subq.c.last_activity_date),  # Activity gần đây nhất
+            desc(active_accounts_subq.c.total_impressions),  # Activity nhiều nhất
+            desc(Account.last_30_days_spend),  # Spend cao nhất
             Account.account_name  # Cuối cùng mới sort theo tên
         ).limit(limit)
         
@@ -1350,6 +1353,15 @@ async def settings_page(
                         <label>Timezone</label>
                         <input type="text" id="accountTimezone" value="Asia/Ho_Chi_Minh" />
                     </div>
+                    <div class="form-group" id="accountPrefixesGroup" style="display: none;">
+                        <label>Prefixes (Một account có thể có nhiều prefixes)</label>
+                        <div id="accountPrefixesList" style="max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #f8fafc;">
+                            <div style="color: #64748b; font-size: 14px;">Đang tải prefixes...</div>
+                        </div>
+                        <small style="color: #64748b; margin-top: 4px; display: block;">
+                            Chọn các prefixes để liên kết với account này. Một prefix có thể được liên kết với nhiều accounts.
+                        </small>
+                    </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" onclick="closeAccountModal()">Hủy</button>
                         <button type="submit" class="btn btn-primary">Lưu</button>
@@ -1675,10 +1687,12 @@ async def settings_page(
                         if (currency === 'VND') {{
                             // Chỉ hiển thị VND
                             spendDisplay = `${{Math.round(spend).toLocaleString('vi-VN')}} ₫`;
-                        }} else {{
+                        }                        } else {{
                             // USD: hiển thị USD trên, VND dưới
+                            // Tỷ giá USD/VND cố định: 26,350
+                            const USD_TO_VND_RATE = 26350;
                             const usdAmount = spend.toFixed(2);
-                            const vndAmount = Math.round(spend * 26350); // Tỷ giá USD/VND (có thể lấy từ API sau)
+                            const vndAmount = Math.round(spend * USD_TO_VND_RATE);
                             spendDisplay = `${{usdAmount}} US$<br><small style="color: #64748b;">(${{vndAmount.toLocaleString('vi-VN')}} ₫)</small>`;
                         }}
                         
@@ -1843,7 +1857,68 @@ async def settings_page(
                 document.getElementById('accountId').value = '';
                 document.getElementById('accountType').value = 'UNKNOWN';
                 document.getElementById('accountTimezone').value = 'Asia/Ho_Chi_Minh';
+                document.getElementById('accountPrefixesGroup').style.display = 'none';
                 document.getElementById('accountModal').classList.add('show');
+            }}
+            
+            // Load prefixes để chọn trong modal edit account
+            async function loadPrefixesForAccount(accountId = null) {{
+                try {{
+                    // Load tất cả prefixes của user
+                    const response = await fetch('/settings/prefixes', {{
+                        headers: getAuthHeaders()
+                    }});
+                    
+                    if (!response.ok) {{
+                        console.error('Error loading prefixes');
+                        return;
+                    }}
+                    
+                    const allPrefixes = await response.json();
+                    const prefixesListDiv = document.getElementById('accountPrefixesList');
+                    
+                    if (allPrefixes.length === 0) {{
+                        prefixesListDiv.innerHTML = '<div style="color: #64748b; font-size: 14px;">Chưa có prefixes. Hãy tạo prefix trước.</div>';
+                        return;
+                    }}
+                    
+                    // Nếu đang edit account, load prefixes đã liên kết
+                    let linkedPrefixIds = [];
+                    if (accountId) {{
+                        try {{
+                            const linkedResponse = await fetch(`/settings/accounts/${{accountId}}/prefixes`, {{
+                                headers: getAuthHeaders()
+                            }});
+                            if (linkedResponse.ok) {{
+                                const linkedPrefixes = await linkedResponse.json();
+                                linkedPrefixIds = linkedPrefixes.map(p => p.id);
+                            }}
+                        }} catch (e) {{
+                            console.error('Error loading linked prefixes:', e);
+                        }}
+                    }}
+                    
+                    // Render checkboxes
+                    let html = '';
+                    allPrefixes.forEach(prefix => {{
+                        const isChecked = linkedPrefixIds.includes(prefix.id);
+                        html += `
+                            <label style="display: flex; align-items: center; padding: 8px; border-radius: 4px; cursor: pointer; margin-bottom: 4px; background: white; border: 1px solid #e2e8f0;">
+                                <input type="checkbox" value="${{prefix.id}}" ${{isChecked ? 'checked' : ''}} 
+                                    style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                                <div>
+                                    <strong>${{prefix.prefix}}</strong>
+                                    ${{prefix.prefix_name ? `<br><small style="color: #64748b;">${{prefix.prefix_name}}</small>` : ''}}
+                                </div>
+                            </label>
+                        `;
+                    }});
+                    prefixesListDiv.innerHTML = html;
+                }} catch (error) {{
+                    console.error('Error loading prefixes for account:', error);
+                    document.getElementById('accountPrefixesList').innerHTML = 
+                        '<div style="color: #ef4444; font-size: 14px;">Lỗi khi tải prefixes</div>';
+                }}
             }}
             
             function closeAccountModal() {{
@@ -1906,6 +1981,11 @@ async def settings_page(
                     document.getElementById('accountName').value = account.account_name || '';
                     document.getElementById('accountType').value = account.account_type || 'UNKNOWN';
                     document.getElementById('accountTimezone').value = account.timezone || 'Asia/Ho_Chi_Minh';
+                    
+                    // Hiển thị phần chọn prefixes và load prefixes
+                    document.getElementById('accountPrefixesGroup').style.display = 'block';
+                    await loadPrefixesForAccount(id);
+                    
                     document.getElementById('accountModal').classList.add('show');
                 }} catch (error) {{
                     alert('❌ Lỗi: ' + error.message);
