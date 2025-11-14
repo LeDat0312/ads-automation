@@ -1442,6 +1442,11 @@ async def settings_page(
                     const data = await response.json();
                     
                     const statusDiv = document.getElementById('tokenStatus');
+                    if (!statusDiv) {{
+                        console.error('tokenStatus element not found');
+                        return;
+                    }}
+                    
                     const tokenInfo = document.getElementById('tokenInfo');
                     const tokenMasked = document.getElementById('tokenMasked');
                     const tokenActionText = document.getElementById('tokenActionText');
@@ -1653,6 +1658,11 @@ async def settings_page(
                     const accounts = await response.json();
                     
                     const tableDiv = document.getElementById('accountsTable');
+                    if (!tableDiv) {{
+                        console.error('accountsTable element not found');
+                        return;
+                    }}
+                    
                     if (accounts.length === 0) {{
                         tableDiv.innerHTML = `
                             <div class="empty-state">
@@ -1820,6 +1830,11 @@ async def settings_page(
                     const prefixes = await response.json();
                     
                     const tableDiv = document.getElementById('prefixesTable');
+                    if (!tableDiv) {{
+                        console.error('prefixesTable element not found');
+                        return;
+                    }}
+                    
                     if (prefixes.length === 0) {{
                         tableDiv.innerHTML = `
                             <div class="empty-state">
@@ -2254,44 +2269,47 @@ async def settings_page(
             }}
             
             // Load data on page load - wait for DOM to be ready
-            document.addEventListener('DOMContentLoaded', function() {{
+            async function initializePage() {{
+                console.log('Initializing page...');
                 try {{
-                    loadTokenStatus();
+                    console.log('Loading token status...');
+                    await loadTokenStatus();
                 }} catch (error) {{
                     console.error('Error loading token status:', error);
+                    const statusDiv = document.getElementById('tokenStatus');
+                    if (statusDiv) {{
+                        statusDiv.innerHTML = '<div class="token-status invalid">❌ Lỗi khi tải trạng thái token: ' + error.message + '</div>';
+                    }}
                 }}
                 try {{
-                    loadAccounts();
+                    console.log('Loading accounts...');
+                    await loadAccounts();
                 }} catch (error) {{
                     console.error('Error loading accounts:', error);
+                    const tableDiv = document.getElementById('accountsTable');
+                    if (tableDiv) {{
+                        tableDiv.innerHTML = '<div class="token-status invalid">Lỗi khi tải accounts: ' + error.message + '</div>';
+                    }}
                 }}
                 try {{
-                    loadPrefixes();
+                    console.log('Loading prefixes...');
+                    await loadPrefixes();
                 }} catch (error) {{
                     console.error('Error loading prefixes:', error);
+                    const tableDiv = document.getElementById('prefixesTable');
+                    if (tableDiv) {{
+                        tableDiv.innerHTML = '<div class="token-status invalid">Lỗi khi tải prefixes: ' + error.message + '</div>';
+                    }}
                 }}
-            }});
+                console.log('Page initialization complete');
+            }}
             
-            // Fallback: if DOMContentLoaded already fired, call immediately
+            // Wait for DOM to be ready
             if (document.readyState === 'loading') {{
-                // DOMContentLoaded has not fired yet
+                document.addEventListener('DOMContentLoaded', initializePage);
             }} else {{
-                // DOMContentLoaded has already fired, call immediately
-                try {{
-                    loadTokenStatus();
-                }} catch (error) {{
-                    console.error('Error loading token status:', error);
-                }}
-                try {{
-                    loadAccounts();
-                }} catch (error) {{
-                    console.error('Error loading accounts:', error);
-                }}
-                try {{
-                    loadPrefixes();
-                }} catch (error) {{
-                    console.error('Error loading prefixes:', error);
-                }}
+                // DOM is already ready, call immediately
+                initializePage();
             }}
         </script>
     </body>
