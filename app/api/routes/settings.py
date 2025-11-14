@@ -1886,7 +1886,7 @@ async def settings_page(
                     let linkedPrefixIds = [];
                     if (accountId) {{
                         try {{
-                            const linkedResponse = await fetch(`/settings/accounts/${{accountId}}/prefixes`, {{
+                            const linkedResponse = await fetch('/settings/accounts/' + accountId + '/prefixes', {{
                                 headers: getAuthHeaders()
                             }});
                             if (linkedResponse.ok) {{
@@ -1933,7 +1933,7 @@ async def settings_page(
                 }}
                 
                 try {{
-                    const response = await fetch(`/settings/accounts/${{id}}/refresh`, {{
+                    const response = await fetch('/settings/accounts/' + id + '/refresh', {{
                         method: 'POST',
                         headers: getAuthHeaders()
                     }});
@@ -1960,7 +1960,7 @@ async def settings_page(
             
             async function editAccount(id) {{
                 try {{
-                    const response = await fetch(`/settings/accounts/${{id}}`, {{
+                    const response = await fetch('/settings/accounts/' + id, {{
                         headers: getAuthHeaders()
                     }});
                     
@@ -2009,7 +2009,8 @@ async def settings_page(
                     let response;
                     if (id) {{
                         // Update account
-                        response = await fetch(`/settings/accounts/${{id}}`, {{
+                        const accountId = ${{id}};
+                        response = await fetch('/settings/accounts/' + accountId, {{
                             method: 'PUT',
                             headers: getAuthHeaders('application/json'),
                             body: JSON.stringify(accountData)
@@ -2094,7 +2095,7 @@ async def settings_page(
                 if (!confirm('Bạn có chắc muốn xóa account này? Tất cả các liên kết với prefixes cũng sẽ bị xóa.')) return;
                 
                 try {{
-                    const response = await fetch(`/settings/accounts/${{id}}`, {{
+                    const response = await fetch('/settings/accounts/' + id, {{
                         method: 'DELETE',
                         headers: getAuthHeaders()
                     }});
@@ -2125,7 +2126,7 @@ async def settings_page(
             
             async function editPrefix(id) {{
                 try {{
-                    const response = await fetch(`/settings/prefixes/${{id}}`, {{
+                    const response = await fetch('/settings/prefixes/' + id, {{
                         headers: getAuthHeaders()
                     }});
                     
@@ -2165,7 +2166,8 @@ async def settings_page(
                     let response;
                     if (id) {{
                         // Update
-                        response = await fetch(`/settings/prefixes/${{id}}`, {{
+                        const prefixId = ${{id}};
+                        response = await fetch('/settings/prefixes/' + prefixId, {{
                             method: 'PUT',
                             headers: getAuthHeaders('application/json'),
                             body: JSON.stringify(prefixData)
@@ -2196,7 +2198,7 @@ async def settings_page(
                 if (!confirm('Bạn có chắc muốn xóa prefix này? Tất cả các liên kết với accounts cũng sẽ bị xóa.')) return;
                 
                 try {{
-                    const response = await fetch(`/settings/prefixes/${{id}}`, {{
+                    const response = await fetch('/settings/prefixes/' + id, {{
                         method: 'DELETE',
                         headers: getAuthHeaders()
                     }});
