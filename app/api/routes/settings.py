@@ -1393,6 +1393,7 @@ async def settings_page(
                 display: flex;
                 align-items: center;
                 gap: 12px;
+                position: relative;
             }}
             
             .btn-back {{
