@@ -319,7 +319,7 @@ async def dashboard_home(
             let currentPage = 1;
             const pageSize = 50;
             
-            async function loadData() {
+            async function loadData() {{
                 const accountId = document.getElementById('accountFilter').value;
                 const prefix = document.getElementById('prefixFilter').value;
                 const status = document.getElementById('statusFilter').value;
@@ -342,23 +342,23 @@ async def dashboard_home(
                 }}
             }}
             
-            function updateStats(stats) {
+            function updateStats(stats) {{
                 document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
                 document.getElementById('totalResults').textContent = formatNumber(stats.total_results || 0);
                 document.getElementById('avgGiaData').textContent = formatNumber(stats.avg_gia_data || 0);
                 document.getElementById('activeAdsets').textContent = formatNumber(stats.active_adsets || 0);
                 document.getElementById('pausedAdsets').textContent = formatNumber(stats.paused_adsets || 0);
                 document.getElementById('totalAds').textContent = formatNumber(stats.total_ads || 0);
-            }
+            }}
             
-            function updateTable(data) {
+            function updateTable(data) {{
                 const ads = data.ads || [];
                 const total = data.total || 0;
                 
-                if (ads.length === 0) {
+                if (ads.length === 0) {{
                     document.getElementById('tableContent').innerHTML = '<div class="loading">No data found</div>';
                     return;
-                }
+                }}
                 
                 let html = '<table><thead><tr>';
                 html += '<th>Adset ID</th>';
@@ -375,47 +375,49 @@ async def dashboard_home(
                 html += '<th>CPC</th>';
                 html += '</tr></thead><tbody>';
                 
-                ads.forEach(ad => {
+                ads.forEach(ad => {{
                     html += '<tr>';
-                    html += `<td>${ad.adset_id || ''}</td>`;
-                    html += `<td>${ad.adset_name || ''}</td>`;
-                    html += `<td>${ad.campaign_name || ''}</td>`;
-                    html += `<td>${ad.prefix || ''}</td>`;
-                    html += `<td><span class="status-badge status-${(ad.adset_status || '').toLowerCase()}">${ad.adset_status || ''}</span></td>`;
-                    html += `<td>${formatNumber(ad.spend || 0)}</td>`;
-                    html += `<td>${formatNumber(ad.results || 0)}</td>`;
-                    html += `<td>${formatNumber(ad.gia_data || 0)}</td>`;
-                    html += `<td>${formatNumber(ad.impressions || 0)}</td>`;
-                    html += `<td>${formatNumber(ad.clicks || 0)}</td>`;
-                    html += `<td>${(ad.ctr || 0).toFixed(2)}%</td>`;
-                    html += `<td>${formatNumber(ad.cpc || 0)}</td>`;
+                    html += '<td>' + (ad.adset_id || '') + '</td>';
+                    html += '<td>' + (ad.adset_name || '') + '</td>';
+                    html += '<td>' + (ad.campaign_name || '') + '</td>';
+                    html += '<td>' + (ad.prefix || '') + '</td>';
+                    const statusLower = (ad.adset_status || '').toLowerCase();
+                    html += '<td><span class="status-badge status-' + statusLower + '">' + (ad.adset_status || '') + '</span></td>';
+                    html += '<td>' + formatNumber(ad.spend || 0) + '</td>';
+                    html += '<td>' + formatNumber(ad.results || 0) + '</td>';
+                    html += '<td>' + formatNumber(ad.gia_data || 0) + '</td>';
+                    html += '<td>' + formatNumber(ad.impressions || 0) + '</td>';
+                    html += '<td>' + formatNumber(ad.clicks || 0) + '</td>';
+                    html += '<td>' + ((ad.ctr || 0).toFixed(2)) + '%</td>';
+                    html += '<td>' + formatNumber(ad.cpc || 0) + '</td>';
                     html += '</tr>';
-                });
+                }});
                 
                 html += '</tbody></table>';
                 
                 // Add pagination
                 const totalPages = Math.ceil(total / pageSize);
-                if (totalPages > 1) {
+                if (totalPages > 1) {{
                     html += '<div class="pagination">';
-                    for (let i = 1; i <= totalPages; i++) {
-                        html += `<button class="${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
-                    }
+                    for (let i = 1; i <= totalPages; i++) {{
+                        const activeClass = i === currentPage ? 'active' : '';
+                        html += '<button class="' + activeClass + '" onclick="goToPage(' + i + ')">' + i + '</button>';
+                    }}
                     html += '</div>';
-                }
+                }}
                 
                 document.getElementById('tableContent').innerHTML = html;
-                document.getElementById('tableInfo').textContent = `Showing ${ads.length} of ${total} ads`;
-            }
+                document.getElementById('tableInfo').textContent = 'Showing ' + ads.length + ' of ' + total + ' ads';
+            }}
             
-            function goToPage(page) {
+            function goToPage(page) {{
                 currentPage = page;
                 loadData();
-            }
+            }}
             
-            function formatNumber(num) {
+            function formatNumber(num) {{
                 return new Intl.NumberFormat('vi-VN').format(num);
-            }
+            }}
             
             async function exportData() {{
                 const accountId = document.getElementById('accountFilter').value;
