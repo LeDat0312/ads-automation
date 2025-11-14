@@ -236,7 +236,7 @@ def list_accounts(
         # Lấy accounts có activity trong 30 ngày gần nhất (có impressions > 0)
         thirty_days_ago = datetime.now() - timedelta(days=30)
         
-        # Subquery để lấy accounts có activity gần đây và thống kê (LEFT JOIN để lấy cả accounts không có activity)
+        # Subquery để lấy accounts có activity gần đây và thống kê
         active_accounts_subq = db.query(
             AdMetrics.account_id,
             func.max(AdMetrics.date).label('last_activity_date'),
@@ -257,32 +257,28 @@ def list_accounts(
         # 4. total_impressions (activity nhiều nhất)
         # 5. last_30_days_spend (spend cao nhất)
         # 6. account_name (tên)
-        accounts_query = db.query(
-            Account,
-            active_accounts_subq.c.last_activity_date,
-            active_accounts_subq.c.total_impressions,
-            case(
-                (active_accounts_subq.c.account_id.isnot(None), 1),
-                else_=0
-            ).label('has_activity')
-        ).filter(
+        
+        # Tạo case statement để đánh dấu accounts có activity
+        has_activity_case = case(
+            (active_accounts_subq.c.account_id.isnot(None), 1),
+            else_=0
+        )
+        
+        accounts_query = db.query(Account).filter(
             Account.user_id == current_user.id
         ).outerjoin(
             active_accounts_subq,
             Account.account_id == active_accounts_subq.c.account_id
         ).order_by(
             desc(Account.enabled),  # Enabled accounts trước
-            desc('has_activity'),  # Accounts có activity trước
+            desc(has_activity_case),  # Accounts có activity trước
             desc(active_accounts_subq.c.last_activity_date),  # Activity gần đây nhất
             desc(active_accounts_subq.c.total_impressions),  # Activity nhiều nhất
             desc(Account.last_30_days_spend),  # Spend cao nhất
             Account.account_name  # Cuối cùng mới sort theo tên
         ).limit(limit)
         
-        # Extract Account objects from query results
-        results = accounts_query.all()
-        accounts = [result[0] for result in results]
-        
+        accounts = accounts_query.all()
         return accounts
     except Exception as e:
         logger.error(f"Error listing accounts: {e}", exc_info=True)
