@@ -2020,10 +2020,10 @@ async def settings_page(
         </style>
     </head>
     <body>
-        {user_menu}
         <div class="header">
             <h1>⚙️ Cài Đặt</h1>
             <div class="header-actions">
+                {user_menu}
                 <a href="/" class="btn-back">← Về Trang Chủ</a>
             </div>
         </div>
