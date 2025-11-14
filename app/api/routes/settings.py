@@ -26,7 +26,7 @@ from app.services.facebook_token_service import (
 )
 from app.api.routes.auth import get_current_user_optional
 from app.services.telegram_token_service import test_telegram_bot_token
-from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
+from app.core.ui_helpers import get_account_locked_message
 import requests
 import re
 
@@ -1315,8 +1315,6 @@ async def settings_page(
     if not current_user.is_active:
         return HTMLResponse(content=get_account_locked_message())
     
-    user_menu = get_user_dropdown_menu(current_user)
-    
     html_content = f"""
     <!DOCTYPE html>
     <html lang="vi">
@@ -1393,7 +1391,6 @@ async def settings_page(
                 display: flex;
                 align-items: center;
                 gap: 12px;
-                position: relative;
             }}
             
             .btn-back {{
@@ -2024,7 +2021,6 @@ async def settings_page(
         <div class="header">
             <h1>⚙️ Cài Đặt</h1>
             <div class="header-actions">
-                {user_menu}
                 <a href="/" class="btn-back">← Về Trang Chủ</a>
             </div>
         </div>
