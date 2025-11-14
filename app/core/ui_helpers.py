@@ -35,7 +35,7 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
                     {display_name[0].upper()}
                 </div>
             </div>
-            <span class="username">{username}</span>
+            <span class="username">{display_name}</span>
             <svg class="dropdown-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>

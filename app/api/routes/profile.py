@@ -602,62 +602,82 @@ def upload_avatar(
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
-    # Check file type
-    if not avatar.content_type or not avatar.content_type.startswith('image/'):
-        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file ảnh")
-    
-    # Create avatars directory if not exists
-    avatars_dir = "app/static/avatars"
-    os.makedirs(avatars_dir, exist_ok=True)
-    
-    # Read file content to check size
-    file_content = avatar.file.read()
-    file_size = len(file_content)
-    
-    # Check file size (max 5MB)
-    if file_size > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Ảnh không được vượt quá 5MB")
-    
-    # Reset file pointer
-    avatar.file.seek(0)
-    
-    # Generate filename
-    file_ext = avatar.filename.split('.')[-1] if '.' in avatar.filename else 'png'
-    filename = f"{current_user.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{file_ext}"
-    filepath = os.path.join(avatars_dir, filename)
-    
-    # Save file
     try:
-        with open(filepath, "wb") as buffer:
-            shutil.copyfileobj(avatar.file, buffer)
+        logger.info(f"Upload avatar request from user {current_user.id}, filename: {avatar.filename}, content_type: {avatar.content_type}")
+        
+        # Check file type
+        if not avatar.content_type or not avatar.content_type.startswith('image/'):
+            logger.warning(f"Invalid file type: {avatar.content_type}")
+            raise HTTPException(status_code=400, detail="Chỉ chấp nhận file ảnh")
+        
+        # Create avatars directory if not exists
+        avatars_dir = "app/static/avatars"
+        os.makedirs(avatars_dir, exist_ok=True)
+        logger.info(f"Avatars directory: {avatars_dir}, exists: {os.path.exists(avatars_dir)}")
+        
+        # Read file content to check size
+        file_content = avatar.file.read()
+        file_size = len(file_content)
+        logger.info(f"File size: {file_size} bytes")
+        
+        # Check file size (max 5MB)
+        if file_size > 5 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Ảnh không được vượt quá 5MB")
+        
+        if file_size == 0:
+            raise HTTPException(status_code=400, detail="File rỗng")
+        
+        # Reset file pointer
+        avatar.file.seek(0)
+        
+        # Generate filename
+        file_ext = avatar.filename.split('.')[-1] if '.' in avatar.filename else 'png'
+        filename = f"{current_user.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{file_ext}"
+        filepath = os.path.join(avatars_dir, filename)
+        logger.info(f"Saving avatar to: {filepath}")
+        
+        # Save file
+        try:
+            with open(filepath, "wb") as buffer:
+                # Write the file content we already read
+                buffer.write(file_content)
+            logger.info(f"Avatar file saved successfully: {filepath}, size: {os.path.getsize(filepath)} bytes")
+        except Exception as e:
+            logger.error(f"Error saving avatar file: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Lỗi khi lưu file: {str(e)}")
+        
+        # Delete old avatar if exists
+        if current_user.avatar and current_user.avatar != 'default_avatar.png':
+            old_filepath = os.path.join(avatars_dir, current_user.avatar)
+            if os.path.exists(old_filepath):
+                try:
+                    os.remove(old_filepath)
+                    logger.info(f"Deleted old avatar: {old_filepath}")
+                except Exception as e:
+                    logger.warning(f"Error deleting old avatar: {e}")
+        
+        # Update user
+        try:
+            old_avatar = current_user.avatar
+            current_user.avatar = filename
+            current_user.updated_at = datetime.now()
+            db.commit()
+            db.refresh(current_user)
+            logger.info(f"User avatar updated: {old_avatar} -> {filename}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error updating user avatar in database: {e}", exc_info=True)
+            # Delete the uploaded file if database update fails
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật database: {str(e)}")
+        
+        return {"success": True, "message": "Cập nhật ảnh đại diện thành công", "avatar": filename}
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error saving avatar file: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Lỗi khi lưu file: {str(e)}")
-    
-    # Delete old avatar if exists
-    if current_user.avatar and current_user.avatar != 'default_avatar.png':
-        old_filepath = os.path.join(avatars_dir, current_user.avatar)
-        if os.path.exists(old_filepath):
-            try:
-                os.remove(old_filepath)
-            except Exception as e:
-                logger.warning(f"Error deleting old avatar: {e}")
-    
-    # Update user
-    try:
-        current_user.avatar = filename
-        current_user.updated_at = datetime.now()
-        db.commit()
-        db.refresh(current_user)
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error updating user avatar: {e}", exc_info=True)
-        # Delete the uploaded file if database update fails
-        if os.path.exists(filepath):
-            os.remove(filepath)
-        raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật database: {str(e)}")
-    
-    return {"success": True, "message": "Cập nhật ảnh đại diện thành công", "avatar": filename}
+        logger.error(f"Unexpected error in upload_avatar: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi không mong muốn: {str(e)}")
 
 
 @router.delete("/avatar")
