@@ -25,6 +25,9 @@ from app.services.facebook_token_service import (
     check_account_has_activity_from_token_owner_or_bm
 )
 from app.api.routes.auth import get_current_user_optional
+from app.services.telegram_token_service import test_telegram_bot_token
+import requests
+import re
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 logger = logging.getLogger(__name__)
@@ -105,6 +108,19 @@ class PrefixUpdate(BaseModel):
 class AccountPrefixLink(BaseModel):
     account_id: int
     prefix_id: int
+
+
+class TelegramBotSaveRequest(BaseModel):
+    bot_token: str
+    chat_id: str
+
+
+class TelegramBotTestResponse(BaseModel):
+    valid: bool
+    status: str
+    message: str
+    bot_info: Optional[Dict[str, Any]] = None
+    chat_info: Optional[Dict[str, Any]] = None
 
 
 # ==================== TOKEN ENDPOINTS ====================
@@ -222,6 +238,143 @@ def delete_token(
     db.commit()
     
     return {"message": "Token đã được xóa thành công"}
+
+
+# ==================== TELEGRAM BOT ENDPOINTS ====================
+
+@router.post("/telegram/save")
+def save_telegram_bot(
+    telegram_request: TelegramBotSaveRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Lưu Telegram Bot Token và Chat ID cho user (encrypted)"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    # Test token và chat ID trước khi lưu
+    test_result = test_telegram_bot_token(telegram_request.bot_token, telegram_request.chat_id)
+    if not test_result["valid"]:
+        raise HTTPException(status_code=400, detail=test_result["message"])
+    
+    # Get or create user settings
+    user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+    if not user_settings:
+        user_settings = UserSettings(user_id=current_user.id)
+        db.add(user_settings)
+    
+    # Encrypt và lưu bot token
+    user_settings.telegram_bot_token_encrypted = encrypt_token(telegram_request.bot_token)
+    user_settings.telegram_chat_id = telegram_request.chat_id
+    user_settings.telegram_bot_status = "VALID"
+    user_settings.telegram_bot_last_checked = datetime.now()
+    user_settings.updated_at = datetime.now()
+    
+    db.commit()
+    db.refresh(user_settings)
+    
+    return {
+        "success": True,
+        "message": "Đã lưu Telegram Bot Token và Chat ID thành công",
+        "bot_info": test_result.get("bot_info"),
+        "chat_info": test_result.get("chat_info")
+    }
+
+
+@router.post("/telegram/test", response_model=TelegramBotTestResponse)
+def test_telegram_bot(
+    telegram_request: TelegramBotSaveRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Test Telegram Bot Token và Chat ID"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    test_result = test_telegram_bot_token(telegram_request.bot_token, telegram_request.chat_id)
+    
+    return TelegramBotTestResponse(**test_result)
+
+
+@router.get("/telegram/status")
+def get_telegram_bot_status(
+    request: Request,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Lấy trạng thái Telegram Bot Token và Chat ID"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+    
+    if not user_settings or not user_settings.telegram_bot_token_encrypted:
+        return {
+            "status": "NOT_SET",
+            "message": "Chưa cấu hình Telegram Bot",
+            "bot_token_set": False,
+            "chat_id_set": False,
+            "last_checked": None
+        }
+    
+    try:
+        bot_token = decrypt_token(user_settings.telegram_bot_token_encrypted)
+        bot_token_masked = bot_token[:10] + "..." + bot_token[-5:] if len(bot_token) > 15 else "***"
+    except Exception as e:
+        logger.error(f"Error decrypting Telegram bot token: {e}")
+        return {
+            "status": "ERROR",
+            "message": "Lỗi khi giải mã Bot Token",
+            "bot_token_set": True,
+            "chat_id_set": bool(user_settings.telegram_chat_id),
+            "last_checked": user_settings.telegram_bot_last_checked.isoformat() if user_settings.telegram_bot_last_checked else None
+        }
+    
+    # Format last checked time in Ho Chi Minh timezone
+    last_checked_str = None
+    if user_settings.telegram_bot_last_checked:
+        import pytz
+        hcm_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+        last_checked_utc = user_settings.telegram_bot_last_checked
+        if last_checked_utc.tzinfo is None:
+            last_checked_utc = pytz.UTC.localize(last_checked_utc)
+        last_checked_hcm = last_checked_utc.astimezone(hcm_tz)
+        last_checked_str = last_checked_hcm.strftime("%H:%M:%S %d/%m/%Y")
+    
+    return {
+        "status": user_settings.telegram_bot_status,
+        "message": f"Bot Token đã được cấu hình (Kiểm tra lần cuối: {last_checked_str})" if last_checked_str else "Bot Token đã được cấu hình",
+        "bot_token_set": True,
+        "bot_token_masked": bot_token_masked,
+        "chat_id_set": bool(user_settings.telegram_chat_id),
+        "chat_id": user_settings.telegram_chat_id if user_settings.telegram_chat_id else None,
+        "last_checked": last_checked_str
+    }
+
+
+@router.delete("/telegram/delete")
+def delete_telegram_bot(
+    request: Request,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Xóa Telegram Bot Token và Chat ID"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+    if not user_settings or not user_settings.telegram_bot_token_encrypted:
+        raise HTTPException(status_code=404, detail="Chưa có Telegram Bot Token để xóa")
+    
+    user_settings.telegram_bot_token_encrypted = None
+    user_settings.telegram_chat_id = None
+    user_settings.telegram_bot_status = "NOT_SET"
+    user_settings.telegram_bot_last_checked = None
+    db.commit()
+    
+    return {"message": "Telegram Bot Token và Chat ID đã được xóa thành công"}
 
 
 # ==================== ACCOUNTS ENDPOINTS ====================
@@ -1874,6 +2027,50 @@ async def settings_page(
                     <div class="loading">Đang tải...</div>
                 </div>
             </div>
+            
+            <!-- Section 4: Telegram Bot -->
+            <div class="section">
+                <div class="section-title">
+                    <span class="icon">📱</span>
+                    <span>Telegram Bot</span>
+                </div>
+                
+                <div id="telegramStatus" class="token-status not-set">
+                    Đang kiểm tra trạng thái...
+                </div>
+                
+                <div id="telegramInfo" style="display: none; margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>Bot Token đã lưu:</strong>
+                            <span id="telegramTokenMasked" style="font-family: monospace; color: #64748b; margin-left: 8px;"></span>
+                            <br>
+                            <strong>Chat ID:</strong>
+                            <span id="telegramChatId" style="font-family: monospace; color: #64748b; margin-left: 8px;"></span>
+                        </div>
+                        <button class="btn btn-danger" onclick="deleteTelegramBot()" style="padding: 6px 12px; font-size: 12px;">🗑️ Xóa Cấu Hình</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Bot Token *</label>
+                    <input type="password" id="telegramBotToken" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" />
+                    <small style="color: #64748b; margin-top: 4px; display: block;">Lấy Bot Token từ @BotFather trên Telegram</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>Chat ID (Group ID) *</label>
+                    <input type="text" id="telegramChatIdInput" placeholder="-1001234567890" />
+                    <small style="color: #64748b; margin-top: 4px; display: block;">Chat ID phải là số âm (Group ID). Lấy Chat ID bằng cách thêm bot vào nhóm và gửi message, sau đó dùng getUpdates API.</small>
+                </div>
+                
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-primary" onclick="saveTelegramBot()">💾 Lưu Cấu Hình</button>
+                    <button class="btn btn-secondary" onclick="testTelegramBot()">✅ Kiểm Tra</button>
+                </div>
+                
+                <div id="telegramTestResult" style="margin-top: 20px;"></div>
+            </div>
         </div>
         
         <!-- Modal Add/Edit Account -->
@@ -3340,7 +3537,178 @@ async def settings_page(
                     }}
                 }}
                 
+                // Load Telegram Bot status
+                try {{
+                    console.log('📱 Loading Telegram Bot status...');
+                    await loadTelegramStatus();
+                    console.log('✅ Telegram Bot status loaded');
+                }} catch (error) {{
+                    console.error('❌ Error loading Telegram Bot status:', error);
+                }}
+                
                 console.log('✅ Page initialization complete');
+            }}
+            
+            // Telegram Bot Functions
+            async function loadTelegramStatus() {{
+                try {{
+                    const response = await fetch('/settings/telegram/status', {{
+                        headers: getAuthHeaders()
+                    }});
+                    
+                    if (!response.ok) {{
+                        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                    }}
+                    
+                    const data = await response.json();
+                    const statusDiv = document.getElementById('telegramStatus');
+                    const infoDiv = document.getElementById('telegramInfo');
+                    
+                    if (data.status === 'NOT_SET') {{
+                        statusDiv.className = 'token-status not-set';
+                        statusDiv.textContent = '❌ Chưa cấu hình Telegram Bot';
+                        infoDiv.style.display = 'none';
+                    }} else if (data.status === 'VALID') {{
+                        statusDiv.className = 'token-status valid';
+                        statusDiv.innerHTML = '✅ ' + data.message;
+                        infoDiv.style.display = 'block';
+                        document.getElementById('telegramTokenMasked').textContent = data.bot_token_masked || '***';
+                        document.getElementById('telegramChatId').textContent = data.chat_id || 'Chưa có';
+                    }} else {{
+                        statusDiv.className = 'token-status invalid';
+                        statusDiv.innerHTML = '❌ ' + data.message;
+                        infoDiv.style.display = 'none';
+                    }}
+                }} catch (error) {{
+                    console.error('Error loading Telegram status:', error);
+                    const statusDiv = document.getElementById('telegramStatus');
+                    statusDiv.className = 'token-status invalid';
+                    statusDiv.textContent = '❌ Lỗi khi tải trạng thái: ' + error.message;
+                }}
+            }}
+            
+            async function saveTelegramBot() {{
+                const botToken = document.getElementById('telegramBotToken').value.trim();
+                const chatId = document.getElementById('telegramChatIdInput').value.trim();
+                
+                if (!botToken) {{
+                    showToast('Vui lòng nhập Bot Token', 'error');
+                    return;
+                }}
+                
+                if (!chatId) {{
+                    showToast('Vui lòng nhập Chat ID', 'error');
+                    return;
+                }}
+                
+                try {{
+                    const response = await fetch('/settings/telegram/save', {{
+                        method: 'POST',
+                        headers: {{
+                            ...getAuthHeaders(),
+                            'Content-Type': 'application/json'
+                        }},
+                        body: JSON.stringify({{
+                            bot_token: botToken,
+                            chat_id: chatId
+                        }})
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok && data.success) {{
+                        showToast('Đã lưu cấu hình Telegram Bot thành công!');
+                        document.getElementById('telegramBotToken').value = '';
+                        document.getElementById('telegramChatIdInput').value = '';
+                        loadTelegramStatus();
+                    }} else {{
+                        showToast(data.message || data.detail || 'Lỗi khi lưu cấu hình', 'error');
+                    }}
+                }} catch (error) {{
+                    console.error('Error saving Telegram bot:', error);
+                    showToast('Lỗi khi lưu cấu hình: ' + error.message, 'error');
+                }}
+            }}
+            
+            async function testTelegramBot() {{
+                const botToken = document.getElementById('telegramBotToken').value.trim();
+                const chatId = document.getElementById('telegramChatIdInput').value.trim();
+                
+                if (!botToken) {{
+                    showToast('Vui lòng nhập Bot Token', 'error');
+                    return;
+                }}
+                
+                if (!chatId) {{
+                    showToast('Vui lòng nhập Chat ID', 'error');
+                    return;
+                }}
+                
+                const resultDiv = document.getElementById('telegramTestResult');
+                resultDiv.innerHTML = '<div class="loading">Đang kiểm tra...</div>';
+                
+                try {{
+                    const response = await fetch('/settings/telegram/test', {{
+                        method: 'POST',
+                        headers: {{
+                            ...getAuthHeaders(),
+                            'Content-Type': 'application/json'
+                        }},
+                        body: JSON.stringify({{
+                            bot_token: botToken,
+                            chat_id: chatId
+                        }})
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (data.valid) {{
+                        let html = '<div style="padding: 16px; background: #d1fae5; border-radius: 8px; border: 1px solid #10b981;">';
+                        html += '<strong>✅ ' + data.message + '</strong><br>';
+                        if (data.bot_info) {{
+                            html += '<br><strong>Thông tin Bot:</strong><br>';
+                            html += 'Username: @' + (data.bot_info.username || 'N/A') + '<br>';
+                            html += 'Tên: ' + (data.bot_info.first_name || 'N/A') + '<br>';
+                        }}
+                        if (data.chat_info) {{
+                            html += '<br><strong>Thông tin Chat:</strong><br>';
+                            html += 'Tên: ' + (data.chat_info.title || data.chat_info.first_name || 'N/A') + '<br>';
+                            html += 'Loại: ' + (data.chat_info.type || 'N/A') + '<br>';
+                        }}
+                        html += '</div>';
+                        resultDiv.innerHTML = html;
+                    }} else {{
+                        resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ ' + data.message + '</strong></div>';
+                    }}
+                }} catch (error) {{
+                    console.error('Error testing Telegram bot:', error);
+                    resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ Lỗi khi kiểm tra: ' + error.message + '</strong></div>';
+                }}
+            }}
+            
+            async function deleteTelegramBot() {{
+                if (!confirm('Bạn có chắc muốn xóa cấu hình Telegram Bot?')) {{
+                    return;
+                }}
+                
+                try {{
+                    const response = await fetch('/settings/telegram/delete', {{
+                        method: 'DELETE',
+                        headers: getAuthHeaders()
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {{
+                        showToast('Đã xóa cấu hình Telegram Bot thành công!');
+                        loadTelegramStatus();
+                    }} else {{
+                        showToast(data.message || data.detail || 'Lỗi khi xóa cấu hình', 'error');
+                    }}
+                }} catch (error) {{
+                    console.error('Error deleting Telegram bot:', error);
+                    showToast('Lỗi khi xóa cấu hình: ' + error.message, 'error');
+                }}
             }}
             
             // Wait for DOM to be ready
