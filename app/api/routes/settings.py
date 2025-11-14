@@ -93,7 +93,8 @@ class AccountPrefixLink(BaseModel):
 
 @router.post("/token/save")
 def save_token(
-    request: TokenSaveRequest,
+    request: Request,
+    token_request: TokenSaveRequest,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
@@ -103,7 +104,7 @@ def save_token(
     
     # Encrypt token
     try:
-        encrypted_token = encrypt_token(request.token)
+        encrypted_token = encrypt_token(token_request.token)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Lỗi mã hóa token: {str(e)}")
     
@@ -127,6 +128,7 @@ def save_token(
 
 @router.post("/token/test", response_model=TokenTestResponse)
 def test_token(
+    request: Request,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
@@ -158,6 +160,7 @@ def test_token(
 
 @router.get("/token/status")
 def get_token_status(
+    request: Request,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
@@ -180,10 +183,33 @@ def get_token_status(
     }
 
 
+@router.delete("/token/delete")
+def delete_token(
+    request: Request,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Xóa Facebook token"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+    if not user_settings or not user_settings.facebook_token_encrypted:
+        raise HTTPException(status_code=404, detail="Chưa có token để xóa")
+    
+    user_settings.facebook_token_encrypted = None
+    user_settings.token_status = "NOT_SET"
+    user_settings.token_last_checked = None
+    db.commit()
+    
+    return {"message": "Token đã được xóa thành công"}
+
+
 # ==================== ACCOUNTS ENDPOINTS ====================
 
 @router.get("/accounts", response_model=List[AccountResponse])
 def list_accounts(
+    request: Request,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
@@ -197,6 +223,7 @@ def list_accounts(
 
 @router.post("/accounts/sync")
 def sync_accounts(
+    request: Request,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
@@ -273,6 +300,7 @@ def sync_accounts(
 
 @router.post("/accounts", response_model=AccountResponse, status_code=201)
 def create_account(
+    request: Request,
     account_data: AccountCreate,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -301,6 +329,7 @@ def create_account(
 
 @router.put("/accounts/{account_id}", response_model=AccountResponse)
 def update_account(
+    request: Request,
     account_id: int,
     account_data: AccountUpdate,
     current_user: User = Depends(get_current_user_optional),
@@ -327,6 +356,7 @@ def update_account(
 
 @router.delete("/accounts/{account_id}", status_code=204)
 def delete_account(
+    request: Request,
     account_id: int,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -354,6 +384,7 @@ def delete_account(
 
 @router.get("/prefixes", response_model=List[PrefixResponse])
 def list_prefixes(
+    request: Request,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
@@ -367,6 +398,7 @@ def list_prefixes(
 
 @router.post("/prefixes", response_model=PrefixResponse, status_code=201)
 def create_prefix(
+    request: Request,
     prefix_data: PrefixCreate,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -395,6 +427,7 @@ def create_prefix(
 
 @router.put("/prefixes/{prefix_id}", response_model=PrefixResponse)
 def update_prefix(
+    request: Request,
     prefix_id: int,
     prefix_data: PrefixUpdate,
     current_user: User = Depends(get_current_user_optional),
@@ -421,6 +454,7 @@ def update_prefix(
 
 @router.delete("/prefixes/{prefix_id}", status_code=204)
 def delete_prefix(
+    request: Request,
     prefix_id: int,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -1009,13 +1043,24 @@ async def settings_page(
                     Đang kiểm tra trạng thái token...
                 </div>
                 
+                <div id="tokenInfo" style="display: none; margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>Token đã lưu:</strong>
+                            <span id="tokenMasked" style="font-family: monospace; color: #64748b; margin-left: 8px;"></span>
+                        </div>
+                        <button class="btn btn-danger" onclick="deleteToken()" style="padding: 6px 12px; font-size: 12px;">🗑️ Xóa Token</button>
+                    </div>
+                </div>
+                
                 <div class="form-group">
-                    <label>Nhập Facebook Access Token</label>
+                    <label>Nhập Facebook Access Token {<span id="tokenActionText">mới</span>}</label>
                     <input type="password" id="tokenInput" placeholder="EAAxxxxxxxxxxxxx" />
+                    <small style="color: #64748b; margin-top: 4px; display: block;">Nhập token mới để thay thế token hiện tại</small>
                 </div>
                 
                 <div style="display: flex; gap: 12px;">
-                    <button class="btn btn-primary" onclick="saveToken()">💾 Lưu Token</button>
+                    <button class="btn btn-primary" onclick="saveToken()">💾 <span id="saveTokenText">Lưu Token</span></button>
                     <button class="btn btn-secondary" onclick="testToken()">✅ Kiểm Tra Token</button>
                 </div>
                 
@@ -1152,12 +1197,27 @@ async def settings_page(
                     const response = await fetch('/settings/token/status', {{
                         headers: getAuthHeaders()
                     }});
+                    
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        console.error('Error response:', errorText);
+                        throw new Error(`HTTP ${{response.status}}: ${{errorText.substring(0, 100)}}`);
+                    }}
+                    
                     const data = await response.json();
                     
                     const statusDiv = document.getElementById('tokenStatus');
+                    const tokenInfo = document.getElementById('tokenInfo');
+                    const tokenMasked = document.getElementById('tokenMasked');
+                    const tokenActionText = document.getElementById('tokenActionText');
+                    const saveTokenText = document.getElementById('saveTokenText');
+                    
                     if (!data.has_token) {{
                         statusDiv.className = 'token-status not-set';
                         statusDiv.textContent = '⚠️ Chưa có token. Vui lòng nhập và lưu token.';
+                        tokenInfo.style.display = 'none';
+                        tokenActionText.textContent = 'mới';
+                        saveTokenText.textContent = 'Lưu Token';
                     }} else {{
                         const statusMap = {{
                             'VALID': {{ class: 'valid', text: '✅ Token hợp lệ và có đủ quyền' }},
@@ -1172,9 +1232,46 @@ async def settings_page(
                         if (data.last_checked) {{
                             statusDiv.textContent += ` (Kiểm tra lần cuối: ${{new Date(data.last_checked).toLocaleString('vi-VN')}})`;
                         }}
+                        
+                        // Show token info (masked)
+                        tokenInfo.style.display = 'block';
+                        tokenMasked.textContent = 'EAA••••••••••••••••••••••••••••••••';
+                        tokenActionText.textContent = 'mới (thay thế)';
+                        saveTokenText.textContent = 'Cập Nhật Token';
                     }}
                 }} catch (error) {{
                     console.error('Error loading token status:', error);
+                    document.getElementById('tokenStatus').innerHTML = `
+                        <div class="token-status invalid">
+                            ❌ Lỗi khi tải trạng thái token: ${{error.message}}
+                        </div>
+                    `;
+                }}
+            }}
+            
+            // Delete token
+            async function deleteToken() {{
+                if (!confirm('Bạn có chắc muốn xóa token? Bạn sẽ cần nhập token mới để sử dụng các tính năng liên quan đến Facebook API.')) {{
+                    return;
+                }}
+                
+                try {{
+                    const response = await fetch('/settings/token/delete', {{
+                        method: 'DELETE',
+                        headers: getAuthHeaders()
+                    }});
+                    
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        throw new Error(`HTTP ${{response.status}}: ${{errorText.substring(0, 100)}}`);
+                    }}
+                    
+                    const data = await response.json();
+                    alert('✅ ' + data.message);
+                    loadTokenStatus();
+                    document.getElementById('tokenInput').value = '';
+                }} catch (error) {{
+                    alert('❌ Lỗi: ' + error.message);
                 }}
             }}
             
@@ -1193,14 +1290,23 @@ async def settings_page(
                         body: JSON.stringify({{ token }})
                     }});
                     
-                    if (response.ok) {{
-                        alert('✅ Token đã được lưu thành công!');
-                        document.getElementById('tokenInput').value = '';
-                        loadTokenStatus();
-                    }} else {{
-                        const error = await response.json();
-                        alert('❌ Lỗi: ' + (error.detail || 'Không thể lưu token'));
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        let errorMsg = 'Không thể lưu token';
+                        try {{
+                            const errorJson = JSON.parse(errorText);
+                            errorMsg = errorJson.detail || errorMsg;
+                        }} catch {{
+                            errorMsg = errorText.substring(0, 100);
+                        }}
+                        alert('❌ Lỗi: ' + errorMsg);
+                        return;
                     }}
+                    
+                    const data = await response.json();
+                    alert('✅ ' + (data.message || 'Token đã được lưu thành công!'));
+                    document.getElementById('tokenInput').value = '';
+                    loadTokenStatus();
                 }} catch (error) {{
                     alert('❌ Lỗi: ' + error.message);
                 }}
@@ -1216,6 +1322,24 @@ async def settings_page(
                         method: 'POST',
                         headers: getAuthHeaders()
                     }});
+                    
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        let errorMsg = 'Không thể kiểm tra token';
+                        try {{
+                            const errorJson = JSON.parse(errorText);
+                            errorMsg = errorJson.detail || errorMsg;
+                        }} catch {{
+                            errorMsg = errorText.substring(0, 100);
+                        }}
+                        resultDiv.innerHTML = `
+                            <div class="token-status invalid">
+                                <strong>❌ Lỗi:</strong><br>
+                                ${{errorMsg}}
+                            </div>
+                        `;
+                        return;
+                    }}
                     
                     const data = await response.json();
                     
@@ -1258,6 +1382,13 @@ async def settings_page(
                     const response = await fetch('/settings/accounts', {{
                         headers: getAuthHeaders()
                     }});
+                    
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        console.error('Error response:', errorText);
+                        throw new Error(`HTTP ${{response.status}}: ${{errorText.substring(0, 100)}}`);
+                    }}
+                    
                     const accounts = await response.json();
                     
                     const tableDiv = document.getElementById('accountsTable');
@@ -1348,6 +1479,13 @@ async def settings_page(
                     const response = await fetch('/settings/prefixes', {{
                         headers: getAuthHeaders()
                     }});
+                    
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        console.error('Error response:', errorText);
+                        throw new Error(`HTTP ${{response.status}}: ${{errorText.substring(0, 100)}}`);
+                    }}
+                    
                     const prefixes = await response.json();
                     
                     const tableDiv = document.getElementById('prefixesTable');
