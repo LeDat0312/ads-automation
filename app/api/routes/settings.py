@@ -249,16 +249,17 @@ def list_accounts(
             AdMetrics.account_id.isnot(None)
         ).group_by(AdMetrics.account_id).subquery()
         
-        # Query chính: lấy accounts của user, join với recent_accounts để ưu tiên
+        # Query chính: lấy accounts của user, ưu tiên accounts được user sync/update gần đây
+        # Logic: Accounts được user quản lý thường xuyên sẽ có updated_at gần đây
         accounts_query = db.query(Account).filter(
             Account.user_id == current_user.id
         ).outerjoin(
             recent_accounts_subq,
             Account.account_id == recent_accounts_subq.c.account_id
         ).order_by(
-            desc(recent_accounts_subq.c.last_activity_date),  # Accounts có activity gần đây nhất
-            desc(Account.last_30_days_spend),  # Accounts có spend cao nhất
-            desc(Account.updated_at),  # Accounts được update gần đây nhất
+            desc(Account.updated_at),  # Accounts được user update/sync gần đây nhất (ưu tiên cao nhất)
+            desc(recent_accounts_subq.c.last_activity_date),  # Accounts có activity gần đây
+            desc(Account.last_30_days_spend),  # Accounts có spend cao
             Account.account_name  # Cuối cùng mới sort theo tên
         ).limit(limit)
         
@@ -315,6 +316,9 @@ def sync_accounts(
                     existing.account_name = fb_acc["name"]
                     existing.status = "ACTIVE" if fb_acc["account_status"] == 1 else "PAUSED"
                     existing.timezone = fb_acc["timezone_name"]
+                    existing.currency = fb_acc.get("currency", "USD")  # Lưu currency từ Facebook
+                    # Update updated_at để đánh dấu account được sync gần đây
+                    existing.updated_at = datetime.now()
                     # Try to get 30 days spend
                     try:
                         existing.last_30_days_spend = fetch_account_30_days_spend(token, fb_acc["id"])
@@ -329,6 +333,7 @@ def sync_accounts(
                         account_name=fb_acc["name"],
                         status="ACTIVE" if fb_acc["account_status"] == 1 else "PAUSED",
                         timezone=fb_acc["timezone_name"],
+                        currency=fb_acc.get("currency", "USD"),  # Lưu currency từ Facebook
                         account_type="UNKNOWN",
                         enabled=True
                     )
@@ -388,6 +393,7 @@ def create_account(
 
 @router.get("/accounts/{account_id}", response_model=AccountResponse)
 def get_account(
+    request: Request,
     account_id: int,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -396,18 +402,25 @@ def get_account(
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
-    account = db.query(Account).filter(
-        Account.id == account_id,
-        Account.user_id == current_user.id
-    ).first()
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-    
-    return account
+    try:
+        account = db.query(Account).filter(
+            Account.id == account_id,
+            Account.user_id == current_user.id
+        ).first()
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        return account
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting account {account_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi lấy thông tin account: {str(e)}")
 
 
 @router.put("/accounts/{account_id}", response_model=AccountResponse)
 def update_account(
+    request: Request,
     account_id: int,
     account_data: AccountUpdate,
     current_user: User = Depends(get_current_user_optional),
@@ -417,19 +430,108 @@ def update_account(
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
-    account = db.query(Account).filter(
-        Account.id == account_id,
-        Account.user_id == current_user.id
-    ).first()
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
+    try:
+        account = db.query(Account).filter(
+            Account.id == account_id,
+            Account.user_id == current_user.id
+        ).first()
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        for key, value in account_data.dict(exclude_unset=True).items():
+            setattr(account, key, value)
+        
+        # Update updated_at để đánh dấu account được user quản lý gần đây
+        account.updated_at = datetime.now()
+        
+        db.commit()
+        db.refresh(account)
+        return account
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating account {account_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật account: {str(e)}")
+
+
+@router.post("/accounts/{account_id}/refresh")
+def refresh_account(
+    request: Request,
+    account_id: int,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Refresh account - cập nhật thông tin từ Facebook API (quyền, quản trị viên, etc.)"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
-    for key, value in account_data.dict(exclude_unset=True).items():
-        setattr(account, key, value)
-    
-    db.commit()
-    db.refresh(account)
-    return account
+    try:
+        # Get account
+        account = db.query(Account).filter(
+            Account.id == account_id,
+            Account.user_id == current_user.id
+        ).first()
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        # Get token
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=404, detail="Chưa có token. Vui lòng lưu token trước.")
+        
+        try:
+            token = decrypt_token(user_settings.facebook_token_encrypted)
+        except Exception as e:
+            logger.error(f"Error decrypting token: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail=f"Lỗi giải mã token: {str(e)}")
+        
+        # Fetch account info from Facebook
+        try:
+            # Get account info from Facebook API
+            import requests
+            from app.services.facebook_token_service import FB_GRAPH_API_BASE
+            
+            url = f"{FB_GRAPH_API_BASE}/{account.account_id}"
+            params = {
+                "fields": "id,name,account_id,account_status,currency,timezone_name,spend_cap,amount_spent",
+                "access_token": token
+            }
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            if 'error' in data:
+                raise Exception(f"Facebook API error: {data['error']['message']}")
+            
+            # Update account info
+            account.account_name = data.get('name', account.account_name)
+            account.status = "ACTIVE" if data.get('account_status', 1) == 1 else "PAUSED"
+            account.timezone = data.get('timezone_name', account.timezone)
+            account.currency = data.get('currency', account.currency)
+            account.updated_at = datetime.now()
+            
+            # Try to get 30 days spend
+            try:
+                from app.services.facebook_token_service import fetch_account_30_days_spend
+                account.last_30_days_spend = fetch_account_30_days_spend(token, data.get('id', account.account_id))
+            except Exception as spend_error:
+                logger.warning(f"Could not fetch spend for account {account.account_id}: {spend_error}")
+            
+            db.commit()
+            db.refresh(account)
+            
+            return {
+                "message": "Đã cập nhật thông tin account thành công",
+                "account": account
+            }
+        except Exception as e:
+            logger.error(f"Error refreshing account from Facebook: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail=f"Lỗi khi lấy thông tin từ Facebook: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in refresh_account: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi refresh account: {str(e)}")
 
 
 @router.delete("/accounts/{account_id}", status_code=204)
@@ -505,8 +607,36 @@ def create_prefix(
     return prefix
 
 
+@router.get("/prefixes/{prefix_id}", response_model=PrefixResponse)
+def get_prefix(
+    request: Request,
+    prefix_id: int,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Lấy thông tin một prefix"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    try:
+        prefix = db.query(Prefix).filter(
+            Prefix.id == prefix_id,
+            Prefix.user_id == current_user.id
+        ).first()
+        if not prefix:
+            raise HTTPException(status_code=404, detail="Prefix not found")
+        
+        return prefix
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting prefix {prefix_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi lấy thông tin prefix: {str(e)}")
+
+
 @router.put("/prefixes/{prefix_id}", response_model=PrefixResponse)
 def update_prefix(
+    request: Request,
     prefix_id: int,
     prefix_data: PrefixUpdate,
     current_user: User = Depends(get_current_user_optional),
@@ -516,19 +646,25 @@ def update_prefix(
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
-    prefix = db.query(Prefix).filter(
-        Prefix.id == prefix_id,
-        Prefix.user_id == current_user.id
-    ).first()
-    if not prefix:
-        raise HTTPException(status_code=404, detail="Prefix not found")
-    
-    for key, value in prefix_data.dict(exclude_unset=True).items():
-        setattr(prefix, key, value)
-    
-    db.commit()
-    db.refresh(prefix)
-    return prefix
+    try:
+        prefix = db.query(Prefix).filter(
+            Prefix.id == prefix_id,
+            Prefix.user_id == current_user.id
+        ).first()
+        if not prefix:
+            raise HTTPException(status_code=404, detail="Prefix not found")
+        
+        for key, value in prefix_data.dict(exclude_unset=True).items():
+            setattr(prefix, key, value)
+        
+        db.commit()
+        db.refresh(prefix)
+        return prefix
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating prefix {prefix_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật prefix: {str(e)}")
 
 
 @router.delete("/prefixes/{prefix_id}", status_code=204)
@@ -1532,17 +1668,51 @@ async def settings_page(
                                        acc.account_type === 'LEAD_GENERATION' ? 'Lead Generation' :
                                        acc.account_type === 'MOBILE_APP' ? 'Mobile App' : 'Chưa xác định';
                         
+                        // Format tiền tệ
+                        const currency = acc.currency || 'USD';
+                        const spend = acc.last_30_days_spend || 0;
+                        let spendDisplay = '';
+                        if (currency === 'VND') {{
+                            // Chỉ hiển thị VND
+                            spendDisplay = `${{Math.round(spend).toLocaleString('vi-VN')}} ₫`;
+                        }} else {{
+                            // USD: hiển thị USD trên, VND dưới
+                            const usdAmount = spend.toFixed(2);
+                            const vndAmount = Math.round(spend * 26350); // Tỷ giá USD/VND (có thể lấy từ API sau)
+                            spendDisplay = `${{usdAmount}} US$<br><small style="color: #64748b;">(${{vndAmount.toLocaleString('vi-VN')}} ₫)</small>`;
+                        }}
+                        
+                        // Format timezone với GMT offset
+                        const timezone = acc.timezone || 'Asia/Ho_Chi_Minh';
+                        let timezoneDisplay = timezone;
+                        try {{
+                            // Tính GMT offset từ timezone
+                            const now = new Date();
+                            const utcTime = new Date(now.toLocaleString('en-US', {{ timeZone: 'UTC' }}));
+                            const localTime = new Date(now.toLocaleString('en-US', {{ timeZone: timezone }}));
+                            const offsetMs = localTime - utcTime;
+                            const offsetHours = Math.round(offsetMs / (1000 * 60 * 60));
+                            const offsetStr = offsetHours >= 0 ? 
+                                `+${{offsetHours.toString().padStart(2, '0')}}:00` : 
+                                `-${{Math.abs(offsetHours).toString().padStart(2, '0')}}:00`;
+                            timezoneDisplay = `${{timezone}} (GMT ${{offsetStr}})`;
+                        }} catch (e) {{
+                            // Nếu không parse được, dùng timezone gốc
+                            timezoneDisplay = timezone;
+                        }}
+                        
                         html += `
                             <tr>
                                 <td><span class="status-badge ${{statusClass}}">${{acc.status}}</span></td>
                                 <td><strong>${{acc.account_name || acc.account_id}}</strong><br><small style="color: #64748b;">${{acc.account_id}}</small></td>
-                                <td>$${{acc.last_30_days_spend.toFixed(2)}}</td>
+                                <td>${{spendDisplay}}</td>
                                 <td><span class="account-type-badge ${{typeClass}}">${{typeText}}</span></td>
-                                <td>${{acc.timezone}}</td>
+                                <td>${{timezoneDisplay}}</td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="btn-icon" style="background: #dbeafe; color: #1e40af;" onclick="editAccount(${{acc.id}})">✏️</button>
-                                        <button class="btn-icon" style="background: #fee2e2; color: #991b1b;" onclick="deleteAccount(${{acc.id}})">🗑️</button>
+                                        <button class="btn-icon" style="background: #dcfce7; color: #166534;" onclick="refreshAccount(${{acc.id}})" title="Refresh account">🔄</button>
+                                        <button class="btn-icon" style="background: #dbeafe; color: #1e40af;" onclick="editAccount(${{acc.id}})" title="Sửa">✏️</button>
+                                        <button class="btn-icon" style="background: #fee2e2; color: #991b1b;" onclick="deleteAccount(${{acc.id}})" title="Xóa">🗑️</button>
                                     </div>
                                 </td>
                             </tr>
@@ -1680,12 +1850,54 @@ async def settings_page(
                 document.getElementById('accountModal').classList.remove('show');
             }}
             
+            async function refreshAccount(id) {{
+                if (!confirm('Bạn có chắc muốn refresh account này? Thông tin sẽ được cập nhật từ Facebook API.')) {{
+                    return;
+                }}
+                
+                try {{
+                    const response = await fetch(`/settings/accounts/${{id}}/refresh`, {{
+                        method: 'POST',
+                        headers: getAuthHeaders()
+                    }});
+                    
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        let errorMessage = `HTTP ${{response.status}}: Internal Server Error`;
+                        try {{
+                            const errorJson = JSON.parse(errorText);
+                            errorMessage = errorJson.detail || errorJson.message || errorMessage;
+                        }} catch {{
+                            errorMessage = `HTTP ${{response.status}}: ${{errorText.substring(0, 200)}}`;
+                        }}
+                        throw new Error(errorMessage);
+                    }}
+                    
+                    const data = await response.json();
+                    alert('✅ ' + data.message);
+                    loadAccounts();
+                }} catch (error) {{
+                    alert('❌ Lỗi: ' + error.message);
+                }}
+            }}
+            
             async function editAccount(id) {{
                 try {{
                     const response = await fetch(`/settings/accounts/${{id}}`, {{
                         headers: getAuthHeaders()
                     }});
-                    if (!response.ok) throw new Error('Không thể tải thông tin account');
+                    
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        let errorMessage = `HTTP ${{response.status}}: Internal Server Error`;
+                        try {{
+                            const errorJson = JSON.parse(errorText);
+                            errorMessage = errorJson.detail || errorJson.message || errorMessage;
+                        }} catch {{
+                            errorMessage = `HTTP ${{response.status}}: ${{errorText.substring(0, 200)}}`;
+                        }}
+                        throw new Error(errorMessage);
+                    }}
                     
                     const account = await response.json();
                     document.getElementById('accountModalTitle').textContent = 'Sửa Account';
@@ -1780,7 +1992,18 @@ async def settings_page(
                     const response = await fetch(`/settings/prefixes/${{id}}`, {{
                         headers: getAuthHeaders()
                     }});
-                    if (!response.ok) throw new Error('Không thể tải thông tin prefix');
+                    
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        let errorMessage = `HTTP ${{response.status}}: Internal Server Error`;
+                        try {{
+                            const errorJson = JSON.parse(errorText);
+                            errorMessage = errorJson.detail || errorJson.message || errorMessage;
+                        }} catch {{
+                            errorMessage = `HTTP ${{response.status}}: ${{errorText.substring(0, 200)}}`;
+                        }}
+                        throw new Error(errorMessage);
+                    }}
                     
                     const prefix = await response.json();
                     document.getElementById('prefixModalTitle').textContent = 'Sửa Prefix';
