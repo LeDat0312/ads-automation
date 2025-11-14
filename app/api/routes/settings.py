@@ -1396,6 +1396,8 @@ async def settings_page(
         </div>
         
         <script>
+            console.log('✅ Settings page script loaded!');
+            
             // Helper function to get token
             function getAuthToken() {{
                 return localStorage.getItem('access_token') || getCookie('access_token');
