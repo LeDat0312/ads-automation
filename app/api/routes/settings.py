@@ -1716,10 +1716,13 @@ async def settings_page(
                         }}
                         
                         const accId = acc.id;
+                        const accStatus = acc.status;
+                        const accName = acc.account_name || acc.account_id;
+                        const accAccountId = acc.account_id;
                         html += `
                             <tr>
-                                <td><span class="status-badge ${{statusClass}}">${{acc.status}}</span></td>
-                                <td><strong>${{acc.account_name || acc.account_id}}</strong><br><small style="color: #64748b;">${{acc.account_id}}</small></td>
+                                <td><span class="status-badge ${{statusClass}}">${{accStatus}}</span></td>
+                                <td><strong>${{accName}}</strong><br><small style="color: #64748b;">${{accAccountId}}</small></td>
                                 <td>${{spendDisplay}}</td>
                                 <td><span class="account-type-badge ${{typeClass}}">${{typeText}}</span></td>
                                 <td>${{timezoneDisplay}}</td>
