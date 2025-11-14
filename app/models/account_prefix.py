@@ -27,10 +27,8 @@ class Account(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
-    # Unique constraint: account_id phải unique trong phạm vi một user
-    __table_args__ = (
-        {'sqlite_autoincrement': True},
-    )
+    # Note: account_id không unique globally, nhưng nên unique per user
+    # Có thể thêm unique constraint sau nếu cần: UniqueConstraint('user_id', 'account_id')
     
     def __repr__(self):
         return f"<Account(id={self.id}, user_id={self.user_id}, account_id='{self.account_id}', name='{self.account_name}')>"

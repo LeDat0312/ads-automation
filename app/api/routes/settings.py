@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.models.account_prefix import Account, Prefix, AccountPrefix
-from app.core.security import get_current_user, encrypt_token, decrypt_token
+from app.core.security import encrypt_token, decrypt_token
 from app.services.facebook_token_service import test_facebook_token, fetch_facebook_ad_accounts, fetch_account_30_days_spend
 from app.api.routes.auth import get_current_user_optional
 
@@ -93,7 +93,6 @@ class AccountPrefixLink(BaseModel):
 
 @router.post("/token/save")
 def save_token(
-    request: Request,
     token_request: TokenSaveRequest,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -128,7 +127,6 @@ def save_token(
 
 @router.post("/token/test", response_model=TokenTestResponse)
 def test_token(
-    request: Request,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
@@ -300,7 +298,6 @@ def sync_accounts(
 
 @router.post("/accounts", response_model=AccountResponse, status_code=201)
 def create_account(
-    request: Request,
     account_data: AccountCreate,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -329,7 +326,6 @@ def create_account(
 
 @router.put("/accounts/{account_id}", response_model=AccountResponse)
 def update_account(
-    request: Request,
     account_id: int,
     account_data: AccountUpdate,
     current_user: User = Depends(get_current_user_optional),
@@ -356,7 +352,6 @@ def update_account(
 
 @router.delete("/accounts/{account_id}", status_code=204)
 def delete_account(
-    request: Request,
     account_id: int,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -398,7 +393,6 @@ def list_prefixes(
 
 @router.post("/prefixes", response_model=PrefixResponse, status_code=201)
 def create_prefix(
-    request: Request,
     prefix_data: PrefixCreate,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -427,7 +421,6 @@ def create_prefix(
 
 @router.put("/prefixes/{prefix_id}", response_model=PrefixResponse)
 def update_prefix(
-    request: Request,
     prefix_id: int,
     prefix_data: PrefixUpdate,
     current_user: User = Depends(get_current_user_optional),
@@ -454,7 +447,6 @@ def update_prefix(
 
 @router.delete("/prefixes/{prefix_id}", status_code=204)
 def delete_prefix(
-    request: Request,
     prefix_id: int,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
