@@ -2404,14 +2404,12 @@ async def settings_page(
                     
                     if (data.valid) {{
                         const userName = data.user_info.name || data.user_info.id;
-                        const permissions = data.permissions.join(', ') || 'N/A';
                         const dataMessage = data.message;
                         resultDiv.innerHTML = 
                             '<div class="token-status valid">' +
                             '<strong>✅ Token hợp lệ!</strong><br>' +
                             '<div style="margin-top: 8px;">' +
                             '<strong>Thông tin:</strong> ' + userName + '<br>' +
-                            '<strong>Quyền:</strong> ' + permissions + '<br>' +
                             '<strong>Trạng thái:</strong> ' + dataMessage +
                             '</div>' +
                             '</div>';
