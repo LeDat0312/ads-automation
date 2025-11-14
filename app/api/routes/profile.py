@@ -398,9 +398,6 @@ def profile_page(
                         <a href="/change-password" class="btn btn-primary" style="text-decoration: none; display: inline-block;">
                             🔒 Thay Đổi Mật Khẩu
                         </a>
-                        <button class="btn btn-danger" onclick="showDeleteAccountConfirm()" style="background: #ef4444;">
-                            🗑️ Xóa Tài Khoản
-                        </button>
                     </div>
                 </div>
             </div>
@@ -540,43 +537,6 @@ def profile_page(
                 }});
             }}
             
-            function showDeleteAccountConfirm() {{
-                if (!confirm('⚠️ CẢNH BÁO: Bạn có chắc chắn muốn xóa tài khoản này không?\\n\\nHành động này sẽ:\\n- Xóa tất cả dữ liệu của bạn\\n- Xóa tất cả accounts và prefixes\\n- Xóa tất cả rules\\n- KHÔNG THỂ HOÀN TÁC!\\n\\nNhập "XÓA" để xác nhận:')) {{
-                    return;
-                }}
-                
-                const confirmText = prompt('Nhập "XÓA" để xác nhận xóa tài khoản:');
-                if (confirmText !== 'XÓA') {{
-                    showToast('Hủy xóa tài khoản', 'info');
-                    return;
-                }}
-                
-                fetch('/profile/delete', {{
-                    method: 'DELETE',
-                    headers: getAuthHeaders()
-                }})
-                .then(response => response.json())
-                .then(data => {{
-                    if (data.success) {{
-                        showToast('Tài khoản đã được xóa. Đang chuyển hướng...', 'success');
-                        setTimeout(() => {{
-                            logout();
-                        }}, 2000);
-                    }} else {{
-                        showToast(data.message || 'Lỗi khi xóa tài khoản', 'error');
-                    }}
-                }})
-                .catch(error => {{
-                    showToast('Lỗi khi xóa tài khoản', 'error');
-                }});
-            }}
-            
-            function logout() {{
-                localStorage.removeItem('access_token');
-                localStorage.removeItem('user');
-                document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-                window.location.href = '/auth/login';
-            }}
         </script>
     </body>
     </html>
@@ -848,59 +808,4 @@ def change_password_page(
     </html>
     """
     return HTMLResponse(content=html)
-
-
-@router.delete("/delete")
-def delete_account(
-    current_user: User = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Xóa tài khoản và tất cả dữ liệu liên quan"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
-    
-    try:
-        from app.models.account_prefix import Account, Prefix, AccountPrefix
-        from app.models.logic_rule import LogicRule
-        from app.models.user_settings import UserSettings
-        
-        user_id = current_user.id
-        
-        # Xóa tất cả dữ liệu liên quan
-        # 1. Xóa AccountPrefix links
-        db.query(AccountPrefix).filter(AccountPrefix.user_id == user_id).delete()
-        
-        # 2. Xóa Accounts
-        accounts = db.query(Account).filter(Account.user_id == user_id).all()
-        for account in accounts:
-            # Xóa avatar files nếu có
-            if account.description:
-                pass  # Có thể xóa files nếu cần
-        db.query(Account).filter(Account.user_id == user_id).delete()
-        
-        # 3. Xóa Prefixes
-        db.query(Prefix).filter(Prefix.user_id == user_id).delete()
-        
-        # 4. Xóa Rules
-        db.query(LogicRule).filter(LogicRule.user_id == user_id).delete()
-        
-        # 5. Xóa UserSettings
-        db.query(UserSettings).filter(UserSettings.user_id == user_id).delete()
-        
-        # 6. Xóa avatar file nếu có
-        if current_user.avatar and current_user.avatar != 'default_avatar.png':
-            avatars_dir = "app/static/avatars"
-            filepath = os.path.join(avatars_dir, current_user.avatar)
-            if os.path.exists(filepath):
-                os.remove(filepath)
-        
-        # 7. Xóa User
-        db.delete(current_user)
-        db.commit()
-        
-        return {"success": True, "message": "Tài khoản đã được xóa thành công"}
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error deleting account: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Lỗi khi xóa tài khoản: {str(e)}")
 
