@@ -206,8 +206,13 @@ def fetch_account_30_days_spend(access_token: str, account_id: str) -> float:
         float: Số tiền chi tiêu (USD)
     """
     try:
+        # Normalize account_id: đảm bảo có prefix "act_"
+        account_id_for_api = account_id
+        if not account_id_for_api.startswith("act_"):
+            account_id_for_api = f"act_{account_id_for_api}"
+        
         # Lấy insights 30 ngày qua
-        url = f"{FB_GRAPH_API_BASE}/{account_id}/insights"
+        url = f"{FB_GRAPH_API_BASE}/{account_id_for_api}/insights"
         params = {
             "fields": "spend",
             "time_range": '{"since":"' + (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d') + '","until":"' + datetime.now().strftime('%Y-%m-%d') + '"}',
