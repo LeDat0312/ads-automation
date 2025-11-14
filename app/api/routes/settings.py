@@ -1479,6 +1479,21 @@ async def settings_page(
                         headers: getAuthHeaders()
                     }});
                     
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        console.error('Error response:', errorText);
+                        // Try to parse as JSON for error detail
+                        let errorMessage = `HTTP ${{response.status}}: Internal Server Error`;
+                        try {{
+                            const errorJson = JSON.parse(errorText);
+                            errorMessage = errorJson.detail || errorJson.message || errorMessage;
+                        }} catch {{
+                            // If not JSON, use first 200 chars of error text
+                            errorMessage = `HTTP ${{response.status}}: ${{errorText.substring(0, 200)}}`;
+                        }}
+                        throw new Error(errorMessage);
+                    }}
+                    
                     const data = await response.json();
                     alert(`✅ ${{data.message}}`);
                     loadAccounts();
