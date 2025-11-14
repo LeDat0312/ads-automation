@@ -22,21 +22,8 @@ async def home_page(
 ):
     """Trang chủ với các nút điều hướng"""
     
-    # Check authentication
-    token = None
-    if request.cookies.get("access_token"):
-        token = request.cookies.get("access_token")
-    elif "Authorization" in request.headers:
-        auth_header = request.headers["Authorization"]
-        if auth_header.startswith("Bearer "):
-            token = auth_header.replace("Bearer ", "")
-    
-    # If no token, redirect to login
-    if not token and not current_user:
-        return HTMLResponse(
-            content='<script>window.location.href="/auth/login";</script>',
-            status_code=200
-        )
+    # Don't redirect on server-side - let client-side handle it
+    # This prevents redirect loops
     
     user_info = ""
     if current_user:
@@ -226,15 +213,37 @@ async def home_page(
         </div>
         
         <script>
-            // Check authentication on page load
-            const token = localStorage.getItem('access_token');
-            if (!token) {{
-                window.location.href = '/auth/login';
+            // Helper function to get cookie
+            function getCookie(name) {{
+                const value = `; ${{document.cookie}}`;
+                const parts = value.split(`; ${{name}}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
             }}
+            
+            // Check authentication on page load - only redirect once
+            (function() {{
+                const token = localStorage.getItem('access_token') || getCookie('access_token');
+                
+                if (!token) {{
+                    // Only redirect if we're not already on login page
+                    if (!window.location.pathname.includes('/auth/login')) {{
+                        window.location.href = '/auth/login';
+                    }}
+                    return;
+                }}
+                
+                // Sync token from localStorage to cookie if needed
+                if (localStorage.getItem('access_token') && !getCookie('access_token')) {{
+                    document.cookie = `access_token=${{localStorage.getItem('access_token')}}; path=/; max-age=${{30 * 24 * 60 * 60}}`;
+                }}
+            }})();
             
             function logout() {{
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('user');
+                // Clear cookie
+                document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
                 window.location.href = '/auth/login';
             }}
         </script>

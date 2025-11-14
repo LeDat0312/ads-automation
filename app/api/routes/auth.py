@@ -3,7 +3,7 @@
 Authentication Routes - Login/Register/Logout
 """
 from fastapi import APIRouter, Depends, Request, Form, HTTPException, status
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -284,8 +284,11 @@ async def login_page(request: Request):
                         localStorage.setItem('access_token', data.access_token);
                         localStorage.setItem('user', JSON.stringify(data.user));
                         
-                        // Redirect to home
-                        window.location.href = '/';
+                        // Cookie should already be set by server, but ensure it's there
+                        // Wait a bit for cookie to be set, then redirect
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 100);
                     } else {
                         // Show error
                         errorDiv.textContent = data.detail || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.';
@@ -302,9 +305,21 @@ async def login_page(request: Request):
                 }
             }
             
-            // Check if already logged in
-            if (localStorage.getItem('access_token')) {
-                window.location.href = '/';
+            // Helper function to get cookie
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }
+            
+            // Check if already logged in - redirect to home if token exists
+            const token = localStorage.getItem('access_token') || getCookie('access_token');
+            if (token) {
+                // Only redirect if we're not already on home page
+                if (window.location.pathname === '/auth/login' || window.location.pathname === '/auth/login/') {
+                    window.location.href = '/';
+                }
             }
         </script>
     </body>
@@ -340,7 +355,8 @@ async def login(
     token_data = {"sub": user.username}
     access_token = create_access_token(token_data)
     
-    return {
+    # Create response with cookie
+    response = JSONResponse({
         "access_token": access_token,
         "token_type": "bearer",
         "user": {
@@ -350,7 +366,20 @@ async def login(
             "display_name": user.display_name,
             "role": user.role
         }
-    }
+    })
+    
+    # Set cookie for server-side auth check
+    max_age = 30 * 24 * 60 * 60 if remember else None  # 30 days if remember, session cookie otherwise
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        max_age=max_age,
+        httponly=False,  # Allow JS to read for localStorage sync
+        samesite="lax",
+        secure=False  # Set to True in production with HTTPS
+    )
+    
+    return response
 
 
 @router.post("/logout")
