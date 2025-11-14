@@ -137,6 +137,8 @@ def user_management_page(
                 display: flex;
                 align-items: center;
                 gap: 12px;
+                position: relative;
+                z-index: 101;
             }}
             
             .btn-back {{

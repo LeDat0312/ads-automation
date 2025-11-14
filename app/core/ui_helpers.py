@@ -67,9 +67,7 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
     
     <style>
         .user-menu-container {{
-            position: fixed;
-            top: 20px;
-            right: 20px;
+            position: relative;
             z-index: 1001;
         }}
         
