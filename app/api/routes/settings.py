@@ -2534,9 +2534,24 @@ async def settings_page(
                     document.getElementById('accountModalTitle').textContent = 'Sửa Account';
                     document.getElementById('accountId').value = account.id;
                     document.getElementById('accountAccountId').value = account.account_id;
+                    document.getElementById('accountAccountId').readOnly = true;
+                    document.getElementById('accountAccountId').style.background = '#f8fafc';
+                    document.getElementById('accountAccountId').style.cursor = 'not-allowed';
                     document.getElementById('accountName').value = account.account_name || '';
+                    document.getElementById('accountName').readOnly = true;
+                    document.getElementById('accountName').style.background = '#f8fafc';
+                    document.getElementById('accountName').style.cursor = 'not-allowed';
                     document.getElementById('accountType').value = account.account_type || 'UNKNOWN';
                     document.getElementById('accountTimezone').value = account.timezone || 'Asia/Ho_Chi_Minh';
+                    document.getElementById('accountTimezone').readOnly = true;
+                    document.getElementById('accountTimezone').style.background = '#f8fafc';
+                    document.getElementById('accountTimezone').style.cursor = 'not-allowed';
+                    
+                    // Ẩn nút đồng bộ khi edit (chỉ hiện khi thêm mới)
+                    const syncBtn = document.getElementById('syncAccountInfoBtn');
+                    if (syncBtn) {{
+                        syncBtn.style.display = 'none';
+                    }}
                     
                     // Hiển thị phần chọn prefixes và load prefixes
                     document.getElementById('accountPrefixesGroup').style.display = 'block';
