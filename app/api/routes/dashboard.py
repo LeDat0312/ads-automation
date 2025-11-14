@@ -336,11 +336,11 @@ async def dashboard_home(
                     const adsResponse = await fetch('/api/dashboard/ads?account_id=' + accountId + '&prefix=' + prefix + '&status=' + status + '&date_from=' + dateFrom + '&date_to=' + dateTo + '&page=' + currentPage + '&page_size=' + pageSize);
                     const adsData = await adsResponse.json();
                     updateTable(adsData);
-                } catch (error) {
+                }} catch (error) {{
                     console.error('Error loading data:', error);
                     document.getElementById('tableContent').innerHTML = '<div class="loading">Error loading data</div>';
-                }
-            }
+                }}
+            }}
             
             function updateStats(stats) {
                 document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
