@@ -245,3 +245,57 @@ def fetch_account_30_days_spend(access_token: str, account_id: str) -> float:
         logger.error(f"Error fetching 30 days spend for {account_id}: {e}")
         return 0.0
 
+
+def check_account_has_activity_last_7_days(access_token: str, account_id: str) -> bool:
+    """
+    Kiểm tra xem account có activity trong 7 ngày qua không
+    (có insights với impressions > 0 hoặc spend > 0)
+    
+    Returns:
+        bool: True nếu có activity, False nếu không
+    """
+    try:
+        # Normalize account_id
+        account_id_for_api = account_id
+        if not account_id_for_api.startswith("act_"):
+            account_id_for_api = f"act_{account_id_for_api}"
+        
+        # Lấy insights 7 ngày qua
+        url = f"{FB_GRAPH_API_BASE}/{account_id_for_api}/insights"
+        params = {
+            "fields": "impressions,spend",
+            "date_preset": "last_7d",
+            "limit": 1,
+            "access_token": access_token
+        }
+        
+        response = requests.get(url, params=params, timeout=30)
+        
+        if response.status_code != 200:
+            # Nếu không lấy được, giả sử có activity để không bỏ sót
+            logger.warning(f"Could not check activity for {account_id}: HTTP {response.status_code}")
+            return True
+        
+        data = response.json()
+        if 'error' in data:
+            logger.warning(f"Error checking activity for {account_id}: {data['error'].get('message', 'Unknown')}")
+            return True  # Giả sử có activity để không bỏ sót
+        
+        insights = data.get('data', [])
+        if not insights:
+            return False
+        
+        # Kiểm tra xem có impressions > 0 hoặc spend > 0 không
+        for insight in insights:
+            impressions = float(insight.get('impressions', 0) or 0)
+            spend = float(insight.get('spend', 0) or 0)
+            if impressions > 0 or spend > 0:
+                return True
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error checking activity for {account_id}: {e}")
+        # Nếu có lỗi, giả sử có activity để không bỏ sót
+        return True
+

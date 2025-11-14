@@ -15,7 +15,7 @@ from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.models.account_prefix import Account, Prefix, AccountPrefix
 from app.core.security import encrypt_token, decrypt_token
-from app.services.facebook_token_service import test_facebook_token, fetch_facebook_ad_accounts, fetch_account_30_days_spend
+from app.services.facebook_token_service import test_facebook_token, fetch_facebook_ad_accounts, fetch_account_30_days_spend, check_account_has_activity_last_7_days
 from app.api.routes.auth import get_current_user_optional
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -231,18 +231,18 @@ def list_accounts(
         from datetime import datetime, timedelta
         from app.core.database import AdMetrics
         
-        # Lấy accounts có activity trong 30 ngày gần nhất (có impressions > 0)
-        # Điều này cho thấy account đang được sử dụng trên META ADS
-        thirty_days_ago = datetime.now() - timedelta(days=30)
+        # Lấy accounts có activity trong 7 ngày gần nhất (có impressions > 0)
+        # Điều này cho thấy account đang được sử dụng trên META ADS (chỉnh sửa quảng cáo, bật/tắt, tăng/giảm ngân sách)
+        seven_days_ago = datetime.now() - timedelta(days=7)
         
-        # Subquery để lấy accounts có activity gần đây (impressions > 0)
+        # Subquery để lấy accounts có activity gần đây (impressions > 0) trong 7 ngày qua
         # và thời gian activity gần nhất
         active_accounts_subq = db.query(
             AdMetrics.account_id,
             func.max(AdMetrics.date).label('last_activity_date'),
             func.sum(AdMetrics.impressions).label('total_impressions')
         ).filter(
-            AdMetrics.date >= thirty_days_ago,
+            AdMetrics.date >= seven_days_ago,
             AdMetrics.account_id.isnot(None),
             AdMetrics.impressions > 0  # Chỉ lấy accounts có impressions > 0
         ).group_by(AdMetrics.account_id).having(
@@ -302,12 +302,20 @@ def sync_accounts(
             logger.error(f"Error fetching accounts from Facebook: {e}", exc_info=True)
             raise HTTPException(status_code=400, detail=f"Lỗi khi lấy accounts từ Facebook: {str(e)}")
         
-        # Sync to database
+        # Sync to database - chỉ sync accounts có activity trong 7 ngày qua
         synced_count = 0
         updated_count = 0
+        skipped_count = 0
         
         for fb_acc in fb_accounts:
             try:
+                # Kiểm tra xem account có activity trong 7 ngày qua không
+                has_activity = check_account_has_activity_last_7_days(token, fb_acc["account_id"])
+                if not has_activity:
+                    skipped_count += 1
+                    logger.info(f"Skipping account {fb_acc['account_id']} - no activity in last 7 days")
+                    continue
+                
                 # Check if account exists
                 existing = db.query(Account).filter(
                     Account.user_id == current_user.id,
@@ -354,9 +362,10 @@ def sync_accounts(
         db.commit()
         
         return {
-            "message": f"Đã sync {synced_count} accounts mới, cập nhật {updated_count} accounts",
+            "message": f"Đã sync {synced_count} accounts mới, cập nhật {updated_count} accounts. Bỏ qua {skipped_count} accounts không có activity trong 7 ngày qua.",
             "synced": synced_count,
             "updated": updated_count,
+            "skipped": skipped_count,
             "total": len(fb_accounts)
         }
     except HTTPException:
@@ -455,6 +464,44 @@ def update_account(
     except Exception as e:
         logger.error(f"Error updating account {account_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật account: {str(e)}")
+
+
+@router.patch("/accounts/{account_id}/type")
+def update_account_type(
+    account_id: int,
+    account_type: str,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Cập nhật account type inline"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    try:
+        account = db.query(Account).filter(
+            Account.id == account_id,
+            Account.user_id == current_user.id
+        ).first()
+        
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        # Validate account_type
+        valid_types = ["UNKNOWN", "E-COMMERCE", "LEAD_GENERATION", "MOBILE_APP"]
+        if account_type not in valid_types:
+            raise HTTPException(status_code=400, detail=f"Invalid account type. Must be one of: {', '.join(valid_types)}")
+        
+        account.account_type = account_type
+        account.updated_at = datetime.now()
+        db.commit()
+        db.refresh(account)
+        
+        return {"message": "Đã cập nhật loại account thành công", "account_type": account.account_type}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating account type: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật loại account: {str(e)}")
 
 
 @router.post("/accounts/{account_id}/refresh")
@@ -1271,6 +1318,122 @@ async def settings_page(
                 justify-content: flex-end;
                 margin-top: 24px;
             }}
+            
+            /* Toast Notification Styles */
+            .toast-container {{
+                position: fixed;
+                top: 100px;
+                right: 32px;
+                z-index: 10000;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }}
+            
+            .toast {{
+                background: white;
+                border-radius: 12px;
+                padding: 16px 20px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-width: 300px;
+                max-width: 500px;
+                animation: toastSlideIn 0.3s ease;
+                border-left: 4px solid #667eea;
+            }}
+            
+            .toast.success {{
+                border-left-color: #10b981;
+            }}
+            
+            .toast.error {{
+                border-left-color: #ef4444;
+            }}
+            
+            .toast.warning {{
+                border-left-color: #f59e0b;
+            }}
+            
+            .toast.info {{
+                border-left-color: #3b82f6;
+            }}
+            
+            @keyframes toastSlideIn {{
+                from {{
+                    transform: translateX(400px);
+                    opacity: 0;
+                }}
+                to {{
+                    transform: translateX(0);
+                    opacity: 1;
+                }}
+            }}
+            
+            .toast-icon {{
+                font-size: 24px;
+                flex-shrink: 0;
+            }}
+            
+            .toast-content {{
+                flex: 1;
+            }}
+            
+            .toast-title {{
+                font-weight: 600;
+                color: #1e293b;
+                margin-bottom: 4px;
+            }}
+            
+            .toast-message {{
+                font-size: 14px;
+                color: #64748b;
+            }}
+            
+            .toast-close {{
+                background: none;
+                border: none;
+                font-size: 20px;
+                color: #94a3b8;
+                cursor: pointer;
+                padding: 0;
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 4px;
+                flex-shrink: 0;
+            }}
+            
+            .toast-close:hover {{
+                background: #f1f5f9;
+                color: #475569;
+            }}
+            
+            /* Inline dropdown for account type */
+            .account-type-select {{
+                padding: 4px 12px;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 500;
+                cursor: pointer;
+                background: white;
+                transition: all 0.2s;
+            }}
+            
+            .account-type-select:hover {{
+                border-color: #667eea;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }}
+            
+            .account-type-select:focus {{
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }}
         </style>
     </head>
     <body>
@@ -1335,7 +1498,7 @@ async def settings_page(
                 </div>
                 <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
                     <small style="color: #1e40af;">
-                        💡 <strong>Lưu ý:</strong> Chỉ hiển thị 15 tài khoản được sử dụng gần đây nhất (có dữ liệu trong 7 ngày qua hoặc có chi tiêu trong 30 ngày qua).
+                        💡 <strong>Lưu ý:</strong> Chỉ hiển thị các tài khoản có hoạt động chỉnh sửa quảng cáo (bật, tắt, tăng/giảm ngân sách) trong 7 ngày qua trên trình quản lý quảng cáo Meta Ads.
                     </small>
                 </div>
             </div>
@@ -1368,11 +1531,13 @@ async def settings_page(
                     <input type="hidden" id="accountId" />
                     <div class="form-group">
                         <label>Account ID *</label>
-                        <input type="text" id="accountAccountId" required placeholder="act_123456789" />
+                        <input type="text" id="accountAccountId" required placeholder="act_123456789" readonly style="background: #f8fafc; cursor: not-allowed;" />
+                        <small style="color: #64748b; margin-top: 4px; display: block;">ID tài khoản không thể chỉnh sửa</small>
                     </div>
                     <div class="form-group">
                         <label>Tên Account</label>
-                        <input type="text" id="accountName" placeholder="Tên hiển thị" />
+                        <input type="text" id="accountName" placeholder="Tên hiển thị" readonly style="background: #f8fafc; cursor: not-allowed;" />
+                        <small style="color: #64748b; margin-top: 4px; display: block;">Tên tài khoản không thể chỉnh sửa</small>
                     </div>
                     <div class="form-group">
                         <label>Loại Account</label>
@@ -1385,7 +1550,8 @@ async def settings_page(
                     </div>
                     <div class="form-group">
                         <label>Timezone</label>
-                        <input type="text" id="accountTimezone" value="Asia/Ho_Chi_Minh" />
+                        <input type="text" id="accountTimezone" value="Asia/Ho_Chi_Minh" readonly style="background: #f8fafc; cursor: not-allowed;" />
+                        <small style="color: #64748b; margin-top: 4px; display: block;">Timezone không thể chỉnh sửa</small>
                     </div>
                     <div class="form-group" id="accountPrefixesGroup" style="display: none;">
                         <label>Prefixes (Một account có thể có nhiều prefixes)</label>
@@ -1429,8 +1595,74 @@ async def settings_page(
             </div>
         </div>
         
+        <!-- Toast Container -->
+        <div id="toastContainer" class="toast-container"></div>
+        
         <script>
             console.log('✅ Settings page script loaded!');
+            
+            // Toast Notification System
+            function showToast(title, message, type = 'info') {{
+                const container = document.getElementById('toastContainer');
+                if (!container) return;
+                
+                const icons = {{
+                    success: '✅',
+                    error: '❌',
+                    warning: '⚠️',
+                    info: 'ℹ️'
+                }};
+                
+                const toast = document.createElement('div');
+                toast.className = `toast ${{type}}`;
+                toast.innerHTML = `
+                    <span class="toast-icon">${{icons[type] || icons.info}}</span>
+                    <div class="toast-content">
+                        <div class="toast-title">${{title}}</div>
+                        <div class="toast-message">${{message}}</div>
+                    </div>
+                    <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+                `;
+                
+                container.appendChild(toast);
+                
+                // Auto remove after 5 seconds
+                setTimeout(() => {{
+                    if (toast.parentElement) {{
+                        toast.style.animation = 'toastSlideIn 0.3s ease reverse';
+                        setTimeout(() => toast.remove(), 300);
+                    }}
+                }}, 5000);
+            }}
+            
+            function showConfirm(title, message, onConfirm, onCancel = null) {{
+                const container = document.getElementById('toastContainer');
+                if (!container) return;
+                
+                const toast = document.createElement('div');
+                toast.className = 'toast warning';
+                toast.innerHTML = `
+                    <span class="toast-icon">⚠️</span>
+                    <div class="toast-content">
+                        <div class="toast-title">${{title}}</div>
+                        <div class="toast-message">${{message}}</div>
+                        <div style="display: flex; gap: 8px; margin-top: 12px;">
+                            <button class="btn btn-primary" onclick="this.closest('.toast').querySelector('.confirm-btn').click()" style="padding: 6px 16px; font-size: 12px;">Xác nhận</button>
+                            <button class="btn btn-secondary" onclick="this.closest('.toast').querySelector('.cancel-btn').click()" style="padding: 6px 16px; font-size: 12px;">Hủy</button>
+                        </div>
+                    </div>
+                    <button class="toast-close confirm-btn" style="display: none;" onclick="
+                        this.closest('.toast').remove();
+                        if (typeof ${{onConfirm}} === 'function') ${{onConfirm}}();
+                    ">×</button>
+                    <button class="toast-close cancel-btn" style="display: none;" onclick="
+                        this.closest('.toast').remove();
+                        if (typeof ${{onCancel}} === 'function') ${{onCancel}}();
+                    ">×</button>
+                `;
+                
+                container.appendChild(toast);
+            }}
             
             // Helper function to get token
             function getAuthToken() {{
@@ -1544,35 +1776,37 @@ async def settings_page(
             
             // Delete token
             async function deleteToken() {{
-                if (!confirm('Bạn có chắc muốn xóa token? Bạn sẽ cần nhập token mới để sử dụng các tính năng liên quan đến Facebook API.')) {{
-                    return;
-                }}
-                
-                try {{
-                    const response = await fetch('/settings/token/delete', {{
-                        method: 'DELETE',
-                        headers: getAuthHeaders()
-                    }});
-                    
-                    if (!response.ok) {{
-                        const errorText = await response.text();
-                        throw new Error(`HTTP ${{response.status}}: ${{errorText.substring(0, 100)}}`);
+                showConfirm(
+                    'Xác nhận Xóa Token',
+                    'Bạn có chắc muốn xóa token? Bạn sẽ cần nhập token mới để sử dụng các tính năng liên quan đến Facebook API.',
+                    async () => {{
+                        try {{
+                            const response = await fetch('/settings/token/delete', {{
+                                method: 'DELETE',
+                                headers: getAuthHeaders()
+                            }});
+                            
+                            if (!response.ok) {{
+                                const errorText = await response.text();
+                                throw new Error(`HTTP ${{response.status}}: ${{errorText.substring(0, 100)}}`);
+                            }}
+                            
+                            const data = await response.json();
+                            showToast('Thành công', data.message, 'success');
+                            loadTokenStatus();
+                            document.getElementById('tokenInput').value = '';
+                        }} catch (error) {{
+                            showToast('Lỗi', 'Lỗi khi xóa token: ' + error.message, 'error');
+                        }}
                     }}
-                    
-                    const data = await response.json();
-                    alert('✅ ' + data.message);
-                    loadTokenStatus();
-                    document.getElementById('tokenInput').value = '';
-                }} catch (error) {{
-                    alert('❌ Lỗi: ' + error.message);
-                }}
+                );
             }}
             
             // Save token
             async function saveToken() {{
                 const token = document.getElementById('tokenInput').value.trim();
                 if (!token) {{
-                    alert('Vui lòng nhập token');
+                    showToast('Cảnh báo', 'Vui lòng nhập token', 'warning');
                     return;
                 }}
                 
@@ -1592,16 +1826,16 @@ async def settings_page(
                         }} catch {{
                             errorMsg = errorText.substring(0, 100);
                         }}
-                        alert('❌ Lỗi: ' + errorMsg);
+                        showToast('Lỗi', errorMsg, 'error');
                         return;
                     }}
                     
                     const data = await response.json();
-                    alert('✅ ' + (data.message || 'Token đã được lưu thành công!'));
+                    showToast('Thành công', data.message || 'Token đã được lưu thành công!', 'success');
                     document.getElementById('tokenInput').value = '';
                     loadTokenStatus();
                 }} catch (error) {{
-                    alert('❌ Lỗi: ' + error.message);
+                    showToast('Lỗi', 'Lỗi khi lưu token: ' + error.message, 'error');
                 }}
             }}
             
@@ -1742,22 +1976,24 @@ async def settings_page(
                                        acc.account_type === 'LEAD_GENERATION' ? 'Lead Generation' :
                                        acc.account_type === 'MOBILE_APP' ? 'Mobile App' : 'Chưa xác định';
                         
-                        // Format tiền tệ
+                        // Format tiền tệ: VND trên, USD dưới
                         const currency = acc.currency || 'USD';
                         const spend = acc.last_30_days_spend || 0;
                         let spendDisplay = '';
                         if (currency === 'VND') {{
-                            // Chỉ hiển thị VND
+                            // VND: hiển thị VND trên, USD dưới
+                            const USD_TO_VND_RATE = 26350;
                             const vndAmount = Math.round(spend);
-                            spendDisplay = vndAmount.toLocaleString('vi-VN') + ' ₫';
+                            const usdAmount = (spend / USD_TO_VND_RATE).toFixed(2);
+                            spendDisplay = vndAmount.toLocaleString('vi-VN') + ' ₫<br><small style="color: #64748b;">(' + usdAmount + ' US$)</small>';
                         }} else {{
-                            // USD: hiển thị USD trên, VND dưới
+                            // USD: hiển thị VND trên, USD dưới
                             // Tỷ giá USD/VND cố định: 26,350
                             const USD_TO_VND_RATE = 26350;
                             const usdAmount = spend.toFixed(2);
                             const vndAmount = Math.round(spend * USD_TO_VND_RATE);
                             const vndFormatted = vndAmount.toLocaleString('vi-VN');
-                            spendDisplay = usdAmount + ' US$<br><small style="color: #64748b;">(' + vndFormatted + ' ₫)</small>';
+                            spendDisplay = vndFormatted + ' ₫<br><small style="color: #64748b;">(' + usdAmount + ' US$)</small>';
                         }}
                         
                         // Format timezone với GMT offset
@@ -1783,12 +2019,22 @@ async def settings_page(
                         const accStatus = acc.status;
                         const accName = acc.account_name || acc.account_id;
                         const accAccountId = acc.account_id;
+                        const accType = acc.account_type || 'UNKNOWN';
                         html += `
                             <tr>
                                 <td><span class="status-badge ${{statusClass}}">${{accStatus}}</span></td>
                                 <td><strong>${{accName}}</strong><br><small style="color: #64748b;">${{accAccountId}}</small></td>
                                 <td>${{spendDisplay}}</td>
-                                <td><span class="account-type-badge ${{typeClass}}">${{typeText}}</span></td>
+                                <td>
+                                    <select class="account-type-select ${{typeClass}}" 
+                                            onchange="updateAccountType(${{accId}}, this.value)" 
+                                            style="background: ${{typeClass === 'type-ecommerce' ? '#dbeafe' : typeClass === 'type-lead' ? '#fce7f3' : typeClass === 'type-mobile' ? '#f3e8ff' : '#f8fafc'}}; color: ${{typeClass === 'type-ecommerce' ? '#1e40af' : typeClass === 'type-lead' ? '#9f1239' : typeClass === 'type-mobile' ? '#6b21a8' : '#475569'}};">
+                                        <option value="UNKNOWN" ${{accType === 'UNKNOWN' ? 'selected' : ''}}>Chưa xác định</option>
+                                        <option value="E-COMMERCE" ${{accType === 'E-COMMERCE' ? 'selected' : ''}}>E-commerce</option>
+                                        <option value="LEAD_GENERATION" ${{accType === 'LEAD_GENERATION' ? 'selected' : ''}}>Lead Generation</option>
+                                        <option value="MOBILE_APP" ${{accType === 'MOBILE_APP' ? 'selected' : ''}}>Mobile App</option>
+                                    </select>
+                                </td>
                                 <td>${{timezoneDisplay}}</td>
                                 <td>
                                     <div class="action-buttons">
@@ -1812,39 +2058,41 @@ async def settings_page(
             
             // Sync accounts from Facebook
             async function syncAccounts() {{
-                if (!confirm('Bạn có chắc muốn đồng bộ accounts từ Facebook? Các accounts hiện có sẽ được cập nhật.')) {{
-                    return;
-                }}
-                
-                try {{
-                    const response = await fetch('/settings/accounts/sync', {{
-                        method: 'POST',
-                        headers: getAuthHeaders()
-                    }});
-                    
-                    if (!response.ok) {{
-                        const errorText = await response.text();
-                        console.error('Error response:', errorText);
-                        // Try to parse as JSON for error detail
-                        const statusCode = response.status;
-                        let errorMessage = 'HTTP ' + statusCode + ': Internal Server Error';
+                showConfirm(
+                    'Xác nhận Đồng Bộ',
+                    'Bạn có chắc muốn đồng bộ accounts từ Facebook? Chỉ các accounts có hoạt động trong 7 ngày qua sẽ được đồng bộ.',
+                    async () => {{
                         try {{
-                            const errorJson = JSON.parse(errorText);
-                            errorMessage = errorJson.detail || errorJson.message || errorMessage;
-                        }} catch {{
-                            // If not JSON, use first 200 chars of error text
-                            const errorSubstr = errorText.substring(0, 200);
-                            errorMessage = 'HTTP ' + statusCode + ': ' + errorSubstr;
+                            const response = await fetch('/settings/accounts/sync', {{
+                                method: 'POST',
+                                headers: getAuthHeaders()
+                            }});
+                            
+                            if (!response.ok) {{
+                                const errorText = await response.text();
+                                console.error('Error response:', errorText);
+                                // Try to parse as JSON for error detail
+                                const statusCode = response.status;
+                                let errorMessage = 'HTTP ' + statusCode + ': Internal Server Error';
+                                try {{
+                                    const errorJson = JSON.parse(errorText);
+                                    errorMessage = errorJson.detail || errorJson.message || errorMessage;
+                                }} catch {{
+                                    // If not JSON, use first 200 chars of error text
+                                    const errorSubstr = errorText.substring(0, 200);
+                                    errorMessage = 'HTTP ' + statusCode + ': ' + errorSubstr;
+                                }}
+                                throw new Error(errorMessage);
+                            }}
+                            
+                            const data = await response.json();
+                            showToast('Thành công', data.message, 'success');
+                            loadAccounts();
+                        }} catch (error) {{
+                            showToast('Lỗi', 'Lỗi khi đồng bộ accounts: ' + error.message, 'error');
                         }}
-                        throw new Error(errorMessage);
                     }}
-                    
-                    const data = await response.json();
-                    alert('✅ ' + data.message);
-                    loadAccounts();
-                }} catch (error) {{
-                    alert('❌ Lỗi: ' + error.message);
-                }}
+                );
             }}
             
             // Load prefixes
@@ -2016,35 +2264,70 @@ async def settings_page(
                 document.getElementById('accountModal').classList.remove('show');
             }}
             
-            async function refreshAccount(id) {{
-                if (!confirm('Bạn có chắc muốn refresh account này? Thông tin sẽ được cập nhật từ Facebook API.')) {{
-                    return;
-                }}
-                
+            // Update account type inline
+            async function updateAccountType(accountId, newType) {{
                 try {{
-                    const response = await fetch('/settings/accounts/' + id + '/refresh', {{
-                        method: 'POST',
-                        headers: getAuthHeaders()
+                    const response = await fetch('/settings/accounts/' + accountId + '/type', {{
+                        method: 'PATCH',
+                        headers: getAuthHeaders('application/json'),
+                        body: JSON.stringify({{ account_type: newType }})
                     }});
                     
                     if (!response.ok) {{
                         const errorText = await response.text();
-                        let errorMessage = `HTTP ${{response.status}}: Internal Server Error`;
+                        let errorMsg = 'Không thể cập nhật loại account';
                         try {{
                             const errorJson = JSON.parse(errorText);
-                            errorMessage = errorJson.detail || errorJson.message || errorMessage;
+                            errorMsg = errorJson.detail || errorMsg;
                         }} catch {{
-                            errorMessage = `HTTP ${{response.status}}: ${{errorText.substring(0, 200)}}`;
+                            errorMsg = errorText.substring(0, 100);
                         }}
-                        throw new Error(errorMessage);
+                        showToast('Lỗi', errorMsg, 'error');
+                        // Reload để revert dropdown
+                        loadAccounts();
+                        return;
                     }}
                     
                     const data = await response.json();
-                    alert('✅ ' + data.message);
-                    loadAccounts();
+                    showToast('Thành công', data.message, 'success');
                 }} catch (error) {{
-                    alert('❌ Lỗi: ' + error.message);
+                    showToast('Lỗi', 'Lỗi khi cập nhật loại account: ' + error.message, 'error');
+                    // Reload để revert dropdown
+                    loadAccounts();
                 }}
+            }}
+            
+            async function refreshAccount(id) {{
+                showConfirm(
+                    'Xác nhận Refresh',
+                    'Bạn có chắc muốn refresh account này? Thông tin sẽ được cập nhật từ Facebook API.',
+                    async () => {{
+                        try {{
+                            const response = await fetch('/settings/accounts/' + id + '/refresh', {{
+                                method: 'POST',
+                                headers: getAuthHeaders()
+                            }});
+                            
+                            if (!response.ok) {{
+                                const errorText = await response.text();
+                                let errorMessage = `HTTP ${{response.status}}: Internal Server Error`;
+                                try {{
+                                    const errorJson = JSON.parse(errorText);
+                                    errorMessage = errorJson.detail || errorJson.message || errorMessage;
+                                }} catch {{
+                                    errorMessage = `HTTP ${{response.status}}: ${{errorText.substring(0, 200)}}`;
+                                }}
+                                throw new Error(errorMessage);
+                            }}
+                            
+                            const data = await response.json();
+                            showToast('Thành công', data.message, 'success');
+                            loadAccounts();
+                        }} catch (error) {{
+                            showToast('Lỗi', 'Lỗi khi refresh account: ' + error.message, 'error');
+                        }}
+                    }}
+                );
             }}
             
             async function editAccount(id) {{
@@ -2079,7 +2362,7 @@ async def settings_page(
                     
                     document.getElementById('accountModal').classList.add('show');
                 }} catch (error) {{
-                    alert('❌ Lỗi: ' + error.message);
+                    showToast('Lỗi', 'Lỗi khi tải thông tin account: ' + error.message, 'error');
                 }}
             }}
             
@@ -2151,12 +2434,12 @@ async def settings_page(
                                 }}
                             }}
                             
-                            alert('✅ Đã cập nhật account và prefixes thành công!');
+                            showToast('Thành công', 'Đã cập nhật account và prefixes thành công!', 'success');
                             closeAccountModal();
                             loadAccounts();
                         }} else {{
                             const error = await response.json();
-                            alert('❌ Lỗi: ' + (error.detail || 'Không thể lưu account'));
+                            showToast('Lỗi', error.detail || 'Không thể lưu account', 'error');
                         }}
                     }} else {{
                         // Create new account
@@ -2167,38 +2450,42 @@ async def settings_page(
                         }});
                         
                         if (response.ok) {{
-                            alert('✅ Đã thêm account thành công!');
+                            showToast('Thành công', 'Đã thêm account thành công!', 'success');
                             closeAccountModal();
                             loadAccounts();
                         }} else {{
                             const error = await response.json();
-                            alert('❌ Lỗi: ' + (error.detail || 'Không thể lưu account'));
+                            showToast('Lỗi', error.detail || 'Không thể lưu account', 'error');
                         }}
                     }}
                 }} catch (error) {{
-                    alert('❌ Lỗi: ' + error.message);
+                    showToast('Lỗi', 'Lỗi khi lưu account: ' + error.message, 'error');
                 }}
             }}
             
             async function deleteAccount(id) {{
-                if (!confirm('Bạn có chắc muốn xóa account này? Tất cả các liên kết với prefixes cũng sẽ bị xóa.')) return;
-                
-                try {{
-                    const response = await fetch('/settings/accounts/' + id, {{
-                        method: 'DELETE',
-                        headers: getAuthHeaders()
-                    }});
-                    
-                    if (response.ok || response.status === 204) {{
-                        alert('✅ Đã xóa account thành công!');
-                        loadAccounts();
-                    }} else {{
-                        const error = await response.json();
-                        alert('❌ Lỗi: ' + (error.detail || 'Không thể xóa account'));
+                showConfirm(
+                    'Xác nhận Xóa Account',
+                    'Bạn có chắc muốn xóa account này? Tất cả các liên kết với prefixes cũng sẽ bị xóa.',
+                    async () => {{
+                        try {{
+                            const response = await fetch('/settings/accounts/' + id, {{
+                                method: 'DELETE',
+                                headers: getAuthHeaders()
+                            }});
+                            
+                            if (response.ok || response.status === 204) {{
+                                showToast('Thành công', 'Đã xóa account thành công!', 'success');
+                                loadAccounts();
+                            }} else {{
+                                const error = await response.json();
+                                showToast('Lỗi', error.detail || 'Không thể xóa account', 'error');
+                            }}
+                        }} catch (error) {{
+                            showToast('Lỗi', 'Lỗi khi xóa account: ' + error.message, 'error');
+                        }}
                     }}
-                }} catch (error) {{
-                    alert('❌ Lỗi: ' + error.message);
-                }}
+                );
             }}
             
             // Prefix Modal Functions
@@ -2238,7 +2525,7 @@ async def settings_page(
                     document.getElementById('prefixName').value = prefix.prefix_name || '';
                     document.getElementById('prefixModal').classList.add('show');
                 }} catch (error) {{
-                    alert('❌ Lỗi: ' + error.message);
+                    showToast('Lỗi', 'Lỗi khi tải thông tin prefix: ' + error.message, 'error');
                 }}
             }}
             
@@ -2271,37 +2558,41 @@ async def settings_page(
                     }}
                     
                     if (response.ok) {{
-                        alert('✅ ' + (id ? 'Đã cập nhật' : 'Đã thêm') + ' prefix thành công!');
+                        showToast('Thành công', (id ? 'Đã cập nhật' : 'Đã thêm') + ' prefix thành công!', 'success');
                         closePrefixModal();
                         loadPrefixes();
                     }} else {{
                         const error = await response.json();
-                        alert('❌ Lỗi: ' + (error.detail || 'Không thể lưu prefix'));
+                        showToast('Lỗi', error.detail || 'Không thể lưu prefix', 'error');
                     }}
                 }} catch (error) {{
-                    alert('❌ Lỗi: ' + error.message);
+                    showToast('Lỗi', 'Lỗi khi lưu prefix: ' + error.message, 'error');
                 }}
             }}
             
             async function deletePrefix(id) {{
-                if (!confirm('Bạn có chắc muốn xóa prefix này? Tất cả các liên kết với accounts cũng sẽ bị xóa.')) return;
-                
-                try {{
-                    const response = await fetch('/settings/prefixes/' + id, {{
-                        method: 'DELETE',
-                        headers: getAuthHeaders()
-                    }});
-                    
-                    if (response.ok || response.status === 204) {{
-                        alert('✅ Đã xóa prefix thành công!');
-                        loadPrefixes();
-                    }} else {{
-                        const error = await response.json();
-                        alert('❌ Lỗi: ' + (error.detail || 'Không thể xóa prefix'));
+                showConfirm(
+                    'Xác nhận Xóa Prefix',
+                    'Bạn có chắc muốn xóa prefix này? Tất cả các liên kết với accounts cũng sẽ bị xóa.',
+                    async () => {{
+                        try {{
+                            const response = await fetch('/settings/prefixes/' + id, {{
+                                method: 'DELETE',
+                                headers: getAuthHeaders()
+                            }});
+                            
+                            if (response.ok || response.status === 204) {{
+                                showToast('Thành công', 'Đã xóa prefix thành công!', 'success');
+                                loadPrefixes();
+                            }} else {{
+                                const error = await response.json();
+                                showToast('Lỗi', error.detail || 'Không thể xóa prefix', 'error');
+                            }}
+                        }} catch (error) {{
+                            showToast('Lỗi', 'Lỗi khi xóa prefix: ' + error.message, 'error');
+                        }}
                     }}
-                }} catch (error) {{
-                    alert('❌ Lỗi: ' + error.message);
-                }}
+                );
             }}
             
             // Close modal when clicking outside
