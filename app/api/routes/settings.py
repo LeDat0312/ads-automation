@@ -467,9 +467,9 @@ def update_account(
 
 
 @router.patch("/accounts/{account_id}/type")
-def update_account_type(
+async def update_account_type(
     account_id: int,
-    account_type: str,
+    request: Request,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
@@ -478,6 +478,12 @@ def update_account_type(
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
     try:
+        body = await request.json()
+        account_type = body.get("account_type")
+        
+        if not account_type:
+            raise HTTPException(status_code=400, detail="Missing account_type in request body")
+        
         account = db.query(Account).filter(
             Account.id == account_id,
             Account.user_id == current_user.id
