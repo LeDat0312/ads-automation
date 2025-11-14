@@ -222,15 +222,16 @@ def list_accounts(
     request: Request,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
-    limit: int = 15  # Chỉ lấy 15 accounts được sử dụng gần đây
+    limit: int = 10  # Chỉ lấy 10 accounts hay sử dụng nhất
 ):
     """
-    Lấy danh sách accounts của user
+    Lấy danh sách accounts hay sử dụng của user
     Logic: 
-    - Hiển thị TẤT CẢ accounts của user (có activity hoặc không)
-    - Ưu tiên accounts có activity trong 30 ngày qua
-    - Accounts được thêm thủ công (không có activity) vẫn hiển thị
-    Sắp xếp theo: enabled (bật trước), có activity, activity gần đây, total impressions, last_30_days_spend
+    - Chỉ lấy dữ liệu 7 ngày gần nhất
+    - Kết hợp nhiều tiêu chí: impressions > 0, spend > 0, activity gần đây, accounts thêm thủ công
+    - Ưu tiên accounts có activity trong 7 ngày qua
+    - Accounts được thêm thủ công (không có activity) vẫn hiển thị nhưng ưu tiên thấp hơn
+    Sắp xếp theo: enabled (bật trước), có activity trong 7 ngày, activity gần đây, total impressions, total spend
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
@@ -240,32 +241,38 @@ def list_accounts(
         from datetime import datetime, timedelta
         from app.core.database import AdMetrics
         
-        # Lấy accounts có activity trong 30 ngày gần nhất (có impressions > 0)
-        thirty_days_ago = datetime.now() - timedelta(days=30)
+        # Lấy accounts có activity trong 7 ngày gần nhất
+        seven_days_ago = datetime.now() - timedelta(days=7)
         
-        # Subquery để lấy accounts có activity gần đây và thống kê
+        # Subquery để lấy accounts có activity trong 7 ngày qua với nhiều tiêu chí
+        # Kết hợp: impressions > 0 HOẶC spend > 0
         active_accounts_subq = db.query(
             AdMetrics.account_id,
             func.max(AdMetrics.date).label('last_activity_date'),
-            func.sum(AdMetrics.impressions).label('total_impressions')
+            func.sum(AdMetrics.impressions).label('total_impressions'),
+            func.sum(AdMetrics.spend).label('total_spend')
         ).filter(
-            AdMetrics.date >= thirty_days_ago,
+            AdMetrics.date >= seven_days_ago,
             AdMetrics.account_id.isnot(None),
-            AdMetrics.impressions > 0
+            # Có activity: impressions > 0 HOẶC spend > 0
+            ((AdMetrics.impressions > 0) | (AdMetrics.spend > 0))
         ).group_by(AdMetrics.account_id).having(
-            func.sum(AdMetrics.impressions) > 0
+            # Phải có ít nhất impressions > 0 hoặc spend > 0
+            (func.sum(AdMetrics.impressions) > 0) | (func.sum(AdMetrics.spend) > 0)
         ).subquery()
         
-        # Query chính: lấy TẤT CẢ accounts của user (LEFT JOIN để lấy cả accounts không có activity)
+        # Query chính: lấy accounts của user
+        # Ưu tiên accounts có activity trong 7 ngày, nhưng vẫn hiển thị accounts thêm thủ công
         # Sắp xếp theo:
         # 1. enabled (bật trước, tắt sau)
-        # 2. has_activity (có activity trong 30 ngày qua)
+        # 2. has_activity (có activity trong 7 ngày qua)
         # 3. last_activity_date (activity gần đây nhất)
-        # 4. total_impressions (activity nhiều nhất)
-        # 5. last_30_days_spend (spend cao nhất)
-        # 6. account_name (tên)
+        # 4. total_impressions (impressions nhiều nhất)
+        # 5. total_spend (spend cao nhất)
+        # 6. last_30_days_spend (spend 30 ngày - fallback)
+        # 7. account_name (tên)
         
-        # Tạo case statement để đánh dấu accounts có activity
+        # Tạo case statement để đánh dấu accounts có activity trong 7 ngày
         has_activity_case = case(
             (active_accounts_subq.c.account_id.isnot(None), 1),
             else_=0
@@ -278,10 +285,11 @@ def list_accounts(
             Account.account_id == active_accounts_subq.c.account_id
         ).order_by(
             desc(Account.enabled),  # Enabled accounts trước
-            desc(has_activity_case),  # Accounts có activity trước
+            desc(has_activity_case),  # Accounts có activity trong 7 ngày trước
             desc(active_accounts_subq.c.last_activity_date),  # Activity gần đây nhất
-            desc(active_accounts_subq.c.total_impressions),  # Activity nhiều nhất
-            desc(Account.last_30_days_spend),  # Spend cao nhất
+            desc(active_accounts_subq.c.total_impressions),  # Impressions nhiều nhất
+            desc(active_accounts_subq.c.total_spend),  # Spend trong 7 ngày cao nhất
+            desc(Account.last_30_days_spend),  # Spend 30 ngày (fallback)
             Account.account_name  # Cuối cùng mới sort theo tên
         ).limit(limit)
         
@@ -379,6 +387,12 @@ def _sync_accounts_background(user_id: int, token: str):
                         logger.warning(f"Could not fetch spend for account {fb_acc['account_id']}: {spend_error}")
                     db.add(new_account)
                     synced_count += 1
+                
+                # Thêm delay nhỏ giữa các requests để tránh rate limit của Facebook API
+                # Delay 200ms giữa mỗi account để đảm bảo an toàn
+                if idx < total - 1:  # Không delay sau account cuối cùng
+                    time.sleep(0.2)
+                    
             except Exception as acc_error:
                 logger.error(f"Error syncing account {fb_acc.get('account_id', 'unknown')}: {acc_error}", exc_info=True)
                 continue
@@ -1803,7 +1817,7 @@ async def settings_page(
                 </div>
                 <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
                     <small style="color: #1e40af;">
-                        💡 <strong>Lưu ý:</strong> Hiển thị tất cả tài khoản đã cấu hình (đồng bộ từ Facebook hoặc thêm thủ công). Ưu tiên hiển thị các tài khoản có hoạt động gần đây. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động cho từng tài khoản. Tắt không làm mất tài khoản, chỉ ngừng áp dụng logic tự động.
+                        💡 <strong>Lưu ý:</strong> Hiển thị các tài khoản hay sử dụng (có hoạt động trong 7 ngày qua: impressions > 0 hoặc spend > 0) và các tài khoản được thêm thủ công. Sử dụng toggle bên cạnh trạng thái để bật/tắt áp dụng logic tự động cho từng tài khoản. Tắt không làm mất tài khoản, chỉ ngừng áp dụng logic tự động.
                     </small>
                 </div>
             </div>
