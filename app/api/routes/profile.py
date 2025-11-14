@@ -427,7 +427,12 @@ def profile_page(
             
             function handleAvatarChange(event) {{
                 const file = event.target.files[0];
-                if (!file) return;
+                if (!file) {{
+                    console.log('No file selected');
+                    return;
+                }}
+                
+                console.log('File selected:', file.name, 'Size:', file.size, 'Type:', file.type);
                 
                 if (file.size > 5 * 1024 * 1024) {{
                     showToast('Ảnh không được vượt quá 5MB', 'error');
@@ -437,7 +442,7 @@ def profile_page(
                 const reader = new FileReader();
                 reader.onload = function(e) {{
                     const preview = document.getElementById('avatarPreview');
-                    preview.innerHTML = `<img src="${{e.target.result}}" class="avatar-preview" alt="Avatar">`;
+                    preview.innerHTML = '<img src="' + e.target.result + '" class="avatar-preview" alt="Avatar">';
                 }};
                 reader.readAsDataURL(file);
                 
@@ -445,15 +450,32 @@ def profile_page(
                 const formData = new FormData();
                 formData.append('avatar', file);
                 
+                const token = localStorage.getItem('access_token') || getCookie('access_token');
+                console.log('Uploading avatar with token:', token ? 'Token exists' : 'No token');
+                
                 fetch('/profile/avatar', {{
                     method: 'POST',
                     headers: {{
-                        'Authorization': `Bearer ${{localStorage.getItem('access_token') || getCookie('access_token')}}`
+                        'Authorization': 'Bearer ' + token
                     }},
                     body: formData
                 }})
-                .then(response => response.json())
+                .then(response => {{
+                    console.log('Response status:', response.status, response.statusText);
+                    if (!response.ok) {{
+                        return response.text().then(text => {{
+                            console.error('Error response:', text);
+                            try {{
+                                return JSON.parse(text);
+                            }} catch {{
+                                throw new Error(text || 'Unknown error');
+                            }}
+                        }});
+                    }}
+                    return response.json();
+                }})
                 .then(data => {{
+                    console.log('Response data:', data);
                     if (data.success) {{
                         showToast('Cập nhật ảnh đại diện thành công!');
                         // Reload page to show new avatar
@@ -461,12 +483,12 @@ def profile_page(
                             window.location.reload();
                         }}, 1000);
                     }} else {{
-                        showToast(data.message || 'Lỗi khi cập nhật ảnh', 'error');
+                        showToast(data.message || data.detail || 'Lỗi khi cập nhật ảnh', 'error');
                     }}
                 }})
                 .catch(error => {{
                     console.error('Error uploading avatar:', error);
-                    showToast('Lỗi khi cập nhật ảnh', 'error');
+                    showToast('Lỗi khi cập nhật ảnh: ' + (error.message || 'Unknown error'), 'error');
                 }});
             }}
             
