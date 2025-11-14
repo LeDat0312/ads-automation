@@ -1906,12 +1906,15 @@ async def settings_page(
                         const isChecked = linkedPrefixIds.includes(prefix.id);
                         const prefixName = prefix.prefix_name || '';
                         const prefixNameHtml = prefixName ? '<br><small style="color: #64748b;">' + prefixName + '</small>' : '';
+                        const prefixId = prefix.id;
+                        const prefixValue = prefix.prefix;
+                        const checkedAttr = isChecked ? 'checked' : '';
                         html += `
                             <label style="display: flex; align-items: center; padding: 8px; border-radius: 4px; cursor: pointer; margin-bottom: 4px; background: white; border: 1px solid #e2e8f0;">
-                                <input type="checkbox" value="${{prefix.id}}" ${{isChecked ? 'checked' : ''}} 
+                                <input type="checkbox" value="${{prefixId}}" ${{checkedAttr}} 
                                     style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
                                 <div>
-                                    <strong>${{prefix.prefix}}</strong>
+                                    <strong>${{prefixValue}}</strong>
                                     ${{prefixNameHtml}}
                                 </div>
                             </label>
