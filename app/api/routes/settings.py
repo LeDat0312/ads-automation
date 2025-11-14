@@ -494,29 +494,56 @@ def refresh_account(
             import requests
             from app.services.facebook_token_service import FB_GRAPH_API_BASE
             
-            url = f"{FB_GRAPH_API_BASE}/{account.account_id}"
+            # Normalize account_id: đảm bảo có prefix "act_"
+            account_id_for_api = account.account_id
+            if not account_id_for_api.startswith("act_"):
+                account_id_for_api = f"act_{account_id_for_api}"
+            
+            # Chỉ lấy các field cơ bản và cần thiết (tránh lỗi 400 do field không hợp lệ)
+            url = f"{FB_GRAPH_API_BASE}/{account_id_for_api}"
             params = {
-                "fields": "id,name,account_id,account_status,currency,timezone_name,spend_cap,amount_spent",
+                "fields": "id,name,account_id,account_status,currency,timezone_name",
                 "access_token": token
             }
+            
             response = requests.get(url, params=params, timeout=30)
-            response.raise_for_status()
+            
+            # Parse error response từ Facebook API
+            if response.status_code != 200:
+                try:
+                    error_data = response.json()
+                    if 'error' in error_data:
+                        error_info = error_data['error']
+                        error_message = error_info.get('message', 'Unknown error')
+                        error_code = error_info.get('code', 0)
+                        error_type = error_info.get('type', 'Unknown')
+                        raise Exception(f"Facebook API error ({error_type}, Code {error_code}): {error_message}")
+                    else:
+                        raise Exception(f"HTTP {response.status_code}: {response.text[:200]}")
+                except ValueError:
+                    # Nếu không parse được JSON
+                    raise Exception(f"HTTP {response.status_code}: {response.text[:200]}")
             
             data = response.json()
             if 'error' in data:
-                raise Exception(f"Facebook API error: {data['error']['message']}")
+                error_info = data['error']
+                error_message = error_info.get('message', 'Unknown error')
+                error_code = error_info.get('code', 0)
+                error_type = error_info.get('type', 'Unknown')
+                raise Exception(f"Facebook API error ({error_type}, Code {error_code}): {error_message}")
             
             # Update account info
             account.account_name = data.get('name', account.account_name)
             account.status = "ACTIVE" if data.get('account_status', 1) == 1 else "PAUSED"
             account.timezone = data.get('timezone_name', account.timezone)
-            account.currency = data.get('currency', account.currency)
+            account.currency = data.get('currency', account.currency or 'USD')
             account.updated_at = datetime.now()
             
             # Try to get 30 days spend
             try:
                 from app.services.facebook_token_service import fetch_account_30_days_spend
-                account.last_30_days_spend = fetch_account_30_days_spend(token, data.get('id', account.account_id))
+                # Dùng account_id đã normalize
+                account.last_30_days_spend = fetch_account_30_days_spend(token, account_id_for_api)
             except Exception as spend_error:
                 logger.warning(f"Could not fetch spend for account {account.account_id}: {spend_error}")
             
@@ -527,9 +554,16 @@ def refresh_account(
                 "message": "Đã cập nhật thông tin account thành công",
                 "account": account
             }
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error refreshing account from Facebook: {e}", exc_info=True)
-            raise HTTPException(status_code=400, detail=f"Lỗi khi lấy thông tin từ Facebook: {str(e)}")
+            error_msg = str(e)
+            # Nếu là lỗi từ Facebook API, giữ nguyên message
+            if "Facebook API error" in error_msg or "HTTP" in error_msg:
+                raise HTTPException(status_code=400, detail=f"Lỗi khi lấy thông tin từ Facebook: {error_msg}")
+            else:
+                raise HTTPException(status_code=400, detail=f"Lỗi khi lấy thông tin từ Facebook: {error_msg}")
     except HTTPException:
         raise
     except Exception as e:
