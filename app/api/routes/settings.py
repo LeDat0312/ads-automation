@@ -2023,7 +2023,8 @@ async def settings_page(
                                 .map(cb => parseInt(cb.value));
                             
                             // Get current linked prefixes
-                            const currentResponse = await fetch(`/settings/accounts/${{id}}/prefixes`, {{
+                            const accountId = ${{id}};
+                            const currentResponse = await fetch('/settings/accounts/' + accountId + '/prefixes', {{
                                 headers: getAuthHeaders()
                             }});
                             let currentPrefixIds = [];
@@ -2036,7 +2037,7 @@ async def settings_page(
                             for (const prefixId of selectedPrefixIds) {{
                                 if (!currentPrefixIds.includes(prefixId)) {{
                                     try {{
-                                        await fetch(`/settings/accounts/${{id}}/prefixes/${{prefixId}}`, {{
+                                        await fetch('/settings/accounts/' + accountId + '/prefixes/' + prefixId, {{
                                             method: 'POST',
                                             headers: getAuthHeaders()
                                         }});
@@ -2050,7 +2051,7 @@ async def settings_page(
                             for (const prefixId of currentPrefixIds) {{
                                 if (!selectedPrefixIds.includes(prefixId)) {{
                                     try {{
-                                        await fetch(`/settings/accounts/${{id}}/prefixes/${{prefixId}}`, {{
+                                        await fetch('/settings/accounts/' + accountId + '/prefixes/' + prefixId, {{
                                             method: 'DELETE',
                                             headers: getAuthHeaders()
                                         }});
