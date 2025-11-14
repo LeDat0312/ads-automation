@@ -1434,7 +1434,9 @@ async def settings_page(
                     if (!response.ok) {{
                         const errorText = await response.text();
                         console.error('Error response:', errorText);
-                        throw new Error(`HTTP ${{response.status}}: ${{errorText.substring(0, 100)}}`);
+                        const statusCode = response.status;
+                        const errorMsg = errorText.substring(0, 100);
+                        throw new Error('HTTP ' + statusCode + ': ' + errorMsg);
                     }}
                     
                     const data = await response.json();
@@ -1460,7 +1462,7 @@ async def settings_page(
                             'NOT_CHECKED': {{ class: 'not-set', text: '⏳ Chưa kiểm tra token' }}
                         }};
                         const statusInfo = statusMap[data.status] || statusMap['NOT_CHECKED'];
-                        statusDiv.className = `token-status ${{statusInfo.class}}`;
+                        statusDiv.className = 'token-status ' + statusInfo.class;
                         statusDiv.textContent = statusInfo.text;
                         if (data.last_checked) {{
                             // Format theo timezone Hồ Chí Minh (UTC+7)
@@ -1476,7 +1478,7 @@ async def settings_page(
                                 second: '2-digit',
                                 hour12: false
                             }});
-                            statusDiv.textContent += ` (Kiểm tra lần cuối: ${{formatted}})`;
+                            statusDiv.textContent += ' (Kiểm tra lần cuối: ' + formatted + ')';
                         }}
                         
                         // Show token info (masked)
@@ -1487,11 +1489,11 @@ async def settings_page(
                     }}
                 }} catch (error) {{
                     console.error('Error loading token status:', error);
-                    document.getElementById('tokenStatus').innerHTML = `
-                        <div class="token-status invalid">
-                            ❌ Lỗi khi tải trạng thái token: ${{error.message}}
-                        </div>
-                    `;
+                    const errorMsg = error.message;
+                    document.getElementById('tokenStatus').innerHTML = 
+                        '<div class="token-status invalid">' +
+                        '❌ Lỗi khi tải trạng thái token: ' + errorMsg +
+                        '</div>';
                 }}
             }}
             
@@ -1590,35 +1592,37 @@ async def settings_page(
                     const data = await response.json();
                     
                     if (data.valid) {{
-                        resultDiv.innerHTML = `
-                            <div class="token-status valid">
-                                <strong>✅ Token hợp lệ!</strong><br>
-                                <div style="margin-top: 8px;">
-                                    <strong>Thông tin:</strong> ${{data.user_info.name || data.user_info.id}}<br>
-                                    <strong>Quyền:</strong> ${{data.permissions.join(', ') || 'N/A'}}<br>
-                                    <strong>Trạng thái:</strong> ${{data.message}}
-                                </div>
-                            </div>
-                        `;
+                        const userName = data.user_info.name || data.user_info.id;
+                        const permissions = data.permissions.join(', ') || 'N/A';
+                        const dataMessage = data.message;
+                        resultDiv.innerHTML = 
+                            '<div class="token-status valid">' +
+                            '<strong>✅ Token hợp lệ!</strong><br>' +
+                            '<div style="margin-top: 8px;">' +
+                            '<strong>Thông tin:</strong> ' + userName + '<br>' +
+                            '<strong>Quyền:</strong> ' + permissions + '<br>' +
+                            '<strong>Trạng thái:</strong> ' + dataMessage +
+                            '</div>' +
+                            '</div>';
                     }} else {{
-                        resultDiv.innerHTML = `
-                            <div class="token-status invalid">
-                                <strong>❌ Token không hợp lệ!</strong><br>
-                                <div style="margin-top: 8px;">
-                                    <strong>Lỗi:</strong> ${{data.message}}
-                                </div>
-                            </div>
-                        `;
+                        const errorMsg = data.message;
+                        resultDiv.innerHTML = 
+                            '<div class="token-status invalid">' +
+                            '<strong>❌ Token không hợp lệ!</strong><br>' +
+                            '<div style="margin-top: 8px;">' +
+                            '<strong>Lỗi:</strong> ' + errorMsg +
+                            '</div>' +
+                            '</div>';
                     }}
                     
                     loadTokenStatus();
                 }} catch (error) {{
-                    resultDiv.innerHTML = `
-                        <div class="token-status invalid">
-                            <strong>❌ Lỗi khi kiểm tra token:</strong><br>
-                            ${{error.message}}
-                        </div>
-                    `;
+                    const errorMsg = error.message;
+                    resultDiv.innerHTML = 
+                        '<div class="token-status invalid">' +
+                        '<strong>❌ Lỗi khi kiểm tra token:</strong><br>' +
+                        errorMsg +
+                        '</div>';
                 }}
             }}
             
@@ -1633,13 +1637,15 @@ async def settings_page(
                         const errorText = await response.text();
                         console.error('Error response:', errorText);
                         // Try to parse as JSON for error detail
-                        let errorMessage = `HTTP ${{response.status}}: Internal Server Error`;
+                        const statusCode = response.status;
+                        let errorMessage = 'HTTP ' + statusCode + ': Internal Server Error';
                         try {{
                             const errorJson = JSON.parse(errorText);
                             errorMessage = errorJson.detail || errorJson.message || errorMessage;
                         }} catch {{
                             // If not JSON, use first 200 chars of error text
-                            errorMessage = `HTTP ${{response.status}}: ${{errorText.substring(0, 200)}}`;
+                            const errorSubstr = errorText.substring(0, 200);
+                            errorMessage = 'HTTP ' + statusCode + ': ' + errorSubstr;
                         }}
                         throw new Error(errorMessage);
                     }}
@@ -1688,14 +1694,16 @@ async def settings_page(
                         let spendDisplay = '';
                         if (currency === 'VND') {{
                             // Chỉ hiển thị VND
-                            spendDisplay = `${{Math.round(spend).toLocaleString('vi-VN')}} ₫`;
-                        }                        } else {{
+                            const vndAmount = Math.round(spend);
+                            spendDisplay = vndAmount.toLocaleString('vi-VN') + ' ₫';
+                        }} else {{
                             // USD: hiển thị USD trên, VND dưới
                             // Tỷ giá USD/VND cố định: 26,350
                             const USD_TO_VND_RATE = 26350;
                             const usdAmount = spend.toFixed(2);
                             const vndAmount = Math.round(spend * USD_TO_VND_RATE);
-                            spendDisplay = `${{usdAmount}} US$<br><small style="color: #64748b;">(${{vndAmount.toLocaleString('vi-VN')}} ₫)</small>`;
+                            const vndFormatted = vndAmount.toLocaleString('vi-VN');
+                            spendDisplay = usdAmount + ' US$<br><small style="color: #64748b;">(' + vndFormatted + ' ₫)</small>';
                         }}
                         
                         // Format timezone với GMT offset
@@ -1708,10 +1716,10 @@ async def settings_page(
                             const localTime = new Date(now.toLocaleString('en-US', {{ timeZone: timezone }}));
                             const offsetMs = localTime - utcTime;
                             const offsetHours = Math.round(offsetMs / (1000 * 60 * 60));
-                            const offsetStr = offsetHours >= 0 ? 
-                                `+${{offsetHours.toString().padStart(2, '0')}}:00` : 
-                                `-${{Math.abs(offsetHours).toString().padStart(2, '0')}}:00`;
-                            timezoneDisplay = `${{timezone}} (GMT ${{offsetStr}})`;
+                            const offsetHoursStr = offsetHours >= 0 ? 
+                                '+' + offsetHours.toString().padStart(2, '0') + ':00' : 
+                                '-' + Math.abs(offsetHours).toString().padStart(2, '0') + ':00';
+                            timezoneDisplay = timezone + ' (GMT ' + offsetHoursStr + ')';
                         }} catch (e) {{
                             // Nếu không parse được, dùng timezone gốc
                             timezoneDisplay = timezone;
@@ -1742,9 +1750,9 @@ async def settings_page(
                     html += '</tbody></table>';
                     tableDiv.innerHTML = html;
                 }} catch (error) {{
-                    document.getElementById('accountsTable').innerHTML = `
-                        <div class="token-status invalid">Lỗi khi tải accounts: ${{error.message}}</div>
-                    `;
+                    const errorMsg = error.message;
+                    document.getElementById('accountsTable').innerHTML = 
+                        '<div class="token-status invalid">Lỗi khi tải accounts: ' + errorMsg + '</div>';
                 }}
             }}
             
@@ -1764,19 +1772,21 @@ async def settings_page(
                         const errorText = await response.text();
                         console.error('Error response:', errorText);
                         // Try to parse as JSON for error detail
-                        let errorMessage = `HTTP ${{response.status}}: Internal Server Error`;
+                        const statusCode = response.status;
+                        let errorMessage = 'HTTP ' + statusCode + ': Internal Server Error';
                         try {{
                             const errorJson = JSON.parse(errorText);
                             errorMessage = errorJson.detail || errorJson.message || errorMessage;
                         }} catch {{
                             // If not JSON, use first 200 chars of error text
-                            errorMessage = `HTTP ${{response.status}}: ${{errorText.substring(0, 200)}}`;
+                            const errorSubstr = errorText.substring(0, 200);
+                            errorMessage = 'HTTP ' + statusCode + ': ' + errorSubstr;
                         }}
                         throw new Error(errorMessage);
                     }}
                     
                     const data = await response.json();
-                    alert(`✅ ${{data.message}}`);
+                    alert('✅ ' + data.message);
                     loadAccounts();
                 }} catch (error) {{
                     alert('❌ Lỗi: ' + error.message);
@@ -1794,13 +1804,15 @@ async def settings_page(
                         const errorText = await response.text();
                         console.error('Error response:', errorText);
                         // Try to parse as JSON for error detail
-                        let errorMessage = `HTTP ${{response.status}}: Internal Server Error`;
+                        const statusCode = response.status;
+                        let errorMessage = 'HTTP ' + statusCode + ': Internal Server Error';
                         try {{
                             const errorJson = JSON.parse(errorText);
                             errorMessage = errorJson.detail || errorJson.message || errorMessage;
                         }} catch {{
                             // If not JSON, use first 200 chars of error text
-                            errorMessage = `HTTP ${{response.status}}: ${{errorText.substring(0, 200)}}`;
+                            const errorSubstr = errorText.substring(0, 200);
+                            errorMessage = 'HTTP ' + statusCode + ': ' + errorSubstr;
                         }}
                         throw new Error(errorMessage);
                     }}
