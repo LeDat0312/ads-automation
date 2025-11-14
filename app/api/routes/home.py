@@ -202,12 +202,6 @@ async def home_page(
                     <span style="font-size: 14px; color: #64748b; margin-top: 8px;">Quản lý token Facebook, accounts và prefixes</span>
                 </a>
                 
-                <a href="/profile" class="nav-button">
-                    <span class="icon">👤</span>
-                    <span class="text">Thông Tin Tài Khoản</span>
-                    <span style="font-size: 14px; color: #64748b; margin-top: 8px;">Xem và chỉnh sửa thông tin cá nhân</span>
-                </a>
-                
                 {f'<a href="/admin/users" class="nav-button"><span class="icon">👥</span><span class="text">Quản Lý Người Dùng</span><span style="font-size: 14px; color: #64748b; margin-top: 8px;">Quản lý tài khoản người dùng (Admin)</span></a>' if current_user and current_user.role == 'admin' else ''}
                 
                 <a href="/api/dashboard/" class="nav-button">
