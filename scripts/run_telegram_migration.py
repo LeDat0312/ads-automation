@@ -43,23 +43,21 @@ def run_migration():
         
         print(f"📝 Đang chạy migration script...")
         
-        # Execute migration
+        # Execute migration - chạy toàn bộ SQL file như một block
         with engine.connect() as conn:
-            # Execute each statement separately
-            statements = sql_content.split(';')
-            for statement in statements:
-                statement = statement.strip()
-                if statement and not statement.startswith('--'):
-                    try:
-                        conn.execute(text(statement))
-                        conn.commit()
-                    except Exception as e:
-                        # Ignore "already exists" errors
-                        if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
-                            print(f"   ⚠️  {statement[:50]}... (đã tồn tại, bỏ qua)")
-                        else:
-                            print(f"   ⚠️  Lỗi: {e}")
-                            # Continue anyway
+            try:
+                # Execute toàn bộ SQL content như một block
+                conn.execute(text(sql_content))
+                conn.commit()
+                print("   ✅ Migration SQL đã được chạy thành công")
+            except Exception as e:
+                # Ignore "already exists" errors
+                error_msg = str(e).lower()
+                if "already exists" in error_msg or "duplicate" in error_msg:
+                    print(f"   ⚠️  Một số cột đã tồn tại (bỏ qua)")
+                else:
+                    print(f"   ⚠️  Lỗi: {e}")
+                    # Vẫn tiếp tục để kiểm tra kết quả
         
         print("✅ Migration completed successfully!")
         
