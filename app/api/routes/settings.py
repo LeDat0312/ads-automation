@@ -2006,28 +2006,81 @@ async def settings_page(
                 try {{
                     let response;
                     if (id) {{
-                        // Update
+                        // Update account
                         response = await fetch(`/settings/accounts/${{id}}`, {{
                             method: 'PUT',
                             headers: getAuthHeaders('application/json'),
                             body: JSON.stringify(accountData)
                         }});
+                        
+                        if (response.ok) {{
+                            // Update Account-Prefix links
+                            const checkboxes = document.querySelectorAll('#accountPrefixesList input[type="checkbox"]');
+                            const selectedPrefixIds = Array.from(checkboxes)
+                                .filter(cb => cb.checked)
+                                .map(cb => parseInt(cb.value));
+                            
+                            // Get current linked prefixes
+                            const currentResponse = await fetch(`/settings/accounts/${{id}}/prefixes`, {{
+                                headers: getAuthHeaders()
+                            }});
+                            let currentPrefixIds = [];
+                            if (currentResponse.ok) {{
+                                const currentPrefixes = await currentResponse.json();
+                                currentPrefixIds = currentPrefixes.map(p => p.id);
+                            }}
+                            
+                            // Add new links
+                            for (const prefixId of selectedPrefixIds) {{
+                                if (!currentPrefixIds.includes(prefixId)) {{
+                                    try {{
+                                        await fetch(`/settings/accounts/${{id}}/prefixes/${{prefixId}}`, {{
+                                            method: 'POST',
+                                            headers: getAuthHeaders()
+                                        }});
+                                    }} catch (e) {{
+                                        console.error('Error linking prefix:', e);
+                                    }}
+                                }}
+                            }}
+                            
+                            // Remove unselected links
+                            for (const prefixId of currentPrefixIds) {{
+                                if (!selectedPrefixIds.includes(prefixId)) {{
+                                    try {{
+                                        await fetch(`/settings/accounts/${{id}}/prefixes/${{prefixId}}`, {{
+                                            method: 'DELETE',
+                                            headers: getAuthHeaders()
+                                        }});
+                                    }} catch (e) {{
+                                        console.error('Error unlinking prefix:', e);
+                                    }}
+                                }}
+                            }}
+                            
+                            alert('✅ Đã cập nhật account và prefixes thành công!');
+                            closeAccountModal();
+                            loadAccounts();
+                        }} else {{
+                            const error = await response.json();
+                            alert('❌ Lỗi: ' + (error.detail || 'Không thể lưu account'));
+                        }}
                     }} else {{
-                        // Create
+                        // Create new account
                         response = await fetch('/settings/accounts', {{
                             method: 'POST',
                             headers: getAuthHeaders('application/json'),
                             body: JSON.stringify(accountData)
                         }});
-                    }}
-                    
-                    if (response.ok) {{
-                        alert('✅ ' + (id ? 'Đã cập nhật' : 'Đã thêm') + ' account thành công!');
-                        closeAccountModal();
-                        loadAccounts();
-                    }} else {{
-                        const error = await response.json();
-                        alert('❌ Lỗi: ' + (error.detail || 'Không thể lưu account'));
+                        
+                        if (response.ok) {{
+                            alert('✅ Đã thêm account thành công!');
+                            closeAccountModal();
+                            loadAccounts();
+                        }} else {{
+                            const error = await response.json();
+                            alert('❌ Lỗi: ' + (error.detail || 'Không thể lưu account'));
+                        }}
                     }}
                 }} catch (error) {{
                     alert('❌ Lỗi: ' + error.message);
