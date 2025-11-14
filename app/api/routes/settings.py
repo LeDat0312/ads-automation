@@ -384,62 +384,24 @@ def list_accounts(
     request: Request,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
-    limit: int = 10  # Chỉ lấy 10 accounts hay sử dụng nhất
+    limit: int = 100  # Tăng limit để hiển thị tất cả accounts
 ):
     """
-    Lấy danh sách accounts hay sử dụng của user
-    Logic: 
-    - Chỉ hiển thị accounts có activity từ token owner hoặc BM trong 7 ngày qua
-    - Activity được xác định từ Facebook Activity Log API
-    - Không cần hiển thị đủ 10 accounts, chỉ hiển thị những accounts có activity
-    - Accounts được thêm thủ công mặc định enabled=False (không áp dụng logic tự động)
+    Lấy danh sách accounts của user từ database
+    KHÔNG gọi Facebook API để tránh chậm khi load page
+    Chỉ đọc từ database - nhanh và hiệu quả
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
     try:
-        # Lấy token owner name từ user settings
-        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
-        token_owner_name = None
-        token = None
-        
-        if user_settings and user_settings.facebook_token_encrypted:
-            try:
-                token = decrypt_token(user_settings.facebook_token_encrypted)
-                token_owner_name = user_settings.token_owner_name
-            except Exception as e:
-                logger.warning(f"Could not decrypt token for user {current_user.id}: {e}")
-        
-        # Lấy tất cả accounts của user
-        all_accounts = db.query(Account).filter(
+        # Lấy tất cả accounts của user từ database
+        accounts = db.query(Account).filter(
             Account.user_id == current_user.id
         ).all()
         
-        # Filter accounts có activity từ token owner hoặc BM trong 7 ngày qua
-        accounts_with_activity = []
-        
-        if token and token_owner_name:
-            for account in all_accounts:
-                try:
-                    has_activity = check_account_has_activity_from_token_owner_or_bm(
-                        token,
-                        account.account_id,
-                        token_owner_name,
-                        days=7
-                    )
-                    if has_activity:
-                        accounts_with_activity.append(account)
-                except Exception as e:
-                    logger.warning(f"Error checking activity for account {account.account_id}: {e}")
-                    # Nếu có lỗi, vẫn thêm account vào để không bỏ sót
-                    accounts_with_activity.append(account)
-        else:
-            # Nếu không có token hoặc token owner name, hiển thị tất cả accounts
-            # (fallback để không làm mất accounts)
-            accounts_with_activity = all_accounts
-        
         # Sắp xếp: enabled trước, sau đó theo last_30_days_spend, cuối cùng theo tên
-        accounts_with_activity.sort(
+        accounts.sort(
             key=lambda x: (
                 not x.enabled,  # enabled=True trước
                 -(x.last_30_days_spend or 0),  # spend cao trước
@@ -447,8 +409,8 @@ def list_accounts(
             )
         )
         
-        # Giới hạn số lượng (nhưng không bắt buộc phải đủ limit)
-        return accounts_with_activity[:limit]
+        # Trả về tất cả accounts (không giới hạn để user thấy hết)
+        return accounts
         
     except Exception as e:
         logger.error(f"Error listing accounts: {e}", exc_info=True)
@@ -3495,56 +3457,35 @@ async def settings_page(
                 console.log('Accounts table element:', document.getElementById('accountsTable'));
                 console.log('Prefixes table element:', document.getElementById('prefixesTable'));
                 
-                try {{
-                    console.log('📡 Loading token status...');
-                    await loadTokenStatus();
-                    console.log('✅ Token status loaded');
-                }} catch (error) {{
-                    console.error('❌ Error loading token status:', error);
-                    const statusDiv = document.getElementById('tokenStatus');
-                    if (statusDiv) {{
-                        statusDiv.innerHTML = '<div class="token-status invalid">❌ Lỗi khi tải trạng thái token: ' + error.message + '</div>';
-                    }} else {{
-                        console.error('❌ tokenStatus element not found!');
-                    }}
-                }}
-                
-                try {{
-                    console.log('📡 Loading accounts...');
-                    await loadAccounts();
-                    console.log('✅ Accounts loaded');
-                }} catch (error) {{
-                    console.error('❌ Error loading accounts:', error);
-                    const tableDiv = document.getElementById('accountsTable');
-                    if (tableDiv) {{
-                        tableDiv.innerHTML = '<div class="token-status invalid">Lỗi khi tải accounts: ' + error.message + '</div>';
-                    }} else {{
-                        console.error('❌ accountsTable element not found!');
-                    }}
-                }}
-                
-                try {{
-                    console.log('📡 Loading prefixes...');
-                    await loadPrefixes();
-                    console.log('✅ Prefixes loaded');
-                }} catch (error) {{
-                    console.error('❌ Error loading prefixes:', error);
-                    const tableDiv = document.getElementById('prefixesTable');
-                    if (tableDiv) {{
-                        tableDiv.innerHTML = '<div class="token-status invalid">Lỗi khi tải prefixes: ' + error.message + '</div>';
-                    }} else {{
-                        console.error('❌ prefixesTable element not found!');
-                    }}
-                }}
-                
-                // Load Telegram Bot status
-                try {{
-                    console.log('📱 Loading Telegram Bot status...');
-                    await loadTelegramStatus();
-                    console.log('✅ Telegram Bot status loaded');
-                }} catch (error) {{
-                    console.error('❌ Error loading Telegram Bot status:', error);
-                }}
+                // Load tất cả dữ liệu song song để tăng tốc độ
+                console.log('📡 Loading all data in parallel...');
+                await Promise.all([
+                    loadTokenStatus().catch(error => {{
+                        console.error('❌ Error loading token status:', error);
+                        const statusDiv = document.getElementById('tokenStatus');
+                        if (statusDiv) {{
+                            statusDiv.innerHTML = '<div class="token-status invalid">❌ Lỗi khi tải trạng thái token: ' + error.message + '</div>';
+                        }}
+                    }}),
+                    loadAccounts().catch(error => {{
+                        console.error('❌ Error loading accounts:', error);
+                        const tableDiv = document.getElementById('accountsTable');
+                        if (tableDiv) {{
+                            tableDiv.innerHTML = '<div class="token-status invalid">Lỗi khi tải accounts: ' + error.message + '</div>';
+                        }}
+                    }}),
+                    loadPrefixes().catch(error => {{
+                        console.error('❌ Error loading prefixes:', error);
+                        const tableDiv = document.getElementById('prefixesTable');
+                        if (tableDiv) {{
+                            tableDiv.innerHTML = '<div class="token-status invalid">Lỗi khi tải prefixes: ' + error.message + '</div>';
+                        }}
+                    }}),
+                    loadTelegramStatus().catch(error => {{
+                        console.error('❌ Error loading Telegram Bot status:', error);
+                    }})
+                ]);
+                console.log('✅ All data loaded');
                 
                 console.log('✅ Page initialization complete');
             }}
