@@ -74,8 +74,8 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
         .user-menu-trigger {{
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 8px 16px;
+            gap: 8px;
+            padding: 6px 12px;
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
@@ -84,6 +84,7 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
             cursor: pointer;
             transition: all 0.3s ease;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            max-width: 200px;
         }}
         
         .user-menu-trigger:hover {{
@@ -124,6 +125,10 @@ def get_user_dropdown_menu(current_user: Optional[User]) -> str:
             font-weight: 500;
             color: #1e293b;
             font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
         }}
         
         .dropdown-arrow {{

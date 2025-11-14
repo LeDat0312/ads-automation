@@ -82,6 +82,14 @@ async def home_page(
                 z-index: 0;
             }}
             
+            /* User menu positioning for home page */
+            body > .user-menu-container {{
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 1000;
+            }}
+            
             .home-container {{
                 max-width: 1200px;
                 margin: 0 auto;
@@ -204,7 +212,7 @@ async def home_page(
                 
                 {f'<a href="/admin/users" class="nav-button"><span class="icon">👥</span><span class="text">Quản Lý Người Dùng</span><span style="font-size: 14px; color: #64748b; margin-top: 8px;">Quản lý tài khoản người dùng (Admin)</span></a>' if current_user and current_user.role == 'admin' else ''}
                 
-                <a href="/api/dashboard/" class="nav-button">
+                <a href="/dashboard/" class="nav-button">
                     <span class="icon">📊</span>
                     <span class="text">Dashboard</span>
                     <span style="font-size: 14px; color: #64748b; margin-top: 8px;">Xem tổng quan hiệu suất và thống kê quảng cáo</span>
