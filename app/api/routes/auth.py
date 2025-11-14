@@ -25,14 +25,27 @@ security = HTTPBearer(auto_error=False)
 
 
 def get_current_user_optional(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
-    """Get current user from token (optional, returns None if not authenticated)"""
-    if not credentials:
-        return None
-    try:
+    """Get current user from token (optional, returns None if not authenticated)
+    Checks both Bearer token in Authorization header and access_token cookie
+    """
+    token = None
+    
+    # Try Bearer token first
+    if credentials:
         token = credentials.credentials
+    
+    # Try cookie if no Bearer token
+    if not token:
+        token = request.cookies.get('access_token')
+    
+    if not token:
+        return None
+    
+    try:
         return get_current_user(db, token)
     except:
         return None

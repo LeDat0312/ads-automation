@@ -198,10 +198,10 @@ async def home_page(
                     <span style="font-size: 14px; color: #64748b; margin-top: 8px;">Xem và quản lý tất cả các automation rules</span>
                 </a>
                 
-                <a href="/settings/accounts" class="nav-button">
-                    <span class="icon">👥</span>
-                    <span class="text">Quản Lý Accounts</span>
-                    <span style="font-size: 14px; color: #64748b; margin-top: 8px;">Quản lý Facebook Ad Accounts và cấu hình</span>
+                <a href="/settings" class="nav-button">
+                    <span class="icon">⚙️</span>
+                    <span class="text">Cài Đặt</span>
+                    <span style="font-size: 14px; color: #64748b; margin-top: 8px;">Quản lý token Facebook, accounts và prefixes</span>
                 </a>
                 
                 <a href="/api/dashboard/" class="nav-button">

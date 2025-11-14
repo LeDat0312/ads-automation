@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Security utilities for authentication
+Security utilities for authentication and encryption
 """
 import hashlib
+import base64
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 import bcrypt
+from cryptography.fernet import Fernet
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.core.config import get_settings
@@ -16,6 +18,14 @@ settings = get_settings()
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
+
+# Encryption key for Facebook tokens (derived from SECRET_KEY)
+def _get_encryption_key() -> bytes:
+    """Generate encryption key from SECRET_KEY"""
+    # Use first 32 bytes of SECRET_KEY hash as key
+    key_hash = hashlib.sha256(SECRET_KEY.encode()).digest()
+    # Fernet requires base64-encoded 32-byte key
+    return base64.urlsafe_b64encode(key_hash)
 
 
 def _prehash_password(password: str) -> bytes:
@@ -111,3 +121,25 @@ def get_current_user(db: Session, token: str) -> Optional[User]:
     
     user = db.query(User).filter(User.username == username).first()
     return user
+
+
+def encrypt_token(token: str) -> str:
+    """Encrypt Facebook token for secure storage"""
+    try:
+        key = _get_encryption_key()
+        fernet = Fernet(key)
+        encrypted = fernet.encrypt(token.encode())
+        return encrypted.decode()
+    except Exception as e:
+        raise ValueError(f"Error encrypting token: {e}")
+
+
+def decrypt_token(encrypted_token: str) -> str:
+    """Decrypt Facebook token"""
+    try:
+        key = _get_encryption_key()
+        fernet = Fernet(key)
+        decrypted = fernet.decrypt(encrypted_token.encode())
+        return decrypted.decode()
+    except Exception as e:
+        raise ValueError(f"Error decrypting token: {e}")

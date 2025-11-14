@@ -130,9 +130,10 @@ def init_db():
     from app.models.telegram_update import TelegramUpdate
     from app.models.job import Job
     from app.models.logic_rule import LogicRule
-    from app.models.account_prefix import Account, Prefix  # Import models mới
+    from app.models.account_prefix import Account, Prefix, AccountPrefix  # Import models mới
     from app.models.logic_7days_config import Logic7DaysConfig  # Import model config logic 7 ngày
     from app.models.user import User  # User model for authentication
+    from app.models.user_settings import UserSettings  # User settings for Facebook token
     
     settings = get_settings()
     database_url = settings.DATABASE_URL

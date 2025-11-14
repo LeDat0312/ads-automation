@@ -13,7 +13,7 @@ from app.services.automation import run_automation, test_run_automation
 from app.services.telegram_bot import send_telegram_message_safe
 from app.services.webhook_setup import setup_webhook
 from app.api.routes import dashboard, templates, templates_ui, rules, rules_ui, rules_ui_v2, telegram, accounts_prefixes
-from app.api.routes import logic_7days_config, rules_ui_birch, auth, home
+from app.api.routes import logic_7days_config, rules_ui_birch, auth, home, settings
 from fastapi.staticfiles import StaticFiles
 import os
 
@@ -39,6 +39,7 @@ if os.path.exists(static_dir):
 # Include routes - Auth và Home phải được include trước
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(home.router)  # Home page - phải include trước để handle "/"
+app.include_router(settings.router)  # Settings page - quản lý token, accounts, prefixes
 app.include_router(dashboard.router)
 app.include_router(templates.router)
 app.include_router(templates_ui.router)
