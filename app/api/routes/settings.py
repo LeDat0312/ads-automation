@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
+import logging
 
 from app.core.database import get_db
 from app.models.user import User
@@ -18,6 +19,7 @@ from app.services.facebook_token_service import test_facebook_token, fetch_faceb
 from app.api.routes.auth import get_current_user_optional
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+logger = logging.getLogger(__name__)
 
 
 # Schemas
@@ -215,8 +217,12 @@ def list_accounts(
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
-    accounts = db.query(Account).filter(Account.user_id == current_user.id).order_by(Account.account_name).all()
-    return accounts
+    try:
+        accounts = db.query(Account).filter(Account.user_id == current_user.id).order_by(Account.account_name).all()
+        return accounts
+    except Exception as e:
+        logger.error(f"Error listing accounts: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi lấy danh sách accounts: {str(e)}")
 
 
 @router.post("/accounts/sync")
@@ -229,71 +235,83 @@ def sync_accounts(
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
-    # Get token
-    user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
-    if not user_settings or not user_settings.facebook_token_encrypted:
-        raise HTTPException(status_code=404, detail="Chưa có token. Vui lòng lưu token trước.")
-    
     try:
-        token = decrypt_token(user_settings.facebook_token_encrypted)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Lỗi giải mã token: {str(e)}")
-    
-    # Fetch accounts from Facebook
-    try:
-        fb_accounts = fetch_facebook_ad_accounts(token)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Lỗi khi lấy accounts từ Facebook: {str(e)}")
-    
-    # Sync to database
-    synced_count = 0
-    updated_count = 0
-    
-    for fb_acc in fb_accounts:
-        # Check if account exists
-        existing = db.query(Account).filter(
-            Account.user_id == current_user.id,
-            Account.account_id == fb_acc["account_id"]
-        ).first()
+        # Get token
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=404, detail="Chưa có token. Vui lòng lưu token trước.")
         
-        if existing:
-            # Update existing
-            existing.account_name = fb_acc["name"]
-            existing.status = "ACTIVE" if fb_acc["account_status"] == 1 else "PAUSED"
-            existing.timezone = fb_acc["timezone_name"]
-            # Try to get 30 days spend
+        try:
+            token = decrypt_token(user_settings.facebook_token_encrypted)
+        except Exception as e:
+            logger.error(f"Error decrypting token: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail=f"Lỗi giải mã token: {str(e)}")
+        
+        # Fetch accounts from Facebook
+        try:
+            fb_accounts = fetch_facebook_ad_accounts(token)
+        except Exception as e:
+            logger.error(f"Error fetching accounts from Facebook: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail=f"Lỗi khi lấy accounts từ Facebook: {str(e)}")
+        
+        # Sync to database
+        synced_count = 0
+        updated_count = 0
+        
+        for fb_acc in fb_accounts:
             try:
-                existing.last_30_days_spend = fetch_account_30_days_spend(token, fb_acc["id"])
-            except:
-                pass
-            updated_count += 1
-        else:
-            # Create new
-            new_account = Account(
-                user_id=current_user.id,
-                account_id=fb_acc["account_id"],
-                account_name=fb_acc["name"],
-                status="ACTIVE" if fb_acc["account_status"] == 1 else "PAUSED",
-                timezone=fb_acc["timezone_name"],
-                account_type="UNKNOWN",
-                enabled=True
-            )
-            # Try to get 30 days spend
-            try:
-                new_account.last_30_days_spend = fetch_account_30_days_spend(token, fb_acc["id"])
-            except:
-                pass
-            db.add(new_account)
-            synced_count += 1
-    
-    db.commit()
-    
-    return {
-        "message": f"Đã sync {synced_count} accounts mới, cập nhật {updated_count} accounts",
-        "synced": synced_count,
-        "updated": updated_count,
-        "total": len(fb_accounts)
-    }
+                # Check if account exists
+                existing = db.query(Account).filter(
+                    Account.user_id == current_user.id,
+                    Account.account_id == fb_acc["account_id"]
+                ).first()
+                
+                if existing:
+                    # Update existing
+                    existing.account_name = fb_acc["name"]
+                    existing.status = "ACTIVE" if fb_acc["account_status"] == 1 else "PAUSED"
+                    existing.timezone = fb_acc["timezone_name"]
+                    # Try to get 30 days spend
+                    try:
+                        existing.last_30_days_spend = fetch_account_30_days_spend(token, fb_acc["id"])
+                    except Exception as spend_error:
+                        logger.warning(f"Could not fetch spend for account {fb_acc['account_id']}: {spend_error}")
+                    updated_count += 1
+                else:
+                    # Create new
+                    new_account = Account(
+                        user_id=current_user.id,
+                        account_id=fb_acc["account_id"],
+                        account_name=fb_acc["name"],
+                        status="ACTIVE" if fb_acc["account_status"] == 1 else "PAUSED",
+                        timezone=fb_acc["timezone_name"],
+                        account_type="UNKNOWN",
+                        enabled=True
+                    )
+                    # Try to get 30 days spend
+                    try:
+                        new_account.last_30_days_spend = fetch_account_30_days_spend(token, fb_acc["id"])
+                    except Exception as spend_error:
+                        logger.warning(f"Could not fetch spend for account {fb_acc['account_id']}: {spend_error}")
+                    db.add(new_account)
+                    synced_count += 1
+            except Exception as acc_error:
+                logger.error(f"Error syncing account {fb_acc.get('account_id', 'unknown')}: {acc_error}", exc_info=True)
+                continue
+        
+        db.commit()
+        
+        return {
+            "message": f"Đã sync {synced_count} accounts mới, cập nhật {updated_count} accounts",
+            "synced": synced_count,
+            "updated": updated_count,
+            "total": len(fb_accounts)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in sync_accounts: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi đồng bộ accounts: {str(e)}")
 
 
 @router.post("/accounts", response_model=AccountResponse, status_code=201)
@@ -387,8 +405,12 @@ def list_prefixes(
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
-    prefixes = db.query(Prefix).filter(Prefix.user_id == current_user.id).order_by(Prefix.prefix).all()
-    return prefixes
+    try:
+        prefixes = db.query(Prefix).filter(Prefix.user_id == current_user.id).order_by(Prefix.prefix).all()
+        return prefixes
+    except Exception as e:
+        logger.error(f"Error listing prefixes: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi lấy danh sách prefixes: {str(e)}")
 
 
 @router.post("/prefixes", response_model=PrefixResponse, status_code=201)
