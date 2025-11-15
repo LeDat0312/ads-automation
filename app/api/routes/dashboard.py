@@ -1869,23 +1869,64 @@ async def dashboard_page(
                         '</div>';
                     document.getElementById('tableWrapper').innerHTML = skeleton;
                     
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    if (!token) {{
+                        throw new Error('Chưa đăng nhập. Vui lòng đăng nhập lại.');
+                    }}
+                    
                     const response = await fetch('/dashboard/data?' + params.toString(), {{
                         headers: {{
-                            'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
+                            'Authorization': 'Bearer ' + token
                         }}
                     }});
                     
-                    if (!response.ok) throw new Error('Failed to load data');
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        let errorMsg = 'Lỗi khi tải dữ liệu';
+                        try {{
+                            const errorJson = JSON.parse(errorText);
+                            errorMsg = errorJson.detail || errorJson.message || errorMsg;
+                        }} catch {{
+                            errorMsg = errorText.substring(0, 200);
+                        }}
+                        throw new Error(errorMsg);
+                    }}
                     
                     const data = await response.json();
                     if (data.stats) {{
                         updateStats(data.stats);
+                    }} else {{
+                        // Reset stats về 0 nếu không có data
+                        updateStats({{
+                            total_spend: 0,
+                            total_results: 0,
+                            avg_gia_data: 0,
+                            active_adsets: 0,
+                            paused_adsets: 0,
+                            total_adsets: 0
+                        }});
                     }}
                     renderTable(data);
                 }} catch (error) {{
                     console.error('Error loading data:', error);
+                    const errorMsg = error.message || 'Lỗi khi tải dữ liệu';
                     document.getElementById('tableWrapper').innerHTML = 
-                        '<div class="empty-state"><div class="icon">⚠️</div>Lỗi khi tải dữ liệu</div>';
+                        '<div class="empty-state">' +
+                        '<div class="icon">⚠️</div>' +
+                        '<h3>Lỗi khi tải dữ liệu</h3>' +
+                        '<p>' + errorMsg + '</p>' +
+                        '<button class="btn-primary" onclick="loadData()" style="margin-top: 16px; padding: 10px 20px;">Thử lại</button>' +
+                        '</div>';
+                    
+                    // Reset stats về 0 khi có lỗi
+                    updateStats({{
+                        total_spend: 0,
+                        total_results: 0,
+                        avg_gia_data: 0,
+                        active_adsets: 0,
+                        paused_adsets: 0,
+                        total_adsets: 0
+                    }});
                 }}
             }}
             
@@ -2562,20 +2603,27 @@ async def dashboard_page(
             
             async function refreshData() {{
                 const btn = document.getElementById('refreshBtn');
+                if (btn.classList.contains('loading')) return; // Prevent double click
+                
                 btn.classList.add('loading');
                 btn.disabled = true;
                 
-                await Promise.all([
-                    loadData(),
-                    loadPrefixSummary()
-                ]);
-                
-                updateLastUpdateTime();
-                
-                setTimeout(() => {{
-                    btn.classList.remove('loading');
-                    btn.disabled = false;
-                }}, 500);
+                try {{
+                    await Promise.all([
+                        loadData(),
+                        loadPrefixSummary()
+                    ]);
+                    updateLastUpdateTime();
+                    showToast('✅ Đã làm mới dữ liệu thành công', 'success');
+                }} catch (error) {{
+                    console.error('Error refreshing data:', error);
+                    showToast('❌ Lỗi khi làm mới dữ liệu', 'error');
+                }} finally {{
+                    setTimeout(() => {{
+                        btn.classList.remove('loading');
+                        btn.disabled = false;
+                    }}, 500);
+                }}
             }}
             
             async function loadFilters() {{
