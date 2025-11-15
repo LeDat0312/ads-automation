@@ -2579,6 +2579,135 @@ async def dashboard_page(
                 }};
             }}
             
+            // Prefix summary
+            let currentPrefixTab = 'all';
+            
+            async function loadPrefixSummary() {{
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const params = new URLSearchParams();
+                    if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
+                    if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
+                    if (currentFilters.campaignType) params.append('campaign_type', currentFilters.campaignType);
+                    
+                    const response = await fetch('/dashboard/prefix-summary?' + params.toString(), {{
+                        headers: {{
+                            'Authorization': 'Bearer ' + token
+                        }}
+                    }});
+                    
+                    if (!response.ok) return;
+                    
+                    const data = await response.json();
+                    renderPrefixSummary(data);
+                }} catch (error) {{
+                    console.error('Error loading prefix summary:', error);
+                }}
+            }}
+            
+            function renderPrefixSummary(data) {{
+                const container = document.getElementById('prefixGrid');
+                const prefixes = data.prefixes || {{}};
+                const ecommerce = data.ecommerce || {{}};
+                const lead = data.lead || {{}};
+                
+                if (Object.keys(prefixes).length === 0) {{
+                    container.innerHTML = '<div class="empty-state"><div class="icon">📊</div><p>Chưa có dữ liệu prefix</p></div>';
+                    return;
+                }}
+                
+                let html = '';
+                
+                Object.keys(prefixes).forEach(prefix => {{
+                    const prefixData = prefixes[prefix];
+                    const ecomData = ecommerce[prefix] || null;
+                    const leadData = lead[prefix] || null;
+                    
+                    // Determine which data to show based on current tab
+                    let displayData = prefixData;
+                    let badge = '';
+                    
+                    if (currentPrefixTab === 'ecommerce' && ecomData) {{
+                        displayData = ecomData;
+                        badge = '<span class="prefix-card-badge badge-ecommerce">E-commerce</span>';
+                    }} else if (currentPrefixTab === 'lead' && leadData) {{
+                        displayData = leadData;
+                        badge = '<span class="prefix-card-badge badge-lead">Lead</span>';
+                    }} else if (currentPrefixTab === 'all') {{
+                        // Show combined data
+                        if (ecomData && leadData) {{
+                            badge = '<span class="prefix-card-badge badge-ecommerce">E-com</span> <span class="prefix-card-badge badge-lead">Lead</span>';
+                        }} else if (ecomData) {{
+                            badge = '<span class="prefix-card-badge badge-ecommerce">E-commerce</span>';
+                        }} else if (leadData) {{
+                            badge = '<span class="prefix-card-badge badge-lead">Lead</span>';
+                        }}
+                    }}
+                    
+                    // Skip if current tab doesn't have data
+                    if (currentPrefixTab === 'ecommerce' && !ecomData) return;
+                    if (currentPrefixTab === 'lead' && !leadData) return;
+                    
+                    html += '<div class="prefix-card">';
+                    html += '<div class="prefix-card-header">';
+                    html += '<div class="prefix-card-title">' + prefix + '</div>';
+                    html += badge;
+                    html += '</div>';
+                    html += '<div class="prefix-stats">';
+                    html += '<div class="prefix-stat-item">';
+                    html += '<div class="prefix-stat-label">Chi tiêu</div>';
+                    html += '<div class="prefix-stat-value">' + formatNumber(displayData.spend || 0) + '</div>';
+                    html += '</div>';
+                    html += '<div class="prefix-stat-item">';
+                    html += '<div class="prefix-stat-label">Kết quả</div>';
+                    html += '<div class="prefix-stat-value">' + formatNumber(displayData.results || 0) + '</div>';
+                    html += '</div>';
+                    html += '<div class="prefix-stat-item">';
+                    html += '<div class="prefix-stat-label">CPL</div>';
+                    html += '<div class="prefix-stat-value">' + formatNumber(displayData.cpl || 0) + '</div>';
+                    html += '</div>';
+                    html += '<div class="prefix-stat-item">';
+                    html += '<div class="prefix-stat-label">Giá DATA</div>';
+                    html += '<div class="prefix-stat-value">' + formatNumber(displayData.avg_gia_data || 0) + '</div>';
+                    html += '</div>';
+                    if (displayData.roas) {{
+                        html += '<div class="prefix-stat-item">';
+                        html += '<div class="prefix-stat-label">ROAS</div>';
+                        html += '<div class="prefix-stat-value">' + displayData.roas.toFixed(2) + 'x</div>';
+                        html += '</div>';
+                    }}
+                    if (displayData.active_adsets !== undefined) {{
+                        html += '<div class="prefix-stat-item">';
+                        html += '<div class="prefix-stat-label">Adsets</div>';
+                        html += '<div class="prefix-stat-value">' + displayData.active_adsets + '/' + displayData.total_adsets + '</div>';
+                        html += '</div>';
+                    }}
+                    html += '</div>';
+                    html += '</div>';
+                }});
+                
+                container.innerHTML = html;
+            }}
+            
+            function switchPrefixTab(tab, buttonElement) {{
+                currentPrefixTab = tab;
+                document.querySelectorAll('.prefix-tab').forEach(btn => btn.classList.remove('active'));
+                buttonElement.classList.add('active');
+                loadPrefixSummary();
+            }}
+            
+            // Last update time
+            let lastUpdateTime = null;
+            
+            function updateLastUpdateTime() {{
+                lastUpdateTime = new Date();
+                const timeStr = lastUpdateTime.toLocaleTimeString('vi-VN');
+                const updateTimeEl = document.getElementById('lastUpdateTime');
+                if (updateTimeEl) {{
+                    updateTimeEl.textContent = 'Cập nhật lần cuối: ' + timeStr;
+                }}
+            }}
+            
             // Set default date to last 7 days
             window.addEventListener('DOMContentLoaded', () => {{
                 const today = new Date();
@@ -2593,6 +2722,8 @@ async def dashboard_page(
                 
                 loadFilters();
                 loadData();
+                loadPrefixSummary();
+                updateLastUpdateTime();
                 
                 // Add event listeners với debounce cho performance
                 const debouncedLoadData = debounce(loadData, 300);
@@ -2604,6 +2735,8 @@ async def dashboard_page(
                 // Auto refresh mỗi 5 phút
                 setInterval(() => {{
                     loadData();
+                    loadPrefixSummary();
+                    updateLastUpdateTime();
                 }}, 5 * 60 * 1000);
             }});
             
