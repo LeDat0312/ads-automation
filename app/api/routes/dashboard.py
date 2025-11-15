@@ -703,70 +703,71 @@ async def dashboard_page(
             alert('SCRIPT TAG CHÍNH: Nếu bạn thấy alert này, script tag chính đang chạy!');
             
             // FORCE LOG - Luôn hiển thị log, không bị filter
-            (function() {{
-                try {{
+            // Sử dụng function thay vì IIFE để tránh lỗi với {{}}
+            (function() {
+                try {
                     const originalLog = console.log;
                     const originalError = console.error;
                     
-                    console.log = function(...args) {{
+                    console.log = function(...args) {
                         originalLog.apply(console, args);
                         // Force hiển thị bằng cách tạo element
-                        try {{
-                            if (document && document.body) {{
+                        try {
+                            if (document && document.body) {
                                 const div = document.createElement('div');
                                 div.style.cssText = 'position:fixed;top:0;left:0;background:rgba(0,0,0,0.8);color:#0f0;padding:5px;z-index:99999;font-size:11px;max-width:500px;';
                                 div.textContent = '[LOG] ' + args.join(' ');
                                 document.body.appendChild(div);
-                                setTimeout(function() {{ div.remove(); }}, 3000);
-                            }}
-                        }} catch(e) {{
+                                setTimeout(function() { div.remove(); }, 3000);
+                            }
+                        } catch(e) {
                             originalError('Error in force log:', e);
-                        }}
-                    }};
+                        }
+                    };
                     
-                    console.error = function(...args) {{
+                    console.error = function(...args) {
                         originalError.apply(console, args);
-                        try {{
-                            if (document && document.body) {{
+                        try {
+                            if (document && document.body) {
                                 const div = document.createElement('div');
                                 div.style.cssText = 'position:fixed;top:0;left:0;background:rgba(255,0,0,0.9);color:#fff;padding:5px;z-index:99999;font-size:11px;max-width:500px;';
                                 div.textContent = '[ERROR] ' + args.join(' ');
                                 document.body.appendChild(div);
-                                setTimeout(function() {{ div.remove(); }}, 5000);
-                            }}
-                        }} catch(e) {{
+                                setTimeout(function() { div.remove(); }, 5000);
+                            }
+                        } catch(e) {
                             originalError('Error in force error:', e);
-                        }}
-                    }};
-                }} catch(e) {{
+                        }
+                    };
+                } catch(e) {
                     // Nếu không thể override console, vẫn tiếp tục
-                }}
-            }})();
+                }
+            })();
             
             // Log ngay lập tức để kiểm tra script có chạy không
-            try {{
+            try {
                 console.log('🚀 Dashboard script loading...');
                 console.error('TEST ERROR - Nếu bạn thấy dòng này, console đang hoạt động');
-            }} catch(e) {{
+            } catch(e) {
                 alert('Lỗi khi log: ' + e.message);
-            }}
+            }
             
             // Wrap toàn bộ code trong try-catch để bắt lỗi
-            try {{
+            try {
                 console.log('✅ Try block started');
                 
                 // Đảm bảo các biến và function ở global scope
                 window.currentPage = 1;
                 window.pageSize = 50;
-                window.selectedDateRange = {{ start: null, end: null }};
-                window.currentFilters = {{
+                window.selectedDateRange = { start: null, end: null };
+                window.currentFilters = {
                     account: '',
                     prefix: '',
                     campaignType: '',
                     status: '',
                     dateFrom: '',
                     dateTo: ''
-                }};
+                };
                 
                 console.log('✅ Variables initialized');
                 
