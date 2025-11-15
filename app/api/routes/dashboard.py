@@ -196,16 +196,50 @@ async def dashboard_page(
                 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             }}
             
+            .header-left {{
+                display: flex;
+                align-items: center;
+                gap: 16px;
+            }}
+            
+            .mobile-filter-toggle {{
+                display: none;
+                background: #667eea;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 12px;
+                cursor: pointer;
+                font-size: 20px;
+                transition: all 0.3s ease;
+            }}
+            
+            .mobile-filter-toggle:hover {{
+                background: #5568d3;
+                transform: scale(1.05);
+            }}
+            
+            .mobile-filter-toggle:active {{
+                transform: scale(0.95);
+            }}
+            
             .header h1 {{
                 font-size: 24px;
                 font-weight: 700;
                 color: #1e293b;
+                margin: 0;
             }}
             
             .header-actions {{
                 display: flex;
                 align-items: center;
                 gap: 12px;
+            }}
+            
+            .last-update-time {{
+                font-size: 12px;
+                color: #64748b;
+                white-space: nowrap;
             }}
             
             .search-box {{
