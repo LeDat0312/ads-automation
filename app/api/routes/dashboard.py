@@ -380,6 +380,34 @@ async def dashboard_page(
                 animation: fadeIn 0.5s ease-out;
             }}
             
+            .dashboard-layout {{
+                display: flex;
+                gap: 32px;
+                max-width: 1400px;
+                width: 100%;
+                margin: 0 auto;
+                padding: 100px 32px 40px;
+                box-sizing: border-box;
+                position: relative;
+                z-index: 1;
+                animation: fadeIn 0.5s ease-out;
+            }}
+            
+            .sidebar-filters {{
+                width: 320px;
+                position: sticky;
+                top: 80px;
+                height: fit-content;
+                max-height: calc(100vh - 100px);
+                overflow-y: auto;
+            }}
+            
+            .main-content {{
+                flex: 1;
+                min-width: 0;
+                padding-left: 0;
+            }}
+            
             .filters-section {{
                 background: rgba(255, 255, 255, 0.95);
                 backdrop-filter: blur(20px);
@@ -2053,10 +2081,6 @@ async def dashboard_page(
             </div>
             
             <div class="main-content">
-                <button class="mobile-filter-toggle" onclick="toggleMobileFilters()" id="mobileFilterToggle">
-                    🔍 Bộ Lọc
-                </button>
-                
                 <div class="search-box" style="margin-bottom: 24px;">
                     <span class="search-icon">🔍</span>
                     <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
