@@ -10,8 +10,6 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, distinct, case
 import pytz
-import hashlib
-import json
 
 from app.core.database import get_db, AdMetrics
 from app.models.account_prefix import Account, Prefix, AccountPrefix
@@ -20,60 +18,6 @@ from app.models.user import User
 from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
 
 logger = logging.getLogger(__name__)
-
-# Simple in-memory cache với TTL
-class SimpleCache:
-    """Simple cache với TTL (Time To Live)"""
-    def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
-        self.default_ttl = 120  # 2 phút mặc định
-    
-    def _generate_key(self, prefix: str, **kwargs) -> str:
-        """Generate cache key từ parameters"""
-        key_data = json.dumps(kwargs, sort_keys=True)
-        key_hash = hashlib.md5(key_data.encode()).hexdigest()
-        return f"{prefix}:{key_hash}"
-    
-    def get(self, key: str) -> Optional[Any]:
-        """Lấy giá trị từ cache nếu còn valid"""
-        if key not in self._cache:
-            return None
-        
-        entry = self._cache[key]
-        if datetime.now() > entry['expires_at']:
-            # Expired, remove from cache
-            del self._cache[key]
-            return None
-        
-        return entry['value']
-    
-    def set(self, key: str, value: Any, ttl: int = None):
-        """Lưu giá trị vào cache với TTL"""
-        ttl = ttl or self.default_ttl
-        expires_at = datetime.now() + timedelta(seconds=ttl)
-        self._cache[key] = {
-            'value': value,
-            'expires_at': expires_at
-        }
-    
-    def clear(self, prefix: str = None):
-        """Xóa cache, có thể filter theo prefix"""
-        if prefix:
-            keys_to_delete = [k for k in self._cache.keys() if k.startswith(prefix)]
-            for key in keys_to_delete:
-                del self._cache[key]
-        else:
-            self._cache.clear()
-    
-    def cleanup_expired(self):
-        """Xóa các entries đã expired"""
-        now = datetime.now()
-        expired_keys = [k for k, v in self._cache.items() if now > v['expires_at']]
-        for key in expired_keys:
-            del self._cache[key]
-
-# Global cache instance
-dashboard_cache = SimpleCache()
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -196,50 +140,16 @@ async def dashboard_page(
                 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             }}
             
-            .header-left {{
-                display: flex;
-                align-items: center;
-                gap: 16px;
-            }}
-            
-            .mobile-filter-toggle {{
-                display: none;
-                background: #667eea;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 12px;
-                cursor: pointer;
-                font-size: 20px;
-                transition: all 0.3s ease;
-            }}
-            
-            .mobile-filter-toggle:hover {{
-                background: #5568d3;
-                transform: scale(1.05);
-            }}
-            
-            .mobile-filter-toggle:active {{
-                transform: scale(0.95);
-            }}
-            
             .header h1 {{
                 font-size: 24px;
                 font-weight: 700;
                 color: #1e293b;
-                margin: 0;
             }}
             
             .header-actions {{
                 display: flex;
                 align-items: center;
                 gap: 12px;
-            }}
-            
-            .last-update-time {{
-                font-size: 12px;
-                color: #64748b;
-                white-space: nowrap;
             }}
             
             .search-box {{
@@ -395,17 +305,35 @@ async def dashboard_page(
             
             .sidebar-filters {{
                 width: 320px;
+                flex-shrink: 0;
                 position: sticky;
                 top: 80px;
                 height: fit-content;
                 max-height: calc(100vh - 100px);
                 overflow-y: auto;
+                overflow-x: hidden;
+            }}
+            
+            .sidebar-filters::-webkit-scrollbar {{
+                width: 6px;
+            }}
+            
+            .sidebar-filters::-webkit-scrollbar-track {{
+                background: transparent;
+            }}
+            
+            .sidebar-filters::-webkit-scrollbar-thumb {{
+                background: #cbd5e1;
+                border-radius: 3px;
+            }}
+            
+            .sidebar-filters::-webkit-scrollbar-thumb:hover {{
+                background: #94a3b8;
             }}
             
             .main-content {{
                 flex: 1;
                 min-width: 0;
-                padding-left: 0;
             }}
             
             .filters-section {{
@@ -522,164 +450,6 @@ async def dashboard_page(
                 border-color: #667eea;
                 box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
                 transform: translateY(-1px);
-            }}
-            
-            /* Multi-select dropdown */
-            .multi-select-wrapper {{
-                position: relative;
-            }}
-            
-            .multi-select-button {{
-                width: 100%;
-                padding: 12px 16px;
-                border: 2px solid #e2e8f0;
-                border-radius: 10px;
-                font-size: 14px;
-                background: white;
-                cursor: pointer;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                min-height: 44px;
-            }}
-            
-            .multi-select-button:hover {{
-                border-color: #cbd5e1;
-            }}
-            
-            .multi-select-button.active {{
-                border-color: #667eea;
-                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-            }}
-            
-            .multi-select-button .selected-count {{
-                background: #667eea;
-                color: white;
-                padding: 2px 8px;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: 600;
-                margin-left: 8px;
-            }}
-            
-            .multi-select-button .arrow {{
-                transition: transform 0.3s ease;
-                font-size: 12px;
-            }}
-            
-            .multi-select-button.active .arrow {{
-                transform: rotate(180deg);
-            }}
-            
-            .multi-select-dropdown {{
-                position: absolute;
-                top: 100%;
-                left: 0;
-                right: 0;
-                background: white;
-                border: 2px solid #e2e8f0;
-                border-radius: 10px;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-                z-index: 1000;
-                max-height: 300px;
-                overflow-y: auto;
-                margin-top: 4px;
-                display: none;
-            }}
-            
-            .multi-select-dropdown.active {{
-                display: block;
-            }}
-            
-            .multi-select-search {{
-                padding: 12px;
-                border-bottom: 1px solid #e2e8f0;
-                position: sticky;
-                top: 0;
-                background: white;
-                z-index: 10;
-            }}
-            
-            .multi-select-search input {{
-                width: 100%;
-                padding: 8px 12px;
-                border: 1px solid #e2e8f0;
-                border-radius: 6px;
-                font-size: 14px;
-            }}
-            
-            .multi-select-options {{
-                padding: 8px;
-            }}
-            
-            .multi-select-option {{
-                padding: 10px 12px;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                border-radius: 6px;
-                transition: background 0.2s;
-            }}
-            
-            .multi-select-option:hover {{
-                background: #f1f5f9;
-            }}
-            
-            .multi-select-option input[type="checkbox"] {{
-                width: 18px;
-                height: 18px;
-                cursor: pointer;
-                accent-color: #667eea;
-            }}
-            
-            .multi-select-option label {{
-                flex: 1;
-                cursor: pointer;
-                font-size: 14px;
-                margin: 0;
-                color: #1e293b;
-                font-weight: normal;
-            }}
-            
-            .multi-select-actions {{
-                padding: 12px;
-                border-top: 1px solid #e2e8f0;
-                display: flex;
-                gap: 8px;
-                position: sticky;
-                bottom: 0;
-                background: white;
-            }}
-            
-            .multi-select-actions button {{
-                flex: 1;
-                padding: 8px 16px;
-                border: none;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.2s;
-            }}
-            
-            .multi-select-actions .btn-clear {{
-                background: #f1f5f9;
-                color: #475569;
-            }}
-            
-            .multi-select-actions .btn-clear:hover {{
-                background: #e2e8f0;
-            }}
-            
-            .multi-select-actions .btn-apply {{
-                background: #667eea;
-                color: white;
-            }}
-            
-            .multi-select-actions .btn-apply:hover {{
-                background: #5568d3;
             }}
             
             .date-picker-wrapper {{
@@ -1193,76 +963,6 @@ async def dashboard_page(
                 100% {{ background-position: -200% 0; }}
             }}
             
-            .skeleton-prefix-grid {{
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-                gap: 20px;
-            }}
-            
-            .skeleton-prefix-card {{
-                background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
-                border: 2px solid #e2e8f0;
-                border-radius: 16px;
-                padding: 20px;
-            }}
-            
-            .skeleton-prefix-header {{
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 16px;
-                padding-bottom: 12px;
-                border-bottom: 2px solid #e2e8f0;
-            }}
-            
-            .skeleton-prefix-title {{
-                width: 60px;
-                height: 24px;
-                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-                background-size: 200% 100%;
-                animation: loading 1.5s infinite;
-                border-radius: 6px;
-            }}
-            
-            .skeleton-prefix-badge {{
-                width: 80px;
-                height: 24px;
-                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-                background-size: 200% 100%;
-                animation: loading 1.5s infinite;
-                border-radius: 12px;
-            }}
-            
-            .skeleton-prefix-stats {{
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 12px;
-            }}
-            
-            .skeleton-prefix-stat {{
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-            }}
-            
-            .skeleton-prefix-stat-label {{
-                width: 50px;
-                height: 12px;
-                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-                background-size: 200% 100%;
-                animation: loading 1.5s infinite;
-                border-radius: 4px;
-            }}
-            
-            .skeleton-prefix-stat-value {{
-                width: 70px;
-                height: 20px;
-                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-                background-size: 200% 100%;
-                animation: loading 1.5s infinite;
-                border-radius: 4px;
-            }}
-            
             .empty-state {{
                 text-align: center;
                 padding: 80px 20px;
@@ -1300,24 +1000,24 @@ async def dashboard_page(
             
             .stats-grid {{
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
                 gap: 24px;
                 margin-bottom: 32px;
                 width: 100%;
             }}
             
             .stat-card {{
-                background: rgba(255, 255, 255, 0.95);
+                background: rgba(255, 255, 255, 0.98);
                 backdrop-filter: blur(20px);
                 -webkit-backdrop-filter: blur(20px);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 16px;
+                border: 1px solid rgba(255, 255, 255, 0.5);
+                border-radius: 20px;
                 padding: 24px;
                 box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 position: relative;
                 overflow: hidden;
-                animation: fadeIn 0.6s ease-out;
+                animation: fadeIn 0.5s ease-out;
                 display: flex;
                 flex-direction: column;
             }}
@@ -1328,15 +1028,15 @@ async def dashboard_page(
                 top: 0;
                 left: 0;
                 right: 0;
-                height: 4px;
-                background: linear-gradient(90deg, #667eea, #764ba2);
+                height: 3px;
+                background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
                 transform: scaleX(0);
                 transition: transform 0.3s ease;
             }}
             
             .stat-card:hover {{
-                transform: translateY(-4px);
-                box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
+                transform: translateY(-2px);
+                box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
             }}
             
             .stat-card:hover::before {{
@@ -1365,7 +1065,7 @@ async def dashboard_page(
             }}
             
             .stat-card .value {{
-                font-size: 32px;
+                font-size: 28px;
                 font-weight: 700;
                 color: #1e293b;
                 transition: all 0.3s ease;
@@ -1572,15 +1272,10 @@ async def dashboard_page(
                     padding: 100px 24px 40px;
                 }}
                 
-                .main-content {{
-                    padding-left: 0;
-                }}
-                
                 .sidebar-filters {{
                     width: 100%;
                     position: static;
                     max-height: none;
-                    margin-bottom: 24px;
                 }}
                 
                 .mobile-filter-toggle {{
@@ -1590,131 +1285,58 @@ async def dashboard_page(
                 .sidebar-filters.mobile-hidden {{
                     display: none;
                 }}
-                
-                .prefix-grid {{
-                    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-                    gap: 16px;
-                }}
             }}
             
             @media (max-width: 768px) {{
                 .header {{
                     padding: 12px 16px;
-                }}
-                
-                .header-left {{
-                    gap: 12px;
-                }}
-                
-                .header h1 {{
-                    font-size: 18px;
-                }}
-                
-                .header-actions {{
-                    gap: 8px;
-                }}
-                
-                .last-update-time {{
-                    display: none;
-                }}
-                
-                .btn-refresh {{
-                    padding: 8px 16px;
-                    font-size: 13px;
-                }}
-                
-                .dashboard-layout {{
-                    padding: 80px 16px 24px;
-                }}
-                
-                .filters-section {{
-                    padding: 20px;
-                    border-radius: 16px;
-                }}
-                
-                .filters-header h2 {{
-                    font-size: 16px;
-                }}
-                
-                .stats-grid {{
-                    grid-template-columns: repeat(2, 1fr);
-                    gap: 12px;
-                }}
-                
-                .stat-card {{
-                    padding: 16px;
-                    border-radius: 16px;
-                }}
-                
-                .stat-card-header {{
-                    margin-bottom: 12px;
-                }}
-                
-                .stat-card .value {{
-                    font-size: 22px;
-                }}
-                
-                .stat-card .label {{
-                    font-size: 12px;
-                }}
-                
-                .charts-section {{
-                    padding: 20px;
-                    border-radius: 16px;
-                }}
-                
-                .charts-grid {{
-                    grid-template-columns: 1fr;
-                    gap: 16px;
-                }}
-                
-                .chart-container {{
-                    min-height: 200px;
-                    padding: 16px;
-                }}
-                
-                .prefix-summary-section {{
-                    padding: 20px;
-                    border-radius: 16px;
-                }}
-                
-                .prefix-tabs {{
-                    gap: 8px;
-                    overflow-x: auto;
-                    flex-wrap: nowrap;
-                    padding-bottom: 8px;
-                }}
-                
-                .prefix-tab {{
-                    padding: 10px 16px;
-                    font-size: 13px;
-                    white-space: nowrap;
-                    flex-shrink: 0;
-                }}
-                
-                .prefix-grid {{
-                    grid-template-columns: 1fr;
-                    gap: 12px;
-                }}
-                
-                .prefix-card {{
-                    padding: 16px;
-                }}
-                
-                .table-container {{
-                    border-radius: 16px;
-                    overflow: hidden;
-                }}
-                
-                .table-header {{
-                    padding: 16px;
                     flex-direction: column;
                     gap: 12px;
                     align-items: flex-start;
                 }}
                 
-                .table-header h2 {{
-                    font-size: 16px;
+                .header h1 {{
+                    font-size: 20px;
+                }}
+                
+                .header-actions {{
+                    width: 100%;
+                    justify-content: flex-end;
+                }}
+                
+                .dashboard-layout {{
+                    padding: 100px 16px 40px;
+                }}
+                
+                .filters-section {{
+                    padding: 20px;
+                }}
+                
+                .stats-grid {{
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 16px;
+                }}
+                
+                .stat-card {{
+                    padding: 20px;
+                }}
+                
+                .stat-card .value {{
+                    font-size: 24px;
+                }}
+                
+                .charts-grid {{
+                    grid-template-columns: 1fr;
+                }}
+                
+                .chart-container {{
+                    min-height: 250px;
+                }}
+                
+                .table-header {{
+                    flex-direction: column;
+                    gap: 12px;
+                    align-items: flex-start;
                 }}
                 
                 .table-header-actions {{
@@ -1724,28 +1346,11 @@ async def dashboard_page(
                 }}
                 
                 .table-wrapper {{
-                    overflow-x: auto;
-                    -webkit-overflow-scrolling: touch;
+                    overflow-x: scroll;
                 }}
                 
                 table {{
-                    min-width: 1000px;
-                    font-size: 12px;
-                }}
-                
-                th, td {{
-                    padding: 10px 8px;
-                    font-size: 11px;
-                }}
-                
-                .action-buttons {{
-                    flex-direction: column;
-                    gap: 4px;
-                }}
-                
-                .btn-action {{
-                    padding: 6px 10px;
-                    font-size: 11px;
+                    min-width: 1200px;
                 }}
                 
                 .date-picker-content {{
@@ -1759,148 +1364,40 @@ async def dashboard_page(
                     border-right: none;
                     border-bottom: 1px solid #e2e8f0;
                     max-height: 200px;
-                    padding: 16px;
-                }}
-                
-                .date-picker-main {{
-                    padding: 16px;
                 }}
                 
                 .date-picker-calendars {{
                     flex-direction: column;
-                    gap: 16px;
                 }}
                 
                 .quick-filters {{
                     overflow-x: auto;
                     flex-wrap: nowrap;
                     padding-bottom: 8px;
-                    -webkit-overflow-scrolling: touch;
                 }}
                 
                 .quick-filter-btn {{
                     white-space: nowrap;
                     flex-shrink: 0;
-                    padding: 6px 12px;
-                    font-size: 12px;
-                }}
-                
-                .search-box input {{
-                    padding: 10px 14px 10px 40px;
-                    font-size: 13px;
                 }}
             }}
             
             @media (max-width: 480px) {{
-                .header {{
-                    padding: 10px 12px;
-                }}
-                
-                .header-left {{
-                    gap: 8px;
-                }}
-                
-                .mobile-filter-toggle {{
-                    padding: 6px 10px;
+                .header h1 {{
                     font-size: 18px;
                 }}
                 
-                .header h1 {{
-                    font-size: 16px;
-                }}
-                
                 .btn-refresh {{
-                    padding: 6px 12px;
-                    font-size: 12px;
-                }}
-                
-                .dashboard-layout {{
-                    padding: 70px 12px 20px;
-                }}
-                
-                .filters-section {{
-                    padding: 16px;
-                }}
-                
-                .filters-header h2 {{
-                    font-size: 14px;
-                }}
-                
-                .filter-group label {{
-                    font-size: 12px;
-                }}
-                
-                .filter-group select,
-                .filter-group input {{
-                    padding: 10px 12px;
+                    padding: 8px 12px;
                     font-size: 13px;
                 }}
                 
-                .stats-grid {{
-                    grid-template-columns: 1fr;
-                    gap: 10px;
-                }}
-                
-                .stat-card {{
-                    padding: 14px;
-                }}
-                
                 .stat-card .value {{
-                    font-size: 20px;
-                }}
-                
-                .stat-card .label {{
-                    font-size: 11px;
-                }}
-                
-                .prefix-tab {{
-                    padding: 8px 12px;
-                    font-size: 12px;
-                }}
-                
-                .prefix-card {{
-                    padding: 14px;
-                }}
-                
-                .prefix-card-title {{
-                    font-size: 16px;
-                }}
-                
-                .table-header {{
-                    padding: 12px;
-                }}
-                
-                .table-header h2 {{
-                    font-size: 14px;
-                }}
-                
-                table {{
-                    min-width: 900px;
+                    font-size: 24px;
                 }}
                 
                 th, td {{
-                    padding: 8px 6px;
-                    font-size: 10px;
-                }}
-                
-                .btn-action {{
-                    padding: 4px 8px;
-                    font-size: 10px;
-                }}
-                
-                .pagination {{
-                    padding: 12px;
-                    flex-wrap: wrap;
-                    gap: 4px;
-                }}
-                
-                .pagination button {{
-                    padding: 6px 10px;
-                    font-size: 12px;
-                }}
-                
-                .search-box input {{
-                    padding: 8px 12px 8px 36px;
+                    padding: 8px 12px;
                     font-size: 12px;
                 }}
             }}
@@ -1909,14 +1406,9 @@ async def dashboard_page(
     <body>
         """ + user_menu + """
         <div class="header">
-            <div class="header-left">
-                <button class="mobile-filter-toggle" onclick="toggleMobileFilters()" id="mobileFilterToggle" aria-label="Toggle filters">
-                    <span>☰</span>
-                </button>
-                <h1>📊 Dashboard</h1>
-            </div>
+            <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
             <div class="header-actions">
-                <div id="lastUpdateTime" class="last-update-time">Cập nhật: --:--:--</div>
+                <div id="lastUpdateTime" style="font-size: 12px; color: rgba(255, 255, 255, 0.8); margin-right: 16px; white-space: nowrap;">Cập nhật lần cuối: --:--:--</div>
                 <button class="btn-refresh" onclick="refreshData()" id="refreshBtn">
                     🔄 Làm mới
                 </button>
@@ -1932,131 +1424,31 @@ async def dashboard_page(
                     <div class="filters-grid">
                         <div class="filter-group">
                             <label>Account</label>
-                            <div class="multi-select-wrapper">
-                                <div class="multi-select-button" onclick="toggleMultiSelect('accountFilter')" id="accountFilterBtn">
-                                    <span>
-                                        <span id="accountFilterText">Tất cả Accounts</span>
-                                        <span class="selected-count" id="accountFilterCount" style="display: none;">0</span>
-                                    </span>
-                                    <span class="arrow">▼</span>
-                                </div>
-                                <div class="multi-select-dropdown" id="accountFilterDropdown">
-                                    <div class="multi-select-search">
-                                        <input type="text" placeholder="Tìm kiếm account..." id="accountFilterSearch" onkeyup="filterMultiSelectOptions('accountFilter', this.value)">
-                                    </div>
-                                    <div class="multi-select-options" id="accountFilterOptions">
-                                        <!-- Options will be populated by JavaScript -->
-                                    </div>
-                                    <div class="multi-select-actions">
-                                        <button class="btn-clear" onclick="clearMultiSelect('accountFilter')">Xóa</button>
-                                        <button class="btn-apply" onclick="applyMultiSelect('accountFilter')">Áp dụng</button>
-                                    </div>
-                                </div>
-                            </div>
+                            <select id="accountFilter">
+                                <option value="">Tất cả Accounts</option>
+                            </select>
                         </div>
                         <div class="filter-group">
                             <label>Prefix</label>
-                            <div class="multi-select-wrapper">
-                                <div class="multi-select-button" onclick="toggleMultiSelect('prefixFilter')" id="prefixFilterBtn">
-                                    <span>
-                                        <span id="prefixFilterText">Tất cả Prefixes</span>
-                                        <span class="selected-count" id="prefixFilterCount" style="display: none;">0</span>
-                                    </span>
-                                    <span class="arrow">▼</span>
-                                </div>
-                                <div class="multi-select-dropdown" id="prefixFilterDropdown">
-                                    <div class="multi-select-search">
-                                        <input type="text" placeholder="Tìm kiếm prefix..." id="prefixFilterSearch" onkeyup="filterMultiSelectOptions('prefixFilter', this.value)">
-                                    </div>
-                                    <div class="multi-select-options" id="prefixFilterOptions">
-                                        <!-- Options will be populated by JavaScript -->
-                                    </div>
-                                    <div class="multi-select-actions">
-                                        <button class="btn-clear" onclick="clearMultiSelect('prefixFilter')">Xóa</button>
-                                        <button class="btn-apply" onclick="applyMultiSelect('prefixFilter')">Áp dụng</button>
-                                    </div>
-                                </div>
-                            </div>
+                            <select id="prefixFilter">
+                                <option value="">Tất cả Prefixes</option>
+                            </select>
                         </div>
                         <div class="filter-group">
                             <label>Loại Campaign</label>
-                            <div class="multi-select-wrapper">
-                                <div class="multi-select-button" onclick="toggleMultiSelect('campaignTypeFilter')" id="campaignTypeFilterBtn">
-                                    <span>
-                                        <span id="campaignTypeFilterText">Tất cả</span>
-                                        <span class="selected-count" id="campaignTypeFilterCount" style="display: none;">0</span>
-                                    </span>
-                                    <span class="arrow">▼</span>
-                                </div>
-                                <div class="multi-select-dropdown" id="campaignTypeFilterDropdown">
-                                    <div class="multi-select-options" id="campaignTypeFilterOptions">
-                                        <div class="multi-select-option">
-                                            <input type="checkbox" id="campaignType_ECOMMERCE" value="ECOMMERCE" onchange="updateMultiSelectCount('campaignTypeFilter')">
-                                            <label for="campaignType_ECOMMERCE">E-commerce</label>
-                                        </div>
-                                        <div class="multi-select-option">
-                                            <input type="checkbox" id="campaignType_LEAD" value="LEAD" onchange="updateMultiSelectCount('campaignTypeFilter')">
-                                            <label for="campaignType_LEAD">Lead Generation</label>
-                                        </div>
-                                    </div>
-                                    <div class="multi-select-actions">
-                                        <button class="btn-clear" onclick="clearMultiSelect('campaignTypeFilter')">Xóa</button>
-                                        <button class="btn-apply" onclick="applyMultiSelect('campaignTypeFilter')">Áp dụng</button>
-                                    </div>
-                                </div>
-                            </div>
+                            <select id="campaignTypeFilter">
+                                <option value="">Tất cả</option>
+                                <option value="ECOMMERCE">E-commerce</option>
+                                <option value="LEAD">Lead Generation</option>
+                            </select>
                         </div>
                         <div class="filter-group">
                             <label>Trạng thái</label>
-                            <div class="multi-select-wrapper">
-                                <div class="multi-select-button" onclick="toggleMultiSelect('statusFilter')" id="statusFilterBtn">
-                                    <span>
-                                        <span id="statusFilterText">Tất cả</span>
-                                        <span class="selected-count" id="statusFilterCount" style="display: none;">0</span>
-                                    </span>
-                                    <span class="arrow">▼</span>
-                                </div>
-                                <div class="multi-select-dropdown" id="statusFilterDropdown">
-                                    <div class="multi-select-options" id="statusFilterOptions">
-                                        <div class="multi-select-option">
-                                            <input type="checkbox" id="status_ACTIVE" value="ACTIVE" onchange="updateMultiSelectCount('statusFilter')">
-                                            <label for="status_ACTIVE">Active</label>
-                                        </div>
-                                        <div class="multi-select-option">
-                                            <input type="checkbox" id="status_PAUSED" value="PAUSED" onchange="updateMultiSelectCount('statusFilter')">
-                                            <label for="status_PAUSED">Paused</label>
-                                        </div>
-                                    </div>
-                                    <div class="multi-select-actions">
-                                        <button class="btn-clear" onclick="clearMultiSelect('statusFilter')">Xóa</button>
-                                        <button class="btn-apply" onclick="applyMultiSelect('statusFilter')">Áp dụng</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="filter-group">
-                            <label>Campaign Objective</label>
-                            <div class="multi-select-wrapper">
-                                <div class="multi-select-button" onclick="toggleMultiSelect('objectiveFilter')" id="objectiveFilterBtn">
-                                    <span>
-                                        <span id="objectiveFilterText">Tất cả Objectives</span>
-                                        <span class="selected-count" id="objectiveFilterCount" style="display: none;">0</span>
-                                    </span>
-                                    <span class="arrow">▼</span>
-                                </div>
-                                <div class="multi-select-dropdown" id="objectiveFilterDropdown">
-                                    <div class="multi-select-search">
-                                        <input type="text" placeholder="Tìm kiếm objective..." id="objectiveFilterSearch" onkeyup="filterMultiSelectOptions('objectiveFilter', this.value)">
-                                    </div>
-                                    <div class="multi-select-options" id="objectiveFilterOptions">
-                                        <!-- Options will be populated by JavaScript -->
-                                    </div>
-                                    <div class="multi-select-actions">
-                                        <button class="btn-clear" onclick="clearMultiSelect('objectiveFilter')">Xóa</button>
-                                        <button class="btn-apply" onclick="applyMultiSelect('objectiveFilter')">Áp dụng</button>
-                                    </div>
-                                </div>
-                            </div>
+                            <select id="statusFilter">
+                                <option value="">Tất cả</option>
+                                <option value="ACTIVE">Active</option>
+                                <option value="PAUSED">Paused</option>
+                            </select>
                         </div>
                         <div class="filter-group date-picker-wrapper">
                             <label>Khoảng thời gian</label>
@@ -2081,6 +1473,10 @@ async def dashboard_page(
             </div>
             
             <div class="main-content">
+                <button class="mobile-filter-toggle" onclick="toggleMobileFilters()" id="mobileFilterToggle">
+                    🔍 Bộ Lọc
+                </button>
+                
                 <div class="search-box" style="margin-bottom: 24px;">
                     <span class="search-icon">🔍</span>
                     <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
@@ -2438,146 +1834,29 @@ async def dashboard_page(
                 return day + ' Tháng ' + month + ', ' + year;
             }}
             
-            // Multi-select state
-            window.multiSelectState = {{
-                accountFilter: [],
-                prefixFilter: [],
-                campaignTypeFilter: [],
-                statusFilter: [],
-                objectiveFilter: []
-            }};
-            
-            // Multi-select functions
-            function toggleMultiSelect(filterName) {{
-                const dropdown = document.getElementById(filterName + 'Dropdown');
-                const button = document.getElementById(filterName + 'Btn');
-                const isActive = dropdown.classList.contains('active');
-                
-                // Close all other dropdowns
-                document.querySelectorAll('.multi-select-dropdown').forEach(dd => {{
-                    dd.classList.remove('active');
-                }});
-                document.querySelectorAll('.multi-select-button').forEach(btn => {{
-                    btn.classList.remove('active');
-                }});
-                
-                // Toggle current dropdown
-                if (!isActive) {{
-                    dropdown.classList.add('active');
-                    button.classList.add('active');
-                }}
-            }}
-            
-            function updateMultiSelectCount(filterName) {{
-                const checkboxes = document.querySelectorAll('#' + filterName + 'Options input[type="checkbox"]:checked');
-                const count = checkboxes.length;
-                const countEl = document.getElementById(filterName + 'Count');
-                const textEl = document.getElementById(filterName + 'Text');
-                
-                if (count > 0) {{
-                    countEl.textContent = count;
-                    countEl.style.display = 'inline-block';
-                    // Update text to show selected items
-                    const selectedValues = Array.from(checkboxes).map(cb => cb.value);
-                    if (selectedValues.length <= 2) {{
-                        textEl.textContent = selectedValues.join(', ');
-                    }} else {{
-                        textEl.textContent = selectedValues[0] + ' +' + (selectedValues.length - 1);
-                    }}
-                }} else {{
-                    countEl.style.display = 'none';
-                    // Reset to default text
-                    const defaultTexts = {{
-                        'accountFilter': 'Tất cả Accounts',
-                        'prefixFilter': 'Tất cả Prefixes',
-                        'campaignTypeFilter': 'Tất cả',
-                        'statusFilter': 'Tất cả',
-                        'objectiveFilter': 'Tất cả Objectives'
-                    }};
-                    textEl.textContent = defaultTexts[filterName] || 'Tất cả';
-                }}
-            }}
-            
-            function clearMultiSelect(filterName) {{
-                const checkboxes = document.querySelectorAll('#' + filterName + 'Options input[type="checkbox"]');
-                checkboxes.forEach(cb => cb.checked = false);
-                updateMultiSelectCount(filterName);
-                window.multiSelectState[filterName] = [];
-            }}
-            
-            function applyMultiSelect(filterName) {{
-                const checkboxes = document.querySelectorAll('#' + filterName + 'Options input[type="checkbox"]:checked');
-                const selectedValues = Array.from(checkboxes).map(cb => cb.value);
-                window.multiSelectState[filterName] = selectedValues;
-                
-                // Close dropdown
-                document.getElementById(filterName + 'Dropdown').classList.remove('active');
-                document.getElementById(filterName + 'Btn').classList.remove('active');
-                
-                // Trigger data reload
-                loadData();
-                loadPrefixSummary();
-            }}
-            
-            function filterMultiSelectOptions(filterName, searchTerm) {{
-                const options = document.querySelectorAll('#' + filterName + 'Options .multi-select-option');
-                const term = searchTerm.toLowerCase();
-                
-                options.forEach(option => {{
-                    const label = option.querySelector('label').textContent.toLowerCase();
-                    if (label.includes(term)) {{
-                        option.style.display = 'flex';
-                    }} else {{
-                        option.style.display = 'none';
-                    }}
-                }});
-            }}
-            
-            // Close dropdowns when clicking outside
-            document.addEventListener('click', function(event) {{
-                if (!event.target.closest('.multi-select-wrapper')) {{
-                    document.querySelectorAll('.multi-select-dropdown').forEach(dd => {{
-                        dd.classList.remove('active');
-                    }});
-                    document.querySelectorAll('.multi-select-button').forEach(btn => {{
-                        btn.classList.remove('active');
-                    }});
-                }}
-            }});
-            
             // Load data
-            async function loadData(bypassCache = false) {{
-                const accounts = window.multiSelectState.accountFilter || [];
-                const prefixes = window.multiSelectState.prefixFilter || [];
-                const campaignTypes = window.multiSelectState.campaignTypeFilter || [];
-                const statuses = window.multiSelectState.statusFilter || [];
-                const objectives = window.multiSelectState.objectiveFilter || [];
+            async function loadData() {{
+                const account = document.getElementById('accountFilter').value;
+                const prefix = document.getElementById('prefixFilter').value;
+                const campaignType = document.getElementById('campaignTypeFilter').value;
+                const status = document.getElementById('statusFilter').value;
                 
-                currentFilters.account = accounts;
-                currentFilters.prefix = prefixes;
-                currentFilters.campaignType = campaignTypes;
-                currentFilters.status = statuses;
-                currentFilters.objective = objectives;
+                currentFilters.account = account;
+                currentFilters.prefix = prefix;
+                currentFilters.campaignType = campaignType;
+                currentFilters.status = status;
                 
                 const params = new URLSearchParams({{
                     page: currentPage,
                     page_size: pageSize
                 }});
                 
-                // Append multiple values
-                accounts.forEach(account => params.append('account_id', account));
-                prefixes.forEach(prefix => params.append('prefix', prefix));
-                campaignTypes.forEach(type => params.append('campaign_type', type));
-                statuses.forEach(status => params.append('status', status));
-                objectives.forEach(obj => params.append('objective', obj));
-                
+                if (account) params.append('account_id', account);
+                if (prefix) params.append('prefix', prefix);
+                if (campaignType) params.append('campaign_type', campaignType);
+                if (status) params.append('status', status);
                 if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                 if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
-                
-                // Add no_cache parameter nếu bypass cache
-                if (bypassCache) {{
-                    params.append('no_cache', 'true');
-                }}
                 
                 try {{
                     // Show loading skeleton
@@ -3096,23 +2375,20 @@ async def dashboard_page(
                 btn.disabled = true;
                 btn.textContent = '⏳ Đang xuất...';
                 
-                const accounts = window.multiSelectState.accountFilter || [];
-                const prefixes = window.multiSelectState.prefixFilter || [];
-                const campaignTypes = window.multiSelectState.campaignTypeFilter || [];
-                const statuses = window.multiSelectState.statusFilter || [];
-                const objectives = window.multiSelectState.objectiveFilter || [];
+                const account = document.getElementById('accountFilter').value;
+                const prefix = document.getElementById('prefixFilter').value;
+                const campaignType = document.getElementById('campaignTypeFilter').value;
+                const status = document.getElementById('statusFilter').value;
                 
                 const params = new URLSearchParams({{
                     page: 1,
                     page_size: 10000
                 }});
                 
-                accounts.forEach(account => params.append('account_id', account));
-                prefixes.forEach(prefix => params.append('prefix', prefix));
-                campaignTypes.forEach(type => params.append('campaign_type', type));
-                statuses.forEach(status => params.append('status', status));
-                objectives.forEach(obj => params.append('objective', obj));
-                
+                if (account) params.append('account_id', account);
+                if (prefix) params.append('prefix', prefix);
+                if (campaignType) params.append('campaign_type', campaignType);
+                if (status) params.append('status', status);
                 if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                 if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
                 
@@ -3257,12 +2533,10 @@ async def dashboard_page(
             
             // Reset filters
             function resetFilters() {{
-                // Clear all multi-selects
-                ['accountFilter', 'prefixFilter', 'campaignTypeFilter', 'statusFilter', 'objectiveFilter'].forEach(filterName => {{
-                    clearMultiSelect(filterName);
-                    window.multiSelectState[filterName] = [];
-                }});
-                
+                document.getElementById('accountFilter').value = '';
+                document.getElementById('prefixFilter').value = '';
+                document.getElementById('campaignTypeFilter').value = '';
+                document.getElementById('statusFilter').value = '';
                 document.getElementById('searchInput').value = '';
                 currentSearchTerm = '';
                 const today = new Date();
@@ -3291,10 +2565,9 @@ async def dashboard_page(
                 btn.classList.add('loading');
                 btn.disabled = true;
                 
-                // Bypass cache khi refresh
                 await Promise.all([
-                    loadData(true),  // Pass true để bypass cache
-                    loadPrefixSummary(true)  // Pass true để bypass cache
+                    loadData(),
+                    loadPrefixSummary()
                 ]);
                 
                 updateLastUpdateTime();
@@ -3317,48 +2590,22 @@ async def dashboard_page(
                     
                     const filters = await response.json();
                     
-                    // Populate account multi-select
-                    const accountOptions = document.getElementById('accountFilterOptions');
-                    accountOptions.innerHTML = '';
+                    // Populate account filter
+                    const accountFilter = document.getElementById('accountFilter');
                     filters.accounts.forEach(account => {{
-                        const option = document.createElement('div');
-                        option.className = 'multi-select-option';
-                        option.innerHTML = `
-                            <input type="checkbox" id="account_${account}" value="${account}" onchange="updateMultiSelectCount('accountFilter')">
-                            <label for="account_${account}">${account}</label>
-                        `;
-                        accountOptions.appendChild(option);
+                        const option = document.createElement('option');
+                        option.value = account;
+                        option.textContent = account;
+                        accountFilter.appendChild(option);
                     }});
                     
-                    // Populate prefix multi-select
-                    const prefixOptions = document.getElementById('prefixFilterOptions');
-                    prefixOptions.innerHTML = '';
+                    // Populate prefix filter
+                    const prefixFilter = document.getElementById('prefixFilter');
                     filters.prefixes.forEach(prefix => {{
-                        const option = document.createElement('div');
-                        option.className = 'multi-select-option';
-                        option.innerHTML = `
-                            <input type="checkbox" id="prefix_${prefix}" value="${prefix}" onchange="updateMultiSelectCount('prefixFilter')">
-                            <label for="prefix_${prefix}">${prefix}</label>
-                        `;
-                        prefixOptions.appendChild(option);
-                    }});
-                    
-                    // Populate objective multi-select (common Facebook objectives)
-                    const objectiveOptions = document.getElementById('objectiveFilterOptions');
-                    const commonObjectives = [
-                        'OUTCOME_TRAFFIC', 'OUTCOME_ENGAGEMENT', 'OUTCOME_LEADS', 
-                        'OUTCOME_APP_PROMOTION', 'OUTCOME_SALES', 'OUTCOME_AWARENESS'
-                    ];
-                    objectiveOptions.innerHTML = '';
-                    commonObjectives.forEach(obj => {{
-                        const option = document.createElement('div');
-                        option.className = 'multi-select-option';
-                        const label = obj.replace(/_/g, ' ').replace(/OUTCOME /g, '');
-                        option.innerHTML = `
-                            <input type="checkbox" id="objective_${obj}" value="${obj}" onchange="updateMultiSelectCount('objectiveFilter')">
-                            <label for="objective_${obj}">${label}</label>
-                        `;
-                        objectiveOptions.appendChild(option);
+                        const option = document.createElement('option');
+                        option.value = prefix;
+                        option.textContent = prefix;
+                        prefixFilter.appendChild(option);
                     }});
                 }} catch (error) {{
                     console.error('Error loading filters:', error);
@@ -3381,41 +2628,13 @@ async def dashboard_page(
             // Prefix summary
             let currentPrefixTab = 'all';
             
-            async function loadPrefixSummary(bypassCache = false) {{
-                const container = document.getElementById('prefixGrid');
-                // Show skeleton loading
-                container.innerHTML = '<div class="skeleton-prefix-grid">' +
-                    Array(6).fill(0).map(() => 
-                        '<div class="skeleton-prefix-card">' +
-                            '<div class="skeleton-prefix-header">' +
-                                '<div class="skeleton-prefix-title"></div>' +
-                                '<div class="skeleton-prefix-badge"></div>' +
-                            '</div>' +
-                            '<div class="skeleton-prefix-stats">' +
-                                Array(4).fill(0).map(() =>
-                                    '<div class="skeleton-prefix-stat">' +
-                                        '<div class="skeleton-prefix-stat-label"></div>' +
-                                        '<div class="skeleton-prefix-stat-value"></div>' +
-                                    '</div>'
-                                ).join('') +
-                            '</div>' +
-                        '</div>'
-                    ).join('') +
-                    '</div>';
-                
+            async function loadPrefixSummary() {{
                 try {{
                     const token = localStorage.getItem('access_token') || getCookie('access_token');
                     const params = new URLSearchParams();
                     if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                     if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
-                    if (currentFilters.campaignType && currentFilters.campaignType.length > 0) {{
-                        params.append('campaign_type', currentFilters.campaignType[0]);
-                    }}
-                    
-                    // Add no_cache parameter nếu bypass cache
-                    if (bypassCache) {{
-                        params.append('no_cache', 'true');
-                    }}
+                    if (currentFilters.campaignType) params.append('campaign_type', currentFilters.campaignType);
                     
                     const response = await fetch('/dashboard/prefix-summary?' + params.toString(), {{
                         headers: {{
@@ -3423,16 +2642,12 @@ async def dashboard_page(
                         }}
                     }});
                     
-                    if (!response.ok) {{
-                        container.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi tải dữ liệu prefix</p></div>';
-                        return;
-                    }}
+                    if (!response.ok) return;
                     
                     const data = await response.json();
                     renderPrefixSummary(data);
                 }} catch (error) {{
                     console.error('Error loading prefix summary:', error);
-                    container.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi tải dữ liệu prefix</p></div>';
                 }}
             }}
             
@@ -3556,8 +2771,12 @@ async def dashboard_page(
                 loadPrefixSummary();
                 updateLastUpdateTime();
                 
-                // Multi-select filters are handled by applyMultiSelect() function
-                // No need for change event listeners
+                // Add event listeners với debounce cho performance
+                const debouncedLoadData = debounce(loadData, 300);
+                document.getElementById('accountFilter').addEventListener('change', debouncedLoadData);
+                document.getElementById('prefixFilter').addEventListener('change', debouncedLoadData);
+                document.getElementById('campaignTypeFilter').addEventListener('change', debouncedLoadData);
+                document.getElementById('statusFilter').addEventListener('change', debouncedLoadData);
                 
                 // Auto refresh mỗi 5 phút
                 setInterval(() => {{
@@ -3599,20 +2818,18 @@ async def dashboard_page(
 @router.get("/data")
 async def get_dashboard_data(
     request: Request,
-    account_id: Optional[List[str]] = Query(None),
-    prefix: Optional[List[str]] = Query(None),
-    campaign_type: Optional[List[str]] = Query(None),
-    status: Optional[List[str]] = Query(None),
-    objective: Optional[List[str]] = Query(None),
+    account_id: Optional[str] = Query(None),
+    prefix: Optional[str] = Query(None),
+    campaign_type: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    no_cache: bool = Query(False),  # Bypass cache nếu cần
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Lấy dữ liệu dashboard với filters và pagination (hỗ trợ multi-select và caching)"""
+    """Lấy dữ liệu dashboard với filters và pagination"""
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
@@ -3620,32 +2837,6 @@ async def get_dashboard_data(
         raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
     
     try:
-        # Cleanup expired cache entries
-        dashboard_cache.cleanup_expired()
-        
-        # Generate cache key từ parameters
-        cache_key = dashboard_cache._generate_key(
-            "dashboard_data",
-            user_id=current_user.id,
-            account_id=account_id or [],
-            prefix=prefix or [],
-            campaign_type=campaign_type or [],
-            status=status or [],
-            objective=objective or [],
-            date_from=date_from,
-            date_to=date_to,
-            page=page,
-            page_size=page_size
-        )
-        
-        # Try to get from cache (trừ khi no_cache=True)
-        if not no_cache:
-            cached_data = dashboard_cache.get(cache_key)
-            if cached_data is not None:
-                logger.info(f"Cache hit for dashboard data (user_id={current_user.id})")
-                return cached_data
-        
-        logger.info(f"Cache miss for dashboard data (user_id={current_user.id}), fetching from DB...")
         # Get user's accounts and prefixes
         account_ids, _ = get_user_account_prefixes(current_user.id, db)
         
@@ -3654,19 +2845,14 @@ async def get_dashboard_data(
         
         # Apply filters for stats
         stats_query = base_query
-        if account_id and len(account_id) > 0:
-            # Filter by multiple account_ids
-            valid_account_ids = [acc for acc in account_id if acc in account_ids]
-            if valid_account_ids:
-                stats_query = stats_query.filter(AdMetrics.account_id.in_(valid_account_ids))
-        if prefix and len(prefix) > 0:
-            stats_query = stats_query.filter(AdMetrics.prefix.in_(prefix))
-        if campaign_type and len(campaign_type) > 0:
-            stats_query = stats_query.filter(AdMetrics.campaign_type.in_(campaign_type))
-        if status and len(status) > 0:
-            stats_query = stats_query.filter(AdMetrics.adset_status.in_(status))
-        if objective and len(objective) > 0:
-            stats_query = stats_query.filter(AdMetrics.campaign_objective.in_(objective))
+        if account_id and account_id in account_ids:
+            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
+        if prefix:
+            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
+        if campaign_type:
+            stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
+        if status:
+            stats_query = stats_query.filter(AdMetrics.adset_status == status)
         if date_from:
             try:
                 date_from_dt = datetime.fromisoformat(date_from)
@@ -3715,19 +2901,15 @@ async def get_dashboard_data(
         # Build query for ads
         query = base_query
         
-        # Apply filters for ads (multi-select support)
-        if account_id and len(account_id) > 0:
-            valid_account_ids = [acc for acc in account_id if acc in account_ids]
-            if valid_account_ids:
-                query = query.filter(AdMetrics.account_id.in_(valid_account_ids))
-        if prefix and len(prefix) > 0:
-            query = query.filter(AdMetrics.prefix.in_(prefix))
-        if campaign_type and len(campaign_type) > 0:
-            query = query.filter(AdMetrics.campaign_type.in_(campaign_type))
-        if status and len(status) > 0:
-            query = query.filter(AdMetrics.adset_status.in_(status))
-        if objective and len(objective) > 0:
-            query = query.filter(AdMetrics.campaign_objective.in_(objective))
+        # Apply filters for ads
+        if account_id and account_id in account_ids:
+            query = query.filter(AdMetrics.account_id == account_id)
+        if prefix:
+            query = query.filter(AdMetrics.prefix == prefix)
+        if campaign_type:
+            query = query.filter(AdMetrics.campaign_type == campaign_type)
+        if status:
+            query = query.filter(AdMetrics.adset_status == status)
         if date_from:
             try:
                 date_from_dt = datetime.fromisoformat(date_from)
@@ -3815,20 +2997,13 @@ async def get_dashboard_data(
         # Sắp xếp theo Giá DATA từ cao xuống thấp
         ads_dict.sort(key=lambda x: x.get('gia_data', 0), reverse=True)
         
-        result = {
+        return {
             "stats": stats_result,
             "ads": ads_dict,
             "total": total,
             "page": page,
             "page_size": page_size
         }
-        
-        # Cache result với TTL 2 phút (120 giây)
-        # Nếu là page 1 và không có filters phức tạp, cache lâu hơn (3 phút)
-        cache_ttl = 180 if (page == 1 and not account_id and not prefix and not campaign_type and not status and not objective) else 120
-        dashboard_cache.set(cache_key, result, ttl=cache_ttl)
-        
-        return result
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
@@ -3987,16 +3162,11 @@ async def get_prefix_summary(
                     "cpl": float(lead_spend / lead_results) if lead_results > 0 else 0
                 }
         
-        result = {
+        return {
             "prefixes": prefix_summary,
             "ecommerce": ecommerce_summary,
             "lead": lead_summary
         }
-        
-        # Cache result với TTL 2 phút
-        dashboard_cache.set(cache_key, result, ttl=120)
-        
-        return result
         
     except Exception as e:
         logger.error(f"Error getting prefix summary: {e}", exc_info=True)
