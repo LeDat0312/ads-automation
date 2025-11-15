@@ -406,6 +406,164 @@ async def dashboard_page(
                 transform: translateY(-1px);
             }}
             
+            /* Multi-select dropdown */
+            .multi-select-wrapper {{
+                position: relative;
+            }}
+            
+            .multi-select-button {{
+                width: 100%;
+                padding: 12px 16px;
+                border: 2px solid #e2e8f0;
+                border-radius: 10px;
+                font-size: 14px;
+                background: white;
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                min-height: 44px;
+            }}
+            
+            .multi-select-button:hover {{
+                border-color: #cbd5e1;
+            }}
+            
+            .multi-select-button.active {{
+                border-color: #667eea;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }}
+            
+            .multi-select-button .selected-count {{
+                background: #667eea;
+                color: white;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 600;
+                margin-left: 8px;
+            }}
+            
+            .multi-select-button .arrow {{
+                transition: transform 0.3s ease;
+                font-size: 12px;
+            }}
+            
+            .multi-select-button.active .arrow {{
+                transform: rotate(180deg);
+            }}
+            
+            .multi-select-dropdown {{
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                border: 2px solid #e2e8f0;
+                border-radius: 10px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+                z-index: 1000;
+                max-height: 300px;
+                overflow-y: auto;
+                margin-top: 4px;
+                display: none;
+            }}
+            
+            .multi-select-dropdown.active {{
+                display: block;
+            }}
+            
+            .multi-select-search {{
+                padding: 12px;
+                border-bottom: 1px solid #e2e8f0;
+                position: sticky;
+                top: 0;
+                background: white;
+                z-index: 10;
+            }}
+            
+            .multi-select-search input {{
+                width: 100%;
+                padding: 8px 12px;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                font-size: 14px;
+            }}
+            
+            .multi-select-options {{
+                padding: 8px;
+            }}
+            
+            .multi-select-option {{
+                padding: 10px 12px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                border-radius: 6px;
+                transition: background 0.2s;
+            }}
+            
+            .multi-select-option:hover {{
+                background: #f1f5f9;
+            }}
+            
+            .multi-select-option input[type="checkbox"] {{
+                width: 18px;
+                height: 18px;
+                cursor: pointer;
+                accent-color: #667eea;
+            }}
+            
+            .multi-select-option label {{
+                flex: 1;
+                cursor: pointer;
+                font-size: 14px;
+                margin: 0;
+                color: #1e293b;
+                font-weight: normal;
+            }}
+            
+            .multi-select-actions {{
+                padding: 12px;
+                border-top: 1px solid #e2e8f0;
+                display: flex;
+                gap: 8px;
+                position: sticky;
+                bottom: 0;
+                background: white;
+            }}
+            
+            .multi-select-actions button {{
+                flex: 1;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+            }}
+            
+            .multi-select-actions .btn-clear {{
+                background: #f1f5f9;
+                color: #475569;
+            }}
+            
+            .multi-select-actions .btn-clear:hover {{
+                background: #e2e8f0;
+            }}
+            
+            .multi-select-actions .btn-apply {{
+                background: #667eea;
+                color: white;
+            }}
+            
+            .multi-select-actions .btn-apply:hover {{
+                background: #5568d3;
+            }}
+            
             .date-picker-wrapper {{
                 position: relative;
             }}
@@ -1448,31 +1606,131 @@ async def dashboard_page(
                     <div class="filters-grid">
                         <div class="filter-group">
                             <label>Account</label>
-                            <select id="accountFilter">
-                                <option value="">Tất cả Accounts</option>
-                            </select>
+                            <div class="multi-select-wrapper">
+                                <div class="multi-select-button" onclick="toggleMultiSelect('accountFilter')" id="accountFilterBtn">
+                                    <span>
+                                        <span id="accountFilterText">Tất cả Accounts</span>
+                                        <span class="selected-count" id="accountFilterCount" style="display: none;">0</span>
+                                    </span>
+                                    <span class="arrow">▼</span>
+                                </div>
+                                <div class="multi-select-dropdown" id="accountFilterDropdown">
+                                    <div class="multi-select-search">
+                                        <input type="text" placeholder="Tìm kiếm account..." id="accountFilterSearch" onkeyup="filterMultiSelectOptions('accountFilter', this.value)">
+                                    </div>
+                                    <div class="multi-select-options" id="accountFilterOptions">
+                                        <!-- Options will be populated by JavaScript -->
+                                    </div>
+                                    <div class="multi-select-actions">
+                                        <button class="btn-clear" onclick="clearMultiSelect('accountFilter')">Xóa</button>
+                                        <button class="btn-apply" onclick="applyMultiSelect('accountFilter')">Áp dụng</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="filter-group">
                             <label>Prefix</label>
-                            <select id="prefixFilter">
-                                <option value="">Tất cả Prefixes</option>
-                            </select>
+                            <div class="multi-select-wrapper">
+                                <div class="multi-select-button" onclick="toggleMultiSelect('prefixFilter')" id="prefixFilterBtn">
+                                    <span>
+                                        <span id="prefixFilterText">Tất cả Prefixes</span>
+                                        <span class="selected-count" id="prefixFilterCount" style="display: none;">0</span>
+                                    </span>
+                                    <span class="arrow">▼</span>
+                                </div>
+                                <div class="multi-select-dropdown" id="prefixFilterDropdown">
+                                    <div class="multi-select-search">
+                                        <input type="text" placeholder="Tìm kiếm prefix..." id="prefixFilterSearch" onkeyup="filterMultiSelectOptions('prefixFilter', this.value)">
+                                    </div>
+                                    <div class="multi-select-options" id="prefixFilterOptions">
+                                        <!-- Options will be populated by JavaScript -->
+                                    </div>
+                                    <div class="multi-select-actions">
+                                        <button class="btn-clear" onclick="clearMultiSelect('prefixFilter')">Xóa</button>
+                                        <button class="btn-apply" onclick="applyMultiSelect('prefixFilter')">Áp dụng</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="filter-group">
                             <label>Loại Campaign</label>
-                            <select id="campaignTypeFilter">
-                                <option value="">Tất cả</option>
-                                <option value="ECOMMERCE">E-commerce</option>
-                                <option value="LEAD">Lead Generation</option>
-                            </select>
+                            <div class="multi-select-wrapper">
+                                <div class="multi-select-button" onclick="toggleMultiSelect('campaignTypeFilter')" id="campaignTypeFilterBtn">
+                                    <span>
+                                        <span id="campaignTypeFilterText">Tất cả</span>
+                                        <span class="selected-count" id="campaignTypeFilterCount" style="display: none;">0</span>
+                                    </span>
+                                    <span class="arrow">▼</span>
+                                </div>
+                                <div class="multi-select-dropdown" id="campaignTypeFilterDropdown">
+                                    <div class="multi-select-options" id="campaignTypeFilterOptions">
+                                        <div class="multi-select-option">
+                                            <input type="checkbox" id="campaignType_ECOMMERCE" value="ECOMMERCE" onchange="updateMultiSelectCount('campaignTypeFilter')">
+                                            <label for="campaignType_ECOMMERCE">E-commerce</label>
+                                        </div>
+                                        <div class="multi-select-option">
+                                            <input type="checkbox" id="campaignType_LEAD" value="LEAD" onchange="updateMultiSelectCount('campaignTypeFilter')">
+                                            <label for="campaignType_LEAD">Lead Generation</label>
+                                        </div>
+                                    </div>
+                                    <div class="multi-select-actions">
+                                        <button class="btn-clear" onclick="clearMultiSelect('campaignTypeFilter')">Xóa</button>
+                                        <button class="btn-apply" onclick="applyMultiSelect('campaignTypeFilter')">Áp dụng</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="filter-group">
                             <label>Trạng thái</label>
-                            <select id="statusFilter">
-                                <option value="">Tất cả</option>
-                                <option value="ACTIVE">Active</option>
-                                <option value="PAUSED">Paused</option>
-                            </select>
+                            <div class="multi-select-wrapper">
+                                <div class="multi-select-button" onclick="toggleMultiSelect('statusFilter')" id="statusFilterBtn">
+                                    <span>
+                                        <span id="statusFilterText">Tất cả</span>
+                                        <span class="selected-count" id="statusFilterCount" style="display: none;">0</span>
+                                    </span>
+                                    <span class="arrow">▼</span>
+                                </div>
+                                <div class="multi-select-dropdown" id="statusFilterDropdown">
+                                    <div class="multi-select-options" id="statusFilterOptions">
+                                        <div class="multi-select-option">
+                                            <input type="checkbox" id="status_ACTIVE" value="ACTIVE" onchange="updateMultiSelectCount('statusFilter')">
+                                            <label for="status_ACTIVE">Active</label>
+                                        </div>
+                                        <div class="multi-select-option">
+                                            <input type="checkbox" id="status_PAUSED" value="PAUSED" onchange="updateMultiSelectCount('statusFilter')">
+                                            <label for="status_PAUSED">Paused</label>
+                                        </div>
+                                    </div>
+                                    <div class="multi-select-actions">
+                                        <button class="btn-clear" onclick="clearMultiSelect('statusFilter')">Xóa</button>
+                                        <button class="btn-apply" onclick="applyMultiSelect('statusFilter')">Áp dụng</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <label>Campaign Objective</label>
+                            <div class="multi-select-wrapper">
+                                <div class="multi-select-button" onclick="toggleMultiSelect('objectiveFilter')" id="objectiveFilterBtn">
+                                    <span>
+                                        <span id="objectiveFilterText">Tất cả Objectives</span>
+                                        <span class="selected-count" id="objectiveFilterCount" style="display: none;">0</span>
+                                    </span>
+                                    <span class="arrow">▼</span>
+                                </div>
+                                <div class="multi-select-dropdown" id="objectiveFilterDropdown">
+                                    <div class="multi-select-search">
+                                        <input type="text" placeholder="Tìm kiếm objective..." id="objectiveFilterSearch" onkeyup="filterMultiSelectOptions('objectiveFilter', this.value)">
+                                    </div>
+                                    <div class="multi-select-options" id="objectiveFilterOptions">
+                                        <!-- Options will be populated by JavaScript -->
+                                    </div>
+                                    <div class="multi-select-actions">
+                                        <button class="btn-clear" onclick="clearMultiSelect('objectiveFilter')">Xóa</button>
+                                        <button class="btn-apply" onclick="applyMultiSelect('objectiveFilter')">Áp dụng</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="filter-group date-picker-wrapper">
                             <label>Khoảng thời gian</label>
@@ -1858,27 +2116,139 @@ async def dashboard_page(
                 return day + ' Tháng ' + month + ', ' + year;
             }}
             
+            // Multi-select state
+            window.multiSelectState = {{
+                accountFilter: [],
+                prefixFilter: [],
+                campaignTypeFilter: [],
+                statusFilter: [],
+                objectiveFilter: []
+            }};
+            
+            // Multi-select functions
+            function toggleMultiSelect(filterName) {{
+                const dropdown = document.getElementById(filterName + 'Dropdown');
+                const button = document.getElementById(filterName + 'Btn');
+                const isActive = dropdown.classList.contains('active');
+                
+                // Close all other dropdowns
+                document.querySelectorAll('.multi-select-dropdown').forEach(dd => {{
+                    dd.classList.remove('active');
+                }});
+                document.querySelectorAll('.multi-select-button').forEach(btn => {{
+                    btn.classList.remove('active');
+                }});
+                
+                // Toggle current dropdown
+                if (!isActive) {{
+                    dropdown.classList.add('active');
+                    button.classList.add('active');
+                }}
+            }}
+            
+            function updateMultiSelectCount(filterName) {{
+                const checkboxes = document.querySelectorAll('#' + filterName + 'Options input[type="checkbox"]:checked');
+                const count = checkboxes.length;
+                const countEl = document.getElementById(filterName + 'Count');
+                const textEl = document.getElementById(filterName + 'Text');
+                
+                if (count > 0) {{
+                    countEl.textContent = count;
+                    countEl.style.display = 'inline-block';
+                    // Update text to show selected items
+                    const selectedValues = Array.from(checkboxes).map(cb => cb.value);
+                    if (selectedValues.length <= 2) {{
+                        textEl.textContent = selectedValues.join(', ');
+                    }} else {{
+                        textEl.textContent = selectedValues[0] + ' +' + (selectedValues.length - 1);
+                    }}
+                }} else {{
+                    countEl.style.display = 'none';
+                    // Reset to default text
+                    const defaultTexts = {{
+                        'accountFilter': 'Tất cả Accounts',
+                        'prefixFilter': 'Tất cả Prefixes',
+                        'campaignTypeFilter': 'Tất cả',
+                        'statusFilter': 'Tất cả',
+                        'objectiveFilter': 'Tất cả Objectives'
+                    }};
+                    textEl.textContent = defaultTexts[filterName] || 'Tất cả';
+                }}
+            }}
+            
+            function clearMultiSelect(filterName) {{
+                const checkboxes = document.querySelectorAll('#' + filterName + 'Options input[type="checkbox"]');
+                checkboxes.forEach(cb => cb.checked = false);
+                updateMultiSelectCount(filterName);
+                window.multiSelectState[filterName] = [];
+            }}
+            
+            function applyMultiSelect(filterName) {{
+                const checkboxes = document.querySelectorAll('#' + filterName + 'Options input[type="checkbox"]:checked');
+                const selectedValues = Array.from(checkboxes).map(cb => cb.value);
+                window.multiSelectState[filterName] = selectedValues;
+                
+                // Close dropdown
+                document.getElementById(filterName + 'Dropdown').classList.remove('active');
+                document.getElementById(filterName + 'Btn').classList.remove('active');
+                
+                // Trigger data reload
+                loadData();
+                loadPrefixSummary();
+            }}
+            
+            function filterMultiSelectOptions(filterName, searchTerm) {{
+                const options = document.querySelectorAll('#' + filterName + 'Options .multi-select-option');
+                const term = searchTerm.toLowerCase();
+                
+                options.forEach(option => {{
+                    const label = option.querySelector('label').textContent.toLowerCase();
+                    if (label.includes(term)) {{
+                        option.style.display = 'flex';
+                    }} else {{
+                        option.style.display = 'none';
+                    }}
+                }});
+            }}
+            
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', function(event) {{
+                if (!event.target.closest('.multi-select-wrapper')) {{
+                    document.querySelectorAll('.multi-select-dropdown').forEach(dd => {{
+                        dd.classList.remove('active');
+                    }});
+                    document.querySelectorAll('.multi-select-button').forEach(btn => {{
+                        btn.classList.remove('active');
+                    }});
+                }}
+            }});
+            
             // Load data
             async function loadData() {{
-                const account = document.getElementById('accountFilter').value;
-                const prefix = document.getElementById('prefixFilter').value;
-                const campaignType = document.getElementById('campaignTypeFilter').value;
-                const status = document.getElementById('statusFilter').value;
+                const accounts = window.multiSelectState.accountFilter || [];
+                const prefixes = window.multiSelectState.prefixFilter || [];
+                const campaignTypes = window.multiSelectState.campaignTypeFilter || [];
+                const statuses = window.multiSelectState.statusFilter || [];
+                const objectives = window.multiSelectState.objectiveFilter || [];
                 
-                currentFilters.account = account;
-                currentFilters.prefix = prefix;
-                currentFilters.campaignType = campaignType;
-                currentFilters.status = status;
+                currentFilters.account = accounts;
+                currentFilters.prefix = prefixes;
+                currentFilters.campaignType = campaignTypes;
+                currentFilters.status = statuses;
+                currentFilters.objective = objectives;
                 
                 const params = new URLSearchParams({{
                     page: currentPage,
                     page_size: pageSize
                 }});
                 
-                if (account) params.append('account_id', account);
-                if (prefix) params.append('prefix', prefix);
-                if (campaignType) params.append('campaign_type', campaignType);
-                if (status) params.append('status', status);
+                // Append multiple values
+                accounts.forEach(account => params.append('account_id', account));
+                prefixes.forEach(prefix => params.append('prefix', prefix));
+                campaignTypes.forEach(type => params.append('campaign_type', type));
+                statuses.forEach(status => params.append('status', status));
+                objectives.forEach(obj => params.append('objective', obj));
+                
                 if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                 if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
                 
@@ -2399,20 +2769,23 @@ async def dashboard_page(
                 btn.disabled = true;
                 btn.textContent = '⏳ Đang xuất...';
                 
-                const account = document.getElementById('accountFilter').value;
-                const prefix = document.getElementById('prefixFilter').value;
-                const campaignType = document.getElementById('campaignTypeFilter').value;
-                const status = document.getElementById('statusFilter').value;
+                const accounts = window.multiSelectState.accountFilter || [];
+                const prefixes = window.multiSelectState.prefixFilter || [];
+                const campaignTypes = window.multiSelectState.campaignTypeFilter || [];
+                const statuses = window.multiSelectState.statusFilter || [];
+                const objectives = window.multiSelectState.objectiveFilter || [];
                 
                 const params = new URLSearchParams({{
                     page: 1,
                     page_size: 10000
                 }});
                 
-                if (account) params.append('account_id', account);
-                if (prefix) params.append('prefix', prefix);
-                if (campaignType) params.append('campaign_type', campaignType);
-                if (status) params.append('status', status);
+                accounts.forEach(account => params.append('account_id', account));
+                prefixes.forEach(prefix => params.append('prefix', prefix));
+                campaignTypes.forEach(type => params.append('campaign_type', type));
+                statuses.forEach(status => params.append('status', status));
+                objectives.forEach(obj => params.append('objective', obj));
+                
                 if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                 if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
                 
@@ -2557,10 +2930,12 @@ async def dashboard_page(
             
             // Reset filters
             function resetFilters() {{
-                document.getElementById('accountFilter').value = '';
-                document.getElementById('prefixFilter').value = '';
-                document.getElementById('campaignTypeFilter').value = '';
-                document.getElementById('statusFilter').value = '';
+                // Clear all multi-selects
+                ['accountFilter', 'prefixFilter', 'campaignTypeFilter', 'statusFilter', 'objectiveFilter'].forEach(filterName => {{
+                    clearMultiSelect(filterName);
+                    window.multiSelectState[filterName] = [];
+                }});
+                
                 document.getElementById('searchInput').value = '';
                 currentSearchTerm = '';
                 const today = new Date();
@@ -2614,22 +2989,48 @@ async def dashboard_page(
                     
                     const filters = await response.json();
                     
-                    // Populate account filter
-                    const accountFilter = document.getElementById('accountFilter');
+                    // Populate account multi-select
+                    const accountOptions = document.getElementById('accountFilterOptions');
+                    accountOptions.innerHTML = '';
                     filters.accounts.forEach(account => {{
-                        const option = document.createElement('option');
-                        option.value = account;
-                        option.textContent = account;
-                        accountFilter.appendChild(option);
+                        const option = document.createElement('div');
+                        option.className = 'multi-select-option';
+                        option.innerHTML = `
+                            <input type="checkbox" id="account_${account}" value="${account}" onchange="updateMultiSelectCount('accountFilter')">
+                            <label for="account_${account}">${account}</label>
+                        `;
+                        accountOptions.appendChild(option);
                     }});
                     
-                    // Populate prefix filter
-                    const prefixFilter = document.getElementById('prefixFilter');
+                    // Populate prefix multi-select
+                    const prefixOptions = document.getElementById('prefixFilterOptions');
+                    prefixOptions.innerHTML = '';
                     filters.prefixes.forEach(prefix => {{
-                        const option = document.createElement('option');
-                        option.value = prefix;
-                        option.textContent = prefix;
-                        prefixFilter.appendChild(option);
+                        const option = document.createElement('div');
+                        option.className = 'multi-select-option';
+                        option.innerHTML = `
+                            <input type="checkbox" id="prefix_${prefix}" value="${prefix}" onchange="updateMultiSelectCount('prefixFilter')">
+                            <label for="prefix_${prefix}">${prefix}</label>
+                        `;
+                        prefixOptions.appendChild(option);
+                    }});
+                    
+                    // Populate objective multi-select (common Facebook objectives)
+                    const objectiveOptions = document.getElementById('objectiveFilterOptions');
+                    const commonObjectives = [
+                        'OUTCOME_TRAFFIC', 'OUTCOME_ENGAGEMENT', 'OUTCOME_LEADS', 
+                        'OUTCOME_APP_PROMOTION', 'OUTCOME_SALES', 'OUTCOME_AWARENESS'
+                    ];
+                    objectiveOptions.innerHTML = '';
+                    commonObjectives.forEach(obj => {{
+                        const option = document.createElement('div');
+                        option.className = 'multi-select-option';
+                        const label = obj.replace(/_/g, ' ').replace(/OUTCOME /g, '');
+                        option.innerHTML = `
+                            <input type="checkbox" id="objective_${obj}" value="${obj}" onchange="updateMultiSelectCount('objectiveFilter')">
+                            <label for="objective_${obj}">${label}</label>
+                        `;
+                        objectiveOptions.appendChild(option);
                     }});
                 }} catch (error) {{
                     console.error('Error loading filters:', error);
@@ -2820,12 +3221,8 @@ async def dashboard_page(
                 loadPrefixSummary();
                 updateLastUpdateTime();
                 
-                // Add event listeners với debounce cho performance
-                const debouncedLoadData = debounce(loadData, 300);
-                document.getElementById('accountFilter').addEventListener('change', debouncedLoadData);
-                document.getElementById('prefixFilter').addEventListener('change', debouncedLoadData);
-                document.getElementById('campaignTypeFilter').addEventListener('change', debouncedLoadData);
-                document.getElementById('statusFilter').addEventListener('change', debouncedLoadData);
+                // Multi-select filters are handled by applyMultiSelect() function
+                // No need for change event listeners
                 
                 // Auto refresh mỗi 5 phút
                 setInterval(() => {{
@@ -2867,10 +3264,11 @@ async def dashboard_page(
 @router.get("/data")
 async def get_dashboard_data(
     request: Request,
-    account_id: Optional[str] = Query(None),
-    prefix: Optional[str] = Query(None),
-    campaign_type: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
+    account_id: Optional[List[str]] = Query(None),
+    prefix: Optional[List[str]] = Query(None),
+    campaign_type: Optional[List[str]] = Query(None),
+    status: Optional[List[str]] = Query(None),
+    objective: Optional[List[str]] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
@@ -2878,7 +3276,7 @@ async def get_dashboard_data(
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Lấy dữ liệu dashboard với filters và pagination"""
+    """Lấy dữ liệu dashboard với filters và pagination (hỗ trợ multi-select)"""
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
@@ -2894,14 +3292,19 @@ async def get_dashboard_data(
         
         # Apply filters for stats
         stats_query = base_query
-        if account_id and account_id in account_ids:
-            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
-        if prefix:
-            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
-        if campaign_type:
-            stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
-        if status:
-            stats_query = stats_query.filter(AdMetrics.adset_status == status)
+        if account_id and len(account_id) > 0:
+            # Filter by multiple account_ids
+            valid_account_ids = [acc for acc in account_id if acc in account_ids]
+            if valid_account_ids:
+                stats_query = stats_query.filter(AdMetrics.account_id.in_(valid_account_ids))
+        if prefix and len(prefix) > 0:
+            stats_query = stats_query.filter(AdMetrics.prefix.in_(prefix))
+        if campaign_type and len(campaign_type) > 0:
+            stats_query = stats_query.filter(AdMetrics.campaign_type.in_(campaign_type))
+        if status and len(status) > 0:
+            stats_query = stats_query.filter(AdMetrics.adset_status.in_(status))
+        if objective and len(objective) > 0:
+            stats_query = stats_query.filter(AdMetrics.campaign_objective.in_(objective))
         if date_from:
             try:
                 date_from_dt = datetime.fromisoformat(date_from)
@@ -2950,15 +3353,19 @@ async def get_dashboard_data(
         # Build query for ads
         query = base_query
         
-        # Apply filters for ads
-        if account_id and account_id in account_ids:
-            query = query.filter(AdMetrics.account_id == account_id)
-        if prefix:
-            query = query.filter(AdMetrics.prefix == prefix)
-        if campaign_type:
-            query = query.filter(AdMetrics.campaign_type == campaign_type)
-        if status:
-            query = query.filter(AdMetrics.adset_status == status)
+        # Apply filters for ads (multi-select support)
+        if account_id and len(account_id) > 0:
+            valid_account_ids = [acc for acc in account_id if acc in account_ids]
+            if valid_account_ids:
+                query = query.filter(AdMetrics.account_id.in_(valid_account_ids))
+        if prefix and len(prefix) > 0:
+            query = query.filter(AdMetrics.prefix.in_(prefix))
+        if campaign_type and len(campaign_type) > 0:
+            query = query.filter(AdMetrics.campaign_type.in_(campaign_type))
+        if status and len(status) > 0:
+            query = query.filter(AdMetrics.adset_status.in_(status))
+        if objective and len(objective) > 0:
+            query = query.filter(AdMetrics.campaign_objective.in_(objective))
         if date_from:
             try:
                 date_from_dt = datetime.fromisoformat(date_from)
