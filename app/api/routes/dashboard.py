@@ -932,7 +932,6 @@ async def dashboard_page(
                     }});
                     
                     if (!response.ok) {{
-<<<<<<< HEAD
                         const errorText = await response.text();
                         let errorMsg = 'Failed to load data';
                         try {{
@@ -942,18 +941,6 @@ async def dashboard_page(
                             errorMsg = errorText.substring(0, 200);
                         }}
                         throw new Error(errorMsg);
-                    }}
-                    
-                    const data = await response.json();
-                    
-                    // Update stats nếu có
-                    if (data.stats) {{
-                        updateStats(data.stats);
-                    }}
-                    
-=======
-                        const errorData = await response.json().catch(() => ({{ detail: 'Unknown error' }}));
-                        throw new Error(errorData.detail || 'Failed to load data: ' + response.status);
                     }}
                     
                     const data = await response.json();
@@ -972,7 +959,7 @@ async def dashboard_page(
                             total_adsets: 0
                         }});
                     }}
->>>>>>> 716d7811e1bed8e9b336ba7ed158ead18d2cc5ea
+                    
                     renderTable(data);
                 }} catch (error) {{
                     console.error('Error loading data:', error);
@@ -1121,19 +1108,6 @@ async def dashboard_page(
                 return new Intl.NumberFormat('vi-VN').format(num);
             }}
             
-<<<<<<< HEAD
-            function updateStats(stats) {{
-                if (!stats) return;
-                document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
-                document.getElementById('totalResults').textContent = formatNumber(stats.total_results || 0);
-                document.getElementById('avgGiaData').textContent = formatNumber(stats.avg_gia_data || 0);
-                document.getElementById('activeAdsets').textContent = formatNumber(stats.active_adsets || 0);
-                document.getElementById('pausedAdsets').textContent = formatNumber(stats.paused_adsets || 0);
-                document.getElementById('totalAdsets').textContent = formatNumber(stats.total_adsets || 0);
-            }}
-            
-=======
->>>>>>> 716d7811e1bed8e9b336ba7ed158ead18d2cc5ea
             // Pull dữ liệu từ Facebook (tự động, không hiển thị thông báo)
             async function pullFacebookDataSilent() {{
                 try {{
@@ -1445,54 +1419,6 @@ async def get_dashboard_data(
         
         # Sắp xếp theo Giá DATA từ cao xuống thấp
         ads_dict.sort(key=lambda x: x.get('gia_data', 0), reverse=True)
-        
-        # Calculate stats (tổng hợp từ query gốc, không phải từ ads_dict đã paginated)
-        stats_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
-        
-        # Apply same filters for stats
-        if account_id and account_id in account_ids:
-            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
-        if prefix:
-            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
-        if campaign_type:
-            stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
-        if status:
-            stats_query = stats_query.filter(AdMetrics.adset_status == status)
-        if date_from:
-            try:
-                date_from_dt = datetime.fromisoformat(date_from)
-                stats_query = stats_query.filter(AdMetrics.date >= date_from_dt)
-            except:
-                pass
-        if date_to:
-            try:
-                date_to_dt = datetime.fromisoformat(date_to)
-                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
-                stats_query = stats_query.filter(AdMetrics.date <= date_to_dt)
-            except:
-                pass
-        
-        # Calculate aggregated stats
-        total_spend = stats_query.with_entities(func.sum(AdMetrics.spend)).scalar() or 0
-        total_results = stats_query.with_entities(func.sum(AdMetrics.results)).scalar() or 0
-        avg_gia_data = stats_query.with_entities(func.avg(AdMetrics.gia_data)).scalar() or 0
-        total_adsets_count = stats_query.with_entities(func.count(distinct(AdMetrics.adset_id))).scalar() or 0
-        
-        active_adsets_count = stats_query.filter(AdMetrics.adset_status == "ACTIVE").with_entities(
-            func.count(distinct(AdMetrics.adset_id))
-        ).scalar() or 0
-        paused_adsets_count = stats_query.filter(AdMetrics.adset_status == "PAUSED").with_entities(
-            func.count(distinct(AdMetrics.adset_id))
-        ).scalar() or 0
-        
-        stats_result = {
-            "total_spend": float(total_spend),
-            "total_results": int(total_results),
-            "avg_gia_data": float(avg_gia_data),
-            "active_adsets": int(active_adsets_count),
-            "paused_adsets": int(paused_adsets_count),
-            "total_adsets": int(total_adsets_count)
-        }
         
         return {
             "stats": stats_result,
