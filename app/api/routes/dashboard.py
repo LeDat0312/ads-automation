@@ -917,6 +917,76 @@ async def dashboard_page(
                 100% {{ background-position: -200% 0; }}
             }}
             
+            .skeleton-prefix-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 20px;
+            }}
+            
+            .skeleton-prefix-card {{
+                background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+                border: 2px solid #e2e8f0;
+                border-radius: 16px;
+                padding: 20px;
+            }}
+            
+            .skeleton-prefix-header {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 16px;
+                padding-bottom: 12px;
+                border-bottom: 2px solid #e2e8f0;
+            }}
+            
+            .skeleton-prefix-title {{
+                width: 60px;
+                height: 24px;
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%;
+                animation: loading 1.5s infinite;
+                border-radius: 6px;
+            }}
+            
+            .skeleton-prefix-badge {{
+                width: 80px;
+                height: 24px;
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%;
+                animation: loading 1.5s infinite;
+                border-radius: 12px;
+            }}
+            
+            .skeleton-prefix-stats {{
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }}
+            
+            .skeleton-prefix-stat {{
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }}
+            
+            .skeleton-prefix-stat-label {{
+                width: 50px;
+                height: 12px;
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%;
+                animation: loading 1.5s infinite;
+                border-radius: 4px;
+            }}
+            
+            .skeleton-prefix-stat-value {{
+                width: 70px;
+                height: 20px;
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%;
+                animation: loading 1.5s infinite;
+                border-radius: 4px;
+            }}
+            
             .empty-state {{
                 text-align: center;
                 padding: 80px 20px;
