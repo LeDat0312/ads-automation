@@ -3087,6 +3087,20 @@ async def get_dashboard_data(
         base_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
         logger.info(f"Querying AdMetrics with account_ids: {account_ids}")
         
+        # Debug: Check if there's any data in AdMetrics for these accounts
+        total_records = base_query.count()
+        logger.info(f"Total AdMetrics records found for user {current_user.id}: {total_records}")
+        
+        if total_records == 0:
+            # Check if there's any data at all in AdMetrics
+            all_records_count = db.query(AdMetrics).count()
+            logger.warning(f"No AdMetrics found for account_ids {account_ids}. Total records in AdMetrics: {all_records_count}")
+            
+            # Check sample account_ids from AdMetrics
+            sample_accounts = db.query(AdMetrics.account_id).distinct().limit(10).all()
+            sample_account_ids = [acc[0] for acc in sample_accounts if acc[0]]
+            logger.info(f"Sample account_ids found in AdMetrics: {sample_account_ids}")
+        
         # Apply filters for stats
         stats_query = base_query
         if account_id and account_id in account_ids:
