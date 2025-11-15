@@ -1499,9 +1499,24 @@ async def dashboard_page(
                     </div>
                 </div>
                 
+                <div class="prefix-summary-section" id="prefixSummarySection">
+                    <div class="charts-header">
+                        <h2>📊 Tổng Quan Theo Prefix</h2>
+                        <p>Thống kê chi tiết cho từng prefix (FL, NM, PX, TL...) - Hỗ trợ cả E-commerce và Lead Generation</p>
+                    </div>
+                    <div class="prefix-tabs">
+                        <button class="prefix-tab active" onclick="switchPrefixTab('all', this)">Tất cả</button>
+                        <button class="prefix-tab" onclick="switchPrefixTab('ecommerce', this)">E-commerce</button>
+                        <button class="prefix-tab" onclick="switchPrefixTab('lead', this)">Lead Generation</button>
+                    </div>
+                    <div class="prefix-grid" id="prefixGrid">
+                        <div class="loading">Đang tải dữ liệu prefix...</div>
+                    </div>
+                </div>
+                
                 <div class="charts-section" id="chartsSection">
                     <div class="charts-header">
-                        <h2>📊 Dữ Liệu Quảng Cáo</h2>
+                        <h2>📈 Biểu Đồ Phân Tích</h2>
                         <p>Tổng quan theo ngày trong khoảng thời gian chọn</p>
                     </div>
                     <div class="charts-grid">
