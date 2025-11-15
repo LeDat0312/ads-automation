@@ -694,37 +694,52 @@ async def dashboard_page(
         <script>
             // FORCE LOG - Luôn hiển thị log, không bị filter
             (function() {{
-                const originalLog = console.log;
-                const originalError = console.error;
-                const originalWarn = console.warn;
-                
-                console.log = function(...args) {{
-                    originalLog.apply(console, args);
-                    // Force hiển thị bằng cách tạo element
-                    if (document.body) {{
-                        const div = document.createElement('div');
-                        div.style.cssText = 'position:fixed;top:0;left:0;background:rgba(0,0,0,0.8);color:#0f0;padding:5px;z-index:99999;font-size:11px;max-width:500px;';
-                        div.textContent = '[LOG] ' + args.join(' ');
-                        document.body.appendChild(div);
-                        setTimeout(() => div.remove(), 3000);
-                    }}
-                }};
-                
-                console.error = function(...args) {{
-                    originalError.apply(console, args);
-                    if (document.body) {{
-                        const div = document.createElement('div');
-                        div.style.cssText = 'position:fixed;top:0;left:0;background:rgba(255,0,0,0.9);color:#fff;padding:5px;z-index:99999;font-size:11px;max-width:500px;';
-                        div.textContent = '[ERROR] ' + args.join(' ');
-                        document.body.appendChild(div);
-                        setTimeout(() => div.remove(), 5000);
-                    }}
-                }};
+                try {{
+                    const originalLog = console.log;
+                    const originalError = console.error;
+                    
+                    console.log = function(...args) {{
+                        originalLog.apply(console, args);
+                        // Force hiển thị bằng cách tạo element
+                        try {{
+                            if (document && document.body) {{
+                                const div = document.createElement('div');
+                                div.style.cssText = 'position:fixed;top:0;left:0;background:rgba(0,0,0,0.8);color:#0f0;padding:5px;z-index:99999;font-size:11px;max-width:500px;';
+                                div.textContent = '[LOG] ' + args.join(' ');
+                                document.body.appendChild(div);
+                                setTimeout(function() {{ div.remove(); }}, 3000);
+                            }}
+                        }} catch(e) {{
+                            originalError('Error in force log:', e);
+                        }}
+                    }};
+                    
+                    console.error = function(...args) {{
+                        originalError.apply(console, args);
+                        try {{
+                            if (document && document.body) {{
+                                const div = document.createElement('div');
+                                div.style.cssText = 'position:fixed;top:0;left:0;background:rgba(255,0,0,0.9);color:#fff;padding:5px;z-index:99999;font-size:11px;max-width:500px;';
+                                div.textContent = '[ERROR] ' + args.join(' ');
+                                document.body.appendChild(div);
+                                setTimeout(function() {{ div.remove(); }}, 5000);
+                            }}
+                        }} catch(e) {{
+                            originalError('Error in force error:', e);
+                        }}
+                    }};
+                }} catch(e) {{
+                    // Nếu không thể override console, vẫn tiếp tục
+                }}
             }})();
             
             // Log ngay lập tức để kiểm tra script có chạy không
-            console.log('🚀 Dashboard script loading...');
-            console.error('TEST ERROR - Nếu bạn thấy dòng này, console đang hoạt động');
+            try {{
+                console.log('🚀 Dashboard script loading...');
+                console.error('TEST ERROR - Nếu bạn thấy dòng này, console đang hoạt động');
+            }} catch(e) {{
+                alert('Lỗi khi log: ' + e.message);
+            }}
             
             // Wrap toàn bộ code trong try-catch để bắt lỗi
             try {{
@@ -830,37 +845,42 @@ async def dashboard_page(
                 const daysInMonth = lastDay.getDate();
                 const startingDayOfWeek = firstDay.getDay();
                 
-                let html = `
-                    <div class="calendar">
-                        <div class="calendar-header">
-                            <div class="calendar-nav">
-                                <button onclick="changeMonth(-1)">‹</button>
-                                <select onchange="changeMonthBySelect(this.value)">
-                                    ` + Array.from({length: 12}, (_, i) => `
-                                        <option value="` + i + `" ` + (i === month ? 'selected' : '') + `>
-                                            Tháng ` + (i + 1) + `
-                                        </option>
-                                    `).join('') + `
-                                </select>
-                                <select onchange="changeYearBySelect(this.value)">
-                                    ` + Array.from({length: 10}, (_, i) => year - 5 + i).map(y => `
-                                        <option value="` + y + `" ` + (y === year ? 'selected' : '') + `>` + y + `</option>
-                                    `).join('') + `
-                                </select>
-                            </div>
-                            <div class="calendar-nav">
-                                <button onclick="changeMonth(1)">›</button>
-                            </div>
-                        </div>
-                        <div class="calendar-grid">
-                            <div class="calendar-day-header">CN</div>
-                            <div class="calendar-day-header">T2</div>
-                            <div class="calendar-day-header">T3</div>
-                            <div class="calendar-day-header">T4</div>
-                            <div class="calendar-day-header">T5</div>
-                            <div class="calendar-day-header">T6</div>
-                            <div class="calendar-day-header">T7</div>
-                `;
+                let html = '<div class="calendar">';
+                html += '<div class="calendar-header">';
+                html += '<div class="calendar-nav">';
+                html += '<button onclick="changeMonth(-1)">‹</button>';
+                html += '<select onchange="changeMonthBySelect(this.value)">';
+                
+                // Generate month options
+                for (let i = 0; i < 12; i++) {{
+                    const selected = i === month ? 'selected' : '';
+                    html += '<option value="' + i + '" ' + selected + '>Tháng ' + (i + 1) + '</option>';
+                }}
+                
+                html += '</select>';
+                html += '<select onchange="changeYearBySelect(this.value)">';
+                
+                // Generate year options
+                for (let i = 0; i < 10; i++) {{
+                    const y = year - 5 + i;
+                    const selected = y === year ? 'selected' : '';
+                    html += '<option value="' + y + '" ' + selected + '>' + y + '</option>';
+                }}
+                
+                html += '</select>';
+                html += '</div>';
+                html += '<div class="calendar-nav">';
+                html += '<button onclick="changeMonth(1)">›</button>';
+                html += '</div>';
+                html += '</div>';
+                html += '<div class="calendar-grid">';
+                html += '<div class="calendar-day-header">CN</div>';
+                html += '<div class="calendar-day-header">T2</div>';
+                html += '<div class="calendar-day-header">T3</div>';
+                html += '<div class="calendar-day-header">T4</div>';
+                html += '<div class="calendar-day-header">T5</div>';
+                html += '<div class="calendar-day-header">T6</div>';
+                html += '<div class="calendar-day-header">T7</div>';
                 
                 // Empty cells for days before month starts
                 for (let i = 0; i < startingDayOfWeek; i++) {{
@@ -872,10 +892,6 @@ async def dashboard_page(
                     const dayDate = new Date(year, month, day);
                     const isSelected = selectedDateRange.start && selectedDateRange.end &&
                         dayDate >= selectedDateRange.start && dayDate <= selectedDateRange.end;
-                    const isStart = selectedDateRange.start && 
-                        dayDate.toDateString() === selectedDateRange.start.toDateString();
-                    const isEnd = selectedDateRange.end && 
-                        dayDate.toDateString() === selectedDateRange.end.toDateString();
                     
                     html += '<div class="calendar-day ' + (isSelected ? 'selected' : '') + '" onclick="selectDate(' + year + ', ' + month + ', ' + day + ')">' + day + '</div>';
                 }}
