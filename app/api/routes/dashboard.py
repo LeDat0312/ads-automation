@@ -3708,11 +3708,16 @@ async def get_prefix_summary(
                     "cpl": float(lead_spend / lead_results) if lead_results > 0 else 0
                 }
         
-        return {
+        result = {
             "prefixes": prefix_summary,
             "ecommerce": ecommerce_summary,
             "lead": lead_summary
         }
+        
+        # Cache result với TTL 2 phút
+        dashboard_cache.set(cache_key, result, ttl=120)
+        
+        return result
         
     except Exception as e:
         logger.error(f"Error getting prefix summary: {e}", exc_info=True)
