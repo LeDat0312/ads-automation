@@ -3536,13 +3536,20 @@ async def get_dashboard_data(
         # Sắp xếp theo Giá DATA từ cao xuống thấp
         ads_dict.sort(key=lambda x: x.get('gia_data', 0), reverse=True)
         
-        return {
+        result = {
             "stats": stats_result,
             "ads": ads_dict,
             "total": total,
             "page": page,
             "page_size": page_size
         }
+        
+        # Cache result với TTL 2 phút (120 giây)
+        # Nếu là page 1 và không có filters phức tạp, cache lâu hơn (3 phút)
+        cache_ttl = 180 if (page == 1 and not account_id and not prefix and not campaign_type and not status and not objective) else 120
+        dashboard_cache.set(cache_key, result, ttl=cache_ttl)
+        
+        return result
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
