@@ -2583,6 +2583,27 @@ async def dashboard_page(
             let currentPrefixTab = 'all';
             
             async function loadPrefixSummary() {{
+                const container = document.getElementById('prefixGrid');
+                // Show skeleton loading
+                container.innerHTML = '<div class="skeleton-prefix-grid">' +
+                    Array(6).fill(0).map(() => 
+                        '<div class="skeleton-prefix-card">' +
+                            '<div class="skeleton-prefix-header">' +
+                                '<div class="skeleton-prefix-title"></div>' +
+                                '<div class="skeleton-prefix-badge"></div>' +
+                            '</div>' +
+                            '<div class="skeleton-prefix-stats">' +
+                                Array(4).fill(0).map(() =>
+                                    '<div class="skeleton-prefix-stat">' +
+                                        '<div class="skeleton-prefix-stat-label"></div>' +
+                                        '<div class="skeleton-prefix-stat-value"></div>' +
+                                    '</div>'
+                                ).join('') +
+                            '</div>' +
+                        '</div>'
+                    ).join('') +
+                    '</div>';
+                
                 try {{
                     const token = localStorage.getItem('access_token') || getCookie('access_token');
                     const params = new URLSearchParams();
@@ -2596,12 +2617,16 @@ async def dashboard_page(
                         }}
                     }});
                     
-                    if (!response.ok) return;
+                    if (!response.ok) {{
+                        container.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi tải dữ liệu prefix</p></div>';
+                        return;
+                    }}
                     
                     const data = await response.json();
                     renderPrefixSummary(data);
                 }} catch (error) {{
                     console.error('Error loading prefix summary:', error);
+                    container.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi tải dữ liệu prefix</p></div>';
                 }}
             }}
             
