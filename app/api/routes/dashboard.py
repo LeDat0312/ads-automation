@@ -3256,8 +3256,6 @@ async def get_dashboard_data(
             "page_size": page_size
         }
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Error getting dashboard data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy dữ liệu: {str(e)}")
 
@@ -3393,8 +3391,6 @@ async def get_filters(
             "prefixes": prefixes_list
         }
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Error getting filters: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy filters: {str(e)}")
 
