@@ -61,7 +61,7 @@ async def dashboard_page(
         
         # Tạo HTML với date picker giống Facebook và UI đẹp
         # Sử dụng format string để tránh lỗi với user_menu có chứa {{}}
-        html_content = """
+        html_content = f"""
     <!DOCTYPE html>
     <html lang="vi">
     <head>
@@ -78,26 +78,69 @@ async def dashboard_page(
                 box-sizing: border-box;
             }}
             
+            html {{
+                width: 100%;
+                height: 100%;
+                scroll-behavior: smooth;
+            }}
+            
             body {{
                 font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                background: #f5f5f5;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+                background-size: 400% 400%;
+                animation: gradientShift 15s ease infinite;
                 color: #1e293b;
                 line-height: 1.6;
+                width: 100%;
+                min-height: 100vh;
+                margin: 0;
+                padding: 0;
+                position: relative;
+                overflow-x: hidden;
+            }}
+            
+            @keyframes gradientShift {{
+                0% {{ background-position: 0% 50%; }}
+                50% {{ background-position: 100% 50%; }}
+                100% {{ background-position: 0% 50%; }}
+            }}
+            
+            body::before {{
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: 
+                    radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 80%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+                    radial-gradient(circle at 40% 20%, rgba(120, 200, 255, 0.3) 0%, transparent 50%);
+                pointer-events: none;
+                z-index: 0;
             }}
             
             .header {{
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 20px 32px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+                padding: 16px 32px;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
+                z-index: 100;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             }}
             
             .header h1 {{
                 font-size: 24px;
                 font-weight: 700;
+                color: #1e293b;
             }}
             
             .header-actions {{
@@ -106,10 +149,72 @@ async def dashboard_page(
                 gap: 12px;
             }}
             
-            .btn-refresh {{
+            .search-box {{
+                position: relative;
+                margin-bottom: 16px;
+            }}
+            
+            .search-box input {{
+                width: 100%;
+                padding: 12px 16px 12px 44px;
+                border: 2px solid #e2e8f0;
+                border-radius: 10px;
+                font-size: 14px;
+                transition: all 0.3s ease;
+                background: white;
+            }}
+            
+            .search-box input:focus {{
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            }}
+            
+            .search-box .search-icon {{
+                position: absolute;
+                left: 16px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 18px;
+                pointer-events: none;
+                z-index: 1;
+            }}
+            
+            .quick-filters {{
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                margin-bottom: 16px;
+            }}
+            
+            .quick-filter-btn {{
                 padding: 8px 16px;
-                background: rgba(255, 255, 255, 0.2);
-                border: 1px solid rgba(255, 255, 255, 0.3);
+                background: white;
+                border: 2px solid #e2e8f0;
+                border-radius: 20px;
+                font-size: 13px;
+                font-weight: 500;
+                color: #64748b;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }}
+            
+            .quick-filter-btn:hover {{
+                border-color: #667eea;
+                color: #667eea;
+                transform: translateY(-2px);
+            }}
+            
+            .quick-filter-btn.active {{
+                background: #667eea;
+                border-color: #667eea;
+                color: white;
+            }}
+            
+            .btn-refresh {{
+                padding: 10px 20px;
+                background: #667eea;
+                border: none;
                 border-radius: 8px;
                 color: white;
                 cursor: pointer;
@@ -117,16 +222,19 @@ async def dashboard_page(
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                transition: all 0.2s;
+                transition: all 0.3s ease;
             }}
             
             .btn-refresh:hover {{
-                background: rgba(255, 255, 255, 0.3);
+                background: #5568d3;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
             }}
             
             .btn-refresh.loading {{
-                opacity: 0.6;
+                opacity: 0.7;
                 cursor: not-allowed;
+                transform: none;
             }}
             
             .btn-refresh.loading::after {{
@@ -143,18 +251,44 @@ async def dashboard_page(
                 to {{ transform: rotate(360deg); }}
             }}
             
+            @keyframes fadeIn {{
+                from {{ opacity: 0; transform: translateY(10px); }}
+                to {{ opacity: 1; transform: translateY(0); }}
+            }}
+            
+            @keyframes slideIn {{
+                from {{ opacity: 0; transform: translateX(-20px); }}
+                to {{ opacity: 1; transform: translateX(0); }}
+            }}
+            
+            @keyframes pulse {{
+                0%, 100% {{ opacity: 1; }}
+                50% {{ opacity: 0.5; }}
+            }}
+            
             .container {{
-                max-width: 1800px;
+                max-width: 1400px;
+                width: 100%;
                 margin: 0 auto;
-                padding: 24px;
+                padding: 100px 32px 40px;
+                box-sizing: border-box;
+                position: relative;
+                z-index: 1;
+                animation: fadeIn 0.5s ease-out;
             }}
             
             .filters-section {{
-                background: white;
-                border-radius: 12px;
-                padding: 24px;
-                margin-bottom: 24px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 24px;
+                padding: 32px;
+                margin-bottom: 32px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+                width: 100%;
+                box-sizing: border-box;
+                animation: slideIn 0.4s ease-out;
             }}
             
             .filters-header {{
@@ -162,18 +296,66 @@ async def dashboard_page(
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 20px;
+                padding-bottom: 16px;
+                border-bottom: 2px solid #e2e8f0;
             }}
             
             .filters-header h2 {{
                 font-size: 18px;
+                font-weight: 700;
+                color: #1e293b;
+            }}
+            
+            .filter-actions {{
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                margin-top: 20px;
+            }}
+            
+            .btn-apply {{
+                width: 100%;
+                padding: 12px;
+                background: #667eea;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
                 font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }}
+            
+            .btn-apply:hover {{
+                background: #5568d3;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            }}
+            
+            .btn-reset {{
+                width: 100%;
+                padding: 12px;
+                background: transparent;
+                color: #64748b;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }}
+            
+            .btn-reset:hover {{
+                border-color: #cbd5e1;
+                background: #f8fafc;
             }}
             
             .filters-grid {{
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                display: flex;
+                flex-direction: column;
                 gap: 16px;
-                margin-bottom: 16px;
+                margin-bottom: 20px;
+                width: 100%;
             }}
             
             .filter-group {{
@@ -190,18 +372,25 @@ async def dashboard_page(
             
             .filter-group select,
             .filter-group input {{
-                padding: 10px 12px;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
+                padding: 12px 16px;
+                border: 2px solid #e2e8f0;
+                border-radius: 10px;
                 font-size: 14px;
-                transition: all 0.2s;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                background: white;
+            }}
+            
+            .filter-group select:hover,
+            .filter-group input:hover {{
+                border-color: #cbd5e1;
             }}
             
             .filter-group select:focus,
             .filter-group input:focus {{
                 outline: none;
                 border-color: #667eea;
-                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+                box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+                transform: translateY(-1px);
             }}
             
             .date-picker-wrapper {{
@@ -418,27 +607,63 @@ async def dashboard_page(
             }}
             
             .table-container {{
-                background: white;
-                border-radius: 12px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 24px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
                 overflow: hidden;
+                width: 100%;
+                animation: fadeIn 0.7s ease-out;
             }}
             
             .table-header {{
-                padding: 20px 24px;
+                padding: 24px 32px;
                 border-bottom: 1px solid #e2e8f0;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
+                background: transparent;
             }}
             
             .table-header h2 {{
-                font-size: 18px;
-                font-weight: 600;
+                font-size: 20px;
+                font-weight: 700;
+                color: #1e293b;
+            }}
+            
+            .table-header-actions {{
+                display: flex;
+                gap: 12px;
+                align-items: center;
+            }}
+            
+            .btn-export {{
+                padding: 8px 16px;
+                background: #10b981;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }}
+            
+            .btn-export:hover {{
+                background: #059669;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
             }}
             
             .table-wrapper {{
                 overflow-x: auto;
+                width: 100%;
+                -webkit-overflow-scrolling: touch;
             }}
             
             table {{
@@ -451,6 +676,8 @@ async def dashboard_page(
                 text-align: left;
                 border-bottom: 1px solid #e2e8f0;
                 font-size: 13px;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
             }}
             
             th {{
@@ -460,10 +687,46 @@ async def dashboard_page(
                 position: sticky;
                 top: 0;
                 z-index: 10;
+                font-size: 12px;
+                text-transform: uppercase;
+                cursor: pointer;
+                user-select: none;
+                white-space: nowrap;
+            }}
+            
+            th:hover {{
+                background: #f1f5f9;
+            }}
+            
+            th.sortable::after {{
+                content: ' ↕️';
+                font-size: 10px;
+                opacity: 0.5;
+                margin-left: 4px;
+            }}
+            
+            th.sort-asc::after {{
+                content: ' ↑';
+                opacity: 1;
+            }}
+            
+            th.sort-desc::after {{
+                content: ' ↓';
+                opacity: 1;
+            }}
+            
+            .number-cell {{
+                text-align: right;
+            }}
+            
+            tbody tr {{
+                transition: all 0.2s ease;
             }}
             
             tbody tr:hover {{
                 background: #f8fafc;
+                transform: scale(1.01);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             }}
             
             .status-badge {{
@@ -528,56 +791,357 @@ async def dashboard_page(
             
             .loading {{
                 text-align: center;
-                padding: 60px 20px;
+                padding: 80px 20px;
                 color: #64748b;
+            }}
+            
+            .loading-skeleton {{
+                display: grid;
+                gap: 12px;
+                padding: 20px;
+            }}
+            
+            .skeleton-row {{
+                display: grid;
+                grid-template-columns: repeat(6, 1fr);
+                gap: 12px;
+                height: 50px;
+            }}
+            
+            .skeleton-item {{
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%;
+                animation: loading 1.5s infinite;
+                border-radius: 8px;
+            }}
+            
+            @keyframes loading {{
+                0% {{ background-position: 200% 0; }}
+                100% {{ background-position: -200% 0; }}
             }}
             
             .empty-state {{
                 text-align: center;
-                padding: 60px 20px;
+                padding: 80px 20px;
                 color: #64748b;
+                width: 100%;
+                animation: fadeIn 0.5s ease-out;
             }}
             
             .empty-state .icon {{
-                font-size: 48px;
-                margin-bottom: 16px;
+                font-size: 64px;
+                margin-bottom: 20px;
+                opacity: 0.6;
+            }}
+            
+            .empty-state h3 {{
+                font-size: 20px;
+                font-weight: 600;
+                color: #1e293b;
+                margin-bottom: 12px;
+            }}
+            
+            .empty-state p {{
+                margin: 8px 0;
+                font-size: 14px;
+                line-height: 1.6;
+            }}
+            
+            .empty-state .suggestion {{
+                margin-top: 24px;
+                padding: 16px;
+                background: #f1f5f9;
+                border-radius: 12px;
+                display: inline-block;
             }}
             
             .stats-grid {{
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 20px;
-                margin-bottom: 24px;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 24px;
+                margin-bottom: 32px;
+                width: 100%;
             }}
             
             .stat-card {{
-                background: white;
-                border-radius: 12px;
-                padding: 20px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 16px;
+                padding: 24px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                position: relative;
+                overflow: hidden;
+                animation: fadeIn 0.6s ease-out;
+                display: flex;
+                flex-direction: column;
+            }}
+            
+            .stat-card::before {{
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 4px;
+                background: linear-gradient(90deg, #667eea, #764ba2);
+                transform: scaleX(0);
+                transition: transform 0.3s ease;
+            }}
+            
+            .stat-card:hover {{
+                transform: translateY(-4px);
+                box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
+            }}
+            
+            .stat-card:hover::before {{
+                transform: scaleX(1);
+            }}
+            
+            .stat-card-header {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 16px;
+            }}
+            
+            .stat-card-icon {{
+                font-size: 32px;
+                opacity: 0.8;
             }}
             
             .stat-card .label {{
                 font-size: 13px;
                 color: #64748b;
                 margin-bottom: 8px;
-                font-weight: 500;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
             }}
             
             .stat-card .value {{
-                font-size: 24px;
+                font-size: 32px;
                 font-weight: 700;
                 color: #1e293b;
+                transition: all 0.3s ease;
+                line-height: 1.2;
+            }}
+            
+            .stat-card .subtext {{
+                font-size: 12px;
+                color: #94a3b8;
+                margin-top: 8px;
+            }}
+            
+            .stat-card:hover .value {{
+                color: #667eea;
+            }}
+            
+            .charts-section {{
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 24px;
+                padding: 32px;
+                margin-bottom: 32px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+                animation: fadeIn 0.7s ease-out;
+            }}
+            
+            .charts-header {{
+                margin-bottom: 24px;
+            }}
+            
+            .charts-header h2 {{
+                font-size: 20px;
+                font-weight: 700;
+                color: #1e293b;
+                margin-bottom: 8px;
+            }}
+            
+            .charts-header p {{
+                font-size: 14px;
+                color: #64748b;
+            }}
+            
+            .charts-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+                gap: 24px;
+            }}
+            
+            .chart-container {{
+                background: #f8fafc;
+                border-radius: 12px;
+                padding: 24px;
+                min-height: 300px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #94a3b8;
+                font-size: 14px;
+            }}
+            
+            .mobile-filter-toggle {{
+                display: none;
+                padding: 12px 20px;
+                background: #667eea;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                margin-bottom: 16px;
+                width: 100%;
+            }}
+            
+            .sidebar-filters.mobile-hidden {{
+                display: none;
+            }}
+            
+            /* Responsive Design */
+            @media (max-width: 1024px) {{
+                .dashboard-layout {{
+                    flex-direction: column;
+                    padding: 100px 24px 40px;
+                }}
+                
+                .sidebar-filters {{
+                    width: 100%;
+                    position: static;
+                    max-height: none;
+                }}
+                
+                .mobile-filter-toggle {{
+                    display: block;
+                }}
+                
+                .sidebar-filters.mobile-hidden {{
+                    display: none;
+                }}
+            }}
+            
+            @media (max-width: 768px) {{
+                .header {{
+                    padding: 12px 16px;
+                    flex-direction: column;
+                    gap: 12px;
+                    align-items: flex-start;
+                }}
+                
+                .header h1 {{
+                    font-size: 20px;
+                }}
+                
+                .header-actions {{
+                    width: 100%;
+                    justify-content: flex-end;
+                }}
+                
+                .dashboard-layout {{
+                    padding: 100px 16px 40px;
+                }}
+                
+                .filters-section {{
+                    padding: 20px;
+                }}
+                
+                .stats-grid {{
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 16px;
+                }}
+                
+                .stat-card {{
+                    padding: 20px;
+                }}
+                
+                .stat-card .value {{
+                    font-size: 24px;
+                }}
+                
+                .charts-grid {{
+                    grid-template-columns: 1fr;
+                }}
+                
+                .chart-container {{
+                    min-height: 250px;
+                }}
+                
+                .table-header {{
+                    flex-direction: column;
+                    gap: 12px;
+                    align-items: flex-start;
+                }}
+                
+                .table-header-actions {{
+                    width: 100%;
+                    flex-direction: column;
+                    gap: 8px;
+                }}
+                
+                .table-wrapper {{
+                    overflow-x: scroll;
+                }}
+                
+                table {{
+                    min-width: 1200px;
+                }}
+                
+                .date-picker-content {{
+                    flex-direction: column;
+                    width: 95%;
+                    max-height: 95vh;
+                }}
+                
+                .date-picker-sidebar {{
+                    width: 100%;
+                    border-right: none;
+                    border-bottom: 1px solid #e2e8f0;
+                    max-height: 200px;
+                }}
+                
+                .date-picker-calendars {{
+                    flex-direction: column;
+                }}
+                
+                .quick-filters {{
+                    overflow-x: auto;
+                    flex-wrap: nowrap;
+                    padding-bottom: 8px;
+                }}
+                
+                .quick-filter-btn {{
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                }}
+            }}
+            
+            @media (max-width: 480px) {{
+                .header h1 {{
+                    font-size: 18px;
+                }}
+                
+                .btn-refresh {{
+                    padding: 8px 12px;
+                    font-size: 13px;
+                }}
+                
+                .stat-card .value {{
+                    font-size: 24px;
+                }}
+                
+                th, td {{
+                    padding: 8px 12px;
+                    font-size: 12px;
+                }}
             }}
         </style>
     </head>
     <body>
-        <script>
-            // TEST SCRIPT - Chạy ngay khi body load
-            alert('Script đang chạy! Nếu bạn thấy alert này, JavaScript đang hoạt động.');
-            console.log('🚀 TEST: Script đang chạy!');
-            console.error('🚨 TEST ERROR: Nếu bạn thấy dòng này, console đang hoạt động!');
-        </script>
         """ + user_menu + """
         <div class="header">
             <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
@@ -588,86 +1152,175 @@ async def dashboard_page(
             </div>
         </div>
         
-        <div class="container">
-            <div class="filters-section">
-                <div class="filters-header">
-                    <h2>🔍 Bộ Lọc</h2>
+        <div class="dashboard-layout">
+            <div class="sidebar-filters mobile-hidden" id="sidebarFilters">
+                <div class="filters-section">
+                    <div class="filters-header">
+                        <h2>🔍 Bộ Lọc</h2>
+                    </div>
+                    <div class="filters-grid">
+                        <div class="filter-group">
+                            <label>Account</label>
+                            <select id="accountFilter">
+                                <option value="">Tất cả Accounts</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Prefix</label>
+                            <select id="prefixFilter">
+                                <option value="">Tất cả Prefixes</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Loại Campaign</label>
+                            <select id="campaignTypeFilter">
+                                <option value="">Tất cả</option>
+                                <option value="ECOMMERCE">E-commerce</option>
+                                <option value="LEAD">Lead Generation</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Trạng thái</label>
+                            <select id="statusFilter">
+                                <option value="">Tất cả</option>
+                                <option value="ACTIVE">Active</option>
+                                <option value="PAUSED">Paused</option>
+                            </select>
+                        </div>
+                        <div class="filter-group date-picker-wrapper">
+                            <label>Khoảng thời gian</label>
+                            <div class="date-picker-btn" onclick="openDatePicker()">
+                                <span id="dateRangeText">Chọn khoảng thời gian</span>
+                                <span>📅</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="quick-filters">
+                        <button class="quick-filter-btn" onclick="applyQuickFilter('today', this)">Hôm nay</button>
+                        <button class="quick-filter-btn" onclick="applyQuickFilter('yesterday', this)">Hôm qua</button>
+                        <button class="quick-filter-btn" onclick="applyQuickFilter('last7days', this)">7 ngày qua</button>
+                        <button class="quick-filter-btn" onclick="applyQuickFilter('last30days', this)">30 ngày qua</button>
+                        <button class="quick-filter-btn" onclick="applyQuickFilter('thisMonth', this)">Tháng này</button>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn-apply" onclick="applyFilters()">Áp dụng</button>
+                        <button class="btn-reset" onclick="resetFilters()">Làm mới</button>
+                    </div>
                 </div>
-                <div class="filters-grid">
-                    <div class="filter-group">
-                        <label>Account</label>
-                        <select id="accountFilter">
-                            <option value="">Tất cả Accounts</option>
-                        </select>
+            </div>
+            
+            <div class="main-content">
+                <button class="mobile-filter-toggle" onclick="toggleMobileFilters()" id="mobileFilterToggle">
+                    🔍 Bộ Lọc
+                </button>
+                
+                <div class="search-box" style="margin-bottom: 24px;">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
+                </div>
+                
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="label">💰 Tổng Chi Tiêu</div>
+                                <div class="value" id="totalSpend">0</div>
+                                <div class="subtext">Tổng số tiền đã chi</div>
+                            </div>
+                            <div class="stat-card-icon">💰</div>
+                        </div>
                     </div>
-                    <div class="filter-group">
-                        <label>Prefix</label>
-                        <select id="prefixFilter">
-                            <option value="">Tất cả Prefixes</option>
-                        </select>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="label">📊 Tổng Kết Quả</div>
+                                <div class="value" id="totalResults">0</div>
+                                <div class="subtext">Tổng số leads/purchases</div>
+                            </div>
+                            <div class="stat-card-icon">📊</div>
+                        </div>
                     </div>
-                    <div class="filter-group">
-                        <label>Loại Campaign</label>
-                        <select id="campaignTypeFilter">
-                            <option value="">Tất cả</option>
-                            <option value="ECOMMERCE">E-commerce</option>
-                            <option value="LEAD">Lead Generation</option>
-                        </select>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="label">💵 Giá DATA Trung Bình</div>
+                                <div class="value" id="avgGiaData">0</div>
+                                <div class="subtext">Giá trung bình mỗi data</div>
+                            </div>
+                            <div class="stat-card-icon">💵</div>
+                        </div>
                     </div>
-                    <div class="filter-group">
-                        <label>Trạng thái</label>
-                        <select id="statusFilter">
-                            <option value="">Tất cả</option>
-                            <option value="ACTIVE">Active</option>
-                            <option value="PAUSED">Paused</option>
-                        </select>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="label">▶️ Adsets Hoạt Động</div>
+                                <div class="value" id="activeAdsets">0</div>
+                                <div class="subtext">Đang chạy quảng cáo</div>
+                            </div>
+                            <div class="stat-card-icon">▶️</div>
+                        </div>
                     </div>
-                    <div class="filter-group date-picker-wrapper">
-                        <label>Khoảng thời gian</label>
-                        <div class="date-picker-btn" onclick="openDatePicker()">
-                            <span id="dateRangeText">Chọn khoảng thời gian</span>
-                            <span>📅</span>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="label">⏸️ Adsets Đã Tạm Dừng</div>
+                                <div class="value" id="pausedAdsets">0</div>
+                                <div class="subtext">Đã dừng quảng cáo</div>
+                            </div>
+                            <div class="stat-card-icon">⏸️</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="label">📈 Tổng Adsets</div>
+                                <div class="value" id="totalAdsets">0</div>
+                                <div class="subtext">Tổng số adsets</div>
+                            </div>
+                            <div class="stat-card-icon">📈</div>
                         </div>
                     </div>
                 </div>
-            </div>
-            
-            <div class="stats-grid" id="statsGrid">
-                <div class="stat-card">
-                    <div class="label">Tổng Chi Tiêu</div>
-                    <div class="value" id="totalSpend">0</div>
+                
+                <div class="charts-section" id="chartsSection">
+                    <div class="charts-header">
+                        <h2>📊 Dữ Liệu Quảng Cáo</h2>
+                        <p>Tổng quan theo ngày trong khoảng thời gian chọn</p>
+                    </div>
+                    <div class="charts-grid">
+                        <div class="chart-container">
+                            <div style="text-align: center;">
+                                <div style="font-size: 48px; margin-bottom: 12px;">📈</div>
+                                <div>Line Chart: Chi tiêu & Kết quả theo ngày</div>
+                                <div style="font-size: 12px; margin-top: 8px; color: #cbd5e1;">(Sẽ tích hợp Chart.js sau)</div>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <div style="text-align: center;">
+                                <div style="font-size: 48px; margin-bottom: 12px;">📊</div>
+                                <div>Bar Chart: Chi tiêu theo Prefix</div>
+                                <div style="font-size: 12px; margin-top: 8px; color: #cbd5e1;">(Sẽ tích hợp Chart.js sau)</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="label">Tổng Kết Quả</div>
-                    <div class="value" id="totalResults">0</div>
+                
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>📋 Chi Tiết Quảng Cáo</h2>
+                        <div class="table-header-actions">
+                            <div id="tableInfo" style="font-size: 14px; color: #64748b;">Hiển thị 0 / 0 kết quả</div>
+                            <button class="btn-export" onclick="exportData()" id="exportBtn">📥 Xuất Excel</button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper" id="tableWrapper">
+                        <div class="loading">
+                            <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
+                            <div style="font-size: 16px; font-weight: 500;">Đang tải dữ liệu...</div>
+                        </div>
+                    </div>
+                    <div class="pagination" id="pagination"></div>
                 </div>
-                <div class="stat-card">
-                    <div class="label">Giá DATA Trung Bình</div>
-                    <div class="value" id="avgGiaData">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Adsets Hoạt Động</div>
-                    <div class="value" id="activeAdsets">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Adsets Đã Tạm Dừng</div>
-                    <div class="value" id="pausedAdsets">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Tổng Adsets</div>
-                    <div class="value" id="totalAdsets">0</div>
-                </div>
-            </div>
-            
-            <div class="table-container">
-                <div class="table-header">
-                    <h2>📈 Dữ Liệu Quảng Cáo</h2>
-                    <div id="tableInfo"></div>
-                </div>
-                <div class="table-wrapper" id="tableWrapper">
-                    <div class="loading">Đang tải dữ liệu...</div>
-                </div>
-                <div class="pagination" id="pagination"></div>
             </div>
         </div>
         
@@ -698,108 +1351,39 @@ async def dashboard_page(
         </div>
         
         <script>
-            // TEST: Kiểm tra script tag chính có chạy không
-            console.log('🔍 SCRIPT TAG CHÍNH: Bắt đầu chạy!');
-            alert('SCRIPT TAG CHÍNH: Nếu bạn thấy alert này, script tag chính đang chạy!');
+            let currentPage = 1;
+            const pageSize = 50;
+            let selectedDateRange = {{ start: null, end: null }};
+            let currentFilters = {{
+                account: '',
+                prefix: '',
+                campaignType: '',
+                status: '',
+                dateFrom: '',
+                dateTo: ''
+            }};
             
-            // FORCE LOG - Luôn hiển thị log, không bị filter
-            // Sử dụng function thay vì IIFE để tránh lỗi với {{}}
-            (function() {
-                try {
-                    const originalLog = console.log;
-                    const originalError = console.error;
-                    
-                    console.log = function(...args) {
-                        originalLog.apply(console, args);
-                        // Force hiển thị bằng cách tạo element
-                        try {
-                            if (document && document.body) {
-                                const div = document.createElement('div');
-                                div.style.cssText = 'position:fixed;top:0;left:0;background:rgba(0,0,0,0.8);color:#0f0;padding:5px;z-index:99999;font-size:11px;max-width:500px;';
-                                div.textContent = '[LOG] ' + args.join(' ');
-                                document.body.appendChild(div);
-                                setTimeout(function() { div.remove(); }, 3000);
-                            }
-                        } catch(e) {
-                            originalError('Error in force log:', e);
-                        }
-                    };
-                    
-                    console.error = function(...args) {
-                        originalError.apply(console, args);
-                        try {
-                            if (document && document.body) {
-                                const div = document.createElement('div');
-                                div.style.cssText = 'position:fixed;top:0;left:0;background:rgba(255,0,0,0.9);color:#fff;padding:5px;z-index:99999;font-size:11px;max-width:500px;';
-                                div.textContent = '[ERROR] ' + args.join(' ');
-                                document.body.appendChild(div);
-                                setTimeout(function() { div.remove(); }, 5000);
-                            }
-                        } catch(e) {
-                            originalError('Error in force error:', e);
-                        }
-                    };
-                } catch(e) {
-                    // Nếu không thể override console, vẫn tiếp tục
-                }
-            })();
-            
-            // Log ngay lập tức để kiểm tra script có chạy không
-            try {
-                console.log('🚀 Dashboard script loading...');
-                console.error('TEST ERROR - Nếu bạn thấy dòng này, console đang hoạt động');
-            } catch(e) {
-                alert('Lỗi khi log: ' + e.message);
-            }
-            
-            // Wrap toàn bộ code trong try-catch để bắt lỗi
-            try {
-                console.log('✅ Try block started');
-                
-                // Đảm bảo các biến và function ở global scope
-                window.currentPage = 1;
-                window.pageSize = 50;
-                window.selectedDateRange = { start: null, end: null };
-                window.currentFilters = {
-                    account: '',
-                    prefix: '',
-                    campaignType: '',
-                    status: '',
-                    dateFrom: '',
-                    dateTo: ''
-                };
-                
-                console.log('✅ Variables initialized');
-                
-                // Alias cho backward compatibility
-                let currentPage = window.currentPage;
-                const pageSize = window.pageSize;
-                let selectedDateRange = window.selectedDateRange;
-                let currentFilters = window.currentFilters;
-                
-                console.log('✅ Dashboard script started');
-            
-            // Date Picker Logic - Đảm bảo ở global scope
-            window.openDatePicker = function openDatePicker() {
+            // Date Picker Logic
+            function openDatePicker() {{
                 document.getElementById('datePickerModal').classList.add('active');
                 renderCalendars();
-            };
+            }}
             
-            window.closeDatePicker = function closeDatePicker() {
+            function closeDatePicker() {{
                 document.getElementById('datePickerModal').classList.remove('active');
-            };
+            }}
             
-            window.closeDatePickerOnOverlay = function closeDatePickerOnOverlay(event) {
-                if (event.target.id === 'datePickerModal') {
+            function closeDatePickerOnOverlay(event) {{
+                if (event.target.id === 'datePickerModal') {{
                     closeDatePicker();
-                }
-            };
+                }}
+            }}
             
-            window.selectQuickDate = function selectQuickDate(type) {
+            function selectQuickDate(type) {{
                 const today = new Date();
                 let start, end;
                 
-                switch(type) {
+                switch(type) {{
                     case 'today':
                         start = new Date(today);
                         end = new Date(today);
@@ -832,23 +1416,23 @@ async def dashboard_page(
                         start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
                         end = new Date(today.getFullYear(), today.getMonth(), 0);
                         break;
-                }
+                }}
                 
                 selectedDateRange.start = start;
                 selectedDateRange.end = end;
                 renderCalendars();
                 applyDateRange();
-            };
+            }}
             
-            window.renderCalendars = function renderCalendars() {
+            function renderCalendars() {{
                 const container = document.getElementById('calendarsContainer');
                 const startMonth = new Date(currentCalendarYear, currentCalendarMonth, 1);
                 const endMonth = new Date(currentCalendarYear, currentCalendarMonth + 1, 1);
                 
                 container.innerHTML = renderCalendar(startMonth) + renderCalendar(endMonth);
-            };
+            }}
             
-            window.renderCalendar = function renderCalendar(date) {
+            function renderCalendar(date) {{
                 const year = date.getFullYear();
                 const month = date.getMonth();
                 const firstDay = new Date(year, month, 1);
@@ -856,102 +1440,101 @@ async def dashboard_page(
                 const daysInMonth = lastDay.getDate();
                 const startingDayOfWeek = firstDay.getDay();
                 
-                let html = '<div class="calendar">';
-                html += '<div class="calendar-header">';
-                html += '<div class="calendar-nav">';
-                html += '<button onclick="changeMonth(-1)">‹</button>';
-                html += '<select onchange="changeMonthBySelect(this.value)">';
-                
-                // Generate month options
-                for (let i = 0; i < 12; i++) {
-                    const selected = i === month ? 'selected' : '';
-                    html += '<option value="' + i + '" ' + selected + '>Tháng ' + (i + 1) + '</option>';
-                }
-                
-                html += '</select>';
-                html += '<select onchange="changeYearBySelect(this.value)">';
-                
-                // Generate year options
-                for (let i = 0; i < 10; i++) {
-                    const y = year - 5 + i;
-                    const selected = y === year ? 'selected' : '';
-                    html += '<option value="' + y + '" ' + selected + '>' + y + '</option>';
-                }
-                
-                html += '</select>';
-                html += '</div>';
-                html += '<div class="calendar-nav">';
-                html += '<button onclick="changeMonth(1)">›</button>';
-                html += '</div>';
-                html += '</div>';
-                html += '<div class="calendar-grid">';
-                html += '<div class="calendar-day-header">CN</div>';
-                html += '<div class="calendar-day-header">T2</div>';
-                html += '<div class="calendar-day-header">T3</div>';
-                html += '<div class="calendar-day-header">T4</div>';
-                html += '<div class="calendar-day-header">T5</div>';
-                html += '<div class="calendar-day-header">T6</div>';
-                html += '<div class="calendar-day-header">T7</div>';
+                let html = `
+                    <div class="calendar">
+                        <div class="calendar-header">
+                            <div class="calendar-nav">
+                                <button onclick="changeMonth(-1)">‹</button>
+                                <select onchange="changeMonthBySelect(this.value)">
+                                    ` + Array.from({length: 12}, (_, i) => `
+                                        <option value="` + i + `" ` + (i === month ? 'selected' : '') + `>
+                                            Tháng ` + (i + 1) + `
+                                        </option>
+                                    `).join('') + `
+                                </select>
+                                <select onchange="changeYearBySelect(this.value)">
+                                    ` + Array.from({length: 10}, (_, i) => year - 5 + i).map(y => `
+                                        <option value="` + y + `" ` + (y === year ? 'selected' : '') + `>` + y + `</option>
+                                    `).join('') + `
+                                </select>
+                            </div>
+                            <div class="calendar-nav">
+                                <button onclick="changeMonth(1)">›</button>
+                            </div>
+                        </div>
+                        <div class="calendar-grid">
+                            <div class="calendar-day-header">CN</div>
+                            <div class="calendar-day-header">T2</div>
+                            <div class="calendar-day-header">T3</div>
+                            <div class="calendar-day-header">T4</div>
+                            <div class="calendar-day-header">T5</div>
+                            <div class="calendar-day-header">T6</div>
+                            <div class="calendar-day-header">T7</div>
+                `;
                 
                 // Empty cells for days before month starts
-                for (let i = 0; i < startingDayOfWeek; i++) {
+                for (let i = 0; i < startingDayOfWeek; i++) {{
                     html += '<div class="calendar-day other-month"></div>';
-                }
+                }}
                 
                 // Days of the month
-                for (let day = 1; day <= daysInMonth; day++) {
+                for (let day = 1; day <= daysInMonth; day++) {{
                     const dayDate = new Date(year, month, day);
                     const isSelected = selectedDateRange.start && selectedDateRange.end &&
                         dayDate >= selectedDateRange.start && dayDate <= selectedDateRange.end;
+                    const isStart = selectedDateRange.start && 
+                        dayDate.toDateString() === selectedDateRange.start.toDateString();
+                    const isEnd = selectedDateRange.end && 
+                        dayDate.toDateString() === selectedDateRange.end.toDateString();
                     
                     html += '<div class="calendar-day ' + (isSelected ? 'selected' : '') + '" onclick="selectDate(' + year + ', ' + month + ', ' + day + ')">' + day + '</div>';
-                }
+                }}
                 
                 html += '</div></div>';
                 return html;
-            };
+            }}
             
-            window.selectDate = function selectDate(year, month, day) {
+            function selectDate(year, month, day) {{
                 const date = new Date(year, month, day);
-                if (!selectedDateRange.start || (selectedDateRange.start && selectedDateRange.end)) {
+                if (!selectedDateRange.start || (selectedDateRange.start && selectedDateRange.end)) {{
                     selectedDateRange.start = date;
                     selectedDateRange.end = null;
-                } else if (date < selectedDateRange.start) {
+                }} else if (date < selectedDateRange.start) {{
                     selectedDateRange.end = selectedDateRange.start;
                     selectedDateRange.start = date;
-                } else {
+                }} else {{
                     selectedDateRange.end = date;
-                }
+                }}
                 renderCalendars();
-            };
+            }}
             
             let currentCalendarMonth = new Date().getMonth();
             let currentCalendarYear = new Date().getFullYear();
             
-            window.changeMonth = function changeMonth(delta) {
+            function changeMonth(delta) {{
                 currentCalendarMonth += delta;
-                if (currentCalendarMonth < 0) {
+                if (currentCalendarMonth < 0) {{
                     currentCalendarMonth = 11;
                     currentCalendarYear--;
-                } else if (currentCalendarMonth > 11) {
+                }} else if (currentCalendarMonth > 11) {{
                     currentCalendarMonth = 0;
                     currentCalendarYear++;
-                }
+                }}
                 renderCalendars();
-            };
+            }}
             
-            window.changeMonthBySelect = function changeMonthBySelect(monthIndex) {
+            function changeMonthBySelect(monthIndex) {{
                 currentCalendarMonth = parseInt(monthIndex);
                 renderCalendars();
-            };
+            }}
             
-            window.changeYearBySelect = function changeYearBySelect(yearValue) {
+            function changeYearBySelect(yearValue) {{
                 currentCalendarYear = parseInt(yearValue);
                 renderCalendars();
-            };
+            }}
             
-            window.applyDateRange = function applyDateRange() {
-                if (selectedDateRange.start && selectedDateRange.end) {
+            function applyDateRange() {{
+                if (selectedDateRange.start && selectedDateRange.end) {{
                     const startStr = selectedDateRange.start.toISOString().split('T')[0];
                     const endStr = selectedDateRange.end.toISOString().split('T')[0];
                     currentFilters.dateFrom = startStr;
@@ -963,18 +1546,18 @@ async def dashboard_page(
                     
                     closeDatePicker();
                     loadData();
-                }
-            };
+                }}
+            }}
             
-            window.formatDateVN = function formatDateVN(date) {
+            function formatDateVN(date) {{
                 const day = date.getDate();
                 const month = date.getMonth() + 1;
                 const year = date.getFullYear();
                 return day + ' Tháng ' + month + ', ' + year;
-            };
+            }}
             
-            // Load data - Đảm bảo ở global scope
-            window.loadData = async function loadData() {
+            // Load data
+            async function loadData() {{
                 const account = document.getElementById('accountFilter').value;
                 const prefix = document.getElementById('prefixFilter').value;
                 const campaignType = document.getElementById('campaignTypeFilter').value;
@@ -985,10 +1568,10 @@ async def dashboard_page(
                 currentFilters.campaignType = campaignType;
                 currentFilters.status = status;
                 
-                const params = new URLSearchParams({
+                const params = new URLSearchParams({{
                     page: currentPage,
                     page_size: pageSize
-                });
+                }});
                 
                 if (account) params.append('account_id', account);
                 if (prefix) params.append('prefix', prefix);
@@ -997,99 +1580,98 @@ async def dashboard_page(
                 if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                 if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
                 
-                try {
-                    document.getElementById('tableWrapper').innerHTML = '<div class="loading">Đang tải dữ liệu...</div>';
+                try {{
+                    // Show loading skeleton
+                    const skeleton = '<div class="loading-skeleton">' +
+                        Array(5).fill(0).map(() => 
+                            '<div class="skeleton-row">' +
+                            Array(6).fill(0).map(() => '<div class="skeleton-item"></div>').join('') +
+                            '</div>'
+                        ).join('') +
+                        '</div>';
+                    document.getElementById('tableWrapper').innerHTML = skeleton;
                     
-                    const token = localStorage.getItem('access_token') || getCookie('access_token');
-                    const response = await fetch('/dashboard/data?' + params.toString(), {
-                        headers: {
-                            'Authorization': 'Bearer ' + token
-                        }
-                    });
+                    const response = await fetch('/dashboard/data?' + params.toString(), {{
+                        headers: {{
+                            'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
+                        }}
+                    }});
                     
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        let errorMsg = 'Failed to load data';
-                        try {
-                            const errorJson = JSON.parse(errorText);
-                            errorMsg = errorJson.detail || errorJson.message || errorMsg;
-                        } catch {
-                            errorMsg = errorText.substring(0, 200);
-                        }
-                        throw new Error(errorMsg);
-                    }
+                    if (!response.ok) throw new Error('Failed to load data');
                     
                     const data = await response.json();
-                    console.log('Dashboard data received:', data);
-                    
-                    if (data.stats) {
+                    if (data.stats) {{
                         updateStats(data.stats);
-                    } else {
-                        // Nếu không có stats, set về 0
-                        updateStats({
-                            total_spend: 0,
-                            total_results: 0,
-                            avg_gia_data: 0,
-                            active_adsets: 0,
-                            paused_adsets: 0,
-                            total_adsets: 0
-                        });
-                    }
-                    
+                    }}
                     renderTable(data);
-                } catch (error) {
+                }} catch (error) {{
                     console.error('Error loading data:', error);
-                    const errorMsg = error.message || 'Lỗi khi tải dữ liệu';
                     document.getElementById('tableWrapper').innerHTML = 
-                        '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi tải dữ liệu</p><p style="font-size: 12px; color: #94a3b8;">' + errorMsg + '</p></div>';
-                    // Cũng reset stats về 0 khi có lỗi
-                    updateStats({
-                        total_spend: 0,
-                        total_results: 0,
-                        avg_gia_data: 0,
-                        active_adsets: 0,
-                        paused_adsets: 0,
-                        total_adsets: 0
-                    });
-                }
-            }
+                        '<div class="empty-state"><div class="icon">⚠️</div>Lỗi khi tải dữ liệu</div>';
+                }}
+            }}
             
-            window.updateStats = function updateStats(stats) {
-                try {
-                    console.log('updateStats() called with:', stats);
-                    document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
-                    document.getElementById('totalResults').textContent = formatNumber(stats.total_results || 0);
-                    document.getElementById('avgGiaData').textContent = formatNumber(stats.avg_gia_data || 0);
-                    document.getElementById('activeAdsets').textContent = formatNumber(stats.active_adsets || 0);
-                    document.getElementById('pausedAdsets').textContent = formatNumber(stats.paused_adsets || 0);
-                    document.getElementById('totalAdsets').textContent = formatNumber(stats.total_adsets || 0);
-                    console.log('✅ updateStats() completed');
-                } catch (error) {
-                    console.error('❌ Error in updateStats():', error);
-                }
-            }
+            function updateStats(stats) {{
+                // Animate số đếm
+                function animateValue(element, start, end, duration) {{
+                    let startTimestamp = null;
+                    const step = (timestamp) => {{
+                        if (!startTimestamp) startTimestamp = timestamp;
+                        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                        const value = Math.floor(progress * (end - start) + start);
+                        element.textContent = formatNumber(value);
+                        if (progress < 1) {{
+                            window.requestAnimationFrame(step);
+                        }} else {{
+                            element.textContent = formatNumber(end);
+                        }}
+                    }};
+                    window.requestAnimationFrame(step);
+                }}
+                
+                const totalSpendEl = document.getElementById('totalSpend');
+                const totalResultsEl = document.getElementById('totalResults');
+                const avgGiaDataEl = document.getElementById('avgGiaData');
+                const activeAdsetsEl = document.getElementById('activeAdsets');
+                const pausedAdsetsEl = document.getElementById('pausedAdsets');
+                const totalAdsetsEl = document.getElementById('totalAdsets');
+                
+                const currentSpend = parseFloat(totalSpendEl.textContent.replace(/[^0-9.-]+/g, '')) || 0;
+                const currentResults = parseFloat(totalResultsEl.textContent.replace(/[^0-9.-]+/g, '')) || 0;
+                const currentGiaData = parseFloat(avgGiaDataEl.textContent.replace(/[^0-9.-]+/g, '')) || 0;
+                const currentActive = parseFloat(activeAdsetsEl.textContent.replace(/[^0-9.-]+/g, '')) || 0;
+                const currentPaused = parseFloat(pausedAdsetsEl.textContent.replace(/[^0-9.-]+/g, '')) || 0;
+                const currentTotal = parseFloat(totalAdsetsEl.textContent.replace(/[^0-9.-]+/g, '')) || 0;
+                
+                animateValue(totalSpendEl, currentSpend, stats.total_spend || 0, 800);
+                animateValue(totalResultsEl, currentResults, stats.total_results || 0, 800);
+                animateValue(avgGiaDataEl, currentGiaData, stats.avg_gia_data || 0, 800);
+                animateValue(activeAdsetsEl, currentActive, stats.active_adsets || 0, 800);
+                animateValue(pausedAdsetsEl, currentPaused, stats.paused_adsets || 0, 800);
+                animateValue(totalAdsetsEl, currentTotal, stats.total_adsets || 0, 800);
+            }}
             
-            window.renderTable = function renderTable(data) {
-                try {
-                    console.log('renderTable() called with:', {
-                        ads_count: data.ads ? data.ads.length : 0,
-                        total: data.total,
-                        has_stats: !!data.stats
-                    });
-                    const ads = data.ads || [];
-                    const total = data.total || 0;
-                    const campaignType = currentFilters.campaignType || '';
-                    
-                    if (ads.length === 0) {
-                        console.log('⚠️ No ads to display');
-                        document.getElementById('tableWrapper').innerHTML = 
-                            '<div class="empty-state"><div class="icon">📭</div><p>Không có dữ liệu</p><p style="font-size: 12px; color: #94a3b8; margin-top: 8px;">Vui lòng kiểm tra lại bộ lọc hoặc cấu hình accounts/prefixes trong Settings</p></div>';
-                        document.getElementById('tableInfo').textContent = 'Hiển thị 0 / 0 kết quả';
-                        document.getElementById('pagination').innerHTML = '';
-                        return;
-                    }
-                    
-                    console.log('✅ Rendering ' + ads.length + ' ads...');
+            function renderTable(data) {{
+                const ads = data.ads || [];
+                const total = data.total || 0;
+                const campaignType = currentFilters.campaignType || 'ECOMMERCE';
+                
+                if (ads.length === 0) {{
+                    document.getElementById('tableWrapper').innerHTML = 
+                        '<div class="empty-state">' +
+                        '<div class="icon">📭</div>' +
+                        '<h3>Không có dữ liệu</h3>' +
+                        '<p>Không tìm thấy dữ liệu phù hợp với bộ lọc hiện tại.</p>' +
+                        '<div class="suggestion">' +
+                        '<p>💡 <strong>Gợi ý:</strong></p>' +
+                        '<p>• Kiểm tra lại khoảng thời gian đã chọn</p>' +
+                        '<p>• Thử chọn "Tất cả" cho các bộ lọc</p>' +
+                        '<p>• Đảm bảo accounts đã được bật trong Settings</p>' +
+                        '</div>' +
+                        '</div>';
+                    document.getElementById('tableInfo').textContent = 'Hiển thị 0 / 0 kết quả';
+                    return;
+                }}
                 
                 // Define columns based on campaign type
                 const columns = campaignType === 'ECOMMERCE' ? [
@@ -1105,79 +1687,118 @@ async def dashboard_page(
                     'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)'
                 ];
                 
+                // Define sortable columns
+                const sortableColumns = {
+                    'Số tiền chi tiêu': 'spend',
+                    'Kết quả': 'results',
+                    'Giá DATA': 'gia_data',
+                    'CPM': 'cpm',
+                    'Lượt hiển thị': 'impressions',
+                    'Số lần nhấp (tất cả)': 'clicks',
+                    'CTR (tất cả)': 'ctr',
+                    'CPC (tất cả)': 'cpc'
+                };
+                
                 let html = '<table><thead><tr>';
-                columns.forEach(col => {
-                    html += '<th>' + col + '</th>';
-                });
+                columns.forEach((col, idx) => {{
+                    const sortKey = sortableColumns[col];
+                    if (sortKey) {{
+                        html += '<th class="sortable" onclick="sortTable(' + idx + ', \\'' + sortKey + '\\')">' + col + '</th>';
+                    }} else {{
+                        html += '<th>' + col + '</th>';
+                    }}
+                }});
                 html += '</tr></thead><tbody>';
                 
-                ads.forEach(ad => {
+                ads.forEach(ad => {{
                     html += '<tr>';
                     html += '<td><span class="status-badge status-' + (ad.adset_status || '').toLowerCase() + '">' + (ad.adset_status || '') + '</span></td>';
                     html += '<td>' + (ad.adset_name || '') + '</td>';
                     html += '<td>-</td>'; // Phân phối - cần lấy từ API
                     html += '<td>-</td>'; // Ngân sách - cần lấy từ API
-                    html += '<td>' + formatNumber(ad.spend || 0) + '</td>';
+                    const cpm = ad.impressions > 0 ? ((ad.spend / ad.impressions) * 1000) : 0;
+                    // Store calculated values for sorting
+                    ad._cpm = cpm;
                     
-                    if (campaignType === 'ECOMMERCE') {
+                    html += '<td class="number-cell">' + formatNumber(ad.spend || 0) + '</td>';
+                    
+                    if (campaignType === 'ECOMMERCE') {{
                         const percentAds = ad.purchase_value > 0 ? ((ad.spend / ad.purchase_value) * 100).toFixed(2) : '0';
                         const alertBadge = parseFloat(percentAds) > 25 ? '<span class="alert-badge">⚠️</span>' : '';
-                        html += '<td>' + percentAds + '% ' + alertBadge + '</td>';
-                    }
+                        html += '<td class="number-cell">' + percentAds + '% ' + alertBadge + '</td>';
+                    }}
                     
-                    html += '<td>' + formatNumber(ad.results || 0) + '</td>';
+                    html += '<td class="number-cell">' + formatNumber(ad.results || 0) + '</td>';
                     
                     const giaData = ad.gia_data || 0;
                     // Chỉ hiển thị cảnh báo cho E-commerce
                     const showGiaDataAlert = campaignType === 'ECOMMERCE' && giaData > 10000;
                     const giaDataAlert = showGiaDataAlert ? '<span class="alert-badge">⚠️</span>' : '';
-                    html += '<td>' + formatNumber(giaData) + ' ' + giaDataAlert + '</td>';
+                    html += '<td class="number-cell">' + formatNumber(giaData) + ' ' + giaDataAlert + '</td>';
                     
                     const costPerCheckout = ad.cost_per_checkout_initiated || 0;
-                    html += '<td>' + formatNumber(costPerCheckout) + '</td>';
-                    html += '<td>' + formatNumber(ad.checkouts_initiated || 0) + '</td>';
+                    html += '<td class="number-cell">' + formatNumber(costPerCheckout) + '</td>';
+                    html += '<td class="number-cell">' + formatNumber(ad.checkouts_initiated || 0) + '</td>';
                     
                     const costPerPurchase = ad.cost_per_purchase || 0;
-                    html += '<td>' + formatNumber(costPerPurchase) + '</td>';
-                    html += '<td>' + formatNumber(ad.purchases || 0) + '</td>';
+                    html += '<td class="number-cell">' + formatNumber(costPerPurchase) + '</td>';
+                    html += '<td class="number-cell">' + formatNumber(ad.purchases || 0) + '</td>';
                     
-                    if (campaignType === 'ECOMMERCE') {
-                        html += '<td>' + formatNumber(ad.purchase_value || 0) + '</td>';
-                    }
+                    if (campaignType === 'ECOMMERCE') {{
+                        html += '<td class="number-cell">' + formatNumber(ad.purchase_value || 0) + '</td>';
+                    }}
                     
-                    const cpm = ad.impressions > 0 ? ((ad.spend / ad.impressions) * 1000).toFixed(2) : '0';
-                    html += '<td>' + formatNumber(cpm) + '</td>';
-                    html += '<td>' + formatNumber(ad.impressions || 0) + '</td>';
-                    html += '<td>' + formatNumber(ad.clicks || 0) + '</td>';
-                    html += '<td>' + ((ad.ctr || 0)).toFixed(2) + '%</td>';
-                    html += '<td>' + formatNumber(ad.cpc || 0) + '</td>';
+                    html += '<td class="number-cell">' + formatNumber(cpm.toFixed(2)) + '</td>';
+                    html += '<td class="number-cell">' + formatNumber(ad.impressions || 0) + '</td>';
+                    html += '<td class="number-cell">' + formatNumber(ad.clicks || 0) + '</td>';
+                    html += '<td class="number-cell">' + ((ad.ctr || 0)).toFixed(2) + '%</td>';
+                    html += '<td class="number-cell">' + formatNumber(ad.cpc || 0) + '</td>';
                     html += '</tr>';
-                });
+                }});
                 
-                    html += '</tbody></table>';
-                    document.getElementById('tableWrapper').innerHTML = html;
+                html += '</tbody></table>';
+                document.getElementById('tableWrapper').innerHTML = html;
+                
+                // Store ads data for sorting
+                window.currentAdsData = ads;
+                
+                // Apply search filter nếu có
+                if (currentSearchTerm) {{
+                    const searchTerm = currentSearchTerm.toLowerCase();
+                    const rows = document.querySelectorAll('#tableWrapper tbody tr');
+                    let visibleCount = 0;
                     
-                    // Pagination
-                    const totalPages = Math.ceil(total / pageSize);
-                    renderPagination(totalPages);
+                    rows.forEach(row => {{
+                        const text = row.textContent.toLowerCase();
+                        if (text.includes(searchTerm)) {{
+                            row.style.display = '';
+                            visibleCount++;
+                        }} else {{
+                            row.style.display = 'none';
+                        }}
+                    }});
                     
+                    if (visibleCount === 0) {{
+                        document.getElementById('tableInfo').textContent = 'Không tìm thấy kết quả cho "' + currentSearchTerm + '"';
+                    }} else {{
+                        document.getElementById('tableInfo').textContent = 'Tìm thấy ' + visibleCount + ' / ' + total + ' kết quả';
+                    }}
+                }} else {{
                     document.getElementById('tableInfo').textContent = 
                         'Hiển thị ' + ads.length + ' / ' + total + ' kết quả';
-                    
-                    console.log('✅ renderTable() completed successfully');
-                } catch (error) {
-                    console.error('❌ Error in renderTable():', error);
-                    document.getElementById('tableWrapper').innerHTML = 
-                        '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi render bảng</p><p style="font-size: 12px; color: #94a3b8;">' + error.message + '</p></div>';
-                }
-            }
+                }}
+                
+                // Pagination
+                const totalPages = Math.ceil(total / pageSize);
+                renderPagination(totalPages);
+            }}
             
-            window.renderPagination = function renderPagination(totalPages) {
+            function renderPagination(totalPages) {{
                 const pagination = document.getElementById('pagination');
-                if (totalPages <= 1) {
+                if (totalPages <= 1) {{
                     pagination.innerHTML = '';
                     return;
-                }
+                }}
                 
                 let html = '';
                 html += '<button onclick="goToPage(1)"' + (currentPage === 1 ? ' disabled' : '') + '>«</button>';
@@ -1186,75 +1807,322 @@ async def dashboard_page(
                 const startPage = Math.max(1, currentPage - 2);
                 const endPage = Math.min(totalPages, currentPage + 2);
                 
-                for (let i = startPage; i <= endPage; i++) {
+                for (let i = startPage; i <= endPage; i++) {{
                     const activeClass = i === currentPage ? 'active' : '';
                     html += '<button class="' + activeClass + '" onclick="goToPage(' + i + ')">' + i + '</button>';
-                }
+                }}
                 
                 html += '<button onclick="goToPage(' + (currentPage + 1) + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>›</button>';
                 html += '<button onclick="goToPage(' + totalPages + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>»</button>';
                 
                 pagination.innerHTML = html;
-            };
+            }}
             
-            window.goToPage = function goToPage(page) {
+            function goToPage(page) {{
                 currentPage = page;
                 loadData();
-            };
+            }}
             
-            window.formatNumber = function formatNumber(num) {
+            function formatNumber(num) {{
                 return new Intl.NumberFormat('vi-VN').format(num);
-            };
+            }}
             
-            // Pull dữ liệu từ Facebook (tự động, không hiển thị thông báo)
-            window.pullFacebookDataSilent = async function pullFacebookDataSilent() {
-                try {
-                    const response = await fetch('/dashboard/pull-data', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
-                        }
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (response.ok && data.success) {
-                        console.log('✅ Đã pull dữ liệu:', data.count + ' adsets');
-                        return true;
-                    } else {
-                        console.warn('⚠️ Pull dữ liệu:', data.message || data.detail || 'Không có dữ liệu mới');
-                        return false;
-                    }
-                } catch (error) {
-                    console.error('❌ Lỗi khi pull dữ liệu:', error.message);
-                    return false;
-                }
-            }
+            // Table sorting
+            let currentSortColumn = null;
+            let currentSortDirection = 'desc'; // Default sort by Giá DATA descending
             
-            window.refreshData = async function refreshData() {
+            function sortTable(columnIndex, sortKey) {{
+                const table = document.querySelector('#tableWrapper table');
+                if (!table || !window.currentAdsData) return;
+                
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const headers = table.querySelectorAll('th');
+                
+                // Remove previous sort classes
+                headers.forEach(h => {{
+                    h.classList.remove('sort-asc', 'sort-desc');
+                }});
+                
+                // Toggle sort direction
+                if (currentSortColumn === columnIndex) {{
+                    currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+                }} else {{
+                    currentSortColumn = columnIndex;
+                    currentSortDirection = 'desc';
+                }}
+                
+                // Add sort class to header
+                headers[columnIndex].classList.add('sort-' + currentSortDirection);
+                
+                // Sort rows - map rows to data first
+                const rowDataMap = new Map();
+                rows.forEach((row, idx) => {{
+                    rowDataMap.set(row, window.currentAdsData[idx]);
+                }});
+                
+                // Sort rows
+                rows.sort((a, b) => {{
+                    const aData = rowDataMap.get(a);
+                    const bData = rowDataMap.get(b);
+                    
+                    let aVal, bVal;
+                    
+                    switch(sortKey) {{
+                        case 'spend':
+                            aVal = aData.spend || 0;
+                            bVal = bData.spend || 0;
+                            break;
+                        case 'results':
+                            aVal = aData.results || 0;
+                            bVal = bData.results || 0;
+                            break;
+                        case 'gia_data':
+                            aVal = aData.gia_data || 0;
+                            bVal = bData.gia_data || 0;
+                            break;
+                        case 'cpm':
+                            aVal = aData._cpm || 0;
+                            bVal = bData._cpm || 0;
+                            break;
+                        case 'impressions':
+                            aVal = aData.impressions || 0;
+                            bVal = bData.impressions || 0;
+                            break;
+                        case 'clicks':
+                            aVal = aData.clicks || 0;
+                            bVal = bData.clicks || 0;
+                            break;
+                        case 'ctr':
+                            aVal = aData.ctr || 0;
+                            bVal = bData.ctr || 0;
+                            break;
+                        case 'cpc':
+                            aVal = aData.cpc || 0;
+                            bVal = bData.cpc || 0;
+                            break;
+                        default:
+                            return 0;
+                    }}
+                    
+                    if (currentSortDirection === 'asc') {{
+                        return aVal - bVal;
+                    }} else {{
+                        return bVal - aVal;
+                    }}
+                }});
+                
+                // Reorder rows
+                rows.forEach(row => tbody.appendChild(row));
+            }}
+            
+            // Export data to Excel
+            function exportData() {{
+                const btn = document.getElementById('exportBtn');
+                btn.disabled = true;
+                btn.textContent = '⏳ Đang xuất...';
+                
+                const account = document.getElementById('accountFilter').value;
+                const prefix = document.getElementById('prefixFilter').value;
+                const campaignType = document.getElementById('campaignTypeFilter').value;
+                const status = document.getElementById('statusFilter').value;
+                
+                const params = new URLSearchParams({{
+                    page: 1,
+                    page_size: 10000
+                }});
+                
+                if (account) params.append('account_id', account);
+                if (prefix) params.append('prefix', prefix);
+                if (campaignType) params.append('campaign_type', campaignType);
+                if (status) params.append('status', status);
+                if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
+                if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
+                
+                fetch('/dashboard/data?' + params.toString(), {{
+                    headers: {{
+                        'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
+                    }}
+                }})
+                .then(res => res.json())
+                .then(data => {{
+                    const ads = data.ads || [];
+                    if (ads.length === 0) {{
+                        alert('Không có dữ liệu để xuất!');
+                        btn.disabled = false;
+                        btn.textContent = '📥 Xuất Excel';
+                        return;
+                    }}
+                    
+                    // Create CSV
+                    const campaignType = currentFilters.campaignType || 'ECOMMERCE';
+                    const headers = campaignType === 'ECOMMERCE' ? [
+                        'Tắt/Bật', 'Tên nhóm quảng cáo', 'Số tiền chi tiêu', '% ADS', 'Kết quả', 
+                        'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán', 'Tổng số lượt bắt đầu thanh toán',
+                        'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua', 'Giá trị chuyển đổi từ lượt mua',
+                        'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)'
+                    ] : [
+                        'Tắt/Bật', 'Tên nhóm quảng cáo', 'Số tiền chi tiêu', 'Kết quả', 'Giá DATA',
+                        'Chi phí trên mỗi lượt bắt đầu thanh toán', 'Tổng số lượt bắt đầu thanh toán',
+                        'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua', 'CPM', 'Lượt hiển thị',
+                        'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)'
+                    ];
+                    
+                    let csv = headers.join(',') + '\\n';
+                    
+                    ads.forEach(ad => {{
+                        const row = [
+                            ad.adset_status || '',
+                            '"' + (ad.adset_name || '').replace(/"/g, '""') + '"',
+                            ad.spend || 0,
+                            campaignType === 'ECOMMERCE' ? (ad.purchase_value > 0 ? ((ad.spend / ad.purchase_value) * 100).toFixed(2) : '0') : '',
+                            ad.results || 0,
+                            ad.gia_data || 0,
+                            ad.cost_per_checkout_initiated || 0,
+                            ad.checkouts_initiated || 0,
+                            ad.cost_per_purchase || 0,
+                            ad.purchases || 0,
+                            campaignType === 'ECOMMERCE' ? (ad.purchase_value || 0) : '',
+                            ad.impressions > 0 ? ((ad.spend / ad.impressions) * 1000).toFixed(2) : '0',
+                            ad.impressions || 0,
+                            ad.clicks || 0,
+                            (ad.ctr || 0).toFixed(2),
+                            ad.cpc || 0
+                        ];
+                        csv += row.join(',') + '\\n';
+                    }});
+                    
+                    // Download
+                    const blob = new Blob(['\\ufeff' + csv], {{ type: 'text/csv;charset=utf-8;' }});
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', 'dashboard_data_' + new Date().toISOString().split('T')[0] + '.csv');
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    btn.disabled = false;
+                    btn.textContent = '📥 Xuất Excel';
+                }})
+                .catch(error => {{
+                    console.error('Export error:', error);
+                    alert('Lỗi khi xuất dữ liệu!');
+                    btn.disabled = false;
+                    btn.textContent = '📥 Xuất Excel';
+                }});
+            }}
+            
+            // Search functionality với debounce
+            let searchTimeout;
+            let currentSearchTerm = '';
+            function handleSearch(event) {{
+                clearTimeout(searchTimeout);
+                const searchInput = event.target;
+                currentSearchTerm = searchInput.value.trim();
+                
+                searchTimeout = setTimeout(() => {{
+                    if (!currentSearchTerm) {{
+                        // Nếu search rỗng, hiển thị lại tất cả
+                        const rows = document.querySelectorAll('#tableWrapper tbody tr');
+                        rows.forEach(row => {{
+                            row.style.display = '';
+                        }});
+                        const total = document.querySelectorAll('#tableWrapper tbody tr').length;
+                        document.getElementById('tableInfo').textContent = 'Hiển thị ' + total + ' kết quả';
+                        return;
+                    }}
+                    
+                    const searchTerm = currentSearchTerm.toLowerCase();
+                    const rows = document.querySelectorAll('#tableWrapper tbody tr');
+                    let visibleCount = 0;
+                    
+                    if (rows.length === 0) {{
+                        // Table chưa được render, không làm gì
+                        return;
+                    }}
+                    
+                    rows.forEach(row => {{
+                        const text = row.textContent.toLowerCase();
+                        if (text.includes(searchTerm)) {{
+                            row.style.display = '';
+                            visibleCount++;
+                        }} else {{
+                            row.style.display = 'none';
+                        }}
+                    }});
+                    
+                    if (visibleCount === 0) {{
+                        document.getElementById('tableInfo').textContent = 'Không tìm thấy kết quả cho "' + currentSearchTerm + '"';
+                    }} else {{
+                        document.getElementById('tableInfo').textContent = 'Tìm thấy ' + visibleCount + ' kết quả';
+                    }}
+                }}, 300);
+            }}
+            
+            // Mobile filter toggle
+            function toggleMobileFilters() {{
+                const sidebar = document.getElementById('sidebarFilters');
+                sidebar.classList.toggle('mobile-hidden');
+            }}
+            
+            // Apply filters
+            function applyFilters() {{
+                loadData();
+                // Close mobile sidebar if open
+                if (window.innerWidth <= 1024) {{
+                    document.getElementById('sidebarFilters').classList.add('mobile-hidden');
+                }}
+            }}
+            
+            // Reset filters
+            function resetFilters() {{
+                document.getElementById('accountFilter').value = '';
+                document.getElementById('prefixFilter').value = '';
+                document.getElementById('campaignTypeFilter').value = '';
+                document.getElementById('statusFilter').value = '';
+                document.getElementById('searchInput').value = '';
+                currentSearchTerm = '';
+                const today = new Date();
+                selectedDateRange.start = today;
+                selectedDateRange.end = today;
+                currentFilters.dateFrom = today.toISOString().split('T')[0];
+                currentFilters.dateTo = today.toISOString().split('T')[0];
+                document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
+                document.querySelectorAll('.quick-filter-btn').forEach(btn => btn.classList.remove('active'));
+                loadData();
+            }}
+            
+            // Quick filters
+            function applyQuickFilter(type, buttonElement) {{
+                document.querySelectorAll('.quick-filter-btn').forEach(btn => btn.classList.remove('active'));
+                if (buttonElement) {{
+                    buttonElement.classList.add('active');
+                }}
+                selectQuickDate(type);
+            }}
+            
+            async function refreshData() {{
                 const btn = document.getElementById('refreshBtn');
                 btn.classList.add('loading');
                 btn.disabled = true;
                 
-                // Pull dữ liệu mới từ Facebook trước khi load
-                await pullFacebookDataSilent();
-                
-                // Sau đó load dữ liệu từ database
                 await loadData();
                 
-                setTimeout(function() {
+                setTimeout(() => {{
                     btn.classList.remove('loading');
                     btn.disabled = false;
-                }, 500);
-            }
+                }}, 500);
+            }}
             
-            window.loadFilters = async function loadFilters() {
-                try {
-                    const response = await fetch('/dashboard/filters', {
-                        headers: {
+            async function loadFilters() {{
+                try {{
+                    const response = await fetch('/dashboard/filters', {{
+                        headers: {{
                             'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
-                        }
-                    });
+                        }}
+                    }});
                     
                     if (!response.ok) return;
                     
@@ -1262,98 +2130,73 @@ async def dashboard_page(
                     
                     // Populate account filter
                     const accountFilter = document.getElementById('accountFilter');
-                    filters.accounts.forEach(function(account) {
+                    filters.accounts.forEach(account => {{
                         const option = document.createElement('option');
                         option.value = account;
                         option.textContent = account;
                         accountFilter.appendChild(option);
-                    });
+                    }});
                     
                     // Populate prefix filter
                     const prefixFilter = document.getElementById('prefixFilter');
-                    filters.prefixes.forEach(function(prefix) {
+                    filters.prefixes.forEach(prefix => {{
                         const option = document.createElement('option');
                         option.value = prefix;
                         option.textContent = prefix;
                         prefixFilter.appendChild(option);
-                    });
-                } catch (error) {
+                    }});
+                }} catch (error) {{
                     console.error('Error loading filters:', error);
-                }
-            }
+                }}
+            }}
             
-            // Set default date to today
-            window.addEventListener('DOMContentLoaded', async function() {
-                console.log('✅ DOMContentLoaded fired');
-                try {
-                    const today = new Date();
-                    selectedDateRange.start = today;
-                    selectedDateRange.end = today;
-                    currentFilters.dateFrom = today.toISOString().split('T')[0];
-                    currentFilters.dateTo = today.toISOString().split('T')[0];
-                    document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
-                    
-                    console.log('✅ Date range initialized');
-                    
-                    // Load filters trước
-                    console.log('🔄 Loading filters...');
-                    await loadFilters();
-                    console.log('✅ Filters loaded');
-                    
-                    // Pull dữ liệu mới từ Facebook khi trang load (giống Facebook Ads Manager)
-                    console.log('🔄 Pulling Facebook data...');
-                    await pullFacebookDataSilent();
-                    console.log('✅ Facebook data pulled');
-                    
-                    // Sau đó load dữ liệu từ database
-                    console.log('🔄 Loading dashboard data...');
-                    loadData();
-                } catch (error) {
-                    console.error('❌ Error in DOMContentLoaded:', error);
-                }
+            // Debounce function cho performance
+            function debounce(func, wait) {{
+                let timeout;
+                return function executedFunction(...args) {{
+                    const later = () => {{
+                        clearTimeout(timeout);
+                        func(...args);
+                    }};
+                    clearTimeout(timeout);
+                    timeout = setTimeout(later, wait);
+                }};
+            }}
+            
+            // Set default date to last 7 days
+            window.addEventListener('DOMContentLoaded', () => {{
+                const today = new Date();
+                const last7Days = new Date(today);
+                last7Days.setDate(last7Days.getDate() - 6);
                 
-                // Add event listeners for filters
-                try {
-                    document.getElementById('accountFilter').addEventListener('change', loadData);
-                    document.getElementById('prefixFilter').addEventListener('change', loadData);
-                    document.getElementById('campaignTypeFilter').addEventListener('change', loadData);
-                    document.getElementById('statusFilter').addEventListener('change', loadData);
-                    console.log('✅ Event listeners added');
-                } catch (error) {
-                    console.error('❌ Error adding event listeners:', error);
-                }
-            });
+                selectedDateRange.start = last7Days;
+                selectedDateRange.end = today;
+                currentFilters.dateFrom = last7Days.toISOString().split('T')[0];
+                currentFilters.dateTo = today.toISOString().split('T')[0];
+                document.getElementById('dateRangeText').textContent = formatDateVN(last7Days) + ' - ' + formatDateVN(today);
+                
+                loadFilters();
+                loadData();
+                
+                // Add event listeners với debounce cho performance
+                const debouncedLoadData = debounce(loadData, 300);
+                document.getElementById('accountFilter').addEventListener('change', debouncedLoadData);
+                document.getElementById('prefixFilter').addEventListener('change', debouncedLoadData);
+                document.getElementById('campaignTypeFilter').addEventListener('change', debouncedLoadData);
+                document.getElementById('statusFilter').addEventListener('change', debouncedLoadData);
+                
+                // Auto refresh mỗi 5 phút
+                setInterval(() => {{
+                    loadData();
+                }}, 5 * 60 * 1000);
+            }});
             
-            window.getCookie = function getCookie(name) {
+            function getCookie(name) {{
                 const value = '; ' + document.cookie;
                 const parts = value.split('; ' + name + '=');
                 if (parts.length === 2) return parts.pop().split(';').shift();
                 return null;
-            };
-            
-            window.logout = function logout() {
-                localStorage.removeItem('access_token');
-                localStorage.removeItem('user');
-                // Clear cookie
-                document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-                window.location.href = '/auth/login';
-            };
-            
-            console.log('✅ All functions defined');
-            console.log('✅ Script execution completed successfully');
-            } catch (error) {
-                console.error('❌ CRITICAL ERROR in Dashboard script:', error);
-                console.error('❌ Error message:', error.message);
-                console.error('❌ Error stack:', error.stack);
-                console.error('❌ Error name:', error.name);
-                // Hiển thị lỗi trên trang
-                if (document.body) {
-                    document.body.innerHTML = '<div style="padding: 20px; color: red; background: #fee; border: 2px solid red; margin: 20px;"><h1>❌ Lỗi JavaScript</h1><p><strong>Message:</strong> ' + error.message + '</p><p><strong>Name:</strong> ' + error.name + '</p><pre style="background: #fff; padding: 10px; overflow: auto;">' + (error.stack || 'No stack trace') + '</pre></div>';
-                }
-            }
-            
-            // Log cuối cùng để xác nhận script đã chạy xong
-            console.log('🏁 Dashboard script END');
+            }}
         </script>
     </body>
     </html>
@@ -1571,129 +2414,6 @@ async def get_dashboard_data(
         logger = logging.getLogger(__name__)
         logger.error(f"Error getting dashboard data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy dữ liệu: {str(e)}")
-
-
-@router.post("/pull-data")
-async def pull_facebook_data_endpoint(
-    request: Request,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """
-    Pull dữ liệu từ Facebook cho các accounts được bật
-    Chỉ lấy adsets ACTIVE của hôm nay
-    """
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
-    
-    if not current_user.is_active:
-        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
-    
-    try:
-        # Lấy token từ UserSettings
-        from app.models.user_settings import UserSettings
-        from app.core.security import decrypt_token
-        
-        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
-        if not user_settings or not user_settings.facebook_token_encrypted:
-            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token. Vui lòng vào Settings để thêm token.")
-        
-        token = decrypt_token(user_settings.facebook_token_encrypted)
-        
-        # Lấy danh sách accounts được bật
-        enabled_accounts = db.query(Account).filter(
-            Account.user_id == current_user.id,
-            Account.enabled == True
-        ).all()
-        
-        if not enabled_accounts:
-            return {
-                "success": False,
-                "message": "Không có accounts nào được bật. Vui lòng bật ít nhất một account trong Settings.",
-                "count": 0
-            }
-        
-        account_ids = [acc.account_id for acc in enabled_accounts]
-        logger.info(f"Đang pull dữ liệu cho {len(account_ids)} accounts được bật: {account_ids}")
-        
-        # Pull dữ liệu từ Facebook
-        from app.services.facebook_api import pull_facebook_adset_data
-        from pytz import timezone as tz
-        
-        tz_vn = tz('Asia/Ho_Chi_Minh')
-        today = datetime.now(tz_vn).replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        ad_metrics_list = pull_facebook_adset_data(
-            access_token=token,
-            ad_account_ids=account_ids,
-            date_preset="today",
-            only_active=True  # Chỉ lấy adsets ACTIVE
-        )
-        
-        if not ad_metrics_list:
-            return {
-                "success": True,
-                "message": "Không có dữ liệu mới từ Facebook (có thể chưa có dữ liệu hôm nay hoặc không có adsets ACTIVE)",
-                "count": 0
-            }
-        
-        # Lưu vào database
-        saved_count = 0
-        updated_count = 0
-        
-        for ad_metric in ad_metrics_list:
-            # Đảm bảo date là hôm nay
-            ad_metric['date'] = datetime.now(tz_vn)
-            
-            # Kiểm tra xem đã có chưa (chỉ check trong ngày hôm nay, theo adset_id)
-            existing = db.query(AdMetrics).filter(
-                AdMetrics.adset_id == ad_metric.get('adset_id'),
-                AdMetrics.account_id == ad_metric.get('account_id'),
-                AdMetrics.date >= today
-            ).first()
-            
-            if existing:
-                # Update
-                for key, value in ad_metric.items():
-                    if hasattr(existing, key) and not key.startswith('_'):
-                        setattr(existing, key, value)
-                existing.updated_at = datetime.now()
-                updated_count += 1
-            else:
-                # Create new
-                valid_fields = {
-                    'adset_id', 'ad_id', 'ad_name', 'adset_name', 'campaign_name', 'campaign_id',
-                    'account_id', 'account_name', 'prefix', 'spend', 'impressions', 'clicks', 'results',
-                    'ctr', 'cpc', 'cpa', 'roas', 'gia_data', 'sdt', 'gia_sdt', 'ty_le_sdt',
-                    'adset_status', 'effective_status', 'date', 'date_preset',
-                    'campaign_type', 'campaign_objective', 'amount_spent', 'ket_qua',
-                    'purchases', 'purchase_value', 'revenue', 'leads', 'phone_calls',
-                    'cost_per_lead'
-                }
-                
-                ad_metric_dict = {k: v for k, v in ad_metric.items() if k in valid_fields}
-                new_metric = AdMetrics(**ad_metric_dict)
-                db.add(new_metric)
-                saved_count += 1
-        
-        db.commit()
-        
-        logger.info(f"✅ Đã pull và lưu {saved_count} records mới, cập nhật {updated_count} records")
-        
-        return {
-            "success": True,
-            "message": f"Đã pull thành công {len(ad_metrics_list)} adsets từ {len(account_ids)} accounts. Lưu {saved_count} mới, cập nhật {updated_count}.",
-            "count": len(ad_metrics_list),
-            "saved": saved_count,
-            "updated": updated_count,
-            "accounts": account_ids
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error pulling Facebook data: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Lỗi khi pull dữ liệu: {str(e)}")
 
 
 @router.get("/filters")
