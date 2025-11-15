@@ -849,9 +849,25 @@ async def dashboard_page(
                         }}
                     }});
                     
-                    if (!response.ok) throw new Error('Failed to load data');
+                    if (!response.ok) {{
+                        const errorText = await response.text();
+                        let errorMsg = 'Failed to load data';
+                        try {{
+                            const errorJson = JSON.parse(errorText);
+                            errorMsg = errorJson.detail || errorJson.message || errorMsg;
+                        }} catch {{
+                            errorMsg = errorText.substring(0, 200);
+                        }}
+                        throw new Error(errorMsg);
+                    }}
                     
                     const data = await response.json();
+                    
+                    // Update stats nếu có
+                    if (data.stats) {{
+                        updateStats(data.stats);
+                    }}
+                    
                     renderTable(data);
                 }} catch (error) {{
                     console.error('Error loading data:', error);
@@ -976,11 +992,50 @@ async def dashboard_page(
                 return new Intl.NumberFormat('vi-VN').format(num);
             }}
             
+            function updateStats(stats) {{
+                if (!stats) return;
+                document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
+                document.getElementById('totalResults').textContent = formatNumber(stats.total_results || 0);
+                document.getElementById('avgGiaData').textContent = formatNumber(stats.avg_gia_data || 0);
+                document.getElementById('activeAdsets').textContent = formatNumber(stats.active_adsets || 0);
+                document.getElementById('pausedAdsets').textContent = formatNumber(stats.paused_adsets || 0);
+                document.getElementById('totalAdsets').textContent = formatNumber(stats.total_adsets || 0);
+            }}
+            
+            // Pull dữ liệu từ Facebook (tự động, không hiển thị thông báo)
+            async function pullFacebookDataSilent() {{
+                try {{
+                    const response = await fetch('/dashboard/pull-data', {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
+                        }}
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok && data.success) {{
+                        console.log('✅ Đã pull dữ liệu:', data.count + ' adsets');
+                        return true;
+                    }} else {{
+                        console.warn('⚠️ Pull dữ liệu:', data.message || data.detail || 'Không có dữ liệu mới');
+                        return false;
+                    }}
+                }} catch (error) {{
+                    console.error('❌ Lỗi khi pull dữ liệu:', error.message);
+                    return false;
+                }}
+            }}
+            
             async function refreshData() {{
                 const btn = document.getElementById('refreshBtn');
                 btn.classList.add('loading');
                 btn.disabled = true;
                 
+                // Pull dữ liệu mới từ Facebook trước khi load
+                await pullFacebookDataSilent();
+                
+                // Sau đó load dữ liệu từ database
                 await loadData();
                 
                 setTimeout(() => {{
@@ -1023,17 +1078,22 @@ async def dashboard_page(
                 }}
             }}
             
-            // Set default date to yesterday
-            window.addEventListener('DOMContentLoaded', () => {{
-                const yesterday = new Date();
-                yesterday.setDate(yesterday.getDate() - 1);
-                selectedDateRange.start = yesterday;
-                selectedDateRange.end = yesterday;
-                currentFilters.dateFrom = yesterday.toISOString().split('T')[0];
-                currentFilters.dateTo = yesterday.toISOString().split('T')[0];
-                document.getElementById('dateRangeText').textContent = formatDateVN(yesterday) + ' - ' + formatDateVN(yesterday);
+            // Set default date to today
+            window.addEventListener('DOMContentLoaded', async () => {{
+                const today = new Date();
+                selectedDateRange.start = today;
+                selectedDateRange.end = today;
+                currentFilters.dateFrom = today.toISOString().split('T')[0];
+                currentFilters.dateTo = today.toISOString().split('T')[0];
+                document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
                 
-                loadFilters();
+                // Load filters trước
+                await loadFilters();
+                
+                // Pull dữ liệu mới từ Facebook khi trang load (giống Facebook Ads Manager)
+                await pullFacebookDataSilent();
+                
+                // Sau đó load dữ liệu từ database
                 loadData();
                 
                 // Add event listeners for filters
@@ -1188,7 +1248,56 @@ async def get_dashboard_data(
         # Sắp xếp theo Giá DATA từ cao xuống thấp
         ads_dict.sort(key=lambda x: x.get('gia_data', 0), reverse=True)
         
+        # Calculate stats (tổng hợp từ query gốc, không phải từ ads_dict đã paginated)
+        stats_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
+        
+        # Apply same filters for stats
+        if account_id and account_id in account_ids:
+            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
+        if prefix:
+            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
+        if campaign_type:
+            stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
+        if status:
+            stats_query = stats_query.filter(AdMetrics.adset_status == status)
+        if date_from:
+            try:
+                date_from_dt = datetime.fromisoformat(date_from)
+                stats_query = stats_query.filter(AdMetrics.date >= date_from_dt)
+            except:
+                pass
+        if date_to:
+            try:
+                date_to_dt = datetime.fromisoformat(date_to)
+                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
+                stats_query = stats_query.filter(AdMetrics.date <= date_to_dt)
+            except:
+                pass
+        
+        # Calculate aggregated stats
+        total_spend = stats_query.with_entities(func.sum(AdMetrics.spend)).scalar() or 0
+        total_results = stats_query.with_entities(func.sum(AdMetrics.results)).scalar() or 0
+        avg_gia_data = stats_query.with_entities(func.avg(AdMetrics.gia_data)).scalar() or 0
+        total_adsets_count = stats_query.with_entities(func.count(distinct(AdMetrics.adset_id))).scalar() or 0
+        
+        active_adsets_count = stats_query.filter(AdMetrics.adset_status == "ACTIVE").with_entities(
+            func.count(distinct(AdMetrics.adset_id))
+        ).scalar() or 0
+        paused_adsets_count = stats_query.filter(AdMetrics.adset_status == "PAUSED").with_entities(
+            func.count(distinct(AdMetrics.adset_id))
+        ).scalar() or 0
+        
+        stats_result = {
+            "total_spend": float(total_spend),
+            "total_results": int(total_results),
+            "avg_gia_data": float(avg_gia_data),
+            "active_adsets": int(active_adsets_count),
+            "paused_adsets": int(paused_adsets_count),
+            "total_adsets": int(total_adsets_count)
+        }
+        
         return {
+            "stats": stats_result,
             "ads": ads_dict,
             "total": total,
             "page": page,
