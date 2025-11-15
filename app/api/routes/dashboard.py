@@ -698,6 +698,10 @@ async def dashboard_page(
         </div>
         
         <script>
+            // TEST: Kiểm tra script tag chính có chạy không
+            console.log('🔍 SCRIPT TAG CHÍNH: Bắt đầu chạy!');
+            alert('SCRIPT TAG CHÍNH: Nếu bạn thấy alert này, script tag chính đang chạy!');
+            
             // FORCE LOG - Luôn hiển thị log, không bị filter
             (function() {{
                 try {{
