@@ -979,26 +979,41 @@ async def dashboard_page(
             }}
             
             function updateStats(stats) {{
-                document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
-                document.getElementById('totalResults').textContent = formatNumber(stats.total_results || 0);
-                document.getElementById('avgGiaData').textContent = formatNumber(stats.avg_gia_data || 0);
-                document.getElementById('activeAdsets').textContent = formatNumber(stats.active_adsets || 0);
-                document.getElementById('pausedAdsets').textContent = formatNumber(stats.paused_adsets || 0);
-                document.getElementById('totalAdsets').textContent = formatNumber(stats.total_adsets || 0);
+                try {{
+                    console.log('updateStats() called with:', stats);
+                    document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
+                    document.getElementById('totalResults').textContent = formatNumber(stats.total_results || 0);
+                    document.getElementById('avgGiaData').textContent = formatNumber(stats.avg_gia_data || 0);
+                    document.getElementById('activeAdsets').textContent = formatNumber(stats.active_adsets || 0);
+                    document.getElementById('pausedAdsets').textContent = formatNumber(stats.paused_adsets || 0);
+                    document.getElementById('totalAdsets').textContent = formatNumber(stats.total_adsets || 0);
+                    console.log('✅ updateStats() completed');
+                }} catch (error) {{
+                    console.error('❌ Error in updateStats():', error);
+                }}
             }}
             
             function renderTable(data) {{
-                const ads = data.ads || [];
-                const total = data.total || 0;
-                const campaignType = currentFilters.campaignType || '';
-                
-                if (ads.length === 0) {{
-                    document.getElementById('tableWrapper').innerHTML = 
-                        '<div class="empty-state"><div class="icon">📭</div><p>Không có dữ liệu</p><p style="font-size: 12px; color: #94a3b8; margin-top: 8px;">Vui lòng kiểm tra lại bộ lọc hoặc cấu hình accounts/prefixes trong Settings</p></div>';
-                    document.getElementById('tableInfo').textContent = 'Hiển thị 0 / 0 kết quả';
-                    document.getElementById('pagination').innerHTML = '';
-                    return;
-                }}
+                try {{
+                    console.log('renderTable() called with:', {{
+                        ads_count: data.ads ? data.ads.length : 0,
+                        total: data.total,
+                        has_stats: !!data.stats
+                    }});
+                    const ads = data.ads || [];
+                    const total = data.total || 0;
+                    const campaignType = currentFilters.campaignType || '';
+                    
+                    if (ads.length === 0) {{
+                        console.log('⚠️ No ads to display');
+                        document.getElementById('tableWrapper').innerHTML = 
+                            '<div class="empty-state"><div class="icon">📭</div><p>Không có dữ liệu</p><p style="font-size: 12px; color: #94a3b8; margin-top: 8px;">Vui lòng kiểm tra lại bộ lọc hoặc cấu hình accounts/prefixes trong Settings</p></div>';
+                        document.getElementById('tableInfo').textContent = 'Hiển thị 0 / 0 kết quả';
+                        document.getElementById('pagination').innerHTML = '';
+                        return;
+                    }}
+                    
+                    console.log(`✅ Rendering ${ads.length} ads...`);
                 
                 // Define columns based on campaign type
                 const columns = campaignType === 'ECOMMERCE' ? [
@@ -1063,15 +1078,22 @@ async def dashboard_page(
                     html += '</tr>';
                 }});
                 
-                html += '</tbody></table>';
-                document.getElementById('tableWrapper').innerHTML = html;
-                
-                // Pagination
-                const totalPages = Math.ceil(total / pageSize);
-                renderPagination(totalPages);
-                
-                document.getElementById('tableInfo').textContent = 
-                    'Hiển thị ' + ads.length + ' / ' + total + ' kết quả';
+                    html += '</tbody></table>';
+                    document.getElementById('tableWrapper').innerHTML = html;
+                    
+                    // Pagination
+                    const totalPages = Math.ceil(total / pageSize);
+                    renderPagination(totalPages);
+                    
+                    document.getElementById('tableInfo').textContent = 
+                        'Hiển thị ' + ads.length + ' / ' + total + ' kết quả';
+                    
+                    console.log('✅ renderTable() completed successfully');
+                }} catch (error) {{
+                    console.error('❌ Error in renderTable():', error);
+                    document.getElementById('tableWrapper').innerHTML = 
+                        '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi render bảng</p><p style="font-size: 12px; color: #94a3b8;">' + error.message + '</p></div>';
+                }}
             }}
             
             function renderPagination(totalPages) {{
