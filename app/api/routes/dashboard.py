@@ -2319,6 +2319,12 @@ async def dashboard_page(
                         '</div>';
                     document.getElementById('tableWrapper').innerHTML = skeleton;
                     
+                    // Add no_cache parameter if needed (for refresh)
+                    const isRefresh = params.has('no_cache');
+                    if (!isRefresh) {{
+                        // Normal load - use cache
+                    }}
+                    
                     const response = await fetch('/dashboard/data?' + params.toString(), {{
                         headers: {{
                             'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
