@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, distinct, case
 import pytz
+import hashlib
+import json
 
 from app.core.database import get_db, AdMetrics
 from app.models.account_prefix import Account, Prefix, AccountPrefix
@@ -18,6 +20,60 @@ from app.models.user import User
 from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
 
 logger = logging.getLogger(__name__)
+
+# Simple in-memory cache với TTL
+class SimpleCache:
+    """Simple cache với TTL (Time To Live)"""
+    def __init__(self):
+        self._cache: Dict[str, Dict[str, Any]] = {}
+        self.default_ttl = 120  # 2 phút mặc định
+    
+    def _generate_key(self, prefix: str, **kwargs) -> str:
+        """Generate cache key từ parameters"""
+        key_data = json.dumps(kwargs, sort_keys=True)
+        key_hash = hashlib.md5(key_data.encode()).hexdigest()
+        return f"{prefix}:{key_hash}"
+    
+    def get(self, key: str) -> Optional[Any]:
+        """Lấy giá trị từ cache nếu còn valid"""
+        if key not in self._cache:
+            return None
+        
+        entry = self._cache[key]
+        if datetime.now() > entry['expires_at']:
+            # Expired, remove from cache
+            del self._cache[key]
+            return None
+        
+        return entry['value']
+    
+    def set(self, key: str, value: Any, ttl: int = None):
+        """Lưu giá trị vào cache với TTL"""
+        ttl = ttl or self.default_ttl
+        expires_at = datetime.now() + timedelta(seconds=ttl)
+        self._cache[key] = {
+            'value': value,
+            'expires_at': expires_at
+        }
+    
+    def clear(self, prefix: str = None):
+        """Xóa cache, có thể filter theo prefix"""
+        if prefix:
+            keys_to_delete = [k for k in self._cache.keys() if k.startswith(prefix)]
+            for key in keys_to_delete:
+                del self._cache[key]
+        else:
+            self._cache.clear()
+    
+    def cleanup_expired(self):
+        """Xóa các entries đã expired"""
+        now = datetime.now()
+        expired_keys = [k for k, v in self._cache.items() if now > v['expires_at']]
+        for key in expired_keys:
+            del self._cache[key]
+
+# Global cache instance
+dashboard_cache = SimpleCache()
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -3273,10 +3329,11 @@ async def get_dashboard_data(
     date_to: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
+    no_cache: bool = Query(False),  # Bypass cache nếu cần
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Lấy dữ liệu dashboard với filters và pagination (hỗ trợ multi-select)"""
+    """Lấy dữ liệu dashboard với filters và pagination (hỗ trợ multi-select và caching)"""
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
@@ -3284,6 +3341,32 @@ async def get_dashboard_data(
         raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
     
     try:
+        # Cleanup expired cache entries
+        dashboard_cache.cleanup_expired()
+        
+        # Generate cache key từ parameters
+        cache_key = dashboard_cache._generate_key(
+            "dashboard_data",
+            user_id=current_user.id,
+            account_id=account_id or [],
+            prefix=prefix or [],
+            campaign_type=campaign_type or [],
+            status=status or [],
+            objective=objective or [],
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            page_size=page_size
+        )
+        
+        # Try to get from cache (trừ khi no_cache=True)
+        if not no_cache:
+            cached_data = dashboard_cache.get(cache_key)
+            if cached_data is not None:
+                logger.info(f"Cache hit for dashboard data (user_id={current_user.id})")
+                return cached_data
+        
+        logger.info(f"Cache miss for dashboard data (user_id={current_user.id}), fetching from DB...")
         # Get user's accounts and prefixes
         account_ids, _ = get_user_account_prefixes(current_user.id, db)
         
