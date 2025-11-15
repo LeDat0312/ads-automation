@@ -1324,33 +1324,33 @@ async def dashboard_page(
                 }}
             }});
             
-            window.getCookie = function getCookie(name) {{
+            window.getCookie = function getCookie(name) {
                 const value = '; ' + document.cookie;
                 const parts = value.split('; ' + name + '=');
                 if (parts.length === 2) return parts.pop().split(';').shift();
                 return null;
-            }};
+            };
             
-            window.logout = function logout() {{
+            window.logout = function logout() {
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('user');
                 // Clear cookie
                 document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
                 window.location.href = '/auth/login';
-            }};
+            };
             
             console.log('✅ All functions defined');
             console.log('✅ Script execution completed successfully');
-            }} catch (error) {{
+            } catch (error) {
                 console.error('❌ CRITICAL ERROR in Dashboard script:', error);
                 console.error('❌ Error message:', error.message);
                 console.error('❌ Error stack:', error.stack);
                 console.error('❌ Error name:', error.name);
                 // Hiển thị lỗi trên trang
-                if (document.body) {{
+                if (document.body) {
                     document.body.innerHTML = '<div style="padding: 20px; color: red; background: #fee; border: 2px solid red; margin: 20px;"><h1>❌ Lỗi JavaScript</h1><p><strong>Message:</strong> ' + error.message + '</p><p><strong>Name:</strong> ' + error.name + '</p><pre style="background: #fff; padding: 10px; overflow: auto;">' + (error.stack || 'No stack trace') + '</pre></div>';
-                }}
-            }}
+                }
+            }
             
             // Log cuối cùng để xác nhận script đã chạy xong
             console.log('🏁 Dashboard script END');
