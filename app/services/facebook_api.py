@@ -713,3 +713,299 @@ def get_daily_breakdown_data(
     
     return result
 
+
+def pull_facebook_adset_data(
+    access_token: str,
+    ad_account_ids: List[str],
+    date_preset: str = "today",
+    only_active: bool = True
+) -> List[Dict[str, Any]]:
+    """
+    Kéo dữ liệu Insights level=adset từ Facebook API
+    Chỉ lấy adsets ACTIVE nếu only_active=True
+    
+    Args:
+        access_token: Facebook access token
+        ad_account_ids: List of account IDs
+        date_preset: Date preset (today, yesterday, etc.)
+        only_active: Chỉ lấy adsets ACTIVE nếu True
+    
+    Returns:
+        List of adset metrics dictionaries
+    """
+    fields = [
+        'account_name', 'account_id', 'campaign_name', 'campaign_id',
+        'adset_id', 'adset_name', 'adset_status', 'effective_status',
+        'spend', 'impressions', 'reach', 'frequency', 'clicks', 'ctr', 'cpc',
+        'cost_per_initiate_checkout', 'cost_per_purchase',
+        'cost_per_action_type', 'actions', 'action_values',
+        'campaign_objective'
+    ]
+    fields_string = ','.join(fields)
+    
+    all_rows = []
+    
+    for account_id in ad_account_ids:
+        try:
+            logger.info(f"Đang kéo dữ liệu adset cho tài khoản: {account_id} (Phạm vi: {date_preset})")
+            
+            next_url = None
+            page_count = 0
+            
+            while True:
+                page_count += 1
+                
+                if next_url:
+                    url = next_url
+                else:
+                    url = (
+                        f"{FB_GRAPH_API_BASE}/{account_id}/insights"
+                        f"?level=adset"
+                        f"&fields={fields_string}"
+                        f"&limit=1000"
+                        f"&access_token={access_token}"
+                    )
+                    
+                    # Xử lý date_preset
+                    if date_preset == 'today':
+                        from datetime import timezone, timedelta
+                        import json
+                        from urllib.parse import quote
+                        tz = timezone(timedelta(hours=7))
+                        now = datetime.now(tz)
+                        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                        since = today.strftime('%Y-%m-%d')
+                        until = today.strftime('%Y-%m-%d')
+                        time_range_json = json.dumps({"since": since, "until": until})
+                        url += f'&time_range={quote(time_range_json)}'
+                    else:
+                        url += f'&date_preset={date_preset}'
+                    
+                    url += (
+                        '&action_report_time=conversion'
+                        '&use_unified_attribution_setting=true'
+                        '&action_attribution_windows=1d_click,7d_click,1d_view,7d_view'
+                    )
+                
+                response = requests.get(url, timeout=60)
+                response.raise_for_status()
+                
+                json_data = response.json()
+                if 'error' in json_data:
+                    error_code = json_data['error'].get('code', 0)
+                    error_msg = json_data['error'].get('message', 'Unknown error')
+                    if error_code in [190, 100]:
+                        raise Exception(f"Lỗi Token hoặc Quyền (Code {error_code}). Chi tiết: {error_msg}")
+                    elif error_code == 200:
+                        raise Exception(f"Mất quyền truy cập TK (Code 200). Chi tiết: {error_msg}")
+                    raise Exception(f"LỖI API: {error_msg}")
+                
+                data = json_data.get('data', [])
+                
+                if not data or not isinstance(data, list) or len(data) == 0:
+                    if page_count == 1:
+                        logger.warning(f"⚠️ Tài khoản {account_id} không có dữ liệu insights cho {date_preset}.")
+                    break
+                
+                logger.info(f"   📊 Page {page_count}: Nhận được {len(data)} adsets từ API...")
+                
+                for item in data:
+                    # Lọc chỉ lấy adsets ACTIVE nếu only_active=True
+                    adset_status = item.get('adset_status', '').upper()
+                    effective_status = item.get('effective_status', '').upper()
+                    
+                    if only_active:
+                        # Chỉ lấy adsets ACTIVE
+                        if adset_status != 'ACTIVE' and effective_status not in ['ACTIVE', '']:
+                            continue
+                    
+                    # Parse actions và action_values (giống pull_facebook_data)
+                    actions = item.get('actions', [])
+                    action_values = item.get('action_values', [])
+                    
+                    spend = float(item.get('spend', 0) or 0)
+                    impressions = int(item.get('impressions', 0) or 0)
+                    clicks = int(item.get('clicks', 0) or 0)
+                    ctr = float(item.get('ctr', 0) or 0)
+                    cpc = float(item.get('cpc', 0) or 0)
+                    
+                    # Build action map (giống pull_facebook_data)
+                    def build_action_map(actions_list):
+                        action_map = {}
+                        if not actions_list or not isinstance(actions_list, list):
+                            return action_map
+                        for action_item in actions_list:
+                            if not action_item:
+                                continue
+                            action_type = str(action_item.get('action_type', ''))
+                            value = float(action_item.get('value', 0) or 0)
+                            if action_type:
+                                if action_type in action_map:
+                                    action_map[action_type] += value
+                                else:
+                                    action_map[action_type] = value
+                        return action_map
+                    
+                    def pick_first_variant(action_map, bases, suffixes=None):
+                        if suffixes is None:
+                            suffixes = ["", "_unique", "_1d_click", "_7d_click", "_28d_click", 
+                                       "_1d_view", "_7d_view", "_28d_view"]
+                        action_map_lower = {k.lower(): v for k, v in action_map.items()}
+                        for base in bases:
+                            for suffix in suffixes:
+                                key = base + suffix
+                                key_lower = key.lower()
+                                if key_lower in action_map_lower:
+                                    return float(action_map_lower[key_lower]) or 0
+                        return 0
+                    
+                    act_map = build_action_map(actions)
+                    
+                    bases_ic = ['initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout', 
+                               'omni_initiated_checkout', 'onsite_conversion.initiated_checkout']
+                    bases_pur = ['purchase', 'offsite_conversion.fb_pixel_purchase', 
+                                'omni_purchase', 'onsite_conversion.purchase']
+                    bases_cmt = ['comment', 'post_comment', 'onsite_conversion.post_comment']
+                    bases_msg = ['onsite_conversion.messaging_conversation_started', 
+                                'messaging_conversation_started',
+                                'messaging_conversation_started_1d_click',
+                                'messaging_conversation_started_7d_click']
+                    
+                    initiate_checkout = pick_first_variant(act_map, bases_ic)
+                    purchases = pick_first_variant(act_map, bases_pur)
+                    post_comments = pick_first_variant(act_map, bases_cmt)
+                    msg_started = pick_first_variant(act_map, bases_msg)
+                    
+                    # Fallback cho messages và comments
+                    if msg_started == 0 and spend > 0:
+                        all_msg_keys = [k for k in act_map.keys() 
+                                       if 'messaging_conversation_started' in k.lower() 
+                                       and '_unique' not in k.lower()]
+                        if all_msg_keys:
+                            base_keys = [k for k in all_msg_keys 
+                                        if '_1d_' not in k.lower() 
+                                        and '_7d_' not in k.lower() 
+                                        and '_28d_' not in k.lower()]
+                            target_keys = base_keys if base_keys else all_msg_keys
+                            msg_started = max([float(act_map.get(k, 0) or 0) for k in target_keys], default=0)
+                    
+                    if post_comments == 0 and spend > 0:
+                        all_comment_keys = [k for k in act_map.keys() 
+                                           if ('comment' in k.lower() or k.lower() == 'comment' 
+                                               or k.lower() == 'post_comment')
+                                           and '_unique' not in k.lower()]
+                        if all_comment_keys:
+                            base_comment_keys = [k for k in all_comment_keys 
+                                                if '_1d_' not in k.lower() 
+                                                and '_7d_' not in k.lower() 
+                                                and '_28d_' not in k.lower()]
+                            target_comment_keys = base_comment_keys if base_comment_keys else all_comment_keys
+                            post_comments = max([float(act_map.get(k, 0) or 0) for k in target_comment_keys], default=0)
+                    
+                    comments = int(post_comments)
+                    messages = int(msg_started)
+                    results = comments + messages
+                    checkouts = int(initiate_checkout)
+                    
+                    gia_data = (spend / results) if results > 0 else 0
+                    
+                    def build_value_map(values_list):
+                        value_map = {}
+                        if not values_list or not isinstance(values_list, list):
+                            return value_map
+                        for value_item in values_list:
+                            if not value_item:
+                                continue
+                            action_type = str(value_item.get('action_type', ''))
+                            value = float(value_item.get('value', 0) or 0)
+                            if action_type:
+                                if action_type in value_map:
+                                    value_map[action_type] += value
+                                else:
+                                    value_map[action_type] = value
+                        return value_map
+                    
+                    val_map = build_value_map(action_values)
+                    purchase_value = pick_first_variant(val_map, bases_pur)
+                    
+                    percent_ads = (spend / purchase_value * 100) if purchase_value > 0 else 0
+                    cost_per_checkout = float(item.get('cost_per_initiate_checkout', 0) or 0)
+                    cost_per_purchase = float(item.get('cost_per_purchase', 0) or 0)
+                    cpm = (spend / impressions * 1000) if impressions > 0 else 0
+                    
+                    # Lấy prefix từ campaign name
+                    campaign_name = item.get('campaign_name', '')
+                    from app.services.logics import get_prefix_from_name
+                    prefix = get_prefix_from_name(campaign_name)
+                    
+                    # Detect campaign type
+                    campaign_objective = item.get('campaign_objective', '')
+                    from app.services.campaign_detector import detect_campaign_type_from_objective
+                    campaign_type = detect_campaign_type_from_objective(campaign_objective)
+                    
+                    # Tạo row data
+                    row = {
+                        'account_name': item.get('account_name', ''),
+                        'account_id': item.get('account_id', ''),
+                        'campaign_name': campaign_name,
+                        'campaign_id': item.get('campaign_id', ''),
+                        'adset_id': item.get('adset_id', ''),
+                        'adset_name': item.get('adset_name', ''),
+                        'ad_id': '',  # Không có ad_id khi level=adset
+                        'ad_name': '',  # Không có ad_name khi level=adset
+                        'prefix': prefix,
+                        'campaign_type': campaign_type,
+                        'campaign_objective': campaign_objective,
+                        'adset_status': adset_status or 'ACTIVE',
+                        'effective_status': effective_status or '',
+                        'spend': spend,
+                        'amount_spent': spend,
+                        'results': results,
+                        'ket_qua': results,
+                        'gia_data': gia_data,
+                        'percent_ads': percent_ads,
+                        'cost_per_checkout_initiated': cost_per_checkout,
+                        'checkouts_initiated': checkouts,
+                        'cost_per_purchase': cost_per_purchase,
+                        'purchases': purchases,
+                        'purchase_value': purchase_value,
+                        'sdt': checkouts,
+                        'gia_tri_chuyen_doi_tu_luot_mua': purchase_value,
+                        'cpm': cpm,
+                        'impressions': impressions,
+                        'reach': int(item.get('reach', 0) or 0),
+                        'frequency': float(item.get('frequency', 0) or 0),
+                        'clicks': clicks,
+                        'clicks_all': clicks,
+                        'ctr': ctr,
+                        'ctr_all': ctr,
+                        'cpc': cpc,
+                        'cpc_all': cpc,
+                        'cost_per_comment': (spend / comments) if comments > 0 else 0,
+                        'cost_per_messaging_conversation': (spend / messages) if messages > 0 else 0,
+                        'post_comments': comments,
+                        'messaging_conversations_started': messages,
+                        'date': datetime.now(),
+                        'date_preset': date_preset,
+                    }
+                    
+                    all_rows.append(row)
+                
+                # Check for next page
+                paging = json_data.get('paging', {})
+                next_url = paging.get('next', '')
+                
+                if not next_url:
+                    break
+                
+                logger.info(f"   📄 Page {page_count}: Nhận được {len(data)} adsets, có page tiếp theo...")
+            
+            logger.info(f"   ✅ Hoàn tất tài khoản {account_id}: Tổng {page_count} page(s)")
+                
+        except Exception as e:
+            logger.error(f"🚨 Lỗi khi lấy dữ liệu từ account {account_id}: {e}")
+            continue
+    
+    logger.info(f"✅ Đã lấy {len(all_rows)} adsets từ Facebook API")
+    return all_rows
+

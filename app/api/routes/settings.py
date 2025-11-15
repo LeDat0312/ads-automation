@@ -3803,4 +3803,3 @@ async def settings_page(
     </html>
     """
     return HTMLResponse(content=html_content)
-

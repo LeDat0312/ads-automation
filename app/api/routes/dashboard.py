@@ -2,6 +2,7 @@
 Dashboard API Routes - Tổng quan hiệu suất và thống kê quảng cáo
 Hiển thị dữ liệu theo E-commerce và Lead Generation
 """
+import logging
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from typing import List, Optional, Dict, Any
@@ -15,6 +16,8 @@ from app.models.account_prefix import Account, Prefix, AccountPrefix
 from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
 from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -40,21 +43,25 @@ async def dashboard_page(
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Trang Dashboard - Tổng quan hiệu suất quảng cáo"""
+    logger.info("Dashboard page accessed")
     
-    if not current_user:
-        return HTMLResponse(content="""
-        <script>
-            window.location.href = '/auth/login';
-        </script>
-        """)
-    
-    if not current_user.is_active:
-        return HTMLResponse(content=get_account_locked_message())
-    
-    user_menu = get_user_dropdown_menu(current_user)
-    
-    # Tạo HTML với date picker giống Facebook và UI đẹp
-    html_content = f"""
+    try:
+        logger.info(f"Current user: {current_user.username if current_user else 'None'}")
+        if not current_user:
+            return HTMLResponse(content="""
+            <script>
+                window.location.href = '/auth/login';
+            </script>
+            """)
+        
+        if not current_user.is_active:
+            return HTMLResponse(content=get_account_locked_message())
+        
+        user_menu = get_user_dropdown_menu(current_user)
+        
+        # Tạo HTML với date picker giống Facebook và UI đẹp
+        # Sử dụng format string để tránh lỗi với user_menu có chứa {{}}
+        html_content = """
     <!DOCTYPE html>
     <html lang="vi">
     <head>
@@ -535,10 +542,37 @@ async def dashboard_page(
                 font-size: 48px;
                 margin-bottom: 16px;
             }}
+            
+            .stats-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 20px;
+                margin-bottom: 24px;
+            }}
+            
+            .stat-card {{
+                background: white;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            }}
+            
+            .stat-card .label {{
+                font-size: 13px;
+                color: #64748b;
+                margin-bottom: 8px;
+                font-weight: 500;
+            }}
+            
+            .stat-card .value {{
+                font-size: 24px;
+                font-weight: 700;
+                color: #1e293b;
+            }}
         </style>
     </head>
     <body>
-        {user_menu}
+        """ + user_menu + """
         <div class="header">
             <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
             <div class="header-actions">
@@ -589,6 +623,33 @@ async def dashboard_page(
                             <span>📅</span>
                         </div>
                     </div>
+                </div>
+            </div>
+            
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <div class="label">Tổng Chi Tiêu</div>
+                    <div class="value" id="totalSpend">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Tổng Kết Quả</div>
+                    <div class="value" id="totalResults">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Giá DATA Trung Bình</div>
+                    <div class="value" id="avgGiaData">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Adsets Hoạt Động</div>
+                    <div class="value" id="activeAdsets">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Adsets Đã Tạm Dừng</div>
+                    <div class="value" id="pausedAdsets">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Tổng Adsets</div>
+                    <div class="value" id="totalAdsets">0</div>
                 </div>
             </div>
             
@@ -706,8 +767,8 @@ async def dashboard_page(
             
             function renderCalendars() {{
                 const container = document.getElementById('calendarsContainer');
-                const startMonth = selectedDateRange.start ? new Date(selectedDateRange.start) : new Date();
-                const endMonth = selectedDateRange.end ? new Date(selectedDateRange.end) : new Date();
+                const startMonth = new Date(currentCalendarYear, currentCalendarMonth, 1);
+                const endMonth = new Date(currentCalendarYear, currentCalendarMonth + 1, 1);
                 
                 container.innerHTML = renderCalendar(startMonth) + renderCalendar(endMonth);
             }}
@@ -788,8 +849,28 @@ async def dashboard_page(
                 renderCalendars();
             }}
             
+            let currentCalendarMonth = new Date().getMonth();
+            let currentCalendarYear = new Date().getFullYear();
+            
             function changeMonth(delta) {{
-                // Implementation for changing month
+                currentCalendarMonth += delta;
+                if (currentCalendarMonth < 0) {{
+                    currentCalendarMonth = 11;
+                    currentCalendarYear--;
+                }} else if (currentCalendarMonth > 11) {{
+                    currentCalendarMonth = 0;
+                    currentCalendarYear++;
+                }}
+                renderCalendars();
+            }}
+            
+            function changeMonthBySelect(monthIndex) {{
+                currentCalendarMonth = parseInt(monthIndex);
+                renderCalendars();
+            }}
+            
+            function changeYearBySelect(yearValue) {{
+                currentCalendarYear = parseInt(yearValue);
                 renderCalendars();
             }}
             
@@ -802,7 +883,7 @@ async def dashboard_page(
                     
                     const startFormatted = formatDateVN(selectedDateRange.start);
                     const endFormatted = formatDateVN(selectedDateRange.end);
-                    document.getElementById('dateRangeText').textContent = `${{startFormatted}} - ${{endFormatted}}`;
+                    document.getElementById('dateRangeText').textContent = startFormatted + ' - ' + endFormatted;
                     
                     closeDatePicker();
                     loadData();
@@ -813,7 +894,7 @@ async def dashboard_page(
                 const day = date.getDate();
                 const month = date.getMonth() + 1;
                 const year = date.getFullYear();
-                return `${{day}} Tháng ${{month}}, ${{year}}`;
+                return day + ' Tháng ' + month + ', ' + year;
             }}
             
             // Load data
@@ -843,13 +924,15 @@ async def dashboard_page(
                 try {{
                     document.getElementById('tableWrapper').innerHTML = '<div class="loading">Đang tải dữ liệu...</div>';
                     
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
                     const response = await fetch('/dashboard/data?' + params.toString(), {{
                         headers: {{
-                            'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
+                            'Authorization': 'Bearer ' + token
                         }}
                     }});
                     
                     if (!response.ok) {{
+<<<<<<< HEAD
                         const errorText = await response.text();
                         let errorMsg = 'Failed to load data';
                         try {{
@@ -868,22 +951,65 @@ async def dashboard_page(
                         updateStats(data.stats);
                     }}
                     
+=======
+                        const errorData = await response.json().catch(() => ({{ detail: 'Unknown error' }}));
+                        throw new Error(errorData.detail || 'Failed to load data: ' + response.status);
+                    }}
+                    
+                    const data = await response.json();
+                    console.log('Dashboard data received:', data);
+                    
+                    if (data.stats) {{
+                        updateStats(data.stats);
+                    }} else {{
+                        // Nếu không có stats, set về 0
+                        updateStats({{
+                            total_spend: 0,
+                            total_results: 0,
+                            avg_gia_data: 0,
+                            active_adsets: 0,
+                            paused_adsets: 0,
+                            total_adsets: 0
+                        }});
+                    }}
+>>>>>>> 716d7811e1bed8e9b336ba7ed158ead18d2cc5ea
                     renderTable(data);
                 }} catch (error) {{
                     console.error('Error loading data:', error);
+                    const errorMsg = error.message || 'Lỗi khi tải dữ liệu';
                     document.getElementById('tableWrapper').innerHTML = 
-                        '<div class="empty-state"><div class="icon">⚠️</div>Lỗi khi tải dữ liệu</div>';
+                        '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi tải dữ liệu</p><p style="font-size: 12px; color: #94a3b8;">' + errorMsg + '</p></div>';
+                    // Cũng reset stats về 0 khi có lỗi
+                    updateStats({{
+                        total_spend: 0,
+                        total_results: 0,
+                        avg_gia_data: 0,
+                        active_adsets: 0,
+                        paused_adsets: 0,
+                        total_adsets: 0
+                    }});
                 }}
+            }}
+            
+            function updateStats(stats) {{
+                document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
+                document.getElementById('totalResults').textContent = formatNumber(stats.total_results || 0);
+                document.getElementById('avgGiaData').textContent = formatNumber(stats.avg_gia_data || 0);
+                document.getElementById('activeAdsets').textContent = formatNumber(stats.active_adsets || 0);
+                document.getElementById('pausedAdsets').textContent = formatNumber(stats.paused_adsets || 0);
+                document.getElementById('totalAdsets').textContent = formatNumber(stats.total_adsets || 0);
             }}
             
             function renderTable(data) {{
                 const ads = data.ads || [];
                 const total = data.total || 0;
-                const campaignType = currentFilters.campaignType || 'ECOMMERCE';
+                const campaignType = currentFilters.campaignType || '';
                 
                 if (ads.length === 0) {{
                     document.getElementById('tableWrapper').innerHTML = 
-                        '<div class="empty-state"><div class="icon">📭</div>Không có dữ liệu</div>';
+                        '<div class="empty-state"><div class="icon">📭</div><p>Không có dữ liệu</p><p style="font-size: 12px; color: #94a3b8; margin-top: 8px;">Vui lòng kiểm tra lại bộ lọc hoặc cấu hình accounts/prefixes trong Settings</p></div>';
+                    document.getElementById('tableInfo').textContent = 'Hiển thị 0 / 0 kết quả';
+                    document.getElementById('pagination').innerHTML = '';
                     return;
                 }}
                 
@@ -903,48 +1029,50 @@ async def dashboard_page(
                 
                 let html = '<table><thead><tr>';
                 columns.forEach(col => {{
-                    html += `<th>${{col}}</th>`;
+                    html += '<th>' + col + '</th>';
                 }});
                 html += '</tr></thead><tbody>';
                 
                 ads.forEach(ad => {{
                     html += '<tr>';
-                    html += `<td><span class="status-badge status-${{ad.adset_status.toLowerCase()}}">${{ad.adset_status}}</span></td>`;
-                    html += `<td>${{ad.adset_name || ''}}</td>`;
-                    html += `<td>-</td>`; // Phân phối - cần lấy từ API
-                    html += `<td>-</td>`; // Ngân sách - cần lấy từ API
-                    html += `<td>${{formatNumber(ad.spend || 0)}}</td>`;
+                    html += '<td><span class="status-badge status-' + (ad.adset_status || '').toLowerCase() + '">' + (ad.adset_status || '') + '</span></td>';
+                    html += '<td>' + (ad.adset_name || '') + '</td>';
+                    html += '<td>-</td>'; // Phân phối - cần lấy từ API
+                    html += '<td>-</td>'; // Ngân sách - cần lấy từ API
+                    html += '<td>' + formatNumber(ad.spend || 0) + '</td>';
                     
                     if (campaignType === 'ECOMMERCE') {{
                         const percentAds = ad.purchase_value > 0 ? ((ad.spend / ad.purchase_value) * 100).toFixed(2) : '0';
-                        html += `<td>${{percentAds}}% ${{parseFloat(percentAds) > 25 ? '<span class="alert-badge">⚠️</span>' : ''}}</td>`;
+                        const alertBadge = parseFloat(percentAds) > 25 ? '<span class="alert-badge">⚠️</span>' : '';
+                        html += '<td>' + percentAds + '% ' + alertBadge + '</td>';
                     }}
                     
-                    html += `<td>${{formatNumber(ad.results || 0)}}</td>`;
+                    html += '<td>' + formatNumber(ad.results || 0) + '</td>';
                     
                     const giaData = ad.gia_data || 0;
                     // Chỉ hiển thị cảnh báo cho E-commerce
                     const showGiaDataAlert = campaignType === 'ECOMMERCE' && giaData > 10000;
-                    html += `<td>${{formatNumber(giaData)}} ${{showGiaDataAlert ? '<span class="alert-badge">⚠️</span>' : ''}}</td>`;
+                    const giaDataAlert = showGiaDataAlert ? '<span class="alert-badge">⚠️</span>' : '';
+                    html += '<td>' + formatNumber(giaData) + ' ' + giaDataAlert + '</td>';
                     
                     const costPerCheckout = ad.cost_per_checkout_initiated || 0;
-                    html += `<td>${{formatNumber(costPerCheckout)}}</td>`;
-                    html += `<td>${{formatNumber(ad.checkouts_initiated || 0)}}</td>`;
+                    html += '<td>' + formatNumber(costPerCheckout) + '</td>';
+                    html += '<td>' + formatNumber(ad.checkouts_initiated || 0) + '</td>';
                     
                     const costPerPurchase = ad.cost_per_purchase || 0;
-                    html += `<td>${{formatNumber(costPerPurchase)}}</td>`;
-                    html += `<td>${{formatNumber(ad.purchases || 0)}}</td>`;
+                    html += '<td>' + formatNumber(costPerPurchase) + '</td>';
+                    html += '<td>' + formatNumber(ad.purchases || 0) + '</td>';
                     
                     if (campaignType === 'ECOMMERCE') {{
-                        html += `<td>${{formatNumber(ad.purchase_value || 0)}}</td>`;
+                        html += '<td>' + formatNumber(ad.purchase_value || 0) + '</td>';
                     }}
                     
                     const cpm = ad.impressions > 0 ? ((ad.spend / ad.impressions) * 1000).toFixed(2) : '0';
-                    html += `<td>${{formatNumber(cpm)}}</td>`;
-                    html += `<td>${{formatNumber(ad.impressions || 0)}}</td>`;
-                    html += `<td>${{formatNumber(ad.clicks || 0)}}</td>`;
-                    html += `<td>${{((ad.ctr || 0)).toFixed(2)}}%</td>`;
-                    html += `<td>${{formatNumber(ad.cpc || 0)}}</td>`;
+                    html += '<td>' + formatNumber(cpm) + '</td>';
+                    html += '<td>' + formatNumber(ad.impressions || 0) + '</td>';
+                    html += '<td>' + formatNumber(ad.clicks || 0) + '</td>';
+                    html += '<td>' + ((ad.ctr || 0)).toFixed(2) + '%</td>';
+                    html += '<td>' + formatNumber(ad.cpc || 0) + '</td>';
                     html += '</tr>';
                 }});
                 
@@ -956,7 +1084,7 @@ async def dashboard_page(
                 renderPagination(totalPages);
                 
                 document.getElementById('tableInfo').textContent = 
-                    `Hiển thị ${{ads.length}} / ${{total}} kết quả`;
+                    'Hiển thị ' + ads.length + ' / ' + total + ' kết quả';
             }}
             
             function renderPagination(totalPages) {{
@@ -967,18 +1095,19 @@ async def dashboard_page(
                 }}
                 
                 let html = '';
-                html += `<button onclick="goToPage(1)" ${{currentPage === 1 ? 'disabled' : ''}}>«</button>`;
-                html += `<button onclick="goToPage(${{currentPage - 1}})" ${{currentPage === 1 ? 'disabled' : ''}}>‹</button>`;
+                html += '<button onclick="goToPage(1)"' + (currentPage === 1 ? ' disabled' : '') + '>«</button>';
+                html += '<button onclick="goToPage(' + (currentPage - 1) + ')"' + (currentPage === 1 ? ' disabled' : '') + '>‹</button>';
                 
                 const startPage = Math.max(1, currentPage - 2);
                 const endPage = Math.min(totalPages, currentPage + 2);
                 
                 for (let i = startPage; i <= endPage; i++) {{
-                    html += `<button class="${{i === currentPage ? 'active' : ''}}" onclick="goToPage(${{i}})">${{i}}</button>`;
+                    const activeClass = i === currentPage ? 'active' : '';
+                    html += '<button class="' + activeClass + '" onclick="goToPage(' + i + ')">' + i + '</button>';
                 }}
                 
-                html += `<button onclick="goToPage(${{currentPage + 1}})" ${{currentPage === totalPages ? 'disabled' : ''}}>›</button>`;
-                html += `<button onclick="goToPage(${{totalPages}})" ${{currentPage === totalPages ? 'disabled' : ''}}>»</button>`;
+                html += '<button onclick="goToPage(' + (currentPage + 1) + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>›</button>';
+                html += '<button onclick="goToPage(' + totalPages + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>»</button>';
                 
                 pagination.innerHTML = html;
             }}
@@ -992,6 +1121,7 @@ async def dashboard_page(
                 return new Intl.NumberFormat('vi-VN').format(num);
             }}
             
+<<<<<<< HEAD
             function updateStats(stats) {{
                 if (!stats) return;
                 document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
@@ -1002,6 +1132,8 @@ async def dashboard_page(
                 document.getElementById('totalAdsets').textContent = formatNumber(stats.total_adsets || 0);
             }}
             
+=======
+>>>>>>> 716d7811e1bed8e9b336ba7ed158ead18d2cc5ea
             // Pull dữ liệu từ Facebook (tự động, không hiển thị thông báo)
             async function pullFacebookDataSilent() {{
                 try {{
@@ -1113,7 +1245,23 @@ async def dashboard_page(
     </body>
     </html>
     """
-    return HTMLResponse(content=html_content)
+        return HTMLResponse(content=html_content)
+    except Exception as e:
+        logger.error(f"Error in dashboard_page: {e}", exc_info=True)
+        return HTMLResponse(
+            status_code=500,
+            content=f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>Error</title></head>
+            <body>
+                <h1>Internal Server Error</h1>
+                <p>Error: {str(e)}</p>
+                <p>Please check the server logs for more details.</p>
+            </body>
+            </html>
+            """
+        )
 
 
 @router.get("/data")
@@ -1141,18 +1289,68 @@ async def get_dashboard_data(
         # Get user's accounts and prefixes
         account_ids, _ = get_user_account_prefixes(current_user.id, db)
         
+        # Build base query
+        base_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
+        
+        # Apply filters for stats
+        stats_query = base_query
+        if account_id and account_id in account_ids:
+            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
+        if prefix:
+            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
+        if campaign_type:
+            stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
+        if status:
+            stats_query = stats_query.filter(AdMetrics.adset_status == status)
+        if date_from:
+            try:
+                date_from_dt = datetime.fromisoformat(date_from)
+                stats_query = stats_query.filter(AdMetrics.date >= date_from_dt)
+            except:
+                pass
+        if date_to:
+            try:
+                date_to_dt = datetime.fromisoformat(date_to)
+                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
+                stats_query = stats_query.filter(AdMetrics.date <= date_to_dt)
+            except:
+                pass
+        
+        # Calculate stats
+        total_spend = stats_query.with_entities(func.sum(AdMetrics.spend)).scalar() or 0
+        total_results = stats_query.with_entities(func.sum(AdMetrics.results)).scalar() or 0
+        avg_gia_data = stats_query.with_entities(func.avg(AdMetrics.gia_data)).scalar() or 0
+        total_adsets_count = stats_query.with_entities(func.count(distinct(AdMetrics.adset_id))).scalar() or 0
+        
+        active_adsets_count = stats_query.filter(AdMetrics.adset_status == "ACTIVE").with_entities(
+            func.count(distinct(AdMetrics.adset_id))
+        ).scalar() or 0
+        paused_adsets_count = stats_query.filter(AdMetrics.adset_status == "PAUSED").with_entities(
+            func.count(distinct(AdMetrics.adset_id))
+        ).scalar() or 0
+        
+        stats_result = {
+            "total_spend": float(total_spend),
+            "total_results": int(total_results),
+            "avg_gia_data": float(avg_gia_data),
+            "active_adsets": int(active_adsets_count),
+            "paused_adsets": int(paused_adsets_count),
+            "total_adsets": int(total_adsets_count)
+        }
+        
         if not account_ids:
             return {
+                "stats": stats_result,
                 "ads": [],
                 "total": 0,
                 "page": page,
                 "page_size": page_size
             }
         
-        # Build query
-        query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
+        # Build query for ads
+        query = base_query
         
-        # Apply filters
+        # Apply filters for ads
         if account_id and account_id in account_ids:
             query = query.filter(AdMetrics.account_id == account_id)
         if prefix:
@@ -1308,6 +1506,129 @@ async def get_dashboard_data(
         logger = logging.getLogger(__name__)
         logger.error(f"Error getting dashboard data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy dữ liệu: {str(e)}")
+
+
+@router.post("/pull-data")
+async def pull_facebook_data_endpoint(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Pull dữ liệu từ Facebook cho các accounts được bật
+    Chỉ lấy adsets ACTIVE của hôm nay
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        # Lấy token từ UserSettings
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token. Vui lòng vào Settings để thêm token.")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        # Lấy danh sách accounts được bật
+        enabled_accounts = db.query(Account).filter(
+            Account.user_id == current_user.id,
+            Account.enabled == True
+        ).all()
+        
+        if not enabled_accounts:
+            return {
+                "success": False,
+                "message": "Không có accounts nào được bật. Vui lòng bật ít nhất một account trong Settings.",
+                "count": 0
+            }
+        
+        account_ids = [acc.account_id for acc in enabled_accounts]
+        logger.info(f"Đang pull dữ liệu cho {len(account_ids)} accounts được bật: {account_ids}")
+        
+        # Pull dữ liệu từ Facebook
+        from app.services.facebook_api import pull_facebook_adset_data
+        from pytz import timezone as tz
+        
+        tz_vn = tz('Asia/Ho_Chi_Minh')
+        today = datetime.now(tz_vn).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        ad_metrics_list = pull_facebook_adset_data(
+            access_token=token,
+            ad_account_ids=account_ids,
+            date_preset="today",
+            only_active=True  # Chỉ lấy adsets ACTIVE
+        )
+        
+        if not ad_metrics_list:
+            return {
+                "success": True,
+                "message": "Không có dữ liệu mới từ Facebook (có thể chưa có dữ liệu hôm nay hoặc không có adsets ACTIVE)",
+                "count": 0
+            }
+        
+        # Lưu vào database
+        saved_count = 0
+        updated_count = 0
+        
+        for ad_metric in ad_metrics_list:
+            # Đảm bảo date là hôm nay
+            ad_metric['date'] = datetime.now(tz_vn)
+            
+            # Kiểm tra xem đã có chưa (chỉ check trong ngày hôm nay, theo adset_id)
+            existing = db.query(AdMetrics).filter(
+                AdMetrics.adset_id == ad_metric.get('adset_id'),
+                AdMetrics.account_id == ad_metric.get('account_id'),
+                AdMetrics.date >= today
+            ).first()
+            
+            if existing:
+                # Update
+                for key, value in ad_metric.items():
+                    if hasattr(existing, key) and not key.startswith('_'):
+                        setattr(existing, key, value)
+                existing.updated_at = datetime.now()
+                updated_count += 1
+            else:
+                # Create new
+                valid_fields = {
+                    'adset_id', 'ad_id', 'ad_name', 'adset_name', 'campaign_name', 'campaign_id',
+                    'account_id', 'account_name', 'prefix', 'spend', 'impressions', 'clicks', 'results',
+                    'ctr', 'cpc', 'cpa', 'roas', 'gia_data', 'sdt', 'gia_sdt', 'ty_le_sdt',
+                    'adset_status', 'effective_status', 'date', 'date_preset',
+                    'campaign_type', 'campaign_objective', 'amount_spent', 'ket_qua',
+                    'purchases', 'purchase_value', 'revenue', 'leads', 'phone_calls',
+                    'cost_per_lead'
+                }
+                
+                ad_metric_dict = {k: v for k, v in ad_metric.items() if k in valid_fields}
+                new_metric = AdMetrics(**ad_metric_dict)
+                db.add(new_metric)
+                saved_count += 1
+        
+        db.commit()
+        
+        logger.info(f"✅ Đã pull và lưu {saved_count} records mới, cập nhật {updated_count} records")
+        
+        return {
+            "success": True,
+            "message": f"Đã pull thành công {len(ad_metrics_list)} adsets từ {len(account_ids)} accounts. Lưu {saved_count} mới, cập nhật {updated_count}.",
+            "count": len(ad_metrics_list),
+            "saved": saved_count,
+            "updated": updated_count,
+            "accounts": account_ids
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error pulling Facebook data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi pull dữ liệu: {str(e)}")
 
 
 @router.get("/filters")
