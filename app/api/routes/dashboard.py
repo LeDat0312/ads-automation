@@ -924,23 +924,49 @@ async def dashboard_page(
                 try {{
                     document.getElementById('tableWrapper').innerHTML = '<div class="loading">Đang tải dữ liệu...</div>';
                     
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
                     const response = await fetch('/dashboard/data?' + params.toString(), {{
                         headers: {{
-                            'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
+                            'Authorization': 'Bearer ' + token
                         }}
                     }});
                     
-                    if (!response.ok) throw new Error('Failed to load data');
+                    if (!response.ok) {{
+                        const errorData = await response.json().catch(() => ({{ detail: 'Unknown error' }}));
+                        throw new Error(errorData.detail || 'Failed to load data: ' + response.status);
+                    }}
                     
                     const data = await response.json();
+                    console.log('Dashboard data received:', data);
+                    
                     if (data.stats) {{
                         updateStats(data.stats);
+                    }} else {{
+                        // Nếu không có stats, set về 0
+                        updateStats({{
+                            total_spend: 0,
+                            total_results: 0,
+                            avg_gia_data: 0,
+                            active_adsets: 0,
+                            paused_adsets: 0,
+                            total_adsets: 0
+                        }});
                     }}
                     renderTable(data);
                 }} catch (error) {{
                     console.error('Error loading data:', error);
+                    const errorMsg = error.message || 'Lỗi khi tải dữ liệu';
                     document.getElementById('tableWrapper').innerHTML = 
-                        '<div class="empty-state"><div class="icon">⚠️</div>Lỗi khi tải dữ liệu</div>';
+                        '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi tải dữ liệu</p><p style="font-size: 12px; color: #94a3b8;">' + errorMsg + '</p></div>';
+                    // Cũng reset stats về 0 khi có lỗi
+                    updateStats({{
+                        total_spend: 0,
+                        total_results: 0,
+                        avg_gia_data: 0,
+                        active_adsets: 0,
+                        paused_adsets: 0,
+                        total_adsets: 0
+                    }});
                 }}
             }}
             
@@ -956,11 +982,13 @@ async def dashboard_page(
             function renderTable(data) {{
                 const ads = data.ads || [];
                 const total = data.total || 0;
-                const campaignType = currentFilters.campaignType || 'ECOMMERCE';
+                const campaignType = currentFilters.campaignType || '';
                 
                 if (ads.length === 0) {{
                     document.getElementById('tableWrapper').innerHTML = 
-                        '<div class="empty-state"><div class="icon">📭</div>Không có dữ liệu</div>';
+                        '<div class="empty-state"><div class="icon">📭</div><p>Không có dữ liệu</p><p style="font-size: 12px; color: #94a3b8; margin-top: 8px;">Vui lòng kiểm tra lại bộ lọc hoặc cấu hình accounts/prefixes trong Settings</p></div>';
+                    document.getElementById('tableInfo').textContent = 'Hiển thị 0 / 0 kết quả';
+                    document.getElementById('pagination').innerHTML = '';
                     return;
                 }}
                 
@@ -1072,11 +1100,40 @@ async def dashboard_page(
                 return new Intl.NumberFormat('vi-VN').format(num);
             }}
             
+            // Pull dữ liệu từ Facebook (tự động, không hiển thị thông báo)
+            async function pullFacebookDataSilent() {{
+                try {{
+                    const response = await fetch('/dashboard/pull-data', {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
+                        }}
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok && data.success) {{
+                        console.log('✅ Đã pull dữ liệu:', data.count + ' adsets');
+                        return true;
+                    }} else {{
+                        console.warn('⚠️ Pull dữ liệu:', data.message || data.detail || 'Không có dữ liệu mới');
+                        return false;
+                    }}
+                }} catch (error) {{
+                    console.error('❌ Lỗi khi pull dữ liệu:', error.message);
+                    return false;
+                }}
+            }}
+            
             async function refreshData() {{
                 const btn = document.getElementById('refreshBtn');
                 btn.classList.add('loading');
                 btn.disabled = true;
                 
+                // Pull dữ liệu mới từ Facebook trước khi load
+                await pullFacebookDataSilent();
+                
+                // Sau đó load dữ liệu từ database
                 await loadData();
                 
                 setTimeout(() => {{
@@ -1120,7 +1177,7 @@ async def dashboard_page(
             }}
             
             // Set default date to today
-            window.addEventListener('DOMContentLoaded', () => {{
+            window.addEventListener('DOMContentLoaded', async () => {{
                 const today = new Date();
                 selectedDateRange.start = today;
                 selectedDateRange.end = today;
@@ -1128,7 +1185,13 @@ async def dashboard_page(
                 currentFilters.dateTo = today.toISOString().split('T')[0];
                 document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
                 
-                loadFilters();
+                // Load filters trước
+                await loadFilters();
+                
+                // Pull dữ liệu mới từ Facebook khi trang load (giống Facebook Ads Manager)
+                await pullFacebookDataSilent();
+                
+                // Sau đó load dữ liệu từ database
                 loadData();
                 
                 // Add event listeners for filters
@@ -1361,6 +1424,129 @@ async def get_dashboard_data(
         logger = logging.getLogger(__name__)
         logger.error(f"Error getting dashboard data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy dữ liệu: {str(e)}")
+
+
+@router.post("/pull-data")
+async def pull_facebook_data_endpoint(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Pull dữ liệu từ Facebook cho các accounts được bật
+    Chỉ lấy adsets ACTIVE của hôm nay
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        # Lấy token từ UserSettings
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token. Vui lòng vào Settings để thêm token.")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        # Lấy danh sách accounts được bật
+        enabled_accounts = db.query(Account).filter(
+            Account.user_id == current_user.id,
+            Account.enabled == True
+        ).all()
+        
+        if not enabled_accounts:
+            return {
+                "success": False,
+                "message": "Không có accounts nào được bật. Vui lòng bật ít nhất một account trong Settings.",
+                "count": 0
+            }
+        
+        account_ids = [acc.account_id for acc in enabled_accounts]
+        logger.info(f"Đang pull dữ liệu cho {len(account_ids)} accounts được bật: {account_ids}")
+        
+        # Pull dữ liệu từ Facebook
+        from app.services.facebook_api import pull_facebook_adset_data
+        from pytz import timezone as tz
+        
+        tz_vn = tz('Asia/Ho_Chi_Minh')
+        today = datetime.now(tz_vn).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        ad_metrics_list = pull_facebook_adset_data(
+            access_token=token,
+            ad_account_ids=account_ids,
+            date_preset="today",
+            only_active=True  # Chỉ lấy adsets ACTIVE
+        )
+        
+        if not ad_metrics_list:
+            return {
+                "success": True,
+                "message": "Không có dữ liệu mới từ Facebook (có thể chưa có dữ liệu hôm nay hoặc không có adsets ACTIVE)",
+                "count": 0
+            }
+        
+        # Lưu vào database
+        saved_count = 0
+        updated_count = 0
+        
+        for ad_metric in ad_metrics_list:
+            # Đảm bảo date là hôm nay
+            ad_metric['date'] = datetime.now(tz_vn)
+            
+            # Kiểm tra xem đã có chưa (chỉ check trong ngày hôm nay, theo adset_id)
+            existing = db.query(AdMetrics).filter(
+                AdMetrics.adset_id == ad_metric.get('adset_id'),
+                AdMetrics.account_id == ad_metric.get('account_id'),
+                AdMetrics.date >= today
+            ).first()
+            
+            if existing:
+                # Update
+                for key, value in ad_metric.items():
+                    if hasattr(existing, key) and not key.startswith('_'):
+                        setattr(existing, key, value)
+                existing.updated_at = datetime.now()
+                updated_count += 1
+            else:
+                # Create new
+                valid_fields = {
+                    'adset_id', 'ad_id', 'ad_name', 'adset_name', 'campaign_name', 'campaign_id',
+                    'account_id', 'account_name', 'prefix', 'spend', 'impressions', 'clicks', 'results',
+                    'ctr', 'cpc', 'cpa', 'roas', 'gia_data', 'sdt', 'gia_sdt', 'ty_le_sdt',
+                    'adset_status', 'effective_status', 'date', 'date_preset',
+                    'campaign_type', 'campaign_objective', 'amount_spent', 'ket_qua',
+                    'purchases', 'purchase_value', 'revenue', 'leads', 'phone_calls',
+                    'cost_per_lead'
+                }
+                
+                ad_metric_dict = {k: v for k, v in ad_metric.items() if k in valid_fields}
+                new_metric = AdMetrics(**ad_metric_dict)
+                db.add(new_metric)
+                saved_count += 1
+        
+        db.commit()
+        
+        logger.info(f"✅ Đã pull và lưu {saved_count} records mới, cập nhật {updated_count} records")
+        
+        return {
+            "success": True,
+            "message": f"Đã pull thành công {len(ad_metrics_list)} adsets từ {len(account_ids)} accounts. Lưu {saved_count} mới, cập nhật {updated_count}.",
+            "count": len(ad_metrics_list),
+            "saved": saved_count,
+            "updated": updated_count,
+            "accounts": account_ids
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error pulling Facebook data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi pull dữ liệu: {str(e)}")
 
 
 @router.get("/filters")
