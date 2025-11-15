@@ -266,6 +266,16 @@ async def dashboard_page(
                 50% {{ opacity: 0.5; }}
             }}
             
+            @keyframes slideInRight {{
+                from {{ transform: translateX(100%); opacity: 0; }}
+                to {{ transform: translateX(0); opacity: 1; }}
+            }}
+            
+            @keyframes slideOutRight {{
+                from {{ transform: translateX(0); opacity: 1; }}
+                to {{ transform: translateX(100%); opacity: 0; }}
+            }}
+            
             .container {{
                 max-width: 1400px;
                 width: 100%;
@@ -717,6 +727,90 @@ async def dashboard_page(
             
             .number-cell {{
                 text-align: right;
+            }}
+            
+            .action-buttons {{
+                display: flex;
+                gap: 6px;
+                align-items: center;
+                justify-content: center;
+                white-space: nowrap;
+            }}
+            
+            .btn-action {{
+                padding: 6px 10px;
+                border: none;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 36px;
+            }}
+            
+            .btn-pause {{
+                background: #fee2e2;
+                color: #991b1b;
+            }}
+            
+            .btn-pause:hover {{
+                background: #fecaca;
+                transform: translateY(-1px);
+            }}
+            
+            .btn-activate {{
+                background: #d1fae5;
+                color: #065f46;
+            }}
+            
+            .btn-activate:hover {{
+                background: #a7f3d0;
+                transform: translateY(-1px);
+            }}
+            
+            .btn-increase {{
+                background: #dbeafe;
+                color: #1e40af;
+            }}
+            
+            .btn-increase:hover {{
+                background: #bfdbfe;
+                transform: translateY(-1px);
+            }}
+            
+            .btn-decrease {{
+                background: #fef3c7;
+                color: #92400e;
+            }}
+            
+            .btn-decrease:hover {{
+                background: #fde68a;
+                transform: translateY(-1px);
+            }}
+            
+            .btn-action:disabled {{
+                opacity: 0.5;
+                cursor: not-allowed;
+                transform: none;
+            }}
+            
+            .btn-action.loading {{
+                position: relative;
+                color: transparent;
+            }}
+            
+            .btn-action.loading::after {{
+                content: '';
+                position: absolute;
+                width: 14px;
+                height: 14px;
+                border: 2px solid currentColor;
+                border-top-color: transparent;
+                border-radius: 50%;
+                animation: spin 0.6s linear infinite;
             }}
             
             tbody tr {{
@@ -1675,16 +1769,16 @@ async def dashboard_page(
                 
                 // Define columns based on campaign type
                 const columns = campaignType === 'ECOMMERCE' ? [
-                    'Tắt/Bật', 'Tên nhóm quảng cáo', 'Phân phối', 'Ngân sách', 'Số tiền chi tiêu',
+                    'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
                     '% ADS', 'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
                     'Giá trị chuyển đổi từ lượt mua', 'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)',
-                    'CTR (tất cả)', 'CPC (tất cả)'
+                    'CTR (tất cả)', 'CPC (tất cả)', 'Thao tác'
                 ] : [
-                    'Tắt/Bật', 'Tên nhóm quảng cáo', 'Phân phối', 'Ngân sách', 'Số tiền chi tiêu',
+                    'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
                     'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
-                    'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)'
+                    'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)', 'Thao tác'
                 ];
                 
                 // Define sortable columns
@@ -1711,11 +1805,11 @@ async def dashboard_page(
                 html += '</tr></thead><tbody>';
                 
                 ads.forEach(ad => {{
-                    html += '<tr>';
+                    html += '<tr data-adset-id="' + (ad.adset_id || '') + '" data-account-id="' + (ad.account_id || '') + '">';
                     html += '<td><span class="status-badge status-' + (ad.adset_status || '').toLowerCase() + '">' + (ad.adset_status || '') + '</span></td>';
                     html += '<td>' + (ad.adset_name || '') + '</td>';
-                    html += '<td>-</td>'; // Phân phối - cần lấy từ API
-                    html += '<td>-</td>'; // Ngân sách - cần lấy từ API
+                    html += '<td>' + (ad.account_id || '-') + '</td>';
+                    html += '<td>' + (ad.prefix || '-') + '</td>';
                     const cpm = ad.impressions > 0 ? ((ad.spend / ad.impressions) * 1000) : 0;
                     // Store calculated values for sorting
                     ad._cpm = cpm;
@@ -1753,6 +1847,18 @@ async def dashboard_page(
                     html += '<td class="number-cell">' + formatNumber(ad.clicks || 0) + '</td>';
                     html += '<td class="number-cell">' + ((ad.ctr || 0)).toFixed(2) + '%</td>';
                     html += '<td class="number-cell">' + formatNumber(ad.cpc || 0) + '</td>';
+                    
+                    // Action buttons
+                    const isActive = (ad.adset_status || '').toUpperCase() === 'ACTIVE';
+                    html += '<td class="action-buttons">';
+                    if (isActive) {{
+                        html += '<button class="btn-action btn-pause" onclick="pauseAdset(\\'' + (ad.adset_id || '') + '\\', this)" title="Tắt adset">⏸️</button>';
+                    }} else {{
+                        html += '<button class="btn-action btn-activate" onclick="activateAdset(\\'' + (ad.adset_id || '') + '\\', this)" title="Bật adset">▶️</button>';
+                    }}
+                    html += '<button class="btn-action btn-increase" onclick="increaseBudget(\\'' + (ad.adset_id || '') + '\\', this)" title="Tăng ngân sách 10%">+10%</button>';
+                    html += '<button class="btn-action btn-decrease" onclick="decreaseBudget(\\'' + (ad.adset_id || '') + '\\', this)" title="Giảm ngân sách 10%">-10%</button>';
+                    html += '</td>';
                     html += '</tr>';
                 }});
                 
@@ -1825,6 +1931,169 @@ async def dashboard_page(
             
             function formatNumber(num) {{
                 return new Intl.NumberFormat('vi-VN').format(num);
+            }}
+            
+            // Action functions for adset control
+            async function pauseAdset(adsetId, buttonElement) {{
+                if (!confirm('Bạn có chắc muốn tắt adset này?')) return;
+                
+                const btn = buttonElement;
+                btn.disabled = true;
+                btn.classList.add('loading');
+                
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const response = await fetch('/dashboard/adset/pause?adset_id=' + adsetId, {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + token
+                        }}
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {{
+                        // Update status badge
+                        const row = btn.closest('tr');
+                        const statusBadge = row.querySelector('.status-badge');
+                        statusBadge.textContent = 'PAUSED';
+                        statusBadge.className = 'status-badge status-paused';
+                        
+                        // Update button to activate
+                        btn.outerHTML = '<button class="btn-action btn-activate" onclick="activateAdset(\\'' + adsetId + '\\', this)" title="Bật adset">▶️</button>';
+                        
+                        showToast('✅ Đã tắt adset thành công', 'success');
+                    }} else {{
+                        showToast('❌ Lỗi: ' + (result.detail || result.message || 'Unknown error'), 'error');
+                    }}
+                }} catch (error) {{
+                    showToast('❌ Lỗi: ' + error.message, 'error');
+                }} finally {{
+                    btn.disabled = false;
+                    btn.classList.remove('loading');
+                }}
+            }}
+            
+            async function activateAdset(adsetId, buttonElement) {{
+                if (!confirm('Bạn có chắc muốn bật adset này?')) return;
+                
+                const btn = buttonElement;
+                btn.disabled = true;
+                btn.classList.add('loading');
+                
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const response = await fetch('/dashboard/adset/activate?adset_id=' + adsetId, {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + token
+                        }}
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {{
+                        // Update status badge
+                        const row = btn.closest('tr');
+                        const statusBadge = row.querySelector('.status-badge');
+                        statusBadge.textContent = 'ACTIVE';
+                        statusBadge.className = 'status-badge status-active';
+                        
+                        // Update button to pause
+                        btn.outerHTML = '<button class="btn-action btn-pause" onclick="pauseAdset(\\'' + adsetId + '\\', this)" title="Tắt adset">⏸️</button>';
+                        
+                        showToast('✅ Đã bật adset thành công', 'success');
+                    }} else {{
+                        showToast('❌ Lỗi: ' + (result.detail || result.message || 'Unknown error'), 'error');
+                    }}
+                }} catch (error) {{
+                    showToast('❌ Lỗi: ' + error.message, 'error');
+                }} finally {{
+                    btn.disabled = false;
+                    btn.classList.remove('loading');
+                }}
+            }}
+            
+            async function increaseBudget(adsetId, buttonElement) {{
+                if (!confirm('Bạn có chắc muốn tăng ngân sách adset này thêm 10%?')) return;
+                
+                const btn = buttonElement;
+                btn.disabled = true;
+                btn.classList.add('loading');
+                
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const response = await fetch('/dashboard/adset/budget/increase?adset_id=' + adsetId + '&percent=10', {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + token
+                        }}
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {{
+                        showToast('✅ Đã tăng ngân sách: ' + formatNumber(result.old_budget) + ' → ' + formatNumber(result.new_budget), 'success');
+                        // Reload data to update budget display
+                        setTimeout(() => loadData(), 1000);
+                    }} else {{
+                        showToast('❌ Lỗi: ' + (result.detail || result.message || 'Unknown error'), 'error');
+                    }}
+                }} catch (error) {{
+                    showToast('❌ Lỗi: ' + error.message, 'error');
+                }} finally {{
+                    btn.disabled = false;
+                    btn.classList.remove('loading');
+                }}
+            }}
+            
+            async function decreaseBudget(adsetId, buttonElement) {{
+                if (!confirm('Bạn có chắc muốn giảm ngân sách adset này đi 10%?')) return;
+                
+                const btn = buttonElement;
+                btn.disabled = true;
+                btn.classList.add('loading');
+                
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const response = await fetch('/dashboard/adset/budget/decrease?adset_id=' + adsetId + '&percent=10', {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + token
+                        }}
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {{
+                        showToast('✅ Đã giảm ngân sách: ' + formatNumber(result.old_budget) + ' → ' + formatNumber(result.new_budget), 'success');
+                        // Reload data to update budget display
+                        setTimeout(() => loadData(), 1000);
+                    }} else {{
+                        showToast('❌ Lỗi: ' + (result.detail || result.message || 'Unknown error'), 'error');
+                    }}
+                }} catch (error) {{
+                    showToast('❌ Lỗi: ' + error.message, 'error');
+                }} finally {{
+                    btn.disabled = false;
+                    btn.classList.remove('loading');
+                }}
+            }}
+            
+            // Toast notification
+            function showToast(message, type = 'info') {{
+                const toast = document.createElement('div');
+                toast.className = 'toast toast-' + type;
+                toast.textContent = message;
+                toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;background:' + 
+                    (type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6') + 
+                    ';color:white;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:10000;animation:slideInRight 0.3s ease;';
+                document.body.appendChild(toast);
+                
+                setTimeout(() => {{
+                    toast.style.animation = 'slideOutRight 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }}, 3000);
             }}
             
             // Table sorting
@@ -2456,3 +2725,189 @@ async def get_filters(
         logger = logging.getLogger(__name__)
         logger.error(f"Error getting filters: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy filters: {str(e)}")
+
+
+@router.post("/adset/pause")
+async def pause_adset(
+    request: Request,
+    adset_id: str = Query(...),
+    account_id: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Tắt một adset"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        from app.services.facebook_api import pause_adsets
+        
+        result = pause_adsets([adset_id], token)
+        
+        if result.get("success", 0) > 0:
+            return {
+                "success": True,
+                "message": f"Đã tắt adset {adset_id}",
+                "adset_id": adset_id
+            }
+        else:
+            error_msg = result.get("errorDetails", [{}])[0].get("error", "Unknown error") if result.get("errorDetails") else "Unknown error"
+            raise HTTPException(status_code=400, detail=f"Lỗi khi tắt adset: {error_msg}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error pausing adset: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi tắt adset: {str(e)}")
+
+
+@router.post("/adset/activate")
+async def activate_adset(
+    request: Request,
+    adset_id: str = Query(...),
+    account_id: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Bật một adset"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        from app.services.facebook_api import resume_adsets
+        
+        result = resume_adsets([adset_id], token)
+        
+        if result.get("success", 0) > 0:
+            return {
+                "success": True,
+                "message": f"Đã bật adset {adset_id}",
+                "adset_id": adset_id
+            }
+        else:
+            error_msg = result.get("errorDetails", [{}])[0].get("error", "Unknown error") if result.get("errorDetails") else "Unknown error"
+            raise HTTPException(status_code=400, detail=f"Lỗi khi bật adset: {error_msg}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error activating adset: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi bật adset: {str(e)}")
+
+
+@router.post("/adset/budget/increase")
+async def increase_adset_budget(
+    request: Request,
+    adset_id: str = Query(...),
+    percent: float = Query(10.0, ge=0.1, le=100.0),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Tăng ngân sách adset theo phần trăm"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        from app.services.facebook_api import update_adset_budget
+        
+        result = update_adset_budget(adset_id, token, action_type="increase", percent=percent)
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "message": f"Đã tăng ngân sách adset {adset_id} thêm {percent}%",
+                "adset_id": adset_id,
+                "old_budget": result.get("old_budget"),
+                "new_budget": result.get("new_budget")
+            }
+        else:
+            raise HTTPException(status_code=400, detail=f"Lỗi khi tăng ngân sách: {result.get('error', 'Unknown error')}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error increasing adset budget: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi tăng ngân sách: {str(e)}")
+
+
+@router.post("/adset/budget/decrease")
+async def decrease_adset_budget(
+    request: Request,
+    adset_id: str = Query(...),
+    percent: float = Query(10.0, ge=0.1, le=100.0),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Giảm ngân sách adset theo phần trăm"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        from app.services.facebook_api import update_adset_budget
+        
+        result = update_adset_budget(adset_id, token, action_type="decrease", percent=percent)
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "message": f"Đã giảm ngân sách adset {adset_id} đi {percent}%",
+                "adset_id": adset_id,
+                "old_budget": result.get("old_budget"),
+                "new_budget": result.get("new_budget")
+            }
+        else:
+            raise HTTPException(status_code=400, detail=f"Lỗi khi giảm ngân sách: {result.get('error', 'Unknown error')}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error decreasing adset budget: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi giảm ngân sách: {str(e)}")
