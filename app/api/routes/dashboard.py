@@ -715,23 +715,23 @@ async def dashboard_page(
                 
                 console.log('✅ Dashboard script started');
             
-            // Date Picker Logic
-            function openDatePicker() {{
+            // Date Picker Logic - Đảm bảo ở global scope
+            window.openDatePicker = function openDatePicker() {{
                 document.getElementById('datePickerModal').classList.add('active');
                 renderCalendars();
-            }}
+            }};
             
-            function closeDatePicker() {{
+            window.closeDatePicker = function closeDatePicker() {{
                 document.getElementById('datePickerModal').classList.remove('active');
-            }}
+            }};
             
-            function closeDatePickerOnOverlay(event) {{
+            window.closeDatePickerOnOverlay = function closeDatePickerOnOverlay(event) {{
                 if (event.target.id === 'datePickerModal') {{
                     closeDatePicker();
                 }}
-            }}
+            }};
             
-            function selectQuickDate(type) {{
+            window.selectQuickDate = function selectQuickDate(type) {{
                 const today = new Date();
                 let start, end;
                 
@@ -774,17 +774,17 @@ async def dashboard_page(
                 selectedDateRange.end = end;
                 renderCalendars();
                 applyDateRange();
-            }}
+            }};
             
-            function renderCalendars() {{
+            window.renderCalendars = function renderCalendars() {{
                 const container = document.getElementById('calendarsContainer');
                 const startMonth = new Date(currentCalendarYear, currentCalendarMonth, 1);
                 const endMonth = new Date(currentCalendarYear, currentCalendarMonth + 1, 1);
                 
                 container.innerHTML = renderCalendar(startMonth) + renderCalendar(endMonth);
-            }}
+            }};
             
-            function renderCalendar(date) {{
+            window.renderCalendar = function renderCalendar(date) {{
                 const year = date.getFullYear();
                 const month = date.getMonth();
                 const firstDay = new Date(year, month, 1);
@@ -844,9 +844,9 @@ async def dashboard_page(
                 
                 html += '</div></div>';
                 return html;
-            }}
+            }};
             
-            function selectDate(year, month, day) {{
+            window.selectDate = function selectDate(year, month, day) {{
                 const date = new Date(year, month, day);
                 if (!selectedDateRange.start || (selectedDateRange.start && selectedDateRange.end)) {{
                     selectedDateRange.start = date;
@@ -858,12 +858,12 @@ async def dashboard_page(
                     selectedDateRange.end = date;
                 }}
                 renderCalendars();
-            }}
+            }};
             
             let currentCalendarMonth = new Date().getMonth();
             let currentCalendarYear = new Date().getFullYear();
             
-            function changeMonth(delta) {{
+            window.changeMonth = function changeMonth(delta) {{
                 currentCalendarMonth += delta;
                 if (currentCalendarMonth < 0) {{
                     currentCalendarMonth = 11;
@@ -873,19 +873,19 @@ async def dashboard_page(
                     currentCalendarYear++;
                 }}
                 renderCalendars();
-            }}
+            }};
             
-            function changeMonthBySelect(monthIndex) {{
+            window.changeMonthBySelect = function changeMonthBySelect(monthIndex) {{
                 currentCalendarMonth = parseInt(monthIndex);
                 renderCalendars();
-            }}
+            }};
             
-            function changeYearBySelect(yearValue) {{
+            window.changeYearBySelect = function changeYearBySelect(yearValue) {{
                 currentCalendarYear = parseInt(yearValue);
                 renderCalendars();
-            }}
+            }};
             
-            function applyDateRange() {{
+            window.applyDateRange = function applyDateRange() {{
                 if (selectedDateRange.start && selectedDateRange.end) {{
                     const startStr = selectedDateRange.start.toISOString().split('T')[0];
                     const endStr = selectedDateRange.end.toISOString().split('T')[0];
@@ -899,14 +899,14 @@ async def dashboard_page(
                     closeDatePicker();
                     loadData();
                 }}
-            }}
+            }};
             
-            function formatDateVN(date) {{
+            window.formatDateVN = function formatDateVN(date) {{
                 const day = date.getDate();
                 const month = date.getMonth() + 1;
                 const year = date.getFullYear();
                 return day + ' Tháng ' + month + ', ' + year;
-            }}
+            }};
             
             // Load data - Đảm bảo ở global scope
             window.loadData = async function loadData() {{
@@ -1107,7 +1107,7 @@ async def dashboard_page(
                 }}
             }}
             
-            function renderPagination(totalPages) {{
+            window.renderPagination = function renderPagination(totalPages) {{
                 const pagination = document.getElementById('pagination');
                 if (totalPages <= 1) {{
                     pagination.innerHTML = '';
@@ -1130,16 +1130,16 @@ async def dashboard_page(
                 html += '<button onclick="goToPage(' + totalPages + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>»</button>';
                 
                 pagination.innerHTML = html;
-            }}
+            }};
             
-            function goToPage(page) {{
+            window.goToPage = function goToPage(page) {{
                 currentPage = page;
                 loadData();
-            }}
+            }};
             
-            function formatNumber(num) {{
+            window.formatNumber = function formatNumber(num) {{
                 return new Intl.NumberFormat('vi-VN').format(num);
-            }}
+            }};
             
             // Pull dữ liệu từ Facebook (tự động, không hiển thị thông báo)
             window.pullFacebookDataSilent = async function pullFacebookDataSilent() {{
@@ -1259,20 +1259,20 @@ async def dashboard_page(
                 }}
             }});
             
-            function getCookie(name) {{
+            window.getCookie = function getCookie(name) {{
                 const value = '; ' + document.cookie;
                 const parts = value.split('; ' + name + '=');
                 if (parts.length === 2) return parts.pop().split(';').shift();
                 return null;
-            }}
+            }};
             
-            function logout() {{
+            window.logout = function logout() {{
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('user');
                 // Clear cookie
                 document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
                 window.location.href = '/auth/login';
-            }}
+            }};
             
             console.log('✅ All functions defined');
             }} catch (error) {{
