@@ -1186,27 +1186,44 @@ async def dashboard_page(
             
             // Set default date to today
             window.addEventListener('DOMContentLoaded', async () => {{
-                const today = new Date();
-                selectedDateRange.start = today;
-                selectedDateRange.end = today;
-                currentFilters.dateFrom = today.toISOString().split('T')[0];
-                currentFilters.dateTo = today.toISOString().split('T')[0];
-                document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
-                
-                // Load filters trước
-                await loadFilters();
-                
-                // Pull dữ liệu mới từ Facebook khi trang load (giống Facebook Ads Manager)
-                await pullFacebookDataSilent();
-                
-                // Sau đó load dữ liệu từ database
-                loadData();
+                console.log('✅ DOMContentLoaded fired');
+                try {{
+                    const today = new Date();
+                    selectedDateRange.start = today;
+                    selectedDateRange.end = today;
+                    currentFilters.dateFrom = today.toISOString().split('T')[0];
+                    currentFilters.dateTo = today.toISOString().split('T')[0];
+                    document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
+                    
+                    console.log('✅ Date range initialized');
+                    
+                    // Load filters trước
+                    console.log('🔄 Loading filters...');
+                    await loadFilters();
+                    console.log('✅ Filters loaded');
+                    
+                    // Pull dữ liệu mới từ Facebook khi trang load (giống Facebook Ads Manager)
+                    console.log('🔄 Pulling Facebook data...');
+                    await pullFacebookDataSilent();
+                    console.log('✅ Facebook data pulled');
+                    
+                    // Sau đó load dữ liệu từ database
+                    console.log('🔄 Loading dashboard data...');
+                    loadData();
+                }} catch (error) {{
+                    console.error('❌ Error in DOMContentLoaded:', error);
+                }}
                 
                 // Add event listeners for filters
-                document.getElementById('accountFilter').addEventListener('change', loadData);
-                document.getElementById('prefixFilter').addEventListener('change', loadData);
-                document.getElementById('campaignTypeFilter').addEventListener('change', loadData);
-                document.getElementById('statusFilter').addEventListener('change', loadData);
+                try {{
+                    document.getElementById('accountFilter').addEventListener('change', loadData);
+                    document.getElementById('prefixFilter').addEventListener('change', loadData);
+                    document.getElementById('campaignTypeFilter').addEventListener('change', loadData);
+                    document.getElementById('statusFilter').addEventListener('change', loadData);
+                    console.log('✅ Event listeners added');
+                }} catch (error) {{
+                    console.error('❌ Error adding event listeners:', error);
+                }}
             }});
             
             function getCookie(name) {{
@@ -1214,6 +1231,14 @@ async def dashboard_page(
                 const parts = value.split('; ' + name + '=');
                 if (parts.length === 2) return parts.pop().split(';').shift();
                 return null;
+            }}
+            
+            function logout() {{
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                // Clear cookie
+                document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                window.location.href = '/auth/login';
             }}
         </script>
     </body>
