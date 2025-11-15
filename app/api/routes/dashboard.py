@@ -60,10 +60,7 @@ async def dashboard_page(
         if not current_user.is_active:
             return HTMLResponse(content=get_account_locked_message())
         
-        user_menu = get_user_dropdown_menu(current_user)
-        
         # Tạo HTML với date picker giống Facebook và UI đẹp
-        # Sử dụng format string để tránh lỗi với user_menu có chứa {{}}
         html_content = f"""
     <!DOCTYPE html>
     <html lang="vi">
@@ -72,6 +69,7 @@ async def dashboard_page(
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Dashboard - Facebook Ads Automation</title>
         <link rel="icon" type="image/png" href="/static/favicon.png">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
             
@@ -1404,11 +1402,13 @@ async def dashboard_page(
         </style>
     </head>
     <body>
-        """ + user_menu + """
         <div class="header">
-            <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <a href="/" style="text-decoration: none; color: #667eea; font-weight: 600; padding: 8px 16px; border-radius: 8px; transition: all 0.3s ease; background: rgba(102, 126, 234, 0.1);" onmouseover="this.style.background='rgba(102, 126, 234, 0.2)'" onmouseout="this.style.background='rgba(102, 126, 234, 0.1)'">← Trang chủ</a>
+                <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
+            </div>
             <div class="header-actions">
-                <div id="lastUpdateTime" style="font-size: 12px; color: rgba(255, 255, 255, 0.8); margin-right: 16px; white-space: nowrap;">Cập nhật lần cuối: --:--:--</div>
+                <div id="lastUpdateTime" style="font-size: 12px; color: #64748b; margin-right: 16px; white-space: nowrap;">Cập nhật lần cuối: --:--:--</div>
                 <button class="btn-refresh" onclick="refreshData()" id="refreshBtn">
                     🔄 Làm mới
                 </button>
@@ -1567,18 +1567,10 @@ async def dashboard_page(
                     </div>
                     <div class="charts-grid">
                         <div class="chart-container">
-                            <div style="text-align: center;">
-                                <div style="font-size: 48px; margin-bottom: 12px;">📈</div>
-                                <div>Line Chart: Chi tiêu & Kết quả theo ngày</div>
-                                <div style="font-size: 12px; margin-top: 8px; color: #cbd5e1;">(Sẽ tích hợp Chart.js sau)</div>
-                            </div>
+                            <canvas id="lineChart" style="max-height: 300px;"></canvas>
                         </div>
                         <div class="chart-container">
-                            <div style="text-align: center;">
-                                <div style="font-size: 48px; margin-bottom: 12px;">📊</div>
-                                <div>Bar Chart: Chi tiêu theo Prefix</div>
-                                <div style="font-size: 12px; margin-top: 8px; color: #cbd5e1;">(Sẽ tích hợp Chart.js sau)</div>
-                            </div>
+                            <canvas id="barChart" style="max-height: 300px;"></canvas>
                         </div>
                     </div>
                 </div>
@@ -2887,9 +2879,29 @@ async def get_dashboard_data(
     try:
         # Get user's accounts and prefixes
         account_ids, _ = get_user_account_prefixes(current_user.id, db)
+        logger.info(f"Dashboard data - User {current_user.id}: Found {len(account_ids)} enabled accounts: {account_ids}")
+        
+        if not account_ids:
+            logger.warning(f"User {current_user.id} has no enabled accounts configured")
+            return {
+                "stats": {
+                    "total_spend": 0,
+                    "total_results": 0,
+                    "avg_gia_data": 0,
+                    "active_adsets": 0,
+                    "paused_adsets": 0,
+                    "total_adsets": 0
+                },
+                "ads": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "message": "Chưa có accounts được bật. Vui lòng vào Settings để thêm và bật accounts."
+            }
         
         # Build base query
         base_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
+        logger.info(f"Querying AdMetrics with account_ids: {account_ids}")
         
         # Apply filters for stats
         stats_query = base_query
