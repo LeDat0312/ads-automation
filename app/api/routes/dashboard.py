@@ -692,10 +692,11 @@ async def dashboard_page(
         </div>
         
         <script>
-            let currentPage = 1;
-            const pageSize = 50;
-            let selectedDateRange = {{ start: null, end: null }};
-            let currentFilters = {{
+            // Đảm bảo các biến và function ở global scope
+            window.currentPage = 1;
+            window.pageSize = 50;
+            window.selectedDateRange = {{ start: null, end: null }};
+            window.currentFilters = {{
                 account: '',
                 prefix: '',
                 campaignType: '',
@@ -703,6 +704,12 @@ async def dashboard_page(
                 dateFrom: '',
                 dateTo: ''
             }};
+            
+            // Alias cho backward compatibility
+            let currentPage = window.currentPage;
+            const pageSize = window.pageSize;
+            let selectedDateRange = window.selectedDateRange;
+            let currentFilters = window.currentFilters;
             
             // Date Picker Logic
             function openDatePicker() {{
@@ -897,8 +904,8 @@ async def dashboard_page(
                 return day + ' Tháng ' + month + ', ' + year;
             }}
             
-            // Load data
-            async function loadData() {{
+            // Load data - Đảm bảo ở global scope
+            window.loadData = async function loadData() {{
                 const account = document.getElementById('accountFilter').value;
                 const prefix = document.getElementById('prefixFilter').value;
                 const campaignType = document.getElementById('campaignTypeFilter').value;
@@ -978,7 +985,7 @@ async def dashboard_page(
                 }}
             }}
             
-            function updateStats(stats) {{
+            window.updateStats = function updateStats(stats) {{
                 try {{
                     console.log('updateStats() called with:', stats);
                     document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
@@ -993,7 +1000,7 @@ async def dashboard_page(
                 }}
             }}
             
-            function renderTable(data) {{
+            window.renderTable = function renderTable(data) {{
                 try {{
                     console.log('renderTable() called with:', {{
                         ads_count: data.ads ? data.ads.length : 0,
@@ -1131,7 +1138,7 @@ async def dashboard_page(
             }}
             
             // Pull dữ liệu từ Facebook (tự động, không hiển thị thông báo)
-            async function pullFacebookDataSilent() {{
+            window.pullFacebookDataSilent = async function pullFacebookDataSilent() {{
                 try {{
                     const response = await fetch('/dashboard/pull-data', {{
                         method: 'POST',
@@ -1155,7 +1162,7 @@ async def dashboard_page(
                 }}
             }}
             
-            async function refreshData() {{
+            window.refreshData = async function refreshData() {{
                 const btn = document.getElementById('refreshBtn');
                 btn.classList.add('loading');
                 btn.disabled = true;
@@ -1172,7 +1179,7 @@ async def dashboard_page(
                 }}, 500);
             }}
             
-            async function loadFilters() {{
+            window.loadFilters = async function loadFilters() {{
                 try {{
                     const response = await fetch('/dashboard/filters', {{
                         headers: {{
