@@ -2994,51 +2994,66 @@ async def get_dashboard_data(
         # Get total count
         total = adsets_query.count()
         
-        # Get paginated results
-        adsets = adsets_query.offset((page - 1) * page_size).limit(page_size).all()
+        # Optimize: Aggregate trong query thay vì loop Python
+        adsets_query_optimized = query.with_entities(
+            AdMetrics.adset_id,
+            AdMetrics.adset_name,
+            AdMetrics.campaign_name,
+            AdMetrics.prefix,
+            AdMetrics.account_id,
+            AdMetrics.campaign_type,
+            func.max(AdMetrics.adset_status).label('adset_status'),
+            func.sum(AdMetrics.spend).label('total_spend'),
+            func.sum(AdMetrics.results).label('total_results'),
+            func.sum(AdMetrics.impressions).label('total_impressions'),
+            func.sum(AdMetrics.clicks).label('total_clicks'),
+            func.sum(AdMetrics.purchases).label('total_purchases'),
+            func.sum(AdMetrics.purchase_value).label('total_purchase_value'),
+            func.sum(AdMetrics.sdt).label('checkouts_initiated'),
+            func.avg(AdMetrics.gia_data).label('avg_gia_data'),
+            func.avg(AdMetrics.ctr).label('avg_ctr'),
+            func.avg(AdMetrics.cpc).label('avg_cpc')
+        ).group_by(
+            AdMetrics.adset_id,
+            AdMetrics.adset_name,
+            AdMetrics.campaign_name,
+            AdMetrics.prefix,
+            AdMetrics.account_id,
+            AdMetrics.campaign_type
+        )
         
-        # Get aggregated metrics for each adset
+        # Get total count
+        total = adsets_query_optimized.count()
+        
+        # Get paginated results
+        adsets = adsets_query_optimized.offset((page - 1) * page_size).limit(page_size).all()
+        
+        # Build ads_dict từ kết quả đã aggregate (không cần query lại)
         ads_dict = []
         for adset in adsets:
-            adset_metrics = query.filter(AdMetrics.adset_id == adset.adset_id).all()
-            
-            # Aggregate metrics
-            total_spend = sum(m.spend or 0 for m in adset_metrics)
-            total_results = sum(m.results or 0 for m in adset_metrics)
-            total_impressions = sum(m.impressions or 0 for m in adset_metrics)
-            total_clicks = sum(m.clicks or 0 for m in adset_metrics)
-            total_purchases = sum(m.purchases or 0 for m in adset_metrics)
-            total_purchase_value = sum(m.purchase_value or 0 for m in adset_metrics)
-            
-            # Calculate averages
-            avg_gia_data = sum(m.gia_data or 0 for m in adset_metrics) / len(adset_metrics) if adset_metrics else 0
-            avg_ctr = sum(m.ctr or 0 for m in adset_metrics) / len(adset_metrics) if adset_metrics else 0
-            avg_cpc = sum(m.cpc or 0 for m in adset_metrics) / len(adset_metrics) if adset_metrics else 0
-            
-            # Calculate derived metrics
-            cost_per_checkout_initiated = 0  # Cần lấy từ Facebook API hoặc tính từ checkouts
-            checkouts_initiated = sum(m.sdt or 0 for m in adset_metrics)  # Sử dụng sdt như checkouts
+            total_spend = float(adset.total_spend or 0)
+            total_purchases = float(adset.total_purchases or 0)
             cost_per_purchase = (total_spend / total_purchases) if total_purchases > 0 else 0
             
             ads_dict.append({
                 "adset_id": adset.adset_id,
-                "adset_name": adset.adset_name,
-                "campaign_name": adset.campaign_name,
-                "prefix": adset.prefix,
-                "account_id": adset.account_id,
-                "campaign_type": adset.campaign_type,
-                "adset_status": adset.adset_status,
+                "adset_name": adset.adset_name or '',
+                "campaign_name": adset.campaign_name or '',
+                "prefix": adset.prefix or '',
+                "account_id": adset.account_id or '',
+                "campaign_type": adset.campaign_type or '',
+                "adset_status": adset.adset_status or 'UNKNOWN',
                 "spend": total_spend,
-                "results": total_results,
-                "gia_data": avg_gia_data,
-                "impressions": total_impressions,
-                "clicks": total_clicks,
-                "ctr": avg_ctr,
-                "cpc": avg_cpc,
-                "purchases": total_purchases,
-                "purchase_value": total_purchase_value,
-                "cost_per_checkout_initiated": cost_per_checkout_initiated,
-                "checkouts_initiated": checkouts_initiated,
+                "results": int(adset.total_results or 0),
+                "gia_data": float(adset.avg_gia_data or 0),
+                "impressions": int(adset.total_impressions or 0),
+                "clicks": int(adset.total_clicks or 0),
+                "ctr": float(adset.avg_ctr or 0),
+                "cpc": float(adset.avg_cpc or 0),
+                "purchases": int(total_purchases),
+                "purchase_value": float(adset.total_purchase_value or 0),
+                "cost_per_checkout_initiated": 0,  # Cần lấy từ Facebook API
+                "checkouts_initiated": int(adset.checkouts_initiated or 0),
                 "cost_per_purchase": cost_per_purchase
             })
         
