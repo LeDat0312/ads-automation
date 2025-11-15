@@ -2972,28 +2972,6 @@ async def get_dashboard_data(
             except:
                 pass
         
-        # Group by adset_id to aggregate metrics
-        # Get distinct adsets
-        adsets_query = query.with_entities(
-            AdMetrics.adset_id,
-            AdMetrics.adset_name,
-            AdMetrics.campaign_name,
-            AdMetrics.prefix,
-            AdMetrics.account_id,
-            AdMetrics.campaign_type,
-            func.max(AdMetrics.adset_status).label('adset_status')
-        ).group_by(
-            AdMetrics.adset_id,
-            AdMetrics.adset_name,
-            AdMetrics.campaign_name,
-            AdMetrics.prefix,
-            AdMetrics.account_id,
-            AdMetrics.campaign_type
-        )
-        
-        # Get total count
-        total = adsets_query.count()
-        
         # Optimize: Aggregate trong query thay vì loop Python
         adsets_query_optimized = query.with_entities(
             AdMetrics.adset_id,
