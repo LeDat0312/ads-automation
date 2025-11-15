@@ -1510,10 +1510,15 @@ async def dashboard_page(
                     padding: 100px 24px 40px;
                 }}
                 
+                .main-content {{
+                    padding-left: 0;
+                }}
+                
                 .sidebar-filters {{
                     width: 100%;
                     position: static;
                     max-height: none;
+                    margin-bottom: 24px;
                 }}
                 
                 .mobile-filter-toggle {{
@@ -1523,58 +1528,131 @@ async def dashboard_page(
                 .sidebar-filters.mobile-hidden {{
                     display: none;
                 }}
+                
+                .prefix-grid {{
+                    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+                    gap: 16px;
+                }}
             }}
             
             @media (max-width: 768px) {{
                 .header {{
                     padding: 12px 16px;
-                    flex-direction: column;
+                }}
+                
+                .header-left {{
                     gap: 12px;
-                    align-items: flex-start;
                 }}
                 
                 .header h1 {{
-                    font-size: 20px;
+                    font-size: 18px;
                 }}
                 
                 .header-actions {{
-                    width: 100%;
-                    justify-content: flex-end;
+                    gap: 8px;
+                }}
+                
+                .last-update-time {{
+                    display: none;
+                }}
+                
+                .btn-refresh {{
+                    padding: 8px 16px;
+                    font-size: 13px;
                 }}
                 
                 .dashboard-layout {{
-                    padding: 100px 16px 40px;
+                    padding: 80px 16px 24px;
                 }}
                 
                 .filters-section {{
                     padding: 20px;
+                    border-radius: 16px;
+                }}
+                
+                .filters-header h2 {{
+                    font-size: 16px;
                 }}
                 
                 .stats-grid {{
                     grid-template-columns: repeat(2, 1fr);
-                    gap: 16px;
+                    gap: 12px;
                 }}
                 
                 .stat-card {{
-                    padding: 20px;
+                    padding: 16px;
+                    border-radius: 16px;
+                }}
+                
+                .stat-card-header {{
+                    margin-bottom: 12px;
                 }}
                 
                 .stat-card .value {{
-                    font-size: 24px;
+                    font-size: 22px;
+                }}
+                
+                .stat-card .label {{
+                    font-size: 12px;
+                }}
+                
+                .charts-section {{
+                    padding: 20px;
+                    border-radius: 16px;
                 }}
                 
                 .charts-grid {{
                     grid-template-columns: 1fr;
+                    gap: 16px;
                 }}
                 
                 .chart-container {{
-                    min-height: 250px;
+                    min-height: 200px;
+                    padding: 16px;
+                }}
+                
+                .prefix-summary-section {{
+                    padding: 20px;
+                    border-radius: 16px;
+                }}
+                
+                .prefix-tabs {{
+                    gap: 8px;
+                    overflow-x: auto;
+                    flex-wrap: nowrap;
+                    padding-bottom: 8px;
+                }}
+                
+                .prefix-tab {{
+                    padding: 10px 16px;
+                    font-size: 13px;
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                }}
+                
+                .prefix-grid {{
+                    grid-template-columns: 1fr;
+                    gap: 12px;
+                }}
+                
+                .prefix-card {{
+                    padding: 16px;
+                }}
+                
+                .table-container {{
+                    border-radius: 16px;
+                    overflow: hidden;
                 }}
                 
                 .table-header {{
+                    padding: 16px;
                     flex-direction: column;
                     gap: 12px;
                     align-items: flex-start;
+                }}
+                
+                .table-header h2 {{
+                    font-size: 16px;
                 }}
                 
                 .table-header-actions {{
@@ -1584,11 +1662,28 @@ async def dashboard_page(
                 }}
                 
                 .table-wrapper {{
-                    overflow-x: scroll;
+                    overflow-x: auto;
+                    -webkit-overflow-scrolling: touch;
                 }}
                 
                 table {{
-                    min-width: 1200px;
+                    min-width: 1000px;
+                    font-size: 12px;
+                }}
+                
+                th, td {{
+                    padding: 10px 8px;
+                    font-size: 11px;
+                }}
+                
+                .action-buttons {{
+                    flex-direction: column;
+                    gap: 4px;
+                }}
+                
+                .btn-action {{
+                    padding: 6px 10px;
+                    font-size: 11px;
                 }}
                 
                 .date-picker-content {{
@@ -1602,40 +1697,148 @@ async def dashboard_page(
                     border-right: none;
                     border-bottom: 1px solid #e2e8f0;
                     max-height: 200px;
+                    padding: 16px;
+                }}
+                
+                .date-picker-main {{
+                    padding: 16px;
                 }}
                 
                 .date-picker-calendars {{
                     flex-direction: column;
+                    gap: 16px;
                 }}
                 
                 .quick-filters {{
                     overflow-x: auto;
                     flex-wrap: nowrap;
                     padding-bottom: 8px;
+                    -webkit-overflow-scrolling: touch;
                 }}
                 
                 .quick-filter-btn {{
                     white-space: nowrap;
                     flex-shrink: 0;
+                    padding: 6px 12px;
+                    font-size: 12px;
+                }}
+                
+                .search-box input {{
+                    padding: 10px 14px 10px 40px;
+                    font-size: 13px;
                 }}
             }}
             
             @media (max-width: 480px) {{
-                .header h1 {{
+                .header {{
+                    padding: 10px 12px;
+                }}
+                
+                .header-left {{
+                    gap: 8px;
+                }}
+                
+                .mobile-filter-toggle {{
+                    padding: 6px 10px;
                     font-size: 18px;
                 }}
                 
+                .header h1 {{
+                    font-size: 16px;
+                }}
+                
                 .btn-refresh {{
-                    padding: 8px 12px;
+                    padding: 6px 12px;
+                    font-size: 12px;
+                }}
+                
+                .dashboard-layout {{
+                    padding: 70px 12px 20px;
+                }}
+                
+                .filters-section {{
+                    padding: 16px;
+                }}
+                
+                .filters-header h2 {{
+                    font-size: 14px;
+                }}
+                
+                .filter-group label {{
+                    font-size: 12px;
+                }}
+                
+                .filter-group select,
+                .filter-group input {{
+                    padding: 10px 12px;
                     font-size: 13px;
                 }}
                 
+                .stats-grid {{
+                    grid-template-columns: 1fr;
+                    gap: 10px;
+                }}
+                
+                .stat-card {{
+                    padding: 14px;
+                }}
+                
                 .stat-card .value {{
-                    font-size: 24px;
+                    font-size: 20px;
+                }}
+                
+                .stat-card .label {{
+                    font-size: 11px;
+                }}
+                
+                .prefix-tab {{
+                    padding: 8px 12px;
+                    font-size: 12px;
+                }}
+                
+                .prefix-card {{
+                    padding: 14px;
+                }}
+                
+                .prefix-card-title {{
+                    font-size: 16px;
+                }}
+                
+                .table-header {{
+                    padding: 12px;
+                }}
+                
+                .table-header h2 {{
+                    font-size: 14px;
+                }}
+                
+                table {{
+                    min-width: 900px;
                 }}
                 
                 th, td {{
-                    padding: 8px 12px;
+                    padding: 8px 6px;
+                    font-size: 10px;
+                }}
+                
+                .btn-action {{
+                    padding: 4px 8px;
+                    font-size: 10px;
+                }}
+                
+                .pagination {{
+                    padding: 12px;
+                    flex-wrap: wrap;
+                    gap: 4px;
+                }}
+                
+                .pagination button {{
+                    padding: 6px 10px;
+                    font-size: 12px;
+                }}
+                
+                .search-box input {{
+                    padding: 8px 12px 8px 36px;
                     font-size: 12px;
                 }}
             }}
@@ -1644,9 +1847,14 @@ async def dashboard_page(
     <body>
         """ + user_menu + """
         <div class="header">
-            <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
+            <div class="header-left">
+                <button class="mobile-filter-toggle" onclick="toggleMobileFilters()" id="mobileFilterToggle" aria-label="Toggle filters">
+                    <span>☰</span>
+                </button>
+                <h1>📊 Dashboard</h1>
+            </div>
             <div class="header-actions">
-                <div id="lastUpdateTime" style="font-size: 12px; color: rgba(255, 255, 255, 0.8); margin-right: 16px; white-space: nowrap;">Cập nhật lần cuối: --:--:--</div>
+                <div id="lastUpdateTime" class="last-update-time">Cập nhật: --:--:--</div>
                 <button class="btn-refresh" onclick="refreshData()" id="refreshBtn">
                     🔄 Làm mới
                 </button>
