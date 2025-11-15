@@ -692,8 +692,44 @@ async def dashboard_page(
         </div>
         
         <script>
+            // FORCE LOG - Luôn hiển thị log, không bị filter
+            (function() {{
+                const originalLog = console.log;
+                const originalError = console.error;
+                const originalWarn = console.warn;
+                
+                console.log = function(...args) {{
+                    originalLog.apply(console, args);
+                    // Force hiển thị bằng cách tạo element
+                    if (document.body) {{
+                        const div = document.createElement('div');
+                        div.style.cssText = 'position:fixed;top:0;left:0;background:rgba(0,0,0,0.8);color:#0f0;padding:5px;z-index:99999;font-size:11px;max-width:500px;';
+                        div.textContent = '[LOG] ' + args.join(' ');
+                        document.body.appendChild(div);
+                        setTimeout(() => div.remove(), 3000);
+                    }}
+                }};
+                
+                console.error = function(...args) {{
+                    originalError.apply(console, args);
+                    if (document.body) {{
+                        const div = document.createElement('div');
+                        div.style.cssText = 'position:fixed;top:0;left:0;background:rgba(255,0,0,0.9);color:#fff;padding:5px;z-index:99999;font-size:11px;max-width:500px;';
+                        div.textContent = '[ERROR] ' + args.join(' ');
+                        document.body.appendChild(div);
+                        setTimeout(() => div.remove(), 5000);
+                    }}
+                }};
+            }})();
+            
+            // Log ngay lập tức để kiểm tra script có chạy không
+            console.log('🚀 Dashboard script loading...');
+            console.error('TEST ERROR - Nếu bạn thấy dòng này, console đang hoạt động');
+            
             // Wrap toàn bộ code trong try-catch để bắt lỗi
             try {{
+                console.log('✅ Try block started');
+                
                 // Đảm bảo các biến và function ở global scope
                 window.currentPage = 1;
                 window.pageSize = 50;
@@ -706,6 +742,8 @@ async def dashboard_page(
                     dateFrom: '',
                     dateTo: ''
                 }};
+                
+                console.log('✅ Variables initialized');
                 
                 // Alias cho backward compatibility
                 let currentPage = window.currentPage;
@@ -1275,12 +1313,20 @@ async def dashboard_page(
             }};
             
             console.log('✅ All functions defined');
+            console.log('✅ Script execution completed successfully');
             }} catch (error) {{
                 console.error('❌ CRITICAL ERROR in Dashboard script:', error);
-                console.error('Error stack:', error.stack);
+                console.error('❌ Error message:', error.message);
+                console.error('❌ Error stack:', error.stack);
+                console.error('❌ Error name:', error.name);
                 // Hiển thị lỗi trên trang
-                document.body.innerHTML = '<div style="padding: 20px; color: red;"><h1>❌ Lỗi JavaScript</h1><p>' + error.message + '</p><pre>' + error.stack + '</pre></div>';
+                if (document.body) {{
+                    document.body.innerHTML = '<div style="padding: 20px; color: red; background: #fee; border: 2px solid red; margin: 20px;"><h1>❌ Lỗi JavaScript</h1><p><strong>Message:</strong> ' + error.message + '</p><p><strong>Name:</strong> ' + error.name + '</p><pre style="background: #fff; padding: 10px; overflow: auto;">' + (error.stack || 'No stack trace') + '</pre></div>';
+                }}
             }}
+            
+            // Log cuối cùng để xác nhận script đã chạy xong
+            console.log('🏁 Dashboard script END');
         </script>
     </body>
     </html>
