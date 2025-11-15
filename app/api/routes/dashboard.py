@@ -3248,6 +3248,101 @@ async def get_dashboard_data(
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy dữ liệu: {str(e)}")
 
 
+@router.get("/charts-data")
+async def get_charts_data(
+    request: Request,
+    account_id: Optional[str] = Query(None),
+    prefix: Optional[str] = Query(None),
+    campaign_type: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Lấy dữ liệu cho charts (line chart và bar chart)"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        # Get user's accounts
+        account_ids, _ = get_user_account_prefixes(current_user.id, db)
+        
+        if not account_ids:
+            return {
+                "daily_data": [],
+                "prefix_data": {}
+            }
+        
+        # Build base query
+        query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
+        
+        # Apply filters
+        if account_id and account_id in account_ids:
+            query = query.filter(AdMetrics.account_id == account_id)
+        if prefix:
+            query = query.filter(AdMetrics.prefix == prefix)
+        if campaign_type:
+            query = query.filter(AdMetrics.campaign_type == campaign_type)
+        if status:
+            query = query.filter(AdMetrics.adset_status == status)
+        if date_from:
+            try:
+                date_from_dt = datetime.fromisoformat(date_from)
+                query = query.filter(AdMetrics.date >= date_from_dt)
+            except:
+                pass
+        if date_to:
+            try:
+                date_to_dt = datetime.fromisoformat(date_to)
+                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
+                query = query.filter(AdMetrics.date <= date_to_dt)
+            except:
+                pass
+        
+        # Daily data for line chart
+        daily_metrics = query.with_entities(
+            func.date(AdMetrics.date).label('date'),
+            func.sum(AdMetrics.spend).label('spend'),
+            func.sum(AdMetrics.results).label('results')
+        ).group_by(func.date(AdMetrics.date)).order_by(func.date(AdMetrics.date)).all()
+        
+        daily_data = []
+        for metric in daily_metrics:
+            daily_data.append({
+                "date": metric.date.strftime('%Y-%m-%d') if metric.date else '',
+                "spend": float(metric.spend or 0),
+                "results": int(metric.results or 0)
+            })
+        
+        # Prefix data for bar chart
+        prefix_metrics = query.with_entities(
+            AdMetrics.prefix,
+            func.sum(AdMetrics.spend).label('spend'),
+            func.sum(AdMetrics.results).label('results')
+        ).group_by(AdMetrics.prefix).all()
+        
+        prefix_data = {}
+        for metric in prefix_metrics:
+            prefix_name = metric.prefix or 'Không có prefix'
+            prefix_data[prefix_name] = {
+                "spend": float(metric.spend or 0),
+                "results": int(metric.results or 0)
+            }
+        
+        return {
+            "daily_data": daily_data,
+            "prefix_data": prefix_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting charts data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi lấy dữ liệu charts: {str(e)}")
+
+
 @router.get("/filters")
 async def get_filters(
     request: Request,
