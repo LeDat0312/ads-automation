@@ -692,24 +692,28 @@ async def dashboard_page(
         </div>
         
         <script>
-            // Đảm bảo các biến và function ở global scope
-            window.currentPage = 1;
-            window.pageSize = 50;
-            window.selectedDateRange = {{ start: null, end: null }};
-            window.currentFilters = {{
-                account: '',
-                prefix: '',
-                campaignType: '',
-                status: '',
-                dateFrom: '',
-                dateTo: ''
-            }};
-            
-            // Alias cho backward compatibility
-            let currentPage = window.currentPage;
-            const pageSize = window.pageSize;
-            let selectedDateRange = window.selectedDateRange;
-            let currentFilters = window.currentFilters;
+            // Wrap toàn bộ code trong try-catch để bắt lỗi
+            try {{
+                // Đảm bảo các biến và function ở global scope
+                window.currentPage = 1;
+                window.pageSize = 50;
+                window.selectedDateRange = {{ start: null, end: null }};
+                window.currentFilters = {{
+                    account: '',
+                    prefix: '',
+                    campaignType: '',
+                    status: '',
+                    dateFrom: '',
+                    dateTo: ''
+                }};
+                
+                // Alias cho backward compatibility
+                let currentPage = window.currentPage;
+                const pageSize = window.pageSize;
+                let selectedDateRange = window.selectedDateRange;
+                let currentFilters = window.currentFilters;
+                
+                console.log('✅ Dashboard script started');
             
             // Date Picker Logic
             function openDatePicker() {{
@@ -1268,6 +1272,14 @@ async def dashboard_page(
                 // Clear cookie
                 document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
                 window.location.href = '/auth/login';
+            }}
+            
+            console.log('✅ All functions defined');
+            }} catch (error) {{
+                console.error('❌ CRITICAL ERROR in Dashboard script:', error);
+                console.error('Error stack:', error.stack);
+                // Hiển thị lỗi trên trang
+                document.body.innerHTML = '<div style="padding: 20px; color: red;"><h1>❌ Lỗi JavaScript</h1><p>' + error.message + '</p><pre>' + error.stack + '</pre></div>';
             }}
         </script>
     </body>
