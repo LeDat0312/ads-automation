@@ -25,9 +25,12 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 HCM_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
 
 
-def get_user_account_prefixes(user_id: int, db: Session) -> tuple[List[str], List[str]]:
-    """Lấy danh sách account_ids và prefixes của user"""
-    user_accounts = db.query(Account.account_id).filter(Account.user_id == user_id).all()
+def get_user_account_prefixes(user_id: int, db: Session, enabled_only: bool = True) -> tuple[List[str], List[str]]:
+    """Lấy danh sách account_ids và prefixes của user (chỉ lấy enabled nếu enabled_only=True)"""
+    query = db.query(Account.account_id).filter(Account.user_id == user_id)
+    if enabled_only:
+        query = query.filter(Account.enabled == True)
+    user_accounts = query.all()
     account_ids = [acc[0] for acc in user_accounts]
     
     # Lấy prefixes từ user's prefixes
@@ -1079,6 +1082,125 @@ async def dashboard_page(
                 font-size: 14px;
             }}
             
+            .prefix-summary-section {{
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 24px;
+                padding: 32px;
+                margin-bottom: 32px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+                animation: fadeIn 0.7s ease-out;
+            }}
+            
+            .prefix-tabs {{
+                display: flex;
+                gap: 12px;
+                margin-bottom: 24px;
+                border-bottom: 2px solid #e2e8f0;
+            }}
+            
+            .prefix-tab {{
+                padding: 12px 24px;
+                background: transparent;
+                border: none;
+                border-bottom: 3px solid transparent;
+                font-size: 14px;
+                font-weight: 600;
+                color: #64748b;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                margin-bottom: -2px;
+            }}
+            
+            .prefix-tab:hover {{
+                color: #667eea;
+            }}
+            
+            .prefix-tab.active {{
+                color: #667eea;
+                border-bottom-color: #667eea;
+            }}
+            
+            .prefix-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 20px;
+            }}
+            
+            .prefix-card {{
+                background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+                border: 2px solid #e2e8f0;
+                border-radius: 16px;
+                padding: 20px;
+                transition: all 0.3s ease;
+            }}
+            
+            .prefix-card:hover {{
+                border-color: #667eea;
+                transform: translateY(-4px);
+                box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+            }}
+            
+            .prefix-card-header {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 16px;
+                padding-bottom: 12px;
+                border-bottom: 2px solid #e2e8f0;
+            }}
+            
+            .prefix-card-title {{
+                font-size: 20px;
+                font-weight: 700;
+                color: #1e293b;
+            }}
+            
+            .prefix-card-badge {{
+                padding: 4px 12px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+            }}
+            
+            .badge-ecommerce {{
+                background: #dbeafe;
+                color: #1e40af;
+            }}
+            
+            .badge-lead {{
+                background: #fef3c7;
+                color: #92400e;
+            }}
+            
+            .prefix-stats {{
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }}
+            
+            .prefix-stat-item {{
+                display: flex;
+                flex-direction: column;
+            }}
+            
+            .prefix-stat-label {{
+                font-size: 11px;
+                color: #64748b;
+                text-transform: uppercase;
+                margin-bottom: 4px;
+                font-weight: 600;
+            }}
+            
+            .prefix-stat-value {{
+                font-size: 18px;
+                font-weight: 700;
+                color: #1e293b;
+            }}
+            
             .mobile-filter-toggle {{
                 display: none;
                 padding: 12px 20px;
@@ -1240,6 +1362,7 @@ async def dashboard_page(
         <div class="header">
             <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
             <div class="header-actions">
+                <div id="lastUpdateTime" style="font-size: 12px; color: rgba(255, 255, 255, 0.8); margin-right: 16px; white-space: nowrap;">Cập nhật lần cuối: --:--:--</div>
                 <button class="btn-refresh" onclick="refreshData()" id="refreshBtn">
                     🔄 Làm mới
                 </button>
@@ -2339,6 +2462,8 @@ async def dashboard_page(
             // Apply filters
             function applyFilters() {{
                 loadData();
+                loadPrefixSummary();
+                updateLastUpdateTime();
                 // Close mobile sidebar if open
                 if (window.innerWidth <= 1024) {{
                     document.getElementById('sidebarFilters').classList.add('mobile-hidden');
@@ -2361,6 +2486,8 @@ async def dashboard_page(
                 document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
                 document.querySelectorAll('.quick-filter-btn').forEach(btn => btn.classList.remove('active'));
                 loadData();
+                loadPrefixSummary();
+                updateLastUpdateTime();
             }}
             
             // Quick filters
@@ -2377,7 +2504,12 @@ async def dashboard_page(
                 btn.classList.add('loading');
                 btn.disabled = true;
                 
-                await loadData();
+                await Promise.all([
+                    loadData(),
+                    loadPrefixSummary()
+                ]);
+                
+                updateLastUpdateTime();
                 
                 setTimeout(() => {{
                     btn.classList.remove('loading');
@@ -2725,6 +2857,126 @@ async def get_filters(
         logger = logging.getLogger(__name__)
         logger.error(f"Error getting filters: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy filters: {str(e)}")
+
+
+@router.get("/prefix-summary")
+async def get_prefix_summary(
+    request: Request,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    campaign_type: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Lấy summary theo prefix (FL, NM, PX, etc.) cho cả E-commerce và Lead Generation"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        account_ids, prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
+        
+        if not account_ids:
+            return {
+                "prefixes": {},
+                "ecommerce": {},
+                "lead": {}
+            }
+        
+        # Build base query
+        base_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
+        
+        # Apply date filters
+        if date_from:
+            try:
+                date_from_dt = datetime.fromisoformat(date_from)
+                base_query = base_query.filter(AdMetrics.date >= date_from_dt)
+            except:
+                pass
+        if date_to:
+            try:
+                date_to_dt = datetime.fromisoformat(date_to)
+                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
+                base_query = base_query.filter(AdMetrics.date <= date_to_dt)
+            except:
+                pass
+        
+        # Get all prefixes from metrics
+        all_prefixes = db.query(AdMetrics.prefix.distinct()).filter(
+            AdMetrics.account_id.in_(account_ids),
+            AdMetrics.prefix.isnot(None)
+        ).all()
+        prefix_list = [pref[0] for pref in all_prefixes if pref[0]]
+        
+        prefix_summary = {}
+        ecommerce_summary = {}
+        lead_summary = {}
+        
+        for prefix in prefix_list:
+            prefix_query = base_query.filter(AdMetrics.prefix == prefix)
+            
+            # Overall stats
+            total_spend = prefix_query.with_entities(func.sum(AdMetrics.spend)).scalar() or 0
+            total_results = prefix_query.with_entities(func.sum(AdMetrics.results)).scalar() or 0
+            avg_gia_data = prefix_query.with_entities(func.avg(AdMetrics.gia_data)).scalar() or 0
+            active_adsets = prefix_query.filter(AdMetrics.adset_status == "ACTIVE").with_entities(
+                func.count(distinct(AdMetrics.adset_id))
+            ).scalar() or 0
+            total_adsets = prefix_query.with_entities(func.count(distinct(AdMetrics.adset_id))).scalar() or 0
+            
+            prefix_summary[prefix] = {
+                "spend": float(total_spend),
+                "results": int(total_results),
+                "avg_gia_data": float(avg_gia_data),
+                "active_adsets": int(active_adsets),
+                "total_adsets": int(total_adsets),
+                "cpl": float(total_spend / total_results) if total_results > 0 else 0
+            }
+            
+            # E-commerce stats
+            ecom_query = prefix_query.filter(AdMetrics.campaign_type == "ECOMMERCE")
+            ecom_spend = ecom_query.with_entities(func.sum(AdMetrics.spend)).scalar() or 0
+            ecom_results = ecom_query.with_entities(func.sum(AdMetrics.results)).scalar() or 0
+            ecom_purchases = ecom_query.with_entities(func.sum(AdMetrics.purchases)).scalar() or 0
+            ecom_purchase_value = ecom_query.with_entities(func.sum(AdMetrics.purchase_value)).scalar() or 0
+            ecom_avg_gia_data = ecom_query.with_entities(func.avg(AdMetrics.gia_data)).scalar() or 0
+            
+            if ecom_spend > 0 or ecom_results > 0:
+                ecommerce_summary[prefix] = {
+                    "spend": float(ecom_spend),
+                    "results": int(ecom_results),
+                    "purchases": int(ecom_purchases),
+                    "purchase_value": float(ecom_purchase_value),
+                    "avg_gia_data": float(ecom_avg_gia_data),
+                    "cpl": float(ecom_spend / ecom_results) if ecom_results > 0 else 0,
+                    "roas": float(ecom_purchase_value / ecom_spend) if ecom_spend > 0 else 0
+                }
+            
+            # Lead Generation stats
+            lead_query = prefix_query.filter(AdMetrics.campaign_type == "LEAD")
+            lead_spend = lead_query.with_entities(func.sum(AdMetrics.spend)).scalar() or 0
+            lead_results = lead_query.with_entities(func.sum(AdMetrics.results)).scalar() or 0
+            lead_avg_gia_data = lead_query.with_entities(func.avg(AdMetrics.gia_data)).scalar() or 0
+            
+            if lead_spend > 0 or lead_results > 0:
+                lead_summary[prefix] = {
+                    "spend": float(lead_spend),
+                    "results": int(lead_results),
+                    "avg_gia_data": float(lead_avg_gia_data),
+                    "cpl": float(lead_spend / lead_results) if lead_results > 0 else 0
+                }
+        
+        return {
+            "prefixes": prefix_summary,
+            "ecommerce": ecommerce_summary,
+            "lead": lead_summary
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting prefix summary: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi lấy prefix summary: {str(e)}")
 
 
 @router.post("/adset/pause")
