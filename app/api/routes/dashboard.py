@@ -2280,7 +2280,7 @@ async def dashboard_page(
             }});
             
             // Load data
-            async function loadData() {{
+            async function loadData(bypassCache = false) {{
                 const accounts = window.multiSelectState.accountFilter || [];
                 const prefixes = window.multiSelectState.prefixFilter || [];
                 const campaignTypes = window.multiSelectState.campaignTypeFilter || [];
@@ -2307,6 +2307,11 @@ async def dashboard_page(
                 
                 if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                 if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
+                
+                // Add no_cache parameter nếu bypass cache
+                if (bypassCache) {{
+                    params.append('no_cache', 'true');
+                }}
                 
                 try {{
                     // Show loading skeleton
@@ -3020,9 +3025,10 @@ async def dashboard_page(
                 btn.classList.add('loading');
                 btn.disabled = true;
                 
+                // Bypass cache khi refresh
                 await Promise.all([
-                    loadData(),
-                    loadPrefixSummary()
+                    loadData(true),  // Pass true để bypass cache
+                    loadPrefixSummary(true)  // Pass true để bypass cache
                 ]);
                 
                 updateLastUpdateTime();
@@ -3109,7 +3115,7 @@ async def dashboard_page(
             // Prefix summary
             let currentPrefixTab = 'all';
             
-            async function loadPrefixSummary() {{
+            async function loadPrefixSummary(bypassCache = false) {{
                 const container = document.getElementById('prefixGrid');
                 // Show skeleton loading
                 container.innerHTML = '<div class="skeleton-prefix-grid">' +
@@ -3136,7 +3142,14 @@ async def dashboard_page(
                     const params = new URLSearchParams();
                     if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                     if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
-                    if (currentFilters.campaignType) params.append('campaign_type', currentFilters.campaignType);
+                    if (currentFilters.campaignType && currentFilters.campaignType.length > 0) {{
+                        params.append('campaign_type', currentFilters.campaignType[0]);
+                    }}
+                    
+                    // Add no_cache parameter nếu bypass cache
+                    if (bypassCache) {{
+                        params.append('no_cache', 'true');
+                    }}
                     
                     const response = await fetch('/dashboard/prefix-summary?' + params.toString(), {{
                         headers: {{
