@@ -15,7 +15,7 @@ from app.core.database import get_db, AdMetrics
 from app.models.account_prefix import Account, Prefix, AccountPrefix
 from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
-from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
+from app.core.ui_helpers import get_account_locked_message
 
 logger = logging.getLogger(__name__)
 
@@ -2603,7 +2603,8 @@ async def dashboard_page(
                 try {{
                     await Promise.all([
                         loadData(),
-                        loadPrefixSummary()
+                        loadPrefixSummary(),
+                        loadCharts()
                     ]);
                     updateLastUpdateTime();
                     showToast('✅ Đã làm mới dữ liệu thành công', 'success');
@@ -2822,9 +2823,192 @@ async def dashboard_page(
                 setInterval(() => {{
                     loadData();
                     loadPrefixSummary();
+                    loadCharts();
                     updateLastUpdateTime();
                 }}, 5 * 60 * 1000);
+                
+                // Load charts
+                loadCharts();
             }});
+            
+            // Chart.js instances
+            let lineChartInstance = null;
+            let barChartInstance = null;
+            
+            // Load charts data
+            async function loadCharts() {{
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const params = new URLSearchParams();
+                    if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
+                    if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
+                    if (currentFilters.account) params.append('account_id', currentFilters.account);
+                    if (currentFilters.prefix) params.append('prefix', currentFilters.prefix);
+                    if (currentFilters.campaignType) params.append('campaign_type', currentFilters.campaignType);
+                    if (currentFilters.status) params.append('status', currentFilters.status);
+                    
+                    const response = await fetch('/dashboard/charts-data?' + params.toString(), {{
+                        headers: {{
+                            'Authorization': 'Bearer ' + token
+                        }}
+                    }});
+                    
+                    if (!response.ok) {{
+                        console.error('Failed to load charts data');
+                        return;
+                    }}
+                    
+                    const data = await response.json();
+                    renderCharts(data);
+                }} catch (error) {{
+                    console.error('Error loading charts:', error);
+                }}
+            }}
+            
+            function renderCharts(data) {{
+                // Line Chart: Chi tiêu & Kết quả theo ngày
+                const lineCtx = document.getElementById('lineChart');
+                if (!lineCtx) return;
+                
+                if (lineChartInstance) {{
+                    lineChartInstance.destroy();
+                }}
+                
+                const labels = data.daily_data ? data.daily_data.map(d => d.date) : [];
+                const spendData = data.daily_data ? data.daily_data.map(d => d.spend || 0) : [];
+                const resultsData = data.daily_data ? data.daily_data.map(d => d.results || 0) : [];
+                
+                lineChartInstance = new Chart(lineCtx, {{
+                    type: 'line',
+                    data: {{
+                        labels: labels,
+                        datasets: [
+                            {{
+                                label: 'Chi tiêu (₫)',
+                                data: spendData,
+                                borderColor: '#667eea',
+                                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                                tension: 0.4,
+                                yAxisID: 'y'
+                            }},
+                            {{
+                                label: 'Kết quả',
+                                data: resultsData,
+                                borderColor: '#10b981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                tension: 0.4,
+                                yAxisID: 'y1'
+                            }}
+                        ]
+                    }},
+                    options: {{
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {{
+                            legend: {{
+                                display: true,
+                                position: 'top'
+                            }},
+                            tooltip: {{
+                                mode: 'index',
+                                intersect: false
+                            }}
+                        }},
+                        scales: {{
+                            y: {{
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: {{
+                                    display: true,
+                                    text: 'Chi tiêu (₫)'
+                                }}
+                            }},
+                            y1: {{
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                title: {{
+                                    display: true,
+                                    text: 'Kết quả'
+                                }},
+                                grid: {{
+                                    drawOnChartArea: false
+                                }}
+                            }}
+                        }}
+                    }}
+                }});
+                
+                // Bar Chart: Chi tiêu theo Prefix
+                const barCtx = document.getElementById('barChart');
+                if (!barCtx) return;
+                
+                if (barChartInstance) {{
+                    barChartInstance.destroy();
+                }}
+                
+                const prefixLabels = data.prefix_data ? Object.keys(data.prefix_data) : [];
+                const prefixSpendData = data.prefix_data ? prefixLabels.map(p => data.prefix_data[p].spend || 0) : [];
+                
+                barChartInstance = new Chart(barCtx, {{
+                    type: 'bar',
+                    data: {{
+                        labels: prefixLabels,
+                        datasets: [{{
+                            label: 'Chi tiêu theo Prefix (₫)',
+                            data: prefixSpendData,
+                            backgroundColor: [
+                                'rgba(102, 126, 234, 0.8)',
+                                'rgba(16, 185, 129, 0.8)',
+                                'rgba(245, 158, 11, 0.8)',
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(139, 92, 246, 0.8)',
+                                'rgba(236, 72, 153, 0.8)'
+                            ],
+                            borderColor: [
+                                '#667eea',
+                                '#10b981',
+                                '#f59e0b',
+                                '#ef4444',
+                                '#8b5cf6',
+                                '#ec4899'
+                            ],
+                            borderWidth: 2
+                        }}]
+                    }},
+                    options: {{
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {{
+                            legend: {{
+                                display: false
+                            }},
+                            tooltip: {{
+                                callbacks: {{
+                                    label: function(context) {{
+                                        return 'Chi tiêu: ' + new Intl.NumberFormat('vi-VN').format(context.parsed.y) + ' ₫';
+                                    }}
+                                }}
+                            }}
+                        }},
+                        scales: {{
+                            y: {{
+                                beginAtZero: true,
+                                title: {{
+                                    display: true,
+                                    text: 'Chi tiêu (₫)'
+                                }},
+                                ticks: {{
+                                    callback: function(value) {{
+                                        return new Intl.NumberFormat('vi-VN').format(value);
+                                    }}
+                                }}
+                            }}
+                        }}
+                    }}
+                }});
+            }}
             
             function getCookie(name) {{
                 const value = '; ' + document.cookie;
