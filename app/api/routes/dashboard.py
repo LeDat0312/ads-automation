@@ -572,6 +572,12 @@ async def dashboard_page(
         </style>
     </head>
     <body>
+        <script>
+            // TEST SCRIPT - Chạy ngay khi body load
+            alert('Script đang chạy! Nếu bạn thấy alert này, JavaScript đang hoạt động.');
+            console.log('🚀 TEST: Script đang chạy!');
+            console.error('🚨 TEST ERROR: Nếu bạn thấy dòng này, console đang hoạt động!');
+        </script>
         """ + user_menu + """
         <div class="header">
             <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
