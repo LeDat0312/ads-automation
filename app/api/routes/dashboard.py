@@ -780,26 +780,26 @@ async def dashboard_page(
                 console.log('✅ Dashboard script started');
             
             // Date Picker Logic - Đảm bảo ở global scope
-            window.openDatePicker = function openDatePicker() {{
+            window.openDatePicker = function openDatePicker() {
                 document.getElementById('datePickerModal').classList.add('active');
                 renderCalendars();
-            }};
+            };
             
-            window.closeDatePicker = function closeDatePicker() {{
+            window.closeDatePicker = function closeDatePicker() {
                 document.getElementById('datePickerModal').classList.remove('active');
-            }};
+            };
             
-            window.closeDatePickerOnOverlay = function closeDatePickerOnOverlay(event) {{
-                if (event.target.id === 'datePickerModal') {{
+            window.closeDatePickerOnOverlay = function closeDatePickerOnOverlay(event) {
+                if (event.target.id === 'datePickerModal') {
                     closeDatePicker();
-                }}
-            }};
+                }
+            };
             
-            window.selectQuickDate = function selectQuickDate(type) {{
+            window.selectQuickDate = function selectQuickDate(type) {
                 const today = new Date();
                 let start, end;
                 
-                switch(type) {{
+                switch(type) {
                     case 'today':
                         start = new Date(today);
                         end = new Date(today);
@@ -832,23 +832,23 @@ async def dashboard_page(
                         start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
                         end = new Date(today.getFullYear(), today.getMonth(), 0);
                         break;
-                }}
+                }
                 
                 selectedDateRange.start = start;
                 selectedDateRange.end = end;
                 renderCalendars();
                 applyDateRange();
-            }};
+            };
             
-            window.renderCalendars = function renderCalendars() {{
+            window.renderCalendars = function renderCalendars() {
                 const container = document.getElementById('calendarsContainer');
                 const startMonth = new Date(currentCalendarYear, currentCalendarMonth, 1);
                 const endMonth = new Date(currentCalendarYear, currentCalendarMonth + 1, 1);
                 
                 container.innerHTML = renderCalendar(startMonth) + renderCalendar(endMonth);
-            }};
+            };
             
-            window.renderCalendar = function renderCalendar(date) {{
+            window.renderCalendar = function renderCalendar(date) {
                 const year = date.getFullYear();
                 const month = date.getMonth();
                 const firstDay = new Date(year, month, 1);
@@ -863,20 +863,20 @@ async def dashboard_page(
                 html += '<select onchange="changeMonthBySelect(this.value)">';
                 
                 // Generate month options
-                for (let i = 0; i < 12; i++) {{
+                for (let i = 0; i < 12; i++) {
                     const selected = i === month ? 'selected' : '';
                     html += '<option value="' + i + '" ' + selected + '>Tháng ' + (i + 1) + '</option>';
-                }}
+                }
                 
                 html += '</select>';
                 html += '<select onchange="changeYearBySelect(this.value)">';
                 
                 // Generate year options
-                for (let i = 0; i < 10; i++) {{
+                for (let i = 0; i < 10; i++) {
                     const y = year - 5 + i;
                     const selected = y === year ? 'selected' : '';
                     html += '<option value="' + y + '" ' + selected + '>' + y + '</option>';
-                }}
+                }
                 
                 html += '</select>';
                 html += '</div>';
@@ -894,64 +894,64 @@ async def dashboard_page(
                 html += '<div class="calendar-day-header">T7</div>';
                 
                 // Empty cells for days before month starts
-                for (let i = 0; i < startingDayOfWeek; i++) {{
+                for (let i = 0; i < startingDayOfWeek; i++) {
                     html += '<div class="calendar-day other-month"></div>';
-                }}
+                }
                 
                 // Days of the month
-                for (let day = 1; day <= daysInMonth; day++) {{
+                for (let day = 1; day <= daysInMonth; day++) {
                     const dayDate = new Date(year, month, day);
                     const isSelected = selectedDateRange.start && selectedDateRange.end &&
                         dayDate >= selectedDateRange.start && dayDate <= selectedDateRange.end;
                     
                     html += '<div class="calendar-day ' + (isSelected ? 'selected' : '') + '" onclick="selectDate(' + year + ', ' + month + ', ' + day + ')">' + day + '</div>';
-                }}
+                }
                 
                 html += '</div></div>';
                 return html;
-            }};
+            };
             
-            window.selectDate = function selectDate(year, month, day) {{
+            window.selectDate = function selectDate(year, month, day) {
                 const date = new Date(year, month, day);
-                if (!selectedDateRange.start || (selectedDateRange.start && selectedDateRange.end)) {{
+                if (!selectedDateRange.start || (selectedDateRange.start && selectedDateRange.end)) {
                     selectedDateRange.start = date;
                     selectedDateRange.end = null;
-                }} else if (date < selectedDateRange.start) {{
+                } else if (date < selectedDateRange.start) {
                     selectedDateRange.end = selectedDateRange.start;
                     selectedDateRange.start = date;
-                }} else {{
+                } else {
                     selectedDateRange.end = date;
-                }}
+                }
                 renderCalendars();
-            }};
+            };
             
             let currentCalendarMonth = new Date().getMonth();
             let currentCalendarYear = new Date().getFullYear();
             
-            window.changeMonth = function changeMonth(delta) {{
+            window.changeMonth = function changeMonth(delta) {
                 currentCalendarMonth += delta;
-                if (currentCalendarMonth < 0) {{
+                if (currentCalendarMonth < 0) {
                     currentCalendarMonth = 11;
                     currentCalendarYear--;
-                }} else if (currentCalendarMonth > 11) {{
+                } else if (currentCalendarMonth > 11) {
                     currentCalendarMonth = 0;
                     currentCalendarYear++;
-                }}
+                }
                 renderCalendars();
-            }};
+            };
             
-            window.changeMonthBySelect = function changeMonthBySelect(monthIndex) {{
+            window.changeMonthBySelect = function changeMonthBySelect(monthIndex) {
                 currentCalendarMonth = parseInt(monthIndex);
                 renderCalendars();
-            }};
+            };
             
-            window.changeYearBySelect = function changeYearBySelect(yearValue) {{
+            window.changeYearBySelect = function changeYearBySelect(yearValue) {
                 currentCalendarYear = parseInt(yearValue);
                 renderCalendars();
-            }};
+            };
             
-            window.applyDateRange = function applyDateRange() {{
-                if (selectedDateRange.start && selectedDateRange.end) {{
+            window.applyDateRange = function applyDateRange() {
+                if (selectedDateRange.start && selectedDateRange.end) {
                     const startStr = selectedDateRange.start.toISOString().split('T')[0];
                     const endStr = selectedDateRange.end.toISOString().split('T')[0];
                     currentFilters.dateFrom = startStr;
@@ -963,18 +963,18 @@ async def dashboard_page(
                     
                     closeDatePicker();
                     loadData();
-                }}
-            }};
+                }
+            };
             
-            window.formatDateVN = function formatDateVN(date) {{
+            window.formatDateVN = function formatDateVN(date) {
                 const day = date.getDate();
                 const month = date.getMonth() + 1;
                 const year = date.getFullYear();
                 return day + ' Tháng ' + month + ', ' + year;
-            }};
+            };
             
             // Load data - Đảm bảo ở global scope
-            window.loadData = async function loadData() {{
+            window.loadData = async function loadData() {
                 const account = document.getElementById('accountFilter').value;
                 const prefix = document.getElementById('prefixFilter').value;
                 const campaignType = document.getElementById('campaignTypeFilter').value;
@@ -985,10 +985,10 @@ async def dashboard_page(
                 currentFilters.campaignType = campaignType;
                 currentFilters.status = status;
                 
-                const params = new URLSearchParams({{
+                const params = new URLSearchParams({
                     page: currentPage,
                     page_size: pageSize
-                }});
+                });
                 
                 if (account) params.append('account_id', account);
                 if (prefix) params.append('prefix', prefix);
@@ -997,65 +997,65 @@ async def dashboard_page(
                 if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                 if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
                 
-                try {{
+                try {
                     document.getElementById('tableWrapper').innerHTML = '<div class="loading">Đang tải dữ liệu...</div>';
                     
                     const token = localStorage.getItem('access_token') || getCookie('access_token');
-                    const response = await fetch('/dashboard/data?' + params.toString(), {{
-                        headers: {{
+                    const response = await fetch('/dashboard/data?' + params.toString(), {
+                        headers: {
                             'Authorization': 'Bearer ' + token
-                        }}
-                    }});
+                        }
+                    });
                     
-                    if (!response.ok) {{
+                    if (!response.ok) {
                         const errorText = await response.text();
                         let errorMsg = 'Failed to load data';
-                        try {{
+                        try {
                             const errorJson = JSON.parse(errorText);
                             errorMsg = errorJson.detail || errorJson.message || errorMsg;
-                        }} catch {{
+                        } catch {
                             errorMsg = errorText.substring(0, 200);
-                        }}
+                        }
                         throw new Error(errorMsg);
-                    }}
+                    }
                     
                     const data = await response.json();
                     console.log('Dashboard data received:', data);
                     
-                    if (data.stats) {{
+                    if (data.stats) {
                         updateStats(data.stats);
-                    }} else {{
+                    } else {
                         // Nếu không có stats, set về 0
-                        updateStats({{
+                        updateStats({
                             total_spend: 0,
                             total_results: 0,
                             avg_gia_data: 0,
                             active_adsets: 0,
                             paused_adsets: 0,
                             total_adsets: 0
-                        }});
-                    }}
+                        });
+                    }
                     
                     renderTable(data);
-                }} catch (error) {{
+                } catch (error) {
                     console.error('Error loading data:', error);
                     const errorMsg = error.message || 'Lỗi khi tải dữ liệu';
                     document.getElementById('tableWrapper').innerHTML = 
                         '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi tải dữ liệu</p><p style="font-size: 12px; color: #94a3b8;">' + errorMsg + '</p></div>';
                     // Cũng reset stats về 0 khi có lỗi
-                    updateStats({{
+                    updateStats({
                         total_spend: 0,
                         total_results: 0,
                         avg_gia_data: 0,
                         active_adsets: 0,
                         paused_adsets: 0,
                         total_adsets: 0
-                    }});
-                }}
-            }}
+                    });
+                }
+            }
             
-            window.updateStats = function updateStats(stats) {{
-                try {{
+            window.updateStats = function updateStats(stats) {
+                try {
                     console.log('updateStats() called with:', stats);
                     document.getElementById('totalSpend').textContent = formatNumber(stats.total_spend || 0);
                     document.getElementById('totalResults').textContent = formatNumber(stats.total_results || 0);
@@ -1064,32 +1064,32 @@ async def dashboard_page(
                     document.getElementById('pausedAdsets').textContent = formatNumber(stats.paused_adsets || 0);
                     document.getElementById('totalAdsets').textContent = formatNumber(stats.total_adsets || 0);
                     console.log('✅ updateStats() completed');
-                }} catch (error) {{
+                } catch (error) {
                     console.error('❌ Error in updateStats():', error);
-                }}
-            }}
+                }
+            }
             
-            window.renderTable = function renderTable(data) {{
-                try {{
-                    console.log('renderTable() called with:', {{
+            window.renderTable = function renderTable(data) {
+                try {
+                    console.log('renderTable() called with:', {
                         ads_count: data.ads ? data.ads.length : 0,
                         total: data.total,
                         has_stats: !!data.stats
-                    }});
+                    });
                     const ads = data.ads || [];
                     const total = data.total || 0;
                     const campaignType = currentFilters.campaignType || '';
                     
-                    if (ads.length === 0) {{
+                    if (ads.length === 0) {
                         console.log('⚠️ No ads to display');
                         document.getElementById('tableWrapper').innerHTML = 
                             '<div class="empty-state"><div class="icon">📭</div><p>Không có dữ liệu</p><p style="font-size: 12px; color: #94a3b8; margin-top: 8px;">Vui lòng kiểm tra lại bộ lọc hoặc cấu hình accounts/prefixes trong Settings</p></div>';
                         document.getElementById('tableInfo').textContent = 'Hiển thị 0 / 0 kết quả';
                         document.getElementById('pagination').innerHTML = '';
                         return;
-                    }}
+                    }
                     
-                    console.log(`✅ Rendering ${ads.length} ads...`);
+                    console.log('✅ Rendering ' + ads.length + ' ads...');
                 
                 // Define columns based on campaign type
                 const columns = campaignType === 'ECOMMERCE' ? [
@@ -1106,12 +1106,12 @@ async def dashboard_page(
                 ];
                 
                 let html = '<table><thead><tr>';
-                columns.forEach(col => {{
+                columns.forEach(col => {
                     html += '<th>' + col + '</th>';
-                }});
+                });
                 html += '</tr></thead><tbody>';
                 
-                ads.forEach(ad => {{
+                ads.forEach(ad => {
                     html += '<tr>';
                     html += '<td><span class="status-badge status-' + (ad.adset_status || '').toLowerCase() + '">' + (ad.adset_status || '') + '</span></td>';
                     html += '<td>' + (ad.adset_name || '') + '</td>';
@@ -1119,11 +1119,11 @@ async def dashboard_page(
                     html += '<td>-</td>'; // Ngân sách - cần lấy từ API
                     html += '<td>' + formatNumber(ad.spend || 0) + '</td>';
                     
-                    if (campaignType === 'ECOMMERCE') {{
+                    if (campaignType === 'ECOMMERCE') {
                         const percentAds = ad.purchase_value > 0 ? ((ad.spend / ad.purchase_value) * 100).toFixed(2) : '0';
                         const alertBadge = parseFloat(percentAds) > 25 ? '<span class="alert-badge">⚠️</span>' : '';
                         html += '<td>' + percentAds + '% ' + alertBadge + '</td>';
-                    }}
+                    }
                     
                     html += '<td>' + formatNumber(ad.results || 0) + '</td>';
                     
@@ -1141,9 +1141,9 @@ async def dashboard_page(
                     html += '<td>' + formatNumber(costPerPurchase) + '</td>';
                     html += '<td>' + formatNumber(ad.purchases || 0) + '</td>';
                     
-                    if (campaignType === 'ECOMMERCE') {{
+                    if (campaignType === 'ECOMMERCE') {
                         html += '<td>' + formatNumber(ad.purchase_value || 0) + '</td>';
-                    }}
+                    }
                     
                     const cpm = ad.impressions > 0 ? ((ad.spend / ad.impressions) * 1000).toFixed(2) : '0';
                     html += '<td>' + formatNumber(cpm) + '</td>';
@@ -1152,7 +1152,7 @@ async def dashboard_page(
                     html += '<td>' + ((ad.ctr || 0)).toFixed(2) + '%</td>';
                     html += '<td>' + formatNumber(ad.cpc || 0) + '</td>';
                     html += '</tr>';
-                }});
+                });
                 
                     html += '</tbody></table>';
                     document.getElementById('tableWrapper').innerHTML = html;
@@ -1165,19 +1165,19 @@ async def dashboard_page(
                         'Hiển thị ' + ads.length + ' / ' + total + ' kết quả';
                     
                     console.log('✅ renderTable() completed successfully');
-                }} catch (error) {{
+                } catch (error) {
                     console.error('❌ Error in renderTable():', error);
                     document.getElementById('tableWrapper').innerHTML = 
                         '<div class="empty-state"><div class="icon">⚠️</div><p>Lỗi khi render bảng</p><p style="font-size: 12px; color: #94a3b8;">' + error.message + '</p></div>';
-                }}
-            }}
+                }
+            }
             
-            window.renderPagination = function renderPagination(totalPages) {{
+            window.renderPagination = function renderPagination(totalPages) {
                 const pagination = document.getElementById('pagination');
-                if (totalPages <= 1) {{
+                if (totalPages <= 1) {
                     pagination.innerHTML = '';
                     return;
-                }}
+                }
                 
                 let html = '';
                 html += '<button onclick="goToPage(1)"' + (currentPage === 1 ? ' disabled' : '') + '>«</button>';
@@ -1186,52 +1186,52 @@ async def dashboard_page(
                 const startPage = Math.max(1, currentPage - 2);
                 const endPage = Math.min(totalPages, currentPage + 2);
                 
-                for (let i = startPage; i <= endPage; i++) {{
+                for (let i = startPage; i <= endPage; i++) {
                     const activeClass = i === currentPage ? 'active' : '';
                     html += '<button class="' + activeClass + '" onclick="goToPage(' + i + ')">' + i + '</button>';
-                }}
+                }
                 
                 html += '<button onclick="goToPage(' + (currentPage + 1) + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>›</button>';
                 html += '<button onclick="goToPage(' + totalPages + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>»</button>';
                 
                 pagination.innerHTML = html;
-            }};
+            };
             
-            window.goToPage = function goToPage(page) {{
+            window.goToPage = function goToPage(page) {
                 currentPage = page;
                 loadData();
-            }};
+            };
             
-            window.formatNumber = function formatNumber(num) {{
+            window.formatNumber = function formatNumber(num) {
                 return new Intl.NumberFormat('vi-VN').format(num);
-            }};
+            };
             
             // Pull dữ liệu từ Facebook (tự động, không hiển thị thông báo)
-            window.pullFacebookDataSilent = async function pullFacebookDataSilent() {{
-                try {{
-                    const response = await fetch('/dashboard/pull-data', {{
+            window.pullFacebookDataSilent = async function pullFacebookDataSilent() {
+                try {
+                    const response = await fetch('/dashboard/pull-data', {
                         method: 'POST',
-                        headers: {{
+                        headers: {
                             'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
-                        }}
-                    }});
+                        }
+                    });
                     
                     const data = await response.json();
                     
-                    if (response.ok && data.success) {{
+                    if (response.ok && data.success) {
                         console.log('✅ Đã pull dữ liệu:', data.count + ' adsets');
                         return true;
-                    }} else {{
+                    } else {
                         console.warn('⚠️ Pull dữ liệu:', data.message || data.detail || 'Không có dữ liệu mới');
                         return false;
-                    }}
-                }} catch (error) {{
+                    }
+                } catch (error) {
                     console.error('❌ Lỗi khi pull dữ liệu:', error.message);
                     return false;
-                }}
-            }}
+                }
+            }
             
-            window.refreshData = async function refreshData() {{
+            window.refreshData = async function refreshData() {
                 const btn = document.getElementById('refreshBtn');
                 btn.classList.add('loading');
                 btn.disabled = true;
@@ -1242,19 +1242,19 @@ async def dashboard_page(
                 // Sau đó load dữ liệu từ database
                 await loadData();
                 
-                setTimeout(() => {{
+                setTimeout(function() {
                     btn.classList.remove('loading');
                     btn.disabled = false;
-                }}, 500);
-            }}
+                }, 500);
+            }
             
-            window.loadFilters = async function loadFilters() {{
-                try {{
-                    const response = await fetch('/dashboard/filters', {{
-                        headers: {{
+            window.loadFilters = async function loadFilters() {
+                try {
+                    const response = await fetch('/dashboard/filters', {
+                        headers: {
                             'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
-                        }}
-                    }});
+                        }
+                    });
                     
                     if (!response.ok) return;
                     
@@ -1262,30 +1262,30 @@ async def dashboard_page(
                     
                     // Populate account filter
                     const accountFilter = document.getElementById('accountFilter');
-                    filters.accounts.forEach(account => {{
+                    filters.accounts.forEach(function(account) {
                         const option = document.createElement('option');
                         option.value = account;
                         option.textContent = account;
                         accountFilter.appendChild(option);
-                    }});
+                    });
                     
                     // Populate prefix filter
                     const prefixFilter = document.getElementById('prefixFilter');
-                    filters.prefixes.forEach(prefix => {{
+                    filters.prefixes.forEach(function(prefix) {
                         const option = document.createElement('option');
                         option.value = prefix;
                         option.textContent = prefix;
                         prefixFilter.appendChild(option);
-                    }});
-                }} catch (error) {{
+                    });
+                } catch (error) {
                     console.error('Error loading filters:', error);
-                }}
-            }}
+                }
+            }
             
             // Set default date to today
-            window.addEventListener('DOMContentLoaded', async () => {{
+            window.addEventListener('DOMContentLoaded', async function() {
                 console.log('✅ DOMContentLoaded fired');
-                try {{
+                try {
                     const today = new Date();
                     selectedDateRange.start = today;
                     selectedDateRange.end = today;
@@ -1308,21 +1308,21 @@ async def dashboard_page(
                     // Sau đó load dữ liệu từ database
                     console.log('🔄 Loading dashboard data...');
                     loadData();
-                }} catch (error) {{
+                } catch (error) {
                     console.error('❌ Error in DOMContentLoaded:', error);
-                }}
+                }
                 
                 // Add event listeners for filters
-                try {{
+                try {
                     document.getElementById('accountFilter').addEventListener('change', loadData);
                     document.getElementById('prefixFilter').addEventListener('change', loadData);
                     document.getElementById('campaignTypeFilter').addEventListener('change', loadData);
                     document.getElementById('statusFilter').addEventListener('change', loadData);
                     console.log('✅ Event listeners added');
-                }} catch (error) {{
+                } catch (error) {
                     console.error('❌ Error adding event listeners:', error);
-                }}
-            }});
+                }
+            });
             
             window.getCookie = function getCookie(name) {
                 const value = '; ' + document.cookie;
