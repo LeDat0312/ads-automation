@@ -451,12 +451,11 @@ async def dashboard_page(
             }}
             
             @media (max-width: 1024px) {{
-                .sticky-filter-bar {{
-                    position: relative;
-                    top: 0;
+                .filters-section {{
+                    padding: 12px 16px;
                 }}
                 
-                .filter-bar-row {{
+                .filter-row {{
                     flex-direction: column;
                     align-items: stretch;
                 }}
