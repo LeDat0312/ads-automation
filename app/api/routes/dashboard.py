@@ -1058,6 +1058,138 @@ async def dashboard_page(
                 cursor: not-allowed;
             }}
             
+            /* Budget Editor */
+            .budget-cell {{
+                position: relative;
+            }}
+            
+            .budget-display {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 4px 8px;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }}
+            
+            .budget-display:hover {{
+                background: #f3f4f6;
+            }}
+            
+            .budget-value {{
+                font-size: 13px;
+                color: #374151;
+            }}
+            
+            .budget-edit-icon {{
+                font-size: 12px;
+                opacity: 0;
+                transition: opacity 0.2s ease;
+                margin-left: 6px;
+            }}
+            
+            .budget-display:hover .budget-edit-icon {{
+                opacity: 1;
+            }}
+            
+            .budget-editor-popover {{
+                position: absolute;
+                top: 100%;
+                left: 0;
+                z-index: 100;
+                background: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 16px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                min-width: 280px;
+                margin-top: 4px;
+            }}
+            
+            .budget-editor-popover h4 {{
+                font-size: 14px;
+                font-weight: 600;
+                margin-bottom: 12px;
+                color: #1e293b;
+            }}
+            
+            .budget-input-group {{
+                margin-bottom: 12px;
+            }}
+            
+            .budget-input-group label {{
+                display: block;
+                font-size: 12px;
+                color: #64748b;
+                margin-bottom: 6px;
+            }}
+            
+            .budget-input-group input {{
+                width: 100%;
+                padding: 8px 12px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+            }}
+            
+            .budget-shortcuts {{
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                margin-bottom: 12px;
+            }}
+            
+            .budget-shortcut-btn {{
+                padding: 8px 12px;
+                background: #f3f4f6;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }}
+            
+            .budget-shortcut-btn:hover {{
+                background: #e5e7eb;
+                border-color: #667eea;
+            }}
+            
+            .budget-actions {{
+                display: flex;
+                gap: 8px;
+            }}
+            
+            .budget-btn {{
+                flex: 1;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }}
+            
+            .budget-btn-primary {{
+                background: #667eea;
+                color: white;
+            }}
+            
+            .budget-btn-primary:hover {{
+                background: #5568d3;
+            }}
+            
+            .budget-btn-secondary {{
+                background: #f3f4f6;
+                color: #374151;
+            }}
+            
+            .budget-btn-secondary:hover {{
+                background: #e5e7eb;
+            }}
+            
             .alert-badge {{
                 padding: 4px 8px;
                 border-radius: 6px;
@@ -2296,6 +2428,15 @@ async def dashboard_page(
                     html += '<td class="number-cell">' + formatNumber(ad.clicks || 0) + '</td>';
                     html += '<td class="number-cell">' + ((ad.ctr || 0)).toFixed(2) + '%</td>';
                     html += '<td class="number-cell">' + formatNumber(ad.cpc || 0) + '</td>';
+                    
+                    // Budget column với inline editor
+                    const currentBudget = ad.daily_budget || 0;
+                    html += '<td class="budget-cell">' +
+                        '<div class="budget-display" onclick="openBudgetEditor(\\'' + (ad.adset_id || '') + '\\', ' + currentBudget + ', this)">' +
+                        '<span class="budget-value">' + (currentBudget > 0 ? formatNumber(currentBudget) + ' đ/ngày' : 'Chưa có') + '</span>' +
+                        '<span class="budget-edit-icon">✏️</span>' +
+                        '</div>' +
+                        '</td>';
                     
                     // Action buttons
                     const isActive = (ad.adset_status || '').toUpperCase() === 'ACTIVE';
