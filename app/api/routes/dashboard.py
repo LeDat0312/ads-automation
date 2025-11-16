@@ -427,6 +427,12 @@ async def dashboard_page(
                 color: white;
             }}
             
+            @media (max-width: 1400px) {{
+                .stats-grid {{
+                    grid-template-columns: repeat(3, 1fr);
+                }}
+            }}
+            
             @media (max-width: 1024px) {{
                 .sticky-filter-bar {{
                     position: relative;
@@ -440,10 +446,19 @@ async def dashboard_page(
                 
                 .search-box-filter {{
                     max-width: 100%;
+                    flex: 1;
                 }}
                 
                 .filter-group-inline {{
                     width: 100%;
+                }}
+                
+                .stats-grid {{
+                    grid-template-columns: repeat(2, 1fr);
+                }}
+                
+                .charts-grid {{
+                    grid-template-columns: 1fr;
                 }}
             }}
             
@@ -1662,12 +1677,8 @@ async def dashboard_page(
                     justify-content: flex-end;
                 }}
                 
-                .container {{
-                    padding: 16px;
-                }}
-                
-                .dashboard-layout {{
-                    padding: 100px 16px 40px;
+                .main-content {{
+                    padding: 16px !important;
                 }}
                 
                 .filters-section {{
