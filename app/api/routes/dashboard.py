@@ -3,7 +3,7 @@ Dashboard API Routes - Tổng quan hiệu suất và thống kê quảng cáo
 Hiển thị dữ liệu theo E-commerce và Lead Generation
 """
 import logging
-from fastapi import APIRouter, Depends, Query, Request, HTTPException, Body
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -288,288 +288,6 @@ async def dashboard_page(
                 position: relative;
                 z-index: 1;
                 animation: fadeIn 0.5s ease-out;
-            }}
-            
-            /* Sticky Filter Bar - LUÔN HIỂN THỊ TRÊN DESKTOP */
-            .sticky-filter-bar {{
-                position: sticky;
-                top: 70px;
-                z-index: 20;
-                background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-                backdrop-filter: blur(20px);
-                -webkit-backdrop-filter: blur(20px);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 16px;
-                padding: 20px;
-                margin-bottom: 24px;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-                display: block !important; /* LUÔN HIỂN THỊ - KHÔNG BAO GIỜ ẨN */
-            }}
-            
-            .filter-bar-row {{
-                display: flex;
-                gap: 16px;
-                align-items: flex-end;
-                margin-bottom: 12px;
-                flex-wrap: wrap;
-            }}
-            
-            .filter-bar-row:last-child {{
-                margin-bottom: 0;
-            }}
-            
-            .search-box-filter {{
-                position: relative;
-                flex: 1;
-                min-width: 300px;
-            }}
-            
-            .search-box-filter input {{
-                width: 100%;
-                padding: 12px 16px 12px 44px;
-                border: 2px solid #e2e8f0;
-                border-radius: 10px;
-                font-size: 14px;
-                transition: all 0.3s ease;
-                background: white;
-            }}
-            
-            .search-box-filter input:focus {{
-                outline: none;
-                border-color: #667eea;
-                box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-            }}
-            
-            .search-box-filter .search-icon {{
-                position: absolute;
-                left: 16px;
-                top: 50%;
-                transform: translateY(-50%);
-                font-size: 18px;
-                pointer-events: none;
-                z-index: 1;
-            }}
-            
-            .btn-refresh-filter {{
-                padding: 12px 20px;
-                background: #667eea;
-                border: none;
-                border-radius: 10px;
-                color: white;
-                cursor: pointer;
-                font-weight: 500;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                transition: all 0.3s ease;
-                font-size: 14px;
-                white-space: nowrap;
-            }}
-            
-            .btn-refresh-filter:hover {{
-                background: #5568d3;
-                transform: translateY(-2px);
-                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-            }}
-            
-            .filter-group-inline {{
-                display: flex;
-                flex-direction: column;
-                min-width: 150px;
-            }}
-            
-            .filter-group-inline label {{
-                font-size: 12px;
-                font-weight: 500;
-                color: #64748b;
-                margin-bottom: 6px;
-            }}
-            
-            .filter-group-inline select {{
-                padding: 10px 12px;
-                border: 2px solid #e2e8f0;
-                border-radius: 8px;
-                font-size: 13px;
-                background: white;
-                transition: all 0.3s ease;
-            }}
-            
-            .filter-group-inline select:focus {{
-                outline: none;
-                border-color: #667eea;
-                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-            }}
-            
-            .date-picker-btn-inline {{
-                padding: 10px 12px;
-                border: 2px solid #e2e8f0;
-                border-radius: 8px;
-                font-size: 13px;
-                background: white;
-                cursor: pointer;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                transition: all 0.3s ease;
-            }}
-            
-            .date-picker-btn-inline:hover {{
-                border-color: #667eea;
-            }}
-            
-            .quick-filters-inline {{
-                display: flex;
-                gap: 8px;
-                flex-wrap: wrap;
-                width: 100%;
-            }}
-            
-            /* Multi-select Styles */
-            .multi-select-wrapper {{
-                position: relative;
-            }}
-            
-            .multi-select-btn {{
-                padding: 10px 12px;
-                border: 2px solid #e2e8f0;
-                border-radius: 8px;
-                font-size: 13px;
-                background: white;
-                cursor: pointer;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                transition: all 0.3s ease;
-                min-width: 150px;
-            }}
-            
-            .multi-select-btn:hover {{
-                border-color: #667eea;
-            }}
-            
-            .multi-select-btn.active {{
-                border-color: #667eea;
-                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-            }}
-            
-            .multi-select-dropdown {{
-                display: none;
-                position: absolute;
-                top: 100%;
-                left: 0;
-                right: 0;
-                background: white;
-                border: 2px solid #e2e8f0;
-                border-radius: 8px;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-                z-index: 1000;
-                max-height: 300px;
-                overflow: hidden;
-                margin-top: 4px;
-            }}
-            
-            .multi-select-dropdown.show {{
-                display: block;
-            }}
-            
-            .multi-select-search {{
-                padding: 8px;
-                border-bottom: 1px solid #e2e8f0;
-            }}
-            
-            .multi-select-search input {{
-                width: 100%;
-                padding: 8px;
-                border: 1px solid #e2e8f0;
-                border-radius: 6px;
-                font-size: 13px;
-            }}
-            
-            .multi-select-options {{
-                max-height: 250px;
-                overflow-y: auto;
-            }}
-            
-            .multi-select-option {{
-                padding: 10px 12px;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                transition: background 0.2s;
-            }}
-            
-            .multi-select-option:hover {{
-                background: #f1f5f9;
-            }}
-            
-            .multi-select-option input[type="checkbox"] {{
-                width: 16px;
-                height: 16px;
-                cursor: pointer;
-            }}
-            
-            .multi-select-option label {{
-                cursor: pointer;
-                flex: 1;
-                font-size: 13px;
-                margin: 0;
-            }}
-            
-            /* Batch Action Bar */
-            .batch-action-bar {{
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 16px 20px;
-                border-radius: 12px;
-                margin-bottom: 16px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-                animation: slideInRight 0.3s ease;
-            }}
-            
-            .batch-action-info {{
-                font-size: 14px;
-                font-weight: 600;
-            }}
-            
-            .batch-action-buttons {{
-                display: flex;
-                gap: 8px;
-                flex-wrap: wrap;
-            }}
-            
-            .btn-batch-action {{
-                padding: 8px 16px;
-                background: rgba(255, 255, 255, 0.2);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 8px;
-                color: white;
-                cursor: pointer;
-                font-size: 13px;
-                font-weight: 500;
-                transition: all 0.3s ease;
-            }}
-            
-            .btn-batch-action:hover {{
-                background: rgba(255, 255, 255, 0.3);
-                transform: translateY(-2px);
-            }}
-            
-            .btn-batch-action.btn-cancel {{
-                background: rgba(255, 255, 255, 0.1);
-            }}
-            
-            .row-selected {{
-                background: rgba(102, 126, 234, 0.1) !important;
-            }}
-            
-            .row-checkbox {{
-                width: 18px;
-                height: 18px;
-                cursor: pointer;
             }}
             
             .filters-section {{
@@ -1642,10 +1360,9 @@ async def dashboard_page(
     <body>
         """ + user_menu + """
         <div class="header">
-            <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
+            <h1>📊 Dashboard – Tổng Quan Hiệu Suất</h1>
             <div class="header-actions">
-                <div id="lastUpdateTime" style="font-size: 12px; color: rgba(255, 255, 255, 0.8); margin-right: 16px; white-space: nowrap;">Cập nhật lần cuối: --:--:--</div>
-                <button class="btn-refresh" onclick="refreshData()" id="refreshBtn">
+                <button class="btn-refresh" onclick="refreshData()" id="refreshBtn" title="Làm mới dữ liệu">
                     🔄 Làm mới
                 </button>
             </div>
@@ -1713,87 +1430,9 @@ async def dashboard_page(
                     🔍 Bộ Lọc
                 </button>
                 
-                <!-- Sticky Filter Bar -->
-                <div class="sticky-filter-bar" id="stickyFilterBar">
-                    <div class="filter-bar-row">
-                        <div class="search-box-filter">
-                            <span class="search-icon">🔍</span>
-                            <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign, ID..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
-                        </div>
-                        <button class="btn-refresh-filter" onclick="refreshData()" id="refreshBtnFilter">
-                            🔄 Làm mới
-                        </button>
-                    </div>
-                    <div class="filter-bar-row">
-                        <div class="filter-group-inline">
-                            <label>Account</label>
-                            <div class="multi-select-wrapper">
-                                <div class="multi-select-btn" onclick="toggleMultiSelect('account')" id="accountMultiSelectBtn">
-                                    <span id="accountMultiSelectText">Tất cả Accounts</span>
-                                    <span>▼</span>
-                                </div>
-                                <div class="multi-select-dropdown" id="accountMultiSelectDropdown">
-                                    <div class="multi-select-search">
-                                        <input type="text" placeholder="Tìm account..." onkeyup="filterMultiSelectOptions('account', this.value)">
-                                    </div>
-                                    <div class="multi-select-options" id="accountMultiSelectOptions">
-                                        <!-- Options will be populated by JavaScript -->
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="filter-group-inline">
-                            <label>Prefix</label>
-                            <div class="multi-select-wrapper">
-                                <div class="multi-select-btn" onclick="toggleMultiSelect('prefix')" id="prefixMultiSelectBtn">
-                                    <span id="prefixMultiSelectText">Tất cả Prefixes</span>
-                                    <span>▼</span>
-                                </div>
-                                <div class="multi-select-dropdown" id="prefixMultiSelectDropdown">
-                                    <div class="multi-select-search">
-                                        <input type="text" placeholder="Tìm prefix..." onkeyup="filterMultiSelectOptions('prefix', this.value)">
-                                    </div>
-                                    <div class="multi-select-options" id="prefixMultiSelectOptions">
-                                        <!-- Options will be populated by JavaScript -->
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="filter-group-inline">
-                            <label>Loại Campaign</label>
-                            <select id="campaignTypeFilter" onchange="handleFilterChange()">
-                                <option value="">Tất cả</option>
-                                <option value="ECOMMERCE">E-commerce</option>
-                                <option value="LEAD">Lead Generation</option>
-                            </select>
-                        </div>
-                        <div class="filter-group-inline">
-                            <label>Trạng thái</label>
-                            <select id="statusFilter" onchange="handleFilterChange()">
-                                <option value="">Tất cả</option>
-                                <option value="ACTIVE">Đang chạy</option>
-                                <option value="PAUSED">Tạm dừng</option>
-                            </select>
-                        </div>
-                        <div class="filter-group-inline">
-                            <label>Khoảng thời gian</label>
-                            <div class="date-picker-btn-inline" onclick="openDatePicker()">
-                                <span id="dateRangeText">Chọn khoảng thời gian</span>
-                                <span>📅</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="filter-bar-row">
-                        <div class="quick-filters-inline">
-                            <button class="quick-filter-btn" onclick="applyQuickFilter('today', this)">Hôm nay</button>
-                            <button class="quick-filter-btn" onclick="applyQuickFilter('yesterday', this)">Hôm qua</button>
-                            <button class="quick-filter-btn" onclick="applyQuickFilter('last7days', this)">7 ngày qua</button>
-                            <button class="quick-filter-btn" onclick="applyQuickFilter('last14days', this)">14 ngày qua</button>
-                            <button class="quick-filter-btn" onclick="applyQuickFilter('last30days', this)">30 ngày qua</button>
-                            <button class="quick-filter-btn" onclick="applyQuickFilter('thisMonth', this)">Tháng này</button>
-                            <button class="quick-filter-btn" onclick="applyQuickFilter('lastMonth', this)">Tháng trước</button>
-                        </div>
-                    </div>
+                <div class="search-box" style="margin-bottom: 24px;">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
                 </div>
                 
                 <div class="stats-grid" id="statsGrid">
@@ -1859,7 +1498,44 @@ async def dashboard_page(
                     </div>
                 </div>
                 
-                <!-- CHUYỂN TABLE LÊN TRƯỚC PREFIX OVERVIEW -->
+                <div class="prefix-summary-section" id="prefixSummarySection">
+                    <div class="charts-header">
+                        <h2>📊 Tổng Quan Theo Prefix</h2>
+                        <p>Thống kê chi tiết cho từng prefix (FL, NM, PX, TL...) - Hỗ trợ cả E-commerce và Lead Generation</p>
+                    </div>
+                    <div class="prefix-tabs">
+                        <button class="prefix-tab active" onclick="switchPrefixTab('all', this)">Tất cả</button>
+                        <button class="prefix-tab" onclick="switchPrefixTab('ecommerce', this)">E-commerce</button>
+                        <button class="prefix-tab" onclick="switchPrefixTab('lead', this)">Lead Generation</button>
+                    </div>
+                    <div class="prefix-grid" id="prefixGrid">
+                        <div class="loading">Đang tải dữ liệu prefix...</div>
+                    </div>
+                </div>
+                
+                <div class="charts-section" id="chartsSection">
+                    <div class="charts-header">
+                        <h2>📈 Biểu Đồ Phân Tích</h2>
+                        <p>Tổng quan theo ngày trong khoảng thời gian chọn</p>
+                    </div>
+                    <div class="charts-grid">
+                        <div class="chart-container">
+                            <div style="text-align: center;">
+                                <div style="font-size: 48px; margin-bottom: 12px;">📈</div>
+                                <div>Line Chart: Chi tiêu & Kết quả theo ngày</div>
+                                <div style="font-size: 12px; margin-top: 8px; color: #cbd5e1;">(Sẽ tích hợp Chart.js sau)</div>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <div style="text-align: center;">
+                                <div style="font-size: 48px; margin-bottom: 12px;">📊</div>
+                                <div>Bar Chart: Chi tiêu theo Prefix</div>
+                                <div style="font-size: 12px; margin-top: 8px; color: #cbd5e1;">(Sẽ tích hợp Chart.js sau)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="table-container">
                     <div class="table-header">
                         <h2>📋 Chi Tiết Quảng Cáo</h2>
@@ -1948,23 +1624,13 @@ async def dashboard_page(
             const pageSize = 50;
             let selectedDateRange = {{ start: null, end: null }};
             let currentFilters = {{
-                accounts: [],  // Changed to array for multi-select
-                prefixes: [],  // Changed to array for multi-select
+                account: '',
+                prefix: '',
                 campaignType: '',
                 status: '',
                 dateFrom: '',
-                dateTo: '',
-                searchTerm: ''
+                dateTo: ''
             }};
-            
-            // Multi-select state
-            let selectedAccounts = [];
-            let selectedPrefixes = [];
-            let allAccounts = [];
-            let allPrefixes = [];
-            
-            // Batch selection state
-            let selectedAdsetIds = new Set();
             
             // Date Picker Logic
             function openDatePicker() {{
@@ -2136,6 +1802,66 @@ async def dashboard_page(
                 renderCalendars();
             }}
             
+            // LocalStorage key for filter state
+            const FILTER_STORAGE_KEY = 'meta_dashboard_filters';
+            
+            // Load filter state from localStorage
+            function loadFilterState() {{
+                try {{
+                    const saved = localStorage.getItem(FILTER_STORAGE_KEY);
+                    if (saved) {{
+                        const savedFilters = JSON.parse(saved);
+                        currentFilters = {{ ...currentFilters, ...savedFilters }};
+                        
+                        // Restore date range
+                        if (savedFilters.dateRange) {{
+                            selectedDateRange.start = new Date(savedFilters.dateRange.from);
+                            selectedDateRange.end = new Date(savedFilters.dateRange.to);
+                            currentFilters.dateFrom = savedFilters.dateRange.from;
+                            currentFilters.dateTo = savedFilters.dateRange.to;
+                            document.getElementById('dateRangeText').textContent = 
+                                formatDateVN(selectedDateRange.start) + ' - ' + formatDateVN(selectedDateRange.end);
+                        }}
+                        
+                        // Restore other filters
+                        if (savedFilters.campaignType) {{
+                            document.getElementById('campaignTypeFilter').value = savedFilters.campaignType;
+                            currentFilters.campaignType = savedFilters.campaignType;
+                        }}
+                        
+                        if (savedFilters.status) {{
+                            document.getElementById('statusFilter').value = savedFilters.status;
+                            currentFilters.status = savedFilters.status;
+                        }}
+                        
+                        if (savedFilters.search) {{
+                            document.getElementById('searchInput').value = savedFilters.search;
+                            currentFilters.searchTerm = savedFilters.search;
+                        }}
+                    }}
+                }} catch (e) {{
+                    console.error('Error loading filter state:', e);
+                }}
+            }}
+            
+            // Save filter state to localStorage
+            function saveFilterState() {{
+                try {{
+                    const stateToSave = {{
+                        campaignType: currentFilters.campaignType,
+                        status: currentFilters.status,
+                        dateRange: {{
+                            from: currentFilters.dateFrom,
+                            to: currentFilters.dateTo
+                        }},
+                        search: currentFilters.searchTerm || ''
+                    }};
+                    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(stateToSave));
+                }} catch (e) {{
+                    console.error('Error saving filter state:', e);
+                }}
+            }}
+            
             function applyDateRange() {{
                 if (selectedDateRange.start && selectedDateRange.end) {{
                     const startStr = selectedDateRange.start.toISOString().split('T')[0];
@@ -2147,35 +1873,9 @@ async def dashboard_page(
                     const endFormatted = formatDateVN(selectedDateRange.end);
                     document.getElementById('dateRangeText').textContent = startFormatted + ' - ' + endFormatted;
                     
+                    saveFilterState(); // Save to localStorage
                     closeDatePicker();
-                    // Pull data from Facebook for the selected date range
-                    pullFacebookDataForDateRange(startStr, endStr).then(() => {{
-                        loadData();
-                    }});
-                }}
-            }}
-            
-            // Pull Facebook data for specific date range
-            async function pullFacebookDataForDateRange(dateFrom, dateTo) {{
-                try {{
-                    const token = localStorage.getItem('access_token') || getCookie('access_token');
-                    const response = await fetch('/dashboard/pull-data', {{
-                        method: 'POST',
-                        headers: {{
-                            'Authorization': 'Bearer ' + token,
-                            'Content-Type': 'application/json'
-                        }},
-                        body: JSON.stringify({{
-                            date_from: dateFrom,
-                            date_to: dateTo
-                        }})
-                    }});
-                    const data = await response.json();
-                    if (response.ok && data.success) {{
-                        console.log('✅ Đã pull dữ liệu:', data.count + ' adsets');
-                    }}
-                }} catch (error) {{
-                    console.error('❌ Lỗi khi pull dữ liệu:', error.message);
+                    loadData();
                 }}
             }}
             
@@ -2186,130 +1886,29 @@ async def dashboard_page(
                 return day + ' Tháng ' + month + ', ' + year;
             }}
             
-            // Multi-select functions
-            function toggleMultiSelect(type) {{
-                const dropdown = document.getElementById(type + 'MultiSelectDropdown');
-                const btn = document.getElementById(type + 'MultiSelectBtn');
-                const isOpen = dropdown.classList.contains('show');
-                
-                // Close all dropdowns first
-                document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('show'));
-                document.querySelectorAll('.multi-select-btn').forEach(b => b.classList.remove('active'));
-                
-                if (!isOpen) {{
-                    dropdown.classList.add('show');
-                    btn.classList.add('active');
-                }}
-            }}
-            
-            function filterMultiSelectOptions(type, searchTerm) {{
-                const options = document.querySelectorAll('#' + type + 'MultiSelectOptions .multi-select-option');
-                const term = searchTerm.toLowerCase();
-                options.forEach(option => {{
-                    const text = option.textContent.toLowerCase();
-                    option.style.display = text.includes(term) ? 'flex' : 'none';
-                }});
-            }}
-            
-            function updateMultiSelectDisplay(type, selectedItems) {{
-                const btnText = document.getElementById(type + 'MultiSelectText');
-                if (selectedItems.length === 0) {{
-                    btnText.textContent = type === 'account' ? 'Tất cả Accounts' : 'Tất cả Prefixes';
-                }} else if (selectedItems.length === 1) {{
-                    btnText.textContent = selectedItems[0];
-                }} else {{
-                    btnText.textContent = selectedItems.length + ' đã chọn';
-                }}
-            }}
-            
-            function handleMultiSelectChange(type, value, checked) {{
-                const selected = type === 'account' ? selectedAccounts : selectedPrefixes;
-                if (checked) {{
-                    if (!selected.includes(value)) {{
-                        selected.push(value);
-                    }}
-                }} else {{
-                    const index = selected.indexOf(value);
-                    if (index > -1) {{
-                        selected.splice(index, 1);
-                    }}
-                }}
-                updateMultiSelectDisplay(type, selected);
-                updateCurrentFilters();
-                debouncedLoadData();
-            }}
-            
-            function updateCurrentFilters() {{
-                currentFilters.accounts = selectedAccounts;
-                currentFilters.prefixes = selectedPrefixes;
-            }}
-            
-            // Close dropdowns when clicking outside
-            document.addEventListener('click', function(event) {{
-                if (!event.target.closest('.multi-select-wrapper')) {{
-                    document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('show'));
-                    document.querySelectorAll('.multi-select-btn').forEach(b => b.classList.remove('active'));
-                }}
-            }});
-            
-            // Debounce function for loadData
-            function debounce(func, wait) {{
-                let timeout;
-                return function executedFunction(...args) {{
-                    const later = () => {{
-                        clearTimeout(timeout);
-                        func(...args);
-                    }};
-                    clearTimeout(timeout);
-                    timeout = setTimeout(later, wait);
-                }};
-            }}
-            
-            const debouncedLoadData = debounce(loadData, 300);
-            
-            function handleFilterChange() {{
-                currentFilters.campaignType = document.getElementById('campaignTypeFilter').value;
-                currentFilters.status = document.getElementById('statusFilter').value;
-                debouncedLoadData();
-            }}
-            
-            function handleSearch(event) {{
-                currentFilters.searchTerm = event.target.value;
-                debouncedLoadData();
-            }}
-            
             // Load data
             async function loadData() {{
-                // Get filters from sticky filter bar
-                const campaignType = document.getElementById('campaignTypeFilter')?.value || '';
-                const status = document.getElementById('statusFilter')?.value || '';
-                const searchTerm = document.getElementById('searchInput')?.value || '';
+                const account = document.getElementById('accountFilter').value;
+                const prefix = document.getElementById('prefixFilter').value;
+                const campaignType = document.getElementById('campaignTypeFilter').value;
+                const status = document.getElementById('statusFilter').value;
                 
-                // Update currentFilters
+                currentFilters.account = account;
+                currentFilters.prefix = prefix;
                 currentFilters.campaignType = campaignType;
                 currentFilters.status = status;
-                currentFilters.searchTerm = searchTerm;
-                updateCurrentFilters(); // Update accounts and prefixes arrays
                 
                 const params = new URLSearchParams({{
                     page: currentPage,
                     page_size: pageSize
                 }});
                 
-                // Add multi-select filters (arrays)
-                if (currentFilters.accounts && currentFilters.accounts.length > 0) {{
-                    currentFilters.accounts.forEach(acc => params.append('account_ids', acc));
-                }}
-                if (currentFilters.prefixes && currentFilters.prefixes.length > 0) {{
-                    currentFilters.prefixes.forEach(pref => params.append('prefixes', pref));
-                }}
-                
-                // Add single filters
+                if (account) params.append('account_id', account);
+                if (prefix) params.append('prefix', prefix);
                 if (campaignType) params.append('campaign_type', campaignType);
                 if (status) params.append('status', status);
                 if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                 if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
-                if (searchTerm) params.append('search_term', searchTerm);
                 
                 try {{
                     // Show loading skeleton
@@ -2383,9 +1982,6 @@ async def dashboard_page(
             }}
             
             function renderTable(data) {{
-                // Store data globally for batch actions
-                window.currentAdsData = data;
-                
                 const ads = data.ads || [];
                 const total = data.total || 0;
                 const campaignType = currentFilters.campaignType || 'ECOMMERCE';
@@ -2407,21 +2003,19 @@ async def dashboard_page(
                     return;
                 }}
                 
-                // Define columns based on campaign type - Add checkbox column first
+                // Define columns based on campaign type
                 const columns = campaignType === 'ECOMMERCE' ? [
-                    '<input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)">', 
                     'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
                     '% ADS', 'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
                     'Giá trị chuyển đổi từ lượt mua', 'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)',
                     'CTR (tất cả)', 'CPC (tất cả)', 'Thao tác'
                 ] : [
-                    '<input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)">',
                     'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
                     'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
                     'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)', 'Thao tác'
-                };
+                ];
                 
                 // Define sortable columns
                 const sortableColumns = {
@@ -2435,47 +2029,19 @@ async def dashboard_page(
                     'CPC (tất cả)': 'cpc'
                 };
                 
-                // Batch action bar
-                let batchActionBar = '';
-                if (selectedAdsetIds.size > 0) {{
-                    batchActionBar = `
-                        <div class="batch-action-bar" id="batchActionBar">
-                            <div class="batch-action-info">
-                                <strong>${{selectedAdsetIds.size}}</strong> adsets đã chọn
-                            </div>
-                            <div class="batch-action-buttons">
-                                <button class="btn-batch-action" onclick="batchAction('activate')">▶️ Bật tất cả</button>
-                                <button class="btn-batch-action" onclick="batchAction('pause')">⏸️ Tắt tất cả</button>
-                                <button class="btn-batch-action" onclick="batchAction('increase_budget')">📈 Tăng +20%</button>
-                                <button class="btn-batch-action" onclick="batchAction('decrease_budget')">📉 Giảm -20%</button>
-                                <button class="btn-batch-action btn-cancel" onclick="clearSelection()">✕ Bỏ chọn</button>
-                            </div>
-                        </div>
-                    `;
-                }}
-                
-                let html = batchActionBar + '<table><thead><tr>';
+                let html = '<table><thead><tr>';
                 columns.forEach((col, idx) => {{
-                    // Skip sorting for checkbox column (index 0)
-                    if (idx === 0) {{
-                        html += '<th>' + col + '</th>';
+                    const sortKey = sortableColumns[col];
+                    if (sortKey) {{
+                        html += '<th class="sortable" onclick="sortTable(' + idx + ', \\'' + sortKey + '\\')">' + col + '</th>';
                     }} else {{
-                        const sortKey = sortableColumns[col];
-                        if (sortKey) {{
-                            html += '<th class="sortable" onclick="sortTable(' + idx + ', \\'' + sortKey + '\\')">' + col + '</th>';
-                        }} else {{
-                            html += '<th>' + col + '</th>';
-                        }}
+                        html += '<th>' + col + '</th>';
                     }}
                 }});
                 html += '</tr></thead><tbody>';
                 
                 ads.forEach(ad => {{
-                    const adsetId = ad.adset_id || '';
-                    const isSelected = selectedAdsetIds.has(adsetId);
-                    html += '<tr data-adset-id="' + adsetId + '" data-account-id="' + (ad.account_id || '') + '" class="' + (isSelected ? 'row-selected' : '') + '">';
-                    // Checkbox column
-                    html += '<td><input type="checkbox" class="row-checkbox" value="' + adsetId + '" onchange="toggleRowSelection(\'' + adsetId + '\', this.checked)" ' + (isSelected ? 'checked' : '') + '></td>';
+                    html += '<tr data-adset-id="' + (ad.adset_id || '') + '" data-account-id="' + (ad.account_id || '') + '">';
                     html += '<td><span class="status-badge status-' + (ad.adset_status || '').toLowerCase() + '">' + (ad.adset_status || '') + '</span></td>';
                     html += '<td>' + (ad.adset_name || '') + '</td>';
                     html += '<td>' + (ad.account_id || '-') + '</td>';
@@ -2750,112 +2316,6 @@ async def dashboard_page(
                 }}
             }}
             
-            // Batch selection functions
-            function toggleSelectAll(checked) {{
-                const checkboxes = document.querySelectorAll('.row-checkbox');
-                checkboxes.forEach(cb => {{
-                    cb.checked = checked;
-                    const adsetId = cb.value;
-                    if (checked) {{
-                        selectedAdsetIds.add(adsetId);
-                    }} else {{
-                        selectedAdsetIds.delete(adsetId);
-                    }}
-                }});
-                updateBatchActionBar();
-            }}
-            
-            function toggleRowSelection(adsetId, checked) {{
-                if (checked) {{
-                    selectedAdsetIds.add(adsetId);
-                }} else {{
-                    selectedAdsetIds.delete(adsetId);
-                }}
-                updateBatchActionBar();
-                // Update select all checkbox
-                const allCheckboxes = document.querySelectorAll('.row-checkbox');
-                const selectAll = document.getElementById('selectAll');
-                if (selectAll && allCheckboxes.length > 0) {{
-                    selectAll.checked = Array.from(allCheckboxes).every(cb => cb.checked);
-                }}
-                // Update row styling
-                const row = document.querySelector(`tr[data-adset-id="${{adsetId}}"]`);
-                if (row) {{
-                    if (checked) {{
-                        row.classList.add('row-selected');
-                    }} else {{
-                        row.classList.remove('row-selected');
-                    }}
-                }}
-            }}
-            
-            function clearSelection() {{
-                selectedAdsetIds.clear();
-                document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
-                const selectAll = document.getElementById('selectAll');
-                if (selectAll) selectAll.checked = false;
-                document.querySelectorAll('.row-selected').forEach(row => row.classList.remove('row-selected'));
-                updateBatchActionBar();
-            }}
-            
-            function updateBatchActionBar() {{
-                const bar = document.getElementById('batchActionBar');
-                if (selectedAdsetIds.size > 0) {{
-                    if (!bar) {{
-                        // Re-render table to show batch action bar
-                        if (window.currentAdsData) {{
-                            renderTable(window.currentAdsData);
-                        }}
-                    }} else {{
-                        bar.querySelector('.batch-action-info').innerHTML = '<strong>' + selectedAdsetIds.size + '</strong> adsets đã chọn';
-                    }}
-                }} else {{
-                    if (bar) bar.remove();
-                }}
-            }}
-            
-            async function batchAction(action) {{
-                if (selectedAdsetIds.size === 0) return;
-                
-                const actionNames = {{
-                    'activate': 'bật',
-                    'pause': 'tắt',
-                    'increase_budget': 'tăng ngân sách +20%',
-                    'decrease_budget': 'giảm ngân sách -20%'
-                }};
-                
-                if (!confirm(`Bạn có chắc muốn ${{actionNames[action]}} cho ${{selectedAdsetIds.size}} adsets?`)) return;
-                
-                const adsetIds = Array.from(selectedAdsetIds);
-                const token = localStorage.getItem('access_token') || getCookie('access_token');
-                
-                try {{
-                    const response = await fetch('/dashboard/adsets/batch-action', {{
-                        method: 'POST',
-                        headers: {{
-                            'Authorization': 'Bearer ' + token,
-                            'Content-Type': 'application/json'
-                        }},
-                        body: JSON.stringify({{
-                            adset_ids: adsetIds,
-                            action: action
-                        }})
-                    }});
-                    
-                    const result = await response.json();
-                    
-                    if (result.success) {{
-                        showToast(`✅ Đã ${{actionNames[action]}} thành công cho ${{result.success_count || adsetIds.length}} adsets`, 'success');
-                        clearSelection();
-                        setTimeout(() => loadData(), 1000);
-                    }} else {{
-                        showToast('❌ Lỗi: ' + (result.detail || result.message || 'Unknown error'), 'error');
-                    }}
-                }} catch (error) {{
-                    showToast('❌ Lỗi: ' + error.message, 'error');
-                }}
-            }}
-            
             // Toast notification
             function showToast(message, type = 'info') {{
                 const toast = document.createElement('div');
@@ -3125,27 +2585,12 @@ async def dashboard_page(
             
             // Reset filters
             function resetFilters() {{
-                // Reset old select filters (backward compatibility)
-                const accountFilter = document.getElementById('accountFilter');
-                const prefixFilter = document.getElementById('prefixFilter');
-                if (accountFilter) accountFilter.value = '';
-                if (prefixFilter) prefixFilter.value = '';
-                
-                // Reset multi-select
-                selectedAccounts = [];
-                selectedPrefixes = [];
-                document.querySelectorAll('#accountMultiSelectOptions input[type="checkbox"]').forEach(cb => cb.checked = false);
-                document.querySelectorAll('#prefixMultiSelectOptions input[type="checkbox"]').forEach(cb => cb.checked = false);
-                updateMultiSelectDisplay('account', []);
-                updateMultiSelectDisplay('prefix', []);
-                
-                // Reset other filters
+                document.getElementById('accountFilter').value = '';
+                document.getElementById('prefixFilter').value = '';
                 document.getElementById('campaignTypeFilter').value = '';
                 document.getElementById('statusFilter').value = '';
                 document.getElementById('searchInput').value = '';
                 currentSearchTerm = '';
-                
-                // Reset date range
                 const today = new Date();
                 selectedDateRange.start = today;
                 selectedDateRange.end = today;
@@ -3153,9 +2598,6 @@ async def dashboard_page(
                 currentFilters.dateTo = today.toISOString().split('T')[0];
                 document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
                 document.querySelectorAll('.quick-filter-btn').forEach(btn => btn.classList.remove('active'));
-                
-                // Update filters and reload
-                updateCurrentFilters();
                 loadData();
                 loadPrefixSummary();
                 updateLastUpdateTime();
@@ -3171,56 +2613,21 @@ async def dashboard_page(
             }}
             
             async function refreshData() {{
-                const btn = document.getElementById('refreshBtn') || document.getElementById('refreshBtnFilter');
-                if (btn) {{
-                    btn.classList.add('loading');
-                    btn.disabled = true;
-                }}
+                const btn = document.getElementById('refreshBtn');
+                btn.classList.add('loading');
+                btn.disabled = true;
                 
-                try {{
-                    // Pull data từ Facebook trước
-                    const token = localStorage.getItem('access_token') || getCookie('access_token');
-                    const dateFrom = currentFilters.dateFrom || new Date().toISOString().split('T')[0];
-                    const dateTo = currentFilters.dateTo || new Date().toISOString().split('T')[0];
-                    
-                    try {{
-                        const pullResponse = await fetch('/dashboard/pull-data', {{
-                            method: 'POST',
-                            headers: {{
-                                'Authorization': 'Bearer ' + token,
-                                'Content-Type': 'application/json'
-                            }},
-                            body: JSON.stringify({{
-                                date_from: dateFrom,
-                                date_to: dateTo
-                            }})
-                        }});
-                        const pullData = await pullResponse.json();
-                        if (pullResponse.ok && pullData.success) {{
-                            console.log('✅ Đã pull dữ liệu:', pullData.count + ' adsets');
-                            showToast('✅ Đã cập nhật dữ liệu từ Facebook: ' + pullData.count + ' adsets', 'success');
-                        }}
-                    }} catch (pullError) {{
-                        console.error('❌ Lỗi khi pull dữ liệu:', pullError);
-                        showToast('⚠️ Lỗi khi pull dữ liệu từ Facebook. Đang tải dữ liệu từ database...', 'error');
-                    }}
-                    
-                    // Sau đó load data từ database
-                    await Promise.all([
-                        loadData(),
-                        loadPrefixSummary()
-                    ]);
-                    
-                    updateLastUpdateTime();
-                }} catch (error) {{
-                    console.error('Lỗi khi refresh:', error);
-                    showToast('❌ Lỗi khi làm mới dữ liệu', 'error');
-                }} finally {{
-                    if (btn) {{
-                        btn.classList.remove('loading');
-                        btn.disabled = false;
-                    }}
-                }}
+                await Promise.all([
+                    loadData(),
+                    loadPrefixSummary()
+                ]);
+                
+                updateLastUpdateTime();
+                
+                setTimeout(() => {{
+                    btn.classList.remove('loading');
+                    btn.disabled = false;
+                }}, 500);
             }}
             
             async function loadFilters() {{
@@ -3235,56 +2642,23 @@ async def dashboard_page(
                     
                     const filters = await response.json();
                     
-                    // Store all accounts and prefixes
-                    allAccounts = filters.accounts || [];
-                    allPrefixes = filters.prefixes || [];
-                    
-                    // Populate account multi-select
-                    const accountOptions = document.getElementById('accountMultiSelectOptions');
-                    accountOptions.innerHTML = '';
-                    allAccounts.forEach(account => {{
-                        const option = document.createElement('div');
-                        option.className = 'multi-select-option';
-                        option.innerHTML = `
-                            <input type="checkbox" id="account_${account}" value="${account}" onchange="handleMultiSelectChange('account', '${account}', this.checked)">
-                            <label for="account_${account}">${account}</label>
-                        `;
-                        accountOptions.appendChild(option);
-                    }});
-                    
-                    // Populate prefix multi-select
-                    const prefixOptions = document.getElementById('prefixMultiSelectOptions');
-                    prefixOptions.innerHTML = '';
-                    allPrefixes.forEach(prefix => {{
-                        const option = document.createElement('div');
-                        option.className = 'multi-select-option';
-                        option.innerHTML = `
-                            <input type="checkbox" id="prefix_${prefix}" value="${prefix}" onchange="handleMultiSelectChange('prefix', '${prefix}', this.checked)">
-                            <label for="prefix_${prefix}">${prefix}</label>
-                        `;
-                        prefixOptions.appendChild(option);
-                    }});
-                    
-                    // Also populate old select for backward compatibility (sidebar)
+                    // Populate account filter
                     const accountFilter = document.getElementById('accountFilter');
-                    if (accountFilter) {{
-                        allAccounts.forEach(account => {{
-                            const option = document.createElement('option');
-                            option.value = account;
-                            option.textContent = account;
-                            accountFilter.appendChild(option);
-                        }});
-                    }}
+                    filters.accounts.forEach(account => {{
+                        const option = document.createElement('option');
+                        option.value = account;
+                        option.textContent = account;
+                        accountFilter.appendChild(option);
+                    }});
                     
+                    // Populate prefix filter
                     const prefixFilter = document.getElementById('prefixFilter');
-                    if (prefixFilter) {{
-                        allPrefixes.forEach(prefix => {{
-                            const option = document.createElement('option');
-                            option.value = prefix;
-                            option.textContent = prefix;
-                            prefixFilter.appendChild(option);
-                        }});
-                    }}
+                    filters.prefixes.forEach(prefix => {{
+                        const option = document.createElement('option');
+                        option.value = prefix;
+                        option.textContent = prefix;
+                        prefixFilter.appendChild(option);
+                    }});
                 }} catch (error) {{
                     console.error('Error loading filters:', error);
                 }}
@@ -3432,52 +2806,29 @@ async def dashboard_page(
                 }}
             }}
             
-            // Set default date to today and auto-pull data
-            window.addEventListener('DOMContentLoaded', async () => {{
+            // Set default date to last 7 days
+            window.addEventListener('DOMContentLoaded', () => {{
                 const today = new Date();
+                const last7Days = new Date(today);
+                last7Days.setDate(last7Days.getDate() - 6);
                 
-                // Set default date range to today
-                selectedDateRange.start = today;
+                selectedDateRange.start = last7Days;
                 selectedDateRange.end = today;
-                currentFilters.dateFrom = today.toISOString().split('T')[0];
+                currentFilters.dateFrom = last7Days.toISOString().split('T')[0];
                 currentFilters.dateTo = today.toISOString().split('T')[0];
-                document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
+                document.getElementById('dateRangeText').textContent = formatDateVN(last7Days) + ' - ' + formatDateVN(today);
                 
-                // Load filters first
-                await loadFilters();
-                
-                // Auto-pull data from Facebook for today (like Facebook Ads Manager)
-                try {{
-                    const token = localStorage.getItem('access_token') || getCookie('access_token');
-                    const response = await fetch('/dashboard/pull-data', {{
-                        method: 'POST',
-                        headers: {{
-                            'Authorization': 'Bearer ' + token,
-                            'Content-Type': 'application/json'
-                        }},
-                        body: JSON.stringify({{
-                            date_from: currentFilters.dateFrom,
-                            date_to: currentFilters.dateTo
-                        }})
-                    }});
-                    const data = await response.json();
-                    if (response.ok && data.success) {{
-                        console.log('✅ Đã pull dữ liệu:', data.count + ' adsets');
-                    }}
-                }} catch (error) {{
-                    console.error('❌ Lỗi khi pull dữ liệu:', error.message);
-                }}
-                
-                // Then load data from database
+                loadFilters();
                 loadData();
                 loadPrefixSummary();
                 updateLastUpdateTime();
                 
                 // Add event listeners với debounce cho performance
-                const accountFilter = document.getElementById('accountFilter');
-                const prefixFilter = document.getElementById('prefixFilter');
-                if (accountFilter) accountFilter.addEventListener('change', debouncedLoadData);
-                if (prefixFilter) prefixFilter.addEventListener('change', debouncedLoadData);
+                const debouncedLoadData = debounce(loadData, 300);
+                document.getElementById('accountFilter').addEventListener('change', debouncedLoadData);
+                document.getElementById('prefixFilter').addEventListener('change', debouncedLoadData);
+                document.getElementById('campaignTypeFilter').addEventListener('change', debouncedLoadData);
+                document.getElementById('statusFilter').addEventListener('change', debouncedLoadData);
                 
                 // Auto refresh mỗi 5 phút
                 setInterval(() => {{
@@ -3519,21 +2870,18 @@ async def dashboard_page(
 @router.get("/data")
 async def get_dashboard_data(
     request: Request,
-    account_id: Optional[str] = Query(None),  # Backward compatibility
-    account_ids: Optional[List[str]] = Query(None),  # New: multi-select support
-    prefix: Optional[str] = Query(None),  # Backward compatibility
-    prefixes: Optional[List[str]] = Query(None),  # New: multi-select support
+    account_id: Optional[str] = Query(None),
+    prefix: Optional[str] = Query(None),
     campaign_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
-    search_term: Optional[str] = Query(None),  # New: search support
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Lấy dữ liệu dashboard với filters và pagination - Hỗ trợ multi-select và search"""
+    """Lấy dữ liệu dashboard với filters và pagination"""
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
@@ -3542,39 +2890,17 @@ async def get_dashboard_data(
     
     try:
         # Get user's accounts and prefixes
-        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
-        
-        # Normalize account_ids: support both single and multi-select
-        filter_account_ids = []
-        if account_ids:
-            # Multi-select: filter to only user's accounts
-            filter_account_ids = [acc for acc in account_ids if acc in user_account_ids]
-        elif account_id and account_id in user_account_ids:
-            # Single select (backward compatibility)
-            filter_account_ids = [account_id]
-        else:
-            # No filter: use all user's accounts
-            filter_account_ids = user_account_ids
-        
-        # Normalize prefixes: support both single and multi-select
-        filter_prefixes = []
-        if prefixes:
-            # Multi-select: filter to only user's prefixes
-            filter_prefixes = [pref for pref in prefixes if pref in user_prefixes]
-        elif prefix and prefix in user_prefixes:
-            # Single select (backward compatibility)
-            filter_prefixes = [prefix]
-        # If no prefix filter, don't filter by prefix (show all)
+        account_ids, _ = get_user_account_prefixes(current_user.id, db)
         
         # Build base query
-        base_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(filter_account_ids))
-        
-        # Apply prefix filter if specified
-        if filter_prefixes:
-            base_query = base_query.filter(AdMetrics.prefix.in_(filter_prefixes))
+        base_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
         
         # Apply filters for stats
         stats_query = base_query
+        if account_id and account_id in account_ids:
+            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
+        if prefix:
+            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
         if campaign_type:
             stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
         if status:
@@ -3582,14 +2908,14 @@ async def get_dashboard_data(
         if date_from:
             try:
                 date_from_dt = datetime.fromisoformat(date_from)
-                stats_query = stats_query.filter(func.date(AdMetrics.date) >= func.date(date_from_dt))
+                stats_query = stats_query.filter(AdMetrics.date >= date_from_dt)
             except:
                 pass
         if date_to:
             try:
                 date_to_dt = datetime.fromisoformat(date_to)
                 date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
-                stats_query = stats_query.filter(func.date(AdMetrics.date) <= func.date(date_to_dt))
+                stats_query = stats_query.filter(AdMetrics.date <= date_to_dt)
             except:
                 pass
         
@@ -3615,7 +2941,7 @@ async def get_dashboard_data(
             "total_adsets": int(total_adsets_count)
         }
         
-        if not filter_account_ids:
+        if not account_ids:
             return {
                 "stats": stats_result,
                 "ads": [],
@@ -3627,7 +2953,11 @@ async def get_dashboard_data(
         # Build query for ads
         query = base_query
         
-        # Apply filters for ads (account_ids and prefixes already filtered in base_query)
+        # Apply filters for ads
+        if account_id and account_id in account_ids:
+            query = query.filter(AdMetrics.account_id == account_id)
+        if prefix:
+            query = query.filter(AdMetrics.prefix == prefix)
         if campaign_type:
             query = query.filter(AdMetrics.campaign_type == campaign_type)
         if status:
@@ -3635,28 +2965,16 @@ async def get_dashboard_data(
         if date_from:
             try:
                 date_from_dt = datetime.fromisoformat(date_from)
-                query = query.filter(func.date(AdMetrics.date) >= func.date(date_from_dt))
+                query = query.filter(AdMetrics.date >= date_from_dt)
             except:
                 pass
         if date_to:
             try:
                 date_to_dt = datetime.fromisoformat(date_to)
                 date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
-                query = query.filter(func.date(AdMetrics.date) <= func.date(date_to_dt))
+                query = query.filter(AdMetrics.date <= date_to_dt)
             except:
                 pass
-        
-        # Apply search filter (search in adset_name, campaign_name, adset_id, account_id)
-        if search_term:
-            search_term_lower = search_term.lower()
-            query = query.filter(
-                or_(
-                    func.lower(AdMetrics.adset_name).contains(search_term_lower),
-                    func.lower(AdMetrics.campaign_name).contains(search_term_lower),
-                    func.lower(AdMetrics.adset_id).contains(search_term_lower),
-                    func.lower(AdMetrics.account_id).contains(search_term_lower)
-                )
-            )
         
         # Group by adset_id to aggregate metrics
         # Get distinct adsets
@@ -3820,14 +3138,14 @@ async def get_prefix_summary(
         if date_from:
             try:
                 date_from_dt = datetime.fromisoformat(date_from)
-                base_query = base_query.filter(func.date(AdMetrics.date) >= func.date(date_from_dt))
+                base_query = base_query.filter(AdMetrics.date >= date_from_dt)
             except:
                 pass
         if date_to:
             try:
                 date_to_dt = datetime.fromisoformat(date_to)
                 date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
-                base_query = base_query.filter(func.date(AdMetrics.date) <= func.date(date_to_dt))
+                base_query = base_query.filter(AdMetrics.date <= date_to_dt)
             except:
                 pass
         
@@ -4091,209 +3409,3 @@ async def decrease_adset_budget(
     except Exception as e:
         logger.error(f"Error decreasing adset budget: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi giảm ngân sách: {str(e)}")
-
-
-@router.post("/adsets/batch-action")
-async def batch_action_adsets(
-    request: Request,
-    adset_ids: List[str] = Body(...),
-    action: str = Body(...),  # 'activate', 'pause', 'increase_budget', 'decrease_budget'
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Batch action cho nhiều adsets: bật/tắt, tăng/giảm ngân sách"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
-    
-    if not current_user.is_active:
-        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
-    
-    if not adset_ids or len(adset_ids) == 0:
-        raise HTTPException(status_code=400, detail="Danh sách adset_ids không được rỗng")
-    
-    if action not in ['activate', 'pause', 'increase_budget', 'decrease_budget']:
-        raise HTTPException(status_code=400, detail="Action không hợp lệ")
-    
-    try:
-        from app.models.user_settings import UserSettings
-        from app.core.security import decrypt_token
-        
-        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
-        if not user_settings or not user_settings.facebook_token_encrypted:
-            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token")
-        
-        token = decrypt_token(user_settings.facebook_token_encrypted)
-        
-        from app.services.facebook_api import pause_adsets, resume_adsets, update_adset_budget
-        
-        success_count = 0
-        error_count = 0
-        errors = []
-        
-        if action == 'pause':
-            result = pause_adsets(adset_ids, token)
-            success_count = result.get("success", 0)
-            error_count = len(adset_ids) - success_count
-            if result.get("errorDetails"):
-                errors = [err.get("error", "Unknown error") for err in result.get("errorDetails", [])]
-        
-        elif action == 'activate':
-            result = resume_adsets(adset_ids, token)
-            success_count = result.get("success", 0)
-            error_count = len(adset_ids) - success_count
-            if result.get("errorDetails"):
-                errors = [err.get("error", "Unknown error") for err in result.get("errorDetails", [])]
-        
-        elif action == 'increase_budget':
-            # Tăng ngân sách 20% cho mỗi adset
-            for adset_id in adset_ids:
-                try:
-                    result = update_adset_budget(adset_id, token, action_type="increase", percent=20.0)
-                    if result.get("success"):
-                        success_count += 1
-                    else:
-                        error_count += 1
-                        errors.append(f"Adset {adset_id}: {result.get('error', 'Unknown error')}")
-                except Exception as e:
-                    error_count += 1
-                    errors.append(f"Adset {adset_id}: {str(e)}")
-        
-        elif action == 'decrease_budget':
-            # Giảm ngân sách 20% cho mỗi adset
-            for adset_id in adset_ids:
-                try:
-                    result = update_adset_budget(adset_id, token, action_type="decrease", percent=20.0)
-                    if result.get("success"):
-                        success_count += 1
-                    else:
-                        error_count += 1
-                        errors.append(f"Adset {adset_id}: {result.get('error', 'Unknown error')}")
-                except Exception as e:
-                    error_count += 1
-                    errors.append(f"Adset {adset_id}: {str(e)}")
-        
-        return {
-            "success": success_count > 0,
-            "success_count": success_count,
-            "error_count": error_count,
-            "total": len(adset_ids),
-            "action": action,
-            "errors": errors[:10]  # Limit to first 10 errors
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in batch action: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Lỗi khi thực hiện batch action: {str(e)}")
-
-
-@router.post("/pull-data")
-async def pull_data_endpoint(
-    request: Request,
-    date_from: Optional[str] = Body(None),
-    date_to: Optional[str] = Body(None),
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Pull data từ Facebook API cho date range cụ thể"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
-    
-    if not current_user.is_active:
-        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
-    
-    try:
-        from app.models.user_settings import UserSettings
-        from app.core.security import decrypt_token
-        
-        # Lấy token từ user settings
-        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
-        if not user_settings or not user_settings.facebook_token_encrypted:
-            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token trong Settings")
-        
-        token = decrypt_token(user_settings.facebook_token_encrypted)
-        
-        # Lấy danh sách accounts enabled của user
-        account_ids, _ = get_user_account_prefixes(current_user.id, db, enabled_only=True)
-        if not account_ids:
-            raise HTTPException(status_code=400, detail="Không có account nào được bật trong Settings")
-        
-        # Xử lý date range
-        if not date_from or not date_to:
-            # Default: hôm nay
-            today = datetime.now(HCM_TZ).date()
-            date_from = today.isoformat()
-            date_to = today.isoformat()
-        
-        # Convert date strings to date objects
-        try:
-            from datetime import date as date_type
-            date_from_dt = datetime.strptime(date_from, '%Y-%m-%d').date()
-            date_to_dt = datetime.strptime(date_to, '%Y-%m-%d').date()
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Format ngày không hợp lệ. Dùng YYYY-MM-DD")
-        
-        # Import và gọi hàm pull data
-        from app.services.facebook_api import pull_facebook_data_with_time_range
-        
-        logger.info(f"🔄 Đang pull data từ {date_from} đến {date_to} cho {len(account_ids)} accounts...")
-        
-        # Pull data với time_range
-        ad_metrics_list = pull_facebook_data_with_time_range(
-            access_token=token,
-            ad_account_ids=account_ids,
-            date_from=date_from_dt,
-            date_to=date_to_dt
-        )
-        
-        # Lưu vào database
-        from app.core.database import AdMetrics
-        saved_count = 0
-        
-        for metric in ad_metrics_list:
-            try:
-                # Kiểm tra xem đã tồn tại chưa (adset_id + date)
-                metric_date = metric.get('date')
-                if isinstance(metric_date, datetime):
-                    metric_date = metric_date.date()
-                elif hasattr(metric_date, 'date'):
-                    metric_date = metric_date.date()
-                
-                existing = db.query(AdMetrics).filter(
-                    AdMetrics.adset_id == metric.get('adset_id'),
-                    func.date(AdMetrics.date) == metric_date
-                ).first()
-                
-                if existing:
-                    # Update existing
-                    for key, value in metric.items():
-                        if hasattr(existing, key):
-                            setattr(existing, key, value)
-                else:
-                    # Create new
-                    new_metric = AdMetrics(**metric)
-                    db.add(new_metric)
-                
-                saved_count += 1
-            except Exception as e:
-                logger.error(f"Lỗi khi lưu metric: {e}")
-                continue
-        
-        db.commit()
-        
-        logger.info(f"✅ Đã pull và lưu {saved_count} adsets vào database")
-        
-        return {
-            "success": True,
-            "count": saved_count,
-            "date_from": date_from,
-            "date_to": date_to,
-            "accounts": len(account_ids)
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error pulling data: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Lỗi khi pull dữ liệu: {str(e)}")

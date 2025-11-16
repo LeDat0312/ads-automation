@@ -1,0 +1,50 @@
+# Code để pull Dashboard lên VPS (Đã sửa - Tự động phát hiện service)
+
+## Bước 1: Kiểm tra tên services trong supervisor
+
+sudo supervisorctl status
+
+# Ghi lại tên services (ví dụ: ads-api, ads-worker, fastapi, etc.)
+
+## Bước 2: Pull code và restart (Tự động phát hiện service)
+
+cd /home/adsuser/ads-automation && git stash && git pull origin main && python3 -m py_compile app/api/routes/dashboard.py app/core/ui_helpers.py app/api/routes/home.py && sudo supervisorctl restart all && sudo supervisorctl status
+
+## Hoặc từng bước:
+
+# 1. Di chuyển vào thư mục
+cd /home/adsuser/ads-automation
+
+# 2. Stash và pull
+git stash
+git pull origin main
+
+# 3. Kiểm tra syntax
+python3 -m py_compile app/api/routes/dashboard.py app/core/ui_helpers.py app/api/routes/home.py
+
+# 4. Restart TẤT CẢ services (an toàn nhất)
+sudo supervisorctl restart all
+
+# Hoặc restart từng service cụ thể (thay tên service đúng):
+# sudo supervisorctl restart ads-api
+# sudo supervisorctl restart ads-worker
+# hoặc
+# sudo supervisorctl restart fastapi
+# sudo supervisorctl restart worker
+
+# 5. Kiểm tra status
+sudo supervisorctl status
+
+## Nếu không biết tên service, dùng lệnh này để restart tất cả:
+
+sudo supervisorctl restart all
+
+## Kiểm tra logs nếu có lỗi:
+
+# Xem logs của tất cả services
+sudo supervisorctl tail -f all
+
+# Hoặc xem log của service cụ thể (thay tên service)
+# sudo supervisorctl tail -f ads-api
+
+

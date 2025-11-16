@@ -1,0 +1,28 @@
+cd ~/ads-automation
+git stash
+git pull origin main
+python3 -m py_compile app/api/routes/dashboard.py app/main.py
+sudo supervisorctl restart all
+sudo supervisorctl status
+
+# Dashboard hoàn chỉnh - Layout 2 cột giống Meta Ads Manager:
+# ✅ Layout 2 cột: Sidebar filter (320px) + Main content
+# ✅ CSS inline được format đúng - không còn lỗi CSS không load
+# ✅ KPI Cards đẹp với icon, value, subtext
+# ✅ Charts section với placeholder cho line/bar charts
+# ✅ Table với sorting (click header để sort)
+# ✅ Responsive mobile: sidebar collapse, cards 2 cột
+# ✅ Mobile filter toggle button
+# ✅ Apply/Reset filter buttons
+# ✅ Search box với debounce
+# ✅ Quick date filters
+# ✅ Export Excel/CSV
+# ✅ Loading states với skeleton
+# ✅ Empty states với gợi ý
+# ✅ Error handling tốt
+# ✅ Auto-refresh mỗi 5 phút
+# ✅ Animate số đếm trong stats
+# ✅ Background gradient đẹp giống Settings/Home
+# ✅ Glassmorphism effects
+# ✅ Smooth animations
+

@@ -1,0 +1,10 @@
+cd ~/ads-automation
+git stash
+git pull origin main
+python3 -m py_compile app/api/routes/dashboard.py app/main.py
+sudo supervisorctl restart all
+sudo supervisorctl status
+
+# Đã pull code mới nhất từ GitHub
+# Dashboard đã được cập nhật
+

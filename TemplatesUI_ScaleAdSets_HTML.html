@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scale Ad Sets - Customize</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .header-right {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-primary {
+            background: #ffc107;
+            color: #000;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        /* Ad Account Section */
+        .account-section {
+            margin-bottom: 30px;
+        }
+        
+        .account-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .account-chip {
+            background: #f0f0f0;
+            padding: 8px 12px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .account-chip .remove {
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .add-account-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f0f0f0;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 300px;
+            z-index: 1000;
+            margin-top: 5px;
+        }
+        
+        .dropdown-search {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .dropdown-search input {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #ffc107;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .dropdown-options {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .dropdown-option {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .dropdown-option:hover {
+            background: #f5f5f5;
+        }
+        
+        /* Filter Section */
+        .filter-section {
+            margin-bottom: 30px;
+        }
+        
+        .filter-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .filter-chip {
+            background: #f0f0f0;
+            padding: 8px 12px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .add-filter-btn {
+            color: #0d6efd;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        /* Task Section */
+        .task-section {
+            margin-bottom: 30px;
+        }
+        
+        .task-card {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .task-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+        
+        .and-bar {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        
+        .and-bar-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .and-vertical {
+            width: 3px;
+            background: #0d6efd;
+            flex: 1;
+            min-height: 100px;
+            position: relative;
+        }
+        
+        .and-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            color: white;
+            font-weight: 600;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        
+        .and-add-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #0d6efd;
+            border: none;
+            color: white;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .conditions-list {
+            flex: 1;
+        }
+        
+        .condition-row {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto auto;
+            gap: 10px;
+            align-items: center;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        
+        .condition-metric {
+            min-width: 150px;
+        }
+        
+        .condition-timeframe {
+            min-width: 120px;
+        }
+        
+        .condition-operator {
+            min-width: 50px;
+        }
+        
+        .condition-value {
+            min-width: 100px;
+        }
+        
+        .condition-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .icon-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            color: #666;
+        }
+        
+        .select-input {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .text-input {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 100%;
+        }
+        
+        .task-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .task-tabs {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .tab {
+            padding: 10px 15px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #666;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .tab.active {
+            color: #0d6efd;
+            border-bottom-color: #0d6efd;
+        }
+        
+        .tab-content {
+            margin-top: 15px;
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        /* Schedule Section */
+        .schedule-section {
+            margin-bottom: 30px;
+        }
+        
+        .radio-group {
+            margin-top: 15px;
+        }
+        
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .radio-input {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .schedule-grid {
+            margin-top: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .schedule-header {
+            display: grid;
+            grid-template-columns: 80px repeat(7, 1fr);
+            background: #f5f5f5;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        
+        .schedule-cell {
+            padding: 8px;
+            text-align: center;
+            border-right: 1px solid #ddd;
+        }
+        
+        .schedule-row {
+            display: grid;
+            grid-template-columns: 80px repeat(7, 1fr);
+            border-top: 1px solid #ddd;
+        }
+        
+        .schedule-time {
+            padding: 8px;
+            text-align: right;
+            font-size: 12px;
+            border-right: 1px solid #ddd;
+        }
+        
+        .schedule-day-cell {
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            border-right: 1px solid #ddd;
+        }
+        
+        .schedule-day-cell:hover {
+            background: #f0f0f0;
+        }
+        
+        .schedule-day-cell.selected {
+            background: #ffc107;
+        }
+        
+        /* Notification Section */
+        .notification-section {
+            margin-bottom: 30px;
+        }
+        
+        .notification-list {
+            margin-top: 15px;
+        }
+        
+        .notification-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        
+        /* Time Zone Section */
+        .timezone-section {
+            margin-bottom: 30px;
+        }
+        
+        .timezone-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .estimated-match {
+            margin-top: 15px;
+            padding: 12px;
+            background: #fff3cd;
+            border-radius: 6px;
+            color: #856404;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .modal-tab {
+            padding: 10px 15px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .modal-tab.active {
+            border-bottom-color: #0d6efd;
+            color: #0d6efd;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #ffc107;
+        }
+        
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <button class="back-btn" onclick="goBack()">←</button>
+            <h1>Increase ad sets budget</h1>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-secondary" onclick="saveDraft()">Save draft</button>
+            <button class="btn btn-primary" onclick="setLive()">Set live</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Description -->
+        <div class="card">
+            <p class="description">
+                Increase budget by 20% if CPL today is 20% lower than the 3-day average and the 3-day average is improving vs the 7-day trend. 
+                Ensures scaling only on strong, consistent performance with enough spend.
+            </p>
+        </div>
+
+        <!-- Ad Account Section -->
+        <div class="card account-section">
+            <div class="card-title">Ad account</div>
+            <p style="color: #666; margin-bottom: 10px;">Select up to 5 ad accounts you want to manage.</p>
+            <div class="account-chips" id="accountChips">
+                <!-- Account chips will be added here -->
+            </div>
+            <div class="dropdown" id="accountDropdown">
+                <button class="add-account-btn" onclick="toggleAccountDropdown()">+</button>
+                <div class="dropdown-menu" id="accountDropdownMenu" style="display: none;">
+                    <div class="dropdown-search">
+                        <input type="text" placeholder="Search ad account" id="accountSearch" onkeyup="searchAccounts()">
+                    </div>
+                    <div class="dropdown-options" id="accountOptions">
+                        <!-- Account options will be loaded here -->
+                    </div>
+                    <div style="padding: 10px; border-top: 1px solid #eee;">
+                        <a href="#" style="color: #0d6efd; text-decoration: none;">Connect ad account</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Section -->
+        <div class="card filter-section">
+            <div class="card-title">Filter</div>
+            <p style="color: #666; margin-bottom: 10px;">
+                Apply rule to campaigns, ad sets, or ads. <a href="#" style="color: #0d6efd;">Learn more</a>
+            </p>
+            <div class="filter-chips" id="filterChips">
+                <div class="filter-chip">
+                    <span>📦</span>
+                    <span>Ad sets</span>
+                </div>
+                <div class="filter-chip">
+                    <span>Ad set status is active</span>
+                    <span class="remove" onclick="removeFilter(this)">×</span>
+                </div>
+            </div>
+            <button class="add-account-btn" onclick="addFilter()" style="margin-top: 10px;">+</button>
+            <button class="add-filter-btn" onclick="addFilterGroup()">+ Add filter group</button>
+            <div class="estimated-match" id="estimatedMatch">
+                Estimated match: 0 ad sets
+            </div>
+        </div>
+
+        <!-- Task Section -->
+        <div class="card task-section">
+            <div class="card-title">Task</div>
+            <div class="task-card">
+                <div class="task-header">
+                    <div class="task-title">
+                        <span>📈</span>
+                        <span>Increase budget</span>
+                    </div>
+                    <button class="icon-btn" onclick="copyTask()">📋</button>
+                </div>
+                <p style="color: #666; margin-bottom: 15px;">For all by 20% once a day</p>
+                
+                <div class="and-bar">
+                    <div class="and-bar-left">
+                        <div class="and-vertical">
+                            <div class="and-label">AND</div>
+                        </div>
+                        <button class="and-add-btn" onclick="addConditionGroup()">+</button>
+                    </div>
+                    <div class="conditions-list" id="conditionsList">
+                        <!-- Conditions will be added here -->
+                    </div>
+                </div>
+                
+                <div class="task-actions">
+                    <button class="btn btn-secondary" onclick="addCondition()">+ Condition</button>
+                    <button class="btn btn-secondary" onclick="addGroup()">+ Group</button>
+                </div>
+                
+                <div class="task-tabs">
+                    <button class="tab active" onclick="switchTab('preview')">Preview</button>
+                    <button class="tab" onclick="switchTab('description')">Description</button>
+                </div>
+                
+                <div class="tab-content" id="tabContent">
+                    <div id="previewTab" style="display: block;">
+                        <!-- Preview content -->
+                    </div>
+                    <div id="descriptionTab" style="display: none;">
+                        <p>Increase budget by 20% if CPL today is 20% lower than the 3-day average and the 3-day average is improving vs the 7-day trend. Ensures scaling only on strong, consistent performance with enough spend.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="addTask()">+ Add task</button>
+                <button class="btn btn-secondary" onclick="browseTemplates()">Browse templates</button>
+            </div>
+        </div>
+
+        <!-- Schedule Section -->
+        <div class="card schedule-section">
+            <div class="card-title">Schedule</div>
+            <p style="color: #666; margin-bottom: 15px;">
+                How frequently to run the rule. <a href="#" style="color: #0d6efd;">Learn more</a>
+            </p>
+            <div class="radio-group">
+                <div class="radio-option">
+                    <input type="radio" name="schedule" id="scheduleInterval" value="interval" checked onchange="toggleScheduleType()">
+                    <label for="scheduleInterval">Run every</label>
+                    <select class="select-input" id="scheduleIntervalSelect" onchange="updateScheduleInterval()">
+                        <option value="15">15 minutes</option>
+                        <option value="30">30 minutes</option>
+                        <option value="60" selected>60 minutes</option>
+                        <option value="180">3 hours</option>
+                        <option value="360">6 hours</option>
+                        <option value="720">12 hours</option>
+                    </select>
+                </div>
+                <div class="radio-option">
+                    <input type="radio" name="schedule" id="scheduleCustom" value="custom" onchange="toggleScheduleType()">
+                    <label for="scheduleCustom">Run on specific days and times</label>
+                </div>
+            </div>
+            <div id="scheduleGrid" style="display: none; margin-top: 15px;">
+                <!-- Schedule grid will be generated here -->
+            </div>
+            <div style="margin-top: 15px;">
+                <button class="btn btn-secondary" onclick="showMoreScheduleOptions()">Show more options</button>
+            </div>
+        </div>
+
+        <!-- Notification Section -->
+        <div class="card notification-section">
+            <div class="card-title">Notifications</div>
+            <p style="color: #666; margin-bottom: 15px;">
+                Get alerts about triggered actions to email or in Slack. <a href="#" style="color: #0d6efd;">Learn more</a>
+            </p>
+            <button class="add-account-btn" onclick="addNotification()">+</button>
+            <div class="notification-list" id="notificationList">
+                <!-- Notifications will be added here -->
+            </div>
+            <div style="margin-top: 15px;">
+                <label>
+                    <input type="checkbox" id="notifyErrorsOnly">
+                    Notify about errors only
+                </label>
+            </div>
+            <div style="margin-top: 15px;">
+                <button class="btn btn-secondary" onclick="showMoreNotificationOptions()">Show more options</button>
+            </div>
+        </div>
+
+        <!-- Time Zone Section -->
+        <div class="card timezone-section">
+            <div class="card-title">Time Zone</div>
+            <p style="color: #666; margin-bottom: 15px;">
+                Used for custom schedule and notifications. <a href="#" style="color: #0d6efd;">Learn more</a>
+            </p>
+            <select class="timezone-select" id="timezoneSelect">
+                <option value="GMT+07:00">Ad account (GMT (+07:00) Ho Chi Minh)</option>
+                <option value="GMT-12:00">GMT (-12:00) International Date Line West</option>
+                <option value="GMT-11:00">GMT (-11:00) American Samoa</option>
+                <option value="GMT-10:00">GMT (-10:00) Hawaii</option>
+                <!-- More timezones... -->
+            </select>
+        </div>
+    </div>
+
+    <!-- Create Folder Modal -->
+    <div class="modal" id="createFolderModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create 2 rules</h2>
+                <button class="icon-btn" onclick="closeModal('createFolderModal')">×</button>
+            </div>
+            <div class="modal-tabs">
+                <button class="modal-tab active" onclick="switchFolderTab('new')">In new folder</button>
+                <button class="modal-tab" onclick="switchFolderTab('existing')">In existing folder</button>
+            </div>
+            <div id="newFolderTab">
+                <div class="form-group">
+                    <label class="form-label">Folder name</label>
+                    <input type="text" class="form-input" id="folderName" value="Scale Ad Sets" style="background: #fff3cd;">
+                </div>
+            </div>
+            <div id="existingFolderTab" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">Select folder</label>
+                    <select class="form-input" id="existingFolderSelect">
+                        <option value="">Select a folder...</option>
+                        <!-- Existing folders will be loaded here -->
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('createFolderModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createRules()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metric Selection Modal -->
+    <div class="modal" id="metricModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Select Metric</h2>
+                <button class="icon-btn" onclick="closeModal('metricModal')">×</button>
+            </div>
+            <div class="modal-tabs">
+                <button class="modal-tab active" onclick="switchMetricTab('meta')">Meta Ads</button>
+                <button class="modal-tab" onclick="switchMetricTab('custom')">Custom metrics</button>
+                <button class="modal-tab" onclick="switchMetricTab('integrations')">Integrations</button>
+            </div>
+            <div class="dropdown-search">
+                <input type="text" placeholder="Search" id="metricSearch" onkeyup="searchMetrics()">
+            </div>
+            <div style="margin: 15px 0;">
+                <label>Metric level:</label>
+                <select class="select-input" id="metricLevel">
+                    <option value="adset">Ad set</option>
+                    <option value="campaign">Campaign</option>
+                    <option value="ad">Ad</option>
+                </select>
+            </div>
+            <div class="dropdown-options" id="metricOptions" style="max-height: 400px;">
+                <!-- Metric options will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let selectedAccounts = [];
+        let conditions = [];
+        let currentConditionIndex = -1;
+        let scheduleType = 'interval';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAccounts();
+            loadInitialConditions();
+            generateScheduleGrid();
+        });
+
+        // Navigation
+        function goBack() {
+            window.history.back();
+        }
+
+        function saveDraft() {
+            const ruleData = collectRuleData();
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    alert('Draft saved successfully!');
+                })
+                .withFailureHandler(function(error) {
+                    alert('Error saving draft: ' + error);
+                })
+                .saveRuleDraft(ruleData);
+        }
+
+        function setLive() {
+            const ruleData = collectRuleData();
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    alert('Rule set live successfully!');
+                })
+                .withFailureHandler(function(error) {
+                    alert('Error setting live: ' + error);
+                })
+                .setRuleLive(ruleData);
+        }
+
+        // Account Management
+        function loadAccounts() {
+            google.script.run
+                .withSuccessHandler(function(accounts) {
+                    renderAccountChips();
+                    renderAccountOptions(accounts);
+                })
+                .withFailureHandler(function(error) {
+                    console.error('Error loading accounts:', error);
+                })
+                .getConnectedAccounts();
+        }
+
+        function renderAccountChips() {
+            const container = document.getElementById('accountChips');
+            container.innerHTML = '';
+            selectedAccounts.forEach(function(account, index) {
+                const chip = document.createElement('div');
+                chip.className = 'account-chip';
+                chip.innerHTML = `
+                    <span>${account.name}</span>
+                    <span class="remove" onclick="removeAccount(${index})">×</span>
+                `;
+                container.appendChild(chip);
+            });
+        }
+
+        function renderAccountOptions(accounts) {
+            const container = document.getElementById('accountOptions');
+            container.innerHTML = '';
+            accounts.forEach(function(account) {
+                if (selectedAccounts.findIndex(a => a.id === account.id) === -1) {
+                    const option = document.createElement('div');
+                    option.className = 'dropdown-option';
+                    option.textContent = account.name;
+                    option.onclick = function() {
+                        addAccount(account);
+                    };
+                    container.appendChild(option);
+                }
+            });
+        }
+
+        function toggleAccountDropdown() {
+            const menu = document.getElementById('accountDropdownMenu');
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function addAccount(account) {
+            if (selectedAccounts.length >= 5) {
+                alert('Maximum 5 accounts allowed');
+                return;
+            }
+            selectedAccounts.push(account);
+            renderAccountChips();
+            renderAccountOptions([]); // Reload to update list
+            toggleAccountDropdown();
+        }
+
+        function removeAccount(index) {
+            selectedAccounts.splice(index, 1);
+            renderAccountChips();
+            loadAccounts(); // Reload to show removed account in options
+        }
+
+        function searchAccounts() {
+            const query = document.getElementById('accountSearch').value.toLowerCase();
+            const options = document.querySelectorAll('#accountOptions .dropdown-option');
+            options.forEach(function(option) {
+                const text = option.textContent.toLowerCase();
+                option.style.display = text.includes(query) ? 'block' : 'none';
+            });
+        }
+
+        // Filter Management
+        function addFilter() {
+            // TODO: Open filter selection modal
+            alert('Add filter functionality');
+        }
+
+        function addFilterGroup() {
+            // TODO: Add filter group
+            alert('Add filter group functionality');
+        }
+
+        function removeFilter(element) {
+            element.parentElement.remove();
+            updateEstimatedMatch();
+        }
+
+        function updateEstimatedMatch() {
+            // TODO: Calculate estimated match
+            document.getElementById('estimatedMatch').textContent = 'Estimated match: 0 ad sets';
+        }
+
+        // Condition Management
+        function loadInitialConditions() {
+            conditions = [
+                {
+                    metric: 'Spend',
+                    timeframe: 'Today',
+                    operator: '>',
+                    value: '300',
+                    comparison: null
+                },
+                {
+                    metric: 'Cost per lead',
+                    timeframe: 'Today',
+                    operator: '<',
+                    value: '0.8',
+                    comparison: 'x Cost per lead Last 3 days'
+                },
+                {
+                    metric: 'Cost per lead',
+                    timeframe: 'Last 3 days',
+                    operator: '<',
+                    value: '0.9',
+                    comparison: 'x Cost per lead Last 7 days'
+                },
+                {
+                    metric: 'Leads',
+                    timeframe: 'Today',
+                    operator: '≥',
+                    value: '10',
+                    comparison: null
+                }
+            ];
+            renderConditions();
+        }
+
+        function renderConditions() {
+            const container = document.getElementById('conditionsList');
+            container.innerHTML = '';
+            conditions.forEach(function(condition, index) {
+                const row = document.createElement('div');
+                row.className = 'condition-row';
+                row.innerHTML = `
+                    <span>⋮⋮</span>
+                    <select class="select-input condition-metric" onchange="updateCondition(${index}, 'metric', this.value)">
+                        <option value="Spend" ${condition.metric === 'Spend' ? 'selected' : ''}>Spend</option>
+                        <option value="Cost per lead" ${condition.metric === 'Cost per lead' ? 'selected' : ''}>Cost per lead</option>
+                        <option value="Leads" ${condition.metric === 'Leads' ? 'selected' : ''}>Leads</option>
+                        <option value="ROAS" ${condition.metric === 'ROAS' ? 'selected' : ''}>ROAS</option>
+                        <option value="Custom...">Custom...</option>
+                    </select>
+                    <select class="select-input condition-timeframe" onchange="updateCondition(${index}, 'timeframe', this.value)">
+                        <option value="Today" ${condition.timeframe === 'Today' ? 'selected' : ''}>Today</option>
+                        <option value="Last 3 days" ${condition.timeframe === 'Last 3 days' ? 'selected' : ''}>Last 3 days</option>
+                        <option value="Last 7 days" ${condition.timeframe === 'Last 7 days' ? 'selected' : ''}>Last 7 days</option>
+                    </select>
+                    <select class="select-input condition-operator" onchange="updateCondition(${index}, 'operator', this.value)">
+                        <option value=">" ${condition.operator === '>' ? 'selected' : ''}>></option>
+                        <option value="<" ${condition.operator === '<' ? 'selected' : ''}><</option>
+                        <option value=">=" ${condition.operator === '>=' ? 'selected' : ''}>≥</option>
+                        <option value="<=" ${condition.operator === '<=' ? 'selected' : ''}>≤</option>
+                        <option value="==" ${condition.operator === '==' ? 'selected' : ''}>=</option>
+                    </select>
+                    <input type="text" class="text-input condition-value" value="${condition.value}" onchange="updateCondition(${index}, 'value', this.value)" 
+                           ${condition.comparison ? 'style="width: 80px;"' : ''}>
+                    ${condition.comparison ? `<span style="margin-left: 5px;">${condition.comparison}</span>` : ''}
+                    <div class="condition-actions">
+                        <button class="icon-btn" onclick="editCondition(${index})">⚙</button>
+                        <button class="icon-btn" onclick="duplicateCondition(${index})">📋</button>
+                        <button class="icon-btn" onclick="deleteCondition(${index})">🗑</button>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function addCondition() {
+            conditions.push({
+                metric: 'Spend',
+                timeframe: 'Today',
+                operator: '>',
+                value: '',
+                comparison: null
+            });
+            renderConditions();
+        }
+
+        function addGroup() {
+            // TODO: Add condition group (OR logic)
+            alert('Add group functionality');
+        }
+
+        function addConditionGroup() {
+            // TODO: Add AND group
+            alert('Add condition group functionality');
+        }
+
+        function updateCondition(index, field, value) {
+            conditions[index][field] = value;
+            renderConditions();
+        }
+
+        function editCondition(index) {
+            currentConditionIndex = index;
+            openMetricModal();
+        }
+
+        function duplicateCondition(index) {
+            const condition = Object.assign({}, conditions[index]);
+            conditions.splice(index + 1, 0, condition);
+            renderConditions();
+        }
+
+        function deleteCondition(index) {
+            conditions.splice(index, 1);
+            renderConditions();
+        }
+
+        // Metric Selection
+        function openMetricModal() {
+            document.getElementById('metricModal').classList.add('active');
+            loadMetrics();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function switchMetricTab(tab) {
+            document.querySelectorAll('#metricModal .modal-tab').forEach(function(t) {
+                t.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            loadMetrics(tab);
+        }
+
+        function loadMetrics(type) {
+            // TODO: Load metrics from server
+            const container = document.getElementById('metricOptions');
+            container.innerHTML = '<div class="dropdown-option">Loading metrics...</div>';
+        }
+
+        function searchMetrics() {
+            // TODO: Search metrics
+        }
+
+        // Schedule
+        function toggleScheduleType() {
+            scheduleType = document.querySelector('input[name="schedule"]:checked').value;
+            const grid = document.getElementById('scheduleGrid');
+            if (scheduleType === 'custom') {
+                grid.style.display = 'block';
+            } else {
+                grid.style.display = 'none';
+            }
+        }
+
+        function generateScheduleGrid() {
+            const container = document.getElementById('scheduleGrid');
+            const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+            const hours = [];
+            for (let i = 0; i < 24; i++) {
+                hours.push(i === 0 ? '12 am' : i < 12 ? i + ' am' : i === 12 ? '12 pm' : (i - 12) + ' pm');
+            }
+            
+            let html = '<div class="schedule-header">';
+            html += '<div class="schedule-cell">Week</div>';
+            days.forEach(function(day) {
+                html += `<div class="schedule-cell">${day}</div>`;
+            });
+            html += '</div>';
+            
+            hours.forEach(function(hour, hourIndex) {
+                html += '<div class="schedule-row">';
+                html += `<div class="schedule-time">${hour}</div>`;
+                days.forEach(function(day, dayIndex) {
+                    html += `<div class="schedule-day-cell" onclick="toggleScheduleCell(${dayIndex}, ${hourIndex})"></div>`;
+                });
+                html += '</div>';
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function toggleScheduleCell(day, hour) {
+            const cells = document.querySelectorAll('.schedule-row');
+            const cell = cells[hour + 1].children[day + 1];
+            cell.classList.toggle('selected');
+        }
+
+        function updateScheduleInterval() {
+            const interval = document.getElementById('scheduleIntervalSelect').value;
+            console.log('Schedule interval:', interval);
+        }
+
+        function showMoreScheduleOptions() {
+            // TODO: Show more schedule options
+            alert('Show more schedule options');
+        }
+
+        // Notifications
+        function addNotification() {
+            // TODO: Open notification modal
+            alert('Add notification functionality');
+        }
+
+        function showMoreNotificationOptions() {
+            // TODO: Show more notification options
+            alert('Show more notification options');
+        }
+
+        // Tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.task-tabs .tab').forEach(function(t) {
+                t.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            document.getElementById('previewTab').style.display = tab === 'preview' ? 'block' : 'none';
+            document.getElementById('descriptionTab').style.display = tab === 'description' ? 'block' : 'none';
+        }
+
+        // Folder Modal
+        function switchFolderTab(tab) {
+            document.querySelectorAll('#createFolderModal .modal-tab').forEach(function(t) {
+                t.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            document.getElementById('newFolderTab').style.display = tab === 'new' ? 'block' : 'none';
+            document.getElementById('existingFolderTab').style.display = tab === 'existing' ? 'block' : 'none';
+        }
+
+        function createRules() {
+            const folderName = document.getElementById('folderName').value;
+            const existingFolder = document.getElementById('existingFolderSelect').value;
+            
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    alert('Rules created successfully!');
+                    closeModal('createFolderModal');
+                })
+                .withFailureHandler(function(error) {
+                    alert('Error creating rules: ' + error);
+                })
+                .createScaleAdSetsRules(folderName, existingFolder);
+        }
+
+        function browseTemplates() {
+            // TODO: Open templates sidebar
+            alert('Browse templates functionality');
+        }
+
+        function addTask() {
+            // TODO: Add new task
+            alert('Add task functionality');
+        }
+
+        function copyTask() {
+            // TODO: Copy task
+            alert('Task copied!');
+        }
+
+        // Collect rule data
+        function collectRuleData() {
+            return {
+                name: 'Increase ad sets budget',
+                accounts: selectedAccounts,
+                filters: getFilters(),
+                conditions: conditions,
+                schedule: getSchedule(),
+                timezone: document.getElementById('timezoneSelect').value,
+                notifications: getNotifications()
+            };
+        }
+
+        function getFilters() {
+            const chips = document.querySelectorAll('#filterChips .filter-chip');
+            const filters = [];
+            chips.forEach(function(chip) {
+                filters.push(chip.textContent.replace('×', '').trim());
+            });
+            return filters;
+        }
+
+        function getSchedule() {
+            if (scheduleType === 'interval') {
+                return {
+                    type: 'interval',
+                    minutes: parseInt(document.getElementById('scheduleIntervalSelect').value)
+                };
+            } else {
+                return {
+                    type: 'custom',
+                    selectedTimes: getSelectedScheduleTimes()
+                };
+            }
+        }
+
+        function getSelectedScheduleTimes() {
+            const selected = [];
+            const rows = document.querySelectorAll('.schedule-row');
+            rows.forEach(function(row, hourIndex) {
+                const cells = row.querySelectorAll('.schedule-day-cell');
+                cells.forEach(function(cell, dayIndex) {
+                    if (cell.classList.contains('selected')) {
+                        selected.push({ day: dayIndex, hour: hourIndex });
+                    }
+                });
+            });
+            return selected;
+        }
+
+        function getNotifications() {
+            // TODO: Get notification settings
+            return [];
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.dropdown')) {
+                document.querySelectorAll('.dropdown-menu').forEach(function(menu) {
+                    menu.style.display = 'none';
+                });
+            }
+        });
+    </script>
+</body>
+</html>
+

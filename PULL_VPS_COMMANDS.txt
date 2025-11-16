@@ -1,0 +1,47 @@
+# ============================================
+# COMMANDS ĐỂ PULL CODE LÊN VPS
+# ============================================
+
+# Cách 1: Sử dụng script (Khuyến nghị)
+# Upload file PULL_VPS_DASHBOARD_FIX.sh lên VPS, sau đó chạy:
+bash PULL_VPS_DASHBOARD_FIX.sh
+
+# ============================================
+# Cách 2: Chạy thủ công từng bước
+# ============================================
+
+# Bước 1: Di chuyển vào thư mục dự án
+cd ~/ads-automation
+
+# Bước 2: Stash các thay đổi local (nếu có)
+git stash
+
+# Bước 3: Pull code mới nhất từ GitHub
+git pull origin main
+
+# Bước 4: Kiểm tra syntax Python
+python3 -m py_compile app/api/routes/dashboard.py app/core/ui_helpers.py app/api/routes/home.py app/main.py
+
+# Bước 5: Restart services
+sudo supervisorctl restart all
+
+# Bước 6: Kiểm tra status
+sudo supervisorctl status
+
+# ============================================
+# Kiểm tra logs nếu có lỗi
+# ============================================
+
+# Xem logs với filter lỗi
+sudo supervisorctl tail -200 ads-automation-api | grep -A 10 -B 10 "Error\|Exception\|Traceback"
+
+# Hoặc xem toàn bộ logs
+sudo supervisorctl tail -200 ads-automation-api
+
+# ============================================
+# Lưu ý:
+# - Đảm bảo đã push code lên GitHub trước khi pull
+# - Nếu có conflict, giải quyết conflict trước khi restart
+# - Kiểm tra logs sau khi restart để đảm bảo không có lỗi
+# ============================================
+

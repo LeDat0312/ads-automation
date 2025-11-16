@@ -1,0 +1,14 @@
+cd ~/ads-automation
+git stash
+git pull origin main
+python3 -m py_compile app/api/routes/dashboard.py app/main.py
+sudo supervisorctl restart all
+sudo supervisorctl status
+
+# Đã sửa CSS layout:
+# 1. Thêm width: 100% cho html và body
+# 2. Đảm bảo container, filters-section, stats-grid, table-container đều có width: 100%
+# 3. Sửa table layout từ auto sang fixed để fill full width
+# 4. Thêm min-width cho th và td
+# 5. Cải thiện empty-state display
+

@@ -1,0 +1,53 @@
+# Code để pull Dashboard lên VPS
+
+## Cách 1: Copy và paste trực tiếp vào VPS
+
+cd /home/adsuser/ads-automation && git stash && git pull origin main && python3 -m py_compile app/api/routes/dashboard.py app/core/ui_helpers.py app/api/routes/home.py && sudo supervisorctl restart api && sudo supervisorctl restart worker && sudo supervisorctl status
+
+## Cách 2: Sử dụng script (khuyến nghị)
+
+# Bước 1: Tạo file script trên VPS
+cat > /home/adsuser/pull_dashboard.sh << 'EOF'
+#!/bin/bash
+set -e
+cd /home/adsuser/ads-automation
+git stash || true
+git pull origin main || (git fetch origin main && git reset --hard origin/main)
+python3 -m py_compile app/api/routes/dashboard.py app/core/ui_helpers.py app/api/routes/home.py
+sudo supervisorctl restart api
+sudo supervisorctl restart worker
+sudo supervisorctl status
+EOF
+
+# Bước 2: Cấp quyền và chạy
+chmod +x /home/adsuser/pull_dashboard.sh
+bash /home/adsuser/pull_dashboard.sh
+
+## Cách 3: Từng bước (nếu có lỗi)
+
+# 1. Di chuyển vào thư mục project
+cd /home/adsuser/ads-automation
+
+# 2. Stash thay đổi local
+git stash
+
+# 3. Pull code
+git pull origin main
+
+# Nếu có conflict:
+# git fetch origin main
+# git reset --hard origin/main
+
+# 4. Kiểm tra syntax
+python3 -m py_compile app/api/routes/dashboard.py app/core/ui_helpers.py app/api/routes/home.py
+
+# 5. Restart services
+sudo supervisorctl restart api
+sudo supervisorctl restart worker
+
+# 6. Kiểm tra status
+sudo supervisorctl status
+
+## Lưu ý:
+# - Nếu không có worker service, bỏ dòng restart worker
+

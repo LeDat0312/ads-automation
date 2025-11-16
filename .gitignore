@@ -1,0 +1,97 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+
+# Secrets
+secrets/
+*.pem
+*.key
+*.p12
+config.ini
+credentials.json
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Google Apps Script
+.gs
+*.gs.backup
+
+# Node modules (nếu có)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+
+# Docker
+.dockerignore
+
+# Alembic
+alembic/versions/*.pyc
+
+# Local development
+local/
+temp/
+tmp/
+
+# Documentation build
+docs/_build/
+site/
+
+

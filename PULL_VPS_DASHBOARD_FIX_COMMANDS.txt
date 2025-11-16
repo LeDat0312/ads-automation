@@ -1,0 +1,19 @@
+# Commands để pull code và restart services trên VPS
+
+# Cách 1: Sử dụng script (khuyến nghị)
+bash PULL_VPS_DASHBOARD_FIX.sh
+
+# Cách 2: Chạy thủ công từng bước
+cd ~/ads-automation
+git stash
+git pull origin main
+python3 -m py_compile app/api/routes/dashboard.py app/core/ui_helpers.py app/api/routes/home.py app/main.py
+sudo supervisorctl restart all
+sudo supervisorctl status
+
+# Kiểm tra logs nếu có lỗi
+sudo supervisorctl tail -200 ads-automation-api | grep -A 10 -B 10 "Error\|Exception\|Traceback"
+
+# Hoặc xem toàn bộ logs
+sudo supervisorctl tail -200 ads-automation-api
+

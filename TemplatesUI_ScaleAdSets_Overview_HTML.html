@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scale Ad Sets</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .share-btn {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 30px;
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .left-panel {
+            background: #ffc107;
+            border-radius: 12px;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+        }
+        
+        .strategy-icon {
+            width: 120px;
+            height: 120px;
+            background: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+        
+        .icon-squares {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            width: 80px;
+            height: 80px;
+        }
+        
+        .icon-square {
+            background: #ffc107;
+            border-radius: 4px;
+        }
+        
+        .icon-arrow {
+            position: absolute;
+            width: 60px;
+            height: 3px;
+            background: #000;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(45deg);
+        }
+        
+        .create-rules-btn {
+            background: #000;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .right-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+        }
+        
+        .tags {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .tag {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .tag-new {
+            background: #333;
+            color: white;
+        }
+        
+        .tag-meta {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+        
+        .rules-section {
+            margin-top: 30px;
+        }
+        
+        .rules-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .rule-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .rule-item:hover {
+            background: #f0f0f0;
+        }
+        
+        .rule-name {
+            font-weight: 500;
+        }
+        
+        .rule-arrow {
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <button class="back-btn" onclick="goBack()">←</button>
+            <h1>Scale Ad Sets</h1>
+        </div>
+        <button class="share-btn" onclick="shareStrategy()">Share</button>
+    </div>
+
+    <div class="main-content">
+        <div class="left-panel">
+            <div class="strategy-icon">
+                <div class="icon-squares">
+                    <div class="icon-square"></div>
+                    <div class="icon-square"></div>
+                    <div class="icon-square" style="grid-column: 1;"></div>
+                </div>
+                <div class="icon-arrow"></div>
+            </div>
+            <button class="create-rules-btn" onclick="createRules()">Create 2 rules</button>
+        </div>
+
+        <div class="right-panel">
+            <div class="tags">
+                <span class="tag tag-new">New</span>
+                <span class="tag tag-meta">Meta Ads</span>
+                <span class="tag tag-meta">E-commerce</span>
+            </div>
+            
+            <p class="description">
+                This strategy is designed to help you scale efficiently while maintaining high ROAS. 
+                Perfect for advertisers who want to grow results without overspending on underperforming ads.
+            </p>
+            
+            <div class="rules-section">
+                <div class="rules-title">Rules</div>
+                <div class="rule-item" onclick="openRule('increase')">
+                    <span class="rule-name">Increase budget for high-performing ad sets</span>
+                    <span class="rule-arrow">></span>
+                </div>
+                <div class="rule-item" onclick="openRule('decrease')">
+                    <span class="rule-name">Decrease budget for underperforming ad sets</span>
+                    <span class="rule-arrow">></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Rules Modal -->
+    <div class="modal" id="createRulesModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create 2 rules</h2>
+                <button class="icon-btn" onclick="closeModal('createRulesModal')">×</button>
+            </div>
+            <div class="modal-tabs">
+                <button class="modal-tab active" onclick="switchFolderTab('new')">In new folder</button>
+                <button class="modal-tab" onclick="switchFolderTab('existing')">In existing folder</button>
+            </div>
+            <div id="newFolderTab">
+                <div class="form-group">
+                    <label class="form-label">Folder name</label>
+                    <input type="text" class="form-input" id="folderName" value="Scale Ad Sets" style="background: #fff3cd;">
+                </div>
+            </div>
+            <div id="existingFolderTab" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">Select folder</label>
+                    <select class="form-input" id="existingFolderSelect">
+                        <option value="">Select a folder...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('createRulesModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmCreateRules()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function goBack() {
+            window.history.back();
+        }
+
+        function shareStrategy() {
+            // TODO: Share strategy
+            alert('Share strategy functionality');
+        }
+
+        function createRules() {
+            document.getElementById('createRulesModal').classList.add('active');
+            loadExistingFolders();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function switchFolderTab(tab) {
+            document.querySelectorAll('#createRulesModal .modal-tab').forEach(function(t) {
+                t.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            document.getElementById('newFolderTab').style.display = tab === 'new' ? 'block' : 'none';
+            document.getElementById('existingFolderTab').style.display = tab === 'existing' ? 'block' : 'none';
+        }
+
+        function loadExistingFolders() {
+            google.script.run
+                .withSuccessHandler(function(folders) {
+                    const select = document.getElementById('existingFolderSelect');
+                    select.innerHTML = '<option value="">Select a folder...</option>';
+                    folders.forEach(function(folder) {
+                        const option = document.createElement('option');
+                        option.value = folder.id;
+                        option.textContent = folder.name;
+                        select.appendChild(option);
+                    });
+                })
+                .withFailureHandler(function(error) {
+                    console.error('Error loading folders:', error);
+                })
+                .getAllRuleFolders();
+        }
+
+        function confirmCreateRules() {
+            const folderName = document.getElementById('folderName').value;
+            const existingFolder = document.getElementById('existingFolderSelect').value;
+            
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.success) {
+                        alert('Rules created successfully!');
+                        closeModal('createRulesModal');
+                        // Redirect to General page
+                        window.location.href = '?page=general';
+                    } else {
+                        alert('Error: ' + result.error);
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    alert('Error: ' + error);
+                })
+                .createScaleAdSetsRules(folderName, existingFolder);
+        }
+
+        function openRule(type) {
+            // Redirect to customization page
+            window.location.href = '?page=scale-ad-sets&type=' + type;
+        }
+    </script>
+</body>
+</html>
+

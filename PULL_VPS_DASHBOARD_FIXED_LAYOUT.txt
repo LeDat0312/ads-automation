@@ -1,0 +1,21 @@
+cd ~/ads-automation
+git stash
+git pull origin main
+python3 -m py_compile app/api/routes/dashboard.py app/main.py
+sudo supervisorctl restart all
+sudo supervisorctl status
+
+# Đã sửa lại toàn bộ Dashboard - Layout hoàn chỉnh:
+# ✅ Background gradient giống Settings/Home (màu tím đẹp)
+# ✅ Header fixed với white background và backdrop blur
+# ✅ Container max-width: 1400px, padding: 100px 32px 40px (giống Settings)
+# ✅ Tất cả sections có white cards với rounded corners 24px
+# ✅ Backdrop blur 20px cho glassmorphism effect
+# ✅ Box shadow đẹp hơn
+# ✅ Table layout đã sửa - không còn table-layout: fixed
+# ✅ Responsive design hoàn chỉnh
+# ✅ Tất cả elements có width: 100% và không bị dồn về bên trái
+# ✅ Z-index đúng để header luôn ở trên
+# ✅ Animation gradient background
+# ✅ Tất cả spacing và padding đã được điều chỉnh
+

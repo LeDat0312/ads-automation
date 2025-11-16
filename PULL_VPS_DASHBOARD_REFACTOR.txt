@@ -1,0 +1,25 @@
+#!/bin/bash
+# Script để pull code dashboard refactor lên VPS
+
+cd ~/ads-automation
+
+# Stash local changes nếu có
+git stash
+
+# Pull code mới nhất
+git pull origin main
+
+# Compile Python để kiểm tra syntax
+python3 -m py_compile app/api/routes/dashboard.py app/services/facebook_api.py app/main.py
+
+# Restart services
+sudo supervisorctl restart all
+
+# Đợi 3 giây
+sleep 3
+
+# Kiểm tra status
+sudo supervisorctl status
+
+echo "✅ Đã pull và restart xong!"
+
