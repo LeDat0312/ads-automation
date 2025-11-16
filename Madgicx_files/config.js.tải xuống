@@ -1,0 +1,2 @@
+// it's a placeholder for rewriting Dynamic CONFIG variables based on environment
+// to see available options, check window.CONFIG variable in src/config.js
