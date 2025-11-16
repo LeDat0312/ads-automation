@@ -3663,14 +3663,11 @@ async def pull_facebook_data_endpoint(
             time_range = None
         
         # Import service
-        from app.services.facebook_api import pull_facebook_data_with_time_range
+        from app.services.facebook_api import pull_facebook_data
         
         # Pull data
         logger.info(f"Pulling Facebook data for user {current_user.id}, accounts: {len(account_ids)}, time_range: {time_range}, date_preset: {date_preset}")
-        if time_range:
-            ad_metrics_list = pull_facebook_data_with_time_range(token, account_ids, time_range)
-        else:
-            ad_metrics_list = pull_facebook_data(token, account_ids, date_preset)
+        ad_metrics_list = pull_facebook_data(token, account_ids, date_preset=date_preset, time_range=time_range)
         
         if not ad_metrics_list:
             return {
