@@ -1239,31 +1239,52 @@ async def dashboard_page(
                 color: #64748b;
             }}
             
+            /* Improved Skeleton Loading */
             .loading-skeleton {{
-                display: grid;
-                gap: 12px;
                 padding: 20px;
             }}
             
+            .skeleton-header {{
+                display: flex;
+                gap: 16px;
+                margin-bottom: 16px;
+                padding-bottom: 16px;
+                border-bottom: 1px solid #e2e8f0;
+            }}
+            
+            .skeleton-line {{
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%;
+                animation: skeleton-loading 1.5s ease-in-out infinite;
+                border-radius: 4px;
+            }}
+            
             .skeleton-row {{
-                display: grid;
-                grid-template-columns: repeat(6, 1fr);
+                display: flex;
                 gap: 12px;
-                height: 50px;
+                padding: 12px 0;
+                border-bottom: 1px solid #f3f4f6;
             }}
             
             .skeleton-item {{
+                height: 16px;
                 background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
                 background-size: 200% 100%;
-                animation: loading 1.5s infinite;
-                border-radius: 8px;
+                animation: skeleton-loading 1.5s ease-in-out infinite;
+                border-radius: 4px;
+                flex-shrink: 0;
             }}
             
-            @keyframes loading {{
-                0% {{ background-position: 200% 0; }}
-                100% {{ background-position: -200% 0; }}
+            @keyframes skeleton-loading {{
+                0% {{
+                    background-position: 200% 0;
+                }}
+                100% {{
+                    background-position: -200% 0;
+                }}
             }}
             
+            /* Improved Empty State */
             .empty-state {{
                 text-align: center;
                 padding: 80px 20px;
@@ -1272,31 +1293,51 @@ async def dashboard_page(
                 animation: fadeIn 0.5s ease-out;
             }}
             
-            .empty-state .icon {{
-                font-size: 64px;
-                margin-bottom: 20px;
+            .empty-icon {{
+                font-size: 72px;
+                margin-bottom: 24px;
                 opacity: 0.6;
+                animation: pulse 2s ease-in-out infinite;
             }}
             
             .empty-state h3 {{
-                font-size: 20px;
+                font-size: 24px;
                 font-weight: 600;
                 color: #1e293b;
                 margin-bottom: 12px;
             }}
             
-            .empty-state p {{
-                margin: 8px 0;
+            .empty-message {{
+                font-size: 16px;
+                color: #64748b;
+                margin-bottom: 32px;
+            }}
+            
+            .empty-suggestions {{
+                text-align: left;
+                max-width: 600px;
+                margin: 0 auto;
+                background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+                padding: 24px;
+                border-radius: 12px;
+                border: 1px solid #e2e8f0;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            }}
+            
+            .suggestion-item {{
+                padding: 8px 0;
                 font-size: 14px;
+                color: #475569;
                 line-height: 1.6;
             }}
             
-            .empty-state .suggestion {{
-                margin-top: 24px;
-                padding: 16px;
-                background: #f1f5f9;
-                border-radius: 12px;
-                display: inline-block;
+            .suggestion-item:first-child {{
+                font-size: 15px;
+                font-weight: 600;
+                color: #1e293b;
+                margin-bottom: 8px;
+                padding-bottom: 12px;
+                border-bottom: 1px solid #e2e8f0;
             }}
             
             .stats-grid {{
@@ -2028,6 +2069,7 @@ async def dashboard_page(
                 
                 selectedDateRange.start = start;
                 selectedDateRange.end = end;
+                currentFilters.datePreset = type; // Save preset type
                 renderCalendars();
                 applyDateRange();
             }}
@@ -2251,10 +2293,22 @@ async def dashboard_page(
                 
                 try {{
                     // Show loading skeleton
+                    // Show improved loading skeleton
                     const skeleton = '<div class="loading-skeleton">' +
-                        Array(5).fill(0).map(() => 
+                        '<div class="skeleton-header">' +
+                        '<div class="skeleton-line" style="width: 200px; height: 20px;"></div>' +
+                        '<div class="skeleton-line" style="width: 150px; height: 20px;"></div>' +
+                        '</div>' +
+                        Array(8).fill(0).map(() => 
                             '<div class="skeleton-row">' +
-                            Array(6).fill(0).map(() => '<div class="skeleton-item"></div>').join('') +
+                            '<div class="skeleton-item" style="width: 50px;"></div>' +
+                            '<div class="skeleton-item" style="width: 200px;"></div>' +
+                            '<div class="skeleton-item" style="width: 120px;"></div>' +
+                            '<div class="skeleton-item" style="width: 80px;"></div>' +
+                            '<div class="skeleton-item" style="width: 100px;"></div>' +
+                            '<div class="skeleton-item" style="width: 100px;"></div>' +
+                            '<div class="skeleton-item" style="width: 100px;"></div>' +
+                            '<div class="skeleton-item" style="width: 80px;"></div>' +
                             '</div>'
                         ).join('') +
                         '</div>';
@@ -2328,14 +2382,15 @@ async def dashboard_page(
                 if (ads.length === 0) {{
                     document.getElementById('tableWrapper').innerHTML = 
                         '<div class="empty-state">' +
-                        '<div class="icon">📭</div>' +
+                        '<div class="empty-icon">📭</div>' +
                         '<h3>Không có dữ liệu</h3>' +
-                        '<p>Không tìm thấy dữ liệu phù hợp với bộ lọc hiện tại.</p>' +
-                        '<div class="suggestion">' +
-                        '<p>💡 <strong>Gợi ý:</strong></p>' +
-                        '<p>• Kiểm tra lại khoảng thời gian đã chọn</p>' +
-                        '<p>• Thử chọn "Tất cả" cho các bộ lọc</p>' +
-                        '<p>• Đảm bảo accounts đã được bật trong Settings</p>' +
+                        '<p class="empty-message">Không tìm thấy dữ liệu phù hợp với bộ lọc hiện tại.</p>' +
+                        '<div class="empty-suggestions">' +
+                        '<div class="suggestion-item">💡 <strong>Gợi ý:</strong></div>' +
+                        '<div class="suggestion-item">• Kiểm tra lại khoảng thời gian đã chọn</div>' +
+                        '<div class="suggestion-item">• Thử chọn "Tất cả" cho các bộ lọc</div>' +
+                        '<div class="suggestion-item">• Đảm bảo accounts đã được bật trong Settings</div>' +
+                        '<div class="suggestion-item">• Nhấn nút "Làm mới" để pull dữ liệu từ Facebook</div>' +
                         '</div>' +
                         '</div>';
                     document.getElementById('tableInfo').textContent = 'Hiển thị 0 / 0 kết quả';
@@ -2348,12 +2403,12 @@ async def dashboard_page(
                     '% ADS', 'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
                     'Giá trị chuyển đổi từ lượt mua', 'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)',
-                    'CTR (tất cả)', 'CPC (tất cả)', 'Thao tác'
+                    'CTR (tất cả)', 'CPC (tất cả)', 'Ngân sách', 'Thao tác'
                 ] : [
                     'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
                     'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
-                    'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)', 'Thao tác'
+                    'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)', 'Ngân sách', 'Thao tác'
                 ];
                 
                 // Define sortable columns
@@ -2711,6 +2766,115 @@ async def dashboard_page(
                 }}
             }}
             
+            // Budget Editor Functions
+            function openBudgetEditor(adsetId, currentBudget, element) {{
+                // Close any existing editor
+                document.querySelectorAll('.budget-editor-popover').forEach(el => el.remove());
+                
+                const popover = document.createElement('div');
+                popover.className = 'budget-editor-popover';
+                popover.innerHTML = 
+                    '<h4>Chỉnh sửa ngân sách</h4>' +
+                    '<div class="budget-input-group">' +
+                    '<label>Ngân sách hiện tại</label>' +
+                    '<input type="text" id="budgetCurrent" value="' + formatNumber(currentBudget) + ' đ/ngày" readonly style="background: #f3f4f6;">' +
+                    '</div>' +
+                    '<div class="budget-input-group">' +
+                    '<label>Ngân sách mới (VND)</label>' +
+                    '<input type="number" id="budgetNew" value="' + currentBudget + '" min="0" step="1000" placeholder="Nhập số tiền">' +
+                    '</div>' +
+                    '<div class="budget-shortcuts">' +
+                    '<button class="budget-shortcut-btn" onclick="applyBudgetShortcut(\\'' + adsetId + '\\', -20)">-20%</button>' +
+                    '<button class="budget-shortcut-btn" onclick="applyBudgetShortcut(\\'' + adsetId + '\\', -10)">-10%</button>' +
+                    '<button class="budget-shortcut-btn" onclick="applyBudgetShortcut(\\'' + adsetId + '\\', 10)">+10%</button>' +
+                    '<button class="budget-shortcut-btn" onclick="applyBudgetShortcut(\\'' + adsetId + '\\', 20)">+20%</button>' +
+                    '</div>' +
+                    '<div class="budget-actions">' +
+                    '<button class="budget-btn budget-btn-secondary" onclick="closeBudgetEditor()">Hủy</button>' +
+                    '<button class="budget-btn budget-btn-primary" onclick="saveBudget(\\'' + adsetId + '\\')">Lưu</button>' +
+                    '</div>';
+                
+                const rect = element.getBoundingClientRect();
+                popover.style.position = 'fixed';
+                popover.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+                popover.style.left = rect.left + 'px';
+                
+                element.parentElement.appendChild(popover);
+                
+                // Focus input
+                setTimeout(() => {{
+                    const input = document.getElementById('budgetNew');
+                    if (input) {{
+                        input.focus();
+                        input.select();
+                    }}
+                }}, 100);
+                
+                // Close on outside click
+                setTimeout(() => {{
+                    const closeHandler = function(e) {{
+                        if (!popover.contains(e.target) && !element.contains(e.target)) {{
+                            popover.remove();
+                            document.removeEventListener('click', closeHandler);
+                        }}
+                    }};
+                    document.addEventListener('click', closeHandler);
+                }}, 0);
+            }}
+            
+            function closeBudgetEditor() {{
+                document.querySelectorAll('.budget-editor-popover').forEach(el => el.remove());
+            }}
+            
+            function applyBudgetShortcut(adsetId, percent) {{
+                const currentInput = document.getElementById('budgetCurrent');
+                const newInput = document.getElementById('budgetNew');
+                
+                if (currentInput && newInput) {{
+                    const currentValue = parseFloat(currentInput.value.replace(/[^0-9]/g, '')) || 0;
+                    const newValue = Math.max(0, currentValue * (1 + percent / 100));
+                    newInput.value = Math.round(newValue);
+                }}
+            }}
+            
+            async function saveBudget(adsetId) {{
+                const newInput = document.getElementById('budgetNew');
+                if (!newInput) return;
+                
+                const newBudget = parseFloat(newInput.value);
+                if (isNaN(newBudget) || newBudget < 0) {{
+                    showToast('❌ Vui lòng nhập số tiền hợp lệ', 'error');
+                    return;
+                }}
+                
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const response = await fetch('/dashboard/adset/budget', {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/json'
+                        }},
+                        body: JSON.stringify({{
+                            adset_id: adsetId,
+                            daily_budget: newBudget
+                        }})
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {{
+                        showToast('✅ Đã cập nhật ngân sách thành công', 'success');
+                        closeBudgetEditor();
+                        loadData(); // Reload để cập nhật UI
+                    }} else {{
+                        showToast('❌ Lỗi: ' + (result.detail || result.message || 'Unknown error'), 'error');
+                    }}
+                }} catch (error) {{
+                    showToast('❌ Lỗi: ' + error.message, 'error');
+                }}
+            }}
+            
             // Toast notification
             function showToast(message, type = 'info') {{
                 const toast = document.createElement('div');
@@ -2914,6 +3078,16 @@ async def dashboard_page(
                 }});
             }}
             
+            // Filter change handler
+            function handleFilterChange() {{
+                currentFilters.campaignType = document.getElementById('campaignTypeFilter').value;
+                currentFilters.status = document.getElementById('statusFilter').value;
+                currentFilters.account = document.getElementById('accountFilter').value;
+                currentFilters.prefix = document.getElementById('prefixFilter').value;
+                saveFilterState(); // Save to localStorage
+                debouncedLoadData();
+            }}
+            
             // Search functionality với debounce
             let searchTimeout;
             let currentSearchTerm = '';
@@ -2921,6 +3095,8 @@ async def dashboard_page(
                 clearTimeout(searchTimeout);
                 const searchInput = event.target;
                 currentSearchTerm = searchInput.value.trim();
+                currentFilters.searchTerm = currentSearchTerm;
+                saveFilterState(); // Save to localStorage
                 
                 searchTimeout = setTimeout(() => {{
                     if (!currentSearchTerm) {{
@@ -3004,6 +3180,7 @@ async def dashboard_page(
                 if (buttonElement) {{
                     buttonElement.classList.add('active');
                 }}
+                currentFilters.datePreset = type; // Save preset type
                 selectQuickDate(type);
             }}
             
@@ -3804,3 +3981,58 @@ async def decrease_adset_budget(
     except Exception as e:
         logger.error(f"Error decreasing adset budget: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi giảm ngân sách: {str(e)}")
+
+
+@router.post("/adset/budget")
+async def set_adset_budget(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Set ngân sách adset với giá trị tuyệt đối"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        body = await request.json()
+        adset_id = body.get("adset_id")
+        daily_budget = body.get("daily_budget")
+        
+        if not adset_id or daily_budget is None:
+            raise HTTPException(status_code=400, detail="Thiếu adset_id hoặc daily_budget")
+        
+        if daily_budget < 0:
+            raise HTTPException(status_code=400, detail="Ngân sách phải >= 0")
+        
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        from app.services.facebook_api import update_adset_budget
+        
+        result = update_adset_budget(adset_id, token, action_type="set", amount=daily_budget)
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "message": f"Đã cập nhật ngân sách adset {adset_id}",
+                "adset_id": adset_id,
+                "old_budget": result.get("old_budget"),
+                "new_budget": result.get("new_budget")
+            }
+        else:
+            raise HTTPException(status_code=400, detail=f"Lỗi khi cập nhật ngân sách: {result.get('error', 'Unknown error')}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting adset budget: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật ngân sách: {str(e)}")
