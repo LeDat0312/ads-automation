@@ -2619,7 +2619,7 @@ async def dashboard_page(
                 ];
                 
                 // Define sortable columns
-                const sortableColumns = {
+                const sortableColumns = {{
                     'Số tiền chi tiêu': 'spend',
                     'Kết quả': 'results',
                     'Giá DATA': 'gia_data',
@@ -2629,7 +2629,7 @@ async def dashboard_page(
                     'CTR (tất cả)': 'ctr',
                     'CPC (tất cả)': 'cpc',
                     'Ngân sách': 'budget'
-                };
+                }};
                 
                 let html = '<table><thead><tr>';
                 columns.forEach((col, idx) => {{
