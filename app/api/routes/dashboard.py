@@ -85,39 +85,14 @@ async def dashboard_page(
             }}
             
             body {{
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-                background-size: 400% 400%;
-                animation: gradientShift 15s ease infinite;
-                color: #1e293b;
-                line-height: 1.6;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                background: #f5f6fa;
+                color: #1c1e21;
+                line-height: 1.5;
                 width: 100%;
                 min-height: 100vh;
                 margin: 0;
                 padding: 0;
-                position: relative;
-                overflow-x: hidden;
-            }}
-            
-            @keyframes gradientShift {{
-                0% {{ background-position: 0% 50%; }}
-                50% {{ background-position: 100% 50%; }}
-                100% {{ background-position: 0% 50%; }}
-            }}
-            
-            body::before {{
-                content: '';
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: 
-                    radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
-                    radial-gradient(circle at 80% 80%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
-                    radial-gradient(circle at 40% 20%, rgba(120, 200, 255, 0.3) 0%, transparent 50%);
-                pointer-events: none;
-                z-index: 0;
             }}
             
             .header {{
@@ -125,16 +100,14 @@ async def dashboard_page(
                 top: 0;
                 left: 0;
                 right: 0;
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(20px);
-                -webkit-backdrop-filter: blur(20px);
-                border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-                padding: 16px 32px;
+                background: #ffffff;
+                border-bottom: 1px solid #e4e6eb;
+                padding: 12px 24px;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
                 z-index: 100;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+                height: 56px;
             }}
             
             .header-left {{
@@ -166,9 +139,9 @@ async def dashboard_page(
             }}
             
             .header h1 {{
-                font-size: 24px;
-                font-weight: 700;
-                color: #1e293b;
+                font-size: 20px;
+                font-weight: 600;
+                color: #1c1e21;
                 margin: 0;
             }}
             
@@ -241,23 +214,22 @@ async def dashboard_page(
             }}
             
             .btn-refresh {{
-                padding: 10px 20px;
-                background: #667eea;
+                padding: 6px 12px;
+                background: #1877f2;
                 border: none;
-                border-radius: 8px;
+                border-radius: 6px;
                 color: white;
                 cursor: pointer;
                 font-weight: 500;
+                font-size: 14px;
                 display: flex;
                 align-items: center;
-                gap: 8px;
-                transition: all 0.3s ease;
+                gap: 6px;
+                transition: background 0.2s;
             }}
             
             .btn-refresh:hover {{
-                background: #5568d3;
-                transform: translateY(-2px);
-                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+                background: #166fe5;
             }}
             
             .btn-refresh.loading {{
@@ -306,29 +278,31 @@ async def dashboard_page(
             }}
             
             .container {{
-                max-width: 1800px;
+                max-width: 1400px;
                 width: 100%;
                 margin: 0 auto;
-                padding: 24px;
+                padding: 0 24px;
                 box-sizing: border-box;
                 position: relative;
                 z-index: 1;
-                animation: fadeIn 0.5s ease-out;
+                padding-top: 80px;
             }}
             
-            /* Sticky Filter Bar - GỌN, NHẸ, GIỐNG FACEBOOK ADS MANAGER */
+            .dashboard-layout {{
+                display: flex;
+                flex-direction: column;
+                gap: 24px;
+            }}
+            
+            /* Filter Bar - Madgicx Style: Gọn, Nhẹ */
             .sticky-filter-bar {{
                 position: sticky;
-                top: 70px;
+                top: 56px;
                 z-index: 20;
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(10px);
-                -webkit-backdrop-filter: blur(10px);
-                border-bottom: 1px solid #e2e8f0;
-                padding: 12px 20px;
-                margin-bottom: 16px;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-                display: block !important;
+                background: #ffffff;
+                border-bottom: 1px solid #e4e6eb;
+                padding: 12px 16px;
+                margin-bottom: 0;
             }}
             
             .filter-bar-row {{
@@ -345,9 +319,7 @@ async def dashboard_page(
             
             .search-box-filter {{
                 position: relative;
-                flex: 1;
-                min-width: 250px;
-                max-width: 400px;
+                flex: 0 0 320px;
             }}
             
             .search-box-filter .search-icon {{
@@ -355,77 +327,73 @@ async def dashboard_page(
                 left: 10px;
                 top: 50%;
                 transform: translateY(-50%);
-                color: #9ca3af;
+                color: #8a8d91;
                 font-size: 14px;
             }}
             
             .search-box-filter input {{
                 width: 100%;
-                padding: 8px 12px 8px 36px;
-                border: 1px solid #d1d5db;
-                border-radius: 6px;
-                font-size: 13px;
-                transition: all 0.2s ease;
-                background: #f9fafb;
-                height: 36px;
+                padding: 6px 10px 6px 32px;
+                border: 1px solid #ccd0d5;
+                border-radius: 4px;
+                font-size: 14px;
+                transition: border-color 0.2s;
+                background: #f2f3f5;
+                height: 32px;
             }}
             
             .search-box-filter input:focus {{
                 background: white;
-                border-color: #667eea;
-                box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+                border-color: #1877f2;
                 outline: none;
             }}
             
             .filter-group-inline {{
                 display: flex;
                 flex-direction: column;
-                min-width: 140px;
+                min-width: 120px;
             }}
             
             .filter-group-inline label {{
-                font-size: 11px;
+                font-size: 12px;
                 font-weight: 500;
-                color: #6b7280;
+                color: #65676b;
                 margin-bottom: 4px;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
             }}
             
             .filter-group-inline select {{
-                padding: 6px 10px;
-                border: 1px solid #d1d5db;
+                padding: 5px 8px;
+                border: 1px solid #ccd0d5;
                 border-radius: 4px;
-                font-size: 13px;
+                font-size: 14px;
                 background: white;
-                transition: all 0.2s ease;
+                transition: border-color 0.2s;
                 height: 32px;
                 cursor: pointer;
             }}
             
             .filter-group-inline select:focus {{
                 outline: none;
-                border-color: #667eea;
-                box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+                border-color: #1877f2;
             }}
             
             .date-picker-btn-inline {{
-                padding: 6px 10px;
-                border: 1px solid #d1d5db;
+                padding: 5px 8px;
+                border: 1px solid #ccd0d5;
                 border-radius: 4px;
-                font-size: 13px;
+                font-size: 14px;
                 background: white;
                 cursor: pointer;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                transition: all 0.2s ease;
+                transition: border-color 0.2s;
                 height: 32px;
-                min-width: 180px;
+                min-width: 160px;
             }}
             
             .date-picker-btn-inline:hover {{
-                border-color: #667eea;
+                border-color: #1877f2;
             }}
             
             .quick-filters-inline {{
@@ -436,27 +404,26 @@ async def dashboard_page(
             }}
             
             .quick-filter-btn {{
-                padding: 6px 12px;
+                padding: 5px 10px;
                 background: white;
-                border: 1px solid #d1d5db;
+                border: 1px solid #ccd0d5;
                 border-radius: 4px;
-                font-size: 12px;
+                font-size: 13px;
                 font-weight: 500;
-                color: #374151;
+                color: #1c1e21;
                 cursor: pointer;
-                transition: all 0.2s ease;
+                transition: all 0.2s;
                 height: 28px;
             }}
             
             .quick-filter-btn:hover {{
-                border-color: #667eea;
-                color: #667eea;
-                background: #f3f4f6;
+                border-color: #1877f2;
+                background: #f2f3f5;
             }}
             
             .quick-filter-btn.active {{
-                background: #667eea;
-                border-color: #667eea;
+                background: #1877f2;
+                border-color: #1877f2;
                 color: white;
             }}
             
@@ -809,16 +776,27 @@ async def dashboard_page(
                 background: #5568d3;
             }}
             
+            .stats-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 16px;
+                margin-bottom: 0;
+            }}
+            
+            .stat-card {{
+                background: #ffffff;
+                border: 1px solid #e4e6eb;
+                border-radius: 8px;
+                padding: 16px;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            }}
+            
             .table-container {{
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(20px);
-                -webkit-backdrop-filter: blur(20px);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 24px;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+                background: #ffffff;
+                border: 1px solid #e4e6eb;
+                border-radius: 8px;
                 overflow: hidden;
                 width: 100%;
-                animation: fadeIn 0.7s ease-out;
             }}
             
             .table-header {{
@@ -1888,9 +1866,10 @@ async def dashboard_page(
             </div>
         </div>
         
-        <div class="dashboard-layout">
-            <!-- Sticky Filter Bar - GỌN, NHẸ, GIỐNG FACEBOOK ADS MANAGER -->
-            <div class="sticky-filter-bar" id="stickyFilterBar">
+        <div class="container">
+            <div class="dashboard-layout">
+                <!-- Filter Bar - Madgicx Style -->
+                <div class="sticky-filter-bar" id="stickyFilterBar">
                 <div class="filter-bar-row">
                     <div class="search-box-filter">
                         <span class="search-icon">🔍</span>
@@ -1945,7 +1924,7 @@ async def dashboard_page(
                 </div>
             </div>
             
-            <div class="main-content">
+            <div class="main-content" style="display: flex; flex-direction: column; gap: 24px;">
                 
                 <div class="stats-grid" id="statsGrid">
                     <div class="stat-card">
