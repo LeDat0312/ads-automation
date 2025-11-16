@@ -1,0 +1,17 @@
+                                         Table "public.accounts"
+    Column    |            Type             | Collation | Nullable |               Default                
+--------------+-----------------------------+-----------+----------+--------------------------------------
+ id           | integer                     |           | not null | nextval('accounts_id_seq'::regclass)
+ account_id   | character varying           |           | not null | 
+ account_name | character varying           |           |          | 
+ enabled      | boolean                     |           |          | 
+ description  | text                        |           |          | 
+ created_at   | timestamp without time zone |           |          | 
+ updated_at   | timestamp without time zone |           |          | 
+Indexes:
+    "accounts_pkey" PRIMARY KEY, btree (id)
+    "ix_accounts_account_id" UNIQUE, btree (account_id)
+    "ix_accounts_id" btree (id)
+Referenced by:
+    TABLE "account_prefixes" CONSTRAINT "account_prefixes_account_id_fkey" FOREIGN KEY (account_id) REFERENCES accounts(id)
+
