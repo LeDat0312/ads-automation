@@ -2292,7 +2292,6 @@ async def dashboard_page(
                 if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
                 
                 try {{
-                    // Show loading skeleton
                     // Show improved loading skeleton
                     const skeleton = '<div class="loading-skeleton">' +
                         '<div class="skeleton-header">' +
@@ -2420,7 +2419,8 @@ async def dashboard_page(
                     'Lượt hiển thị': 'impressions',
                     'Số lần nhấp (tất cả)': 'clicks',
                     'CTR (tất cả)': 'ctr',
-                    'CPC (tất cả)': 'cpc'
+                    'CPC (tất cả)': 'cpc',
+                    'Ngân sách': 'budget'
                 };
                 
                 let html = '<table><thead><tr>';
