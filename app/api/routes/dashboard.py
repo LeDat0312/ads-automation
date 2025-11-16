@@ -1820,11 +1820,29 @@ async def dashboard_page(
                     white-space: nowrap;
                     flex-shrink: 0;
                 }}
+                
+                .prefix-grid {{
+                    grid-template-columns: 1fr;
+                }}
+                
+                .pagination {{
+                    flex-direction: column;
+                    align-items: stretch;
+                }}
+                
+                .pagination-info {{
+                    justify-content: center;
+                }}
+                
+                .pagination-controls {{
+                    justify-content: center;
+                    flex-wrap: wrap;
+                }}
             }}
             
             @media (max-width: 480px) {{
                 .header h1 {{
-                    font-size: 18px;
+                    font-size: 16px;
                 }}
                 
                 .btn-refresh {{
@@ -1833,12 +1851,26 @@ async def dashboard_page(
                 }}
                 
                 .stat-card .value {{
-                    font-size: 24px;
+                    font-size: 18px;
+                }}
+                
+                .stats-grid {{
+                    grid-template-columns: 1fr;
                 }}
                 
                 th, td {{
-                    padding: 8px 12px;
+                    padding: 8px 10px;
+                    font-size: 11px;
+                }}
+                
+                .pagination {{
+                    padding: 12px;
+                }}
+                
+                .pagination button {{
+                    padding: 6px 10px;
                     font-size: 12px;
+                    min-width: 32px;
                 }}
             }}
         </style>
