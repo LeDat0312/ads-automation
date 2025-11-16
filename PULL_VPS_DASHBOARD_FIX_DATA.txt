@@ -1,0 +1,39 @@
+#!/bin/bash
+# Script pull code lên VPS - Fix Dashboard Data & Layout
+# Copy toàn bộ script này và paste vào terminal VPS
+
+cd ~/ads-automation
+
+echo "🔄 Đang pull code mới nhất từ GitHub..."
+git stash
+git pull origin main
+
+echo "✅ Đã pull code thành công!"
+
+echo "🔍 Đang kiểm tra syntax Python..."
+python3 -m py_compile app/api/routes/dashboard.py app/services/facebook_api.py app/main.py
+
+if [ $? -eq 0 ]; then
+    echo "✅ Syntax Python hợp lệ!"
+    
+    echo "🔄 Đang restart services..."
+    sudo supervisorctl restart all
+    
+    echo "⏳ Đợi 3 giây để services khởi động..."
+    sleep 3
+    
+    echo "📊 Kiểm tra trạng thái services:"
+    sudo supervisorctl status
+    
+    echo ""
+    echo "✅ Hoàn tất! Dashboard đã được cập nhật:"
+    echo "   ✅ Endpoint /dashboard/pull-data để pull data từ Facebook"
+    echo "   ✅ Fix date range và timezone (Asia/Ho_Chi_Minh)"
+    echo "   ✅ Filter bar luôn hiển thị trên desktop"
+    echo "   ✅ Layout: KPI Cards → Chi Tiết Quảng Cáo → Tổng Quan Theo Prefix"
+    echo "   ✅ Auto-pull data khi load trang và chọn date range"
+else
+    echo "❌ Lỗi syntax Python! Vui lòng kiểm tra lại code."
+    exit 1
+fi
+

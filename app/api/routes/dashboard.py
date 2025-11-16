@@ -290,7 +290,7 @@ async def dashboard_page(
                 animation: fadeIn 0.5s ease-out;
             }}
             
-            /* Sticky Filter Bar */
+            /* Sticky Filter Bar - LUÔN HIỂN THỊ TRÊN DESKTOP */
             .sticky-filter-bar {{
                 position: sticky;
                 top: 70px;
@@ -303,6 +303,7 @@ async def dashboard_page(
                 padding: 20px;
                 margin-bottom: 24px;
                 box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                display: block !important; /* LUÔN HIỂN THỊ - KHÔNG BAO GIỜ ẨN */
             }}
             
             .filter-bar-row {{
@@ -4150,3 +4151,108 @@ async def batch_action_adsets(
     except Exception as e:
         logger.error(f"Error in batch action: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi thực hiện batch action: {str(e)}")
+
+
+@router.post("/pull-data")
+async def pull_data_endpoint(
+    request: Request,
+    date_from: Optional[str] = Body(None),
+    date_to: Optional[str] = Body(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Pull data từ Facebook API cho date range cụ thể"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        # Lấy token từ user settings
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token trong Settings")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        # Lấy danh sách accounts enabled của user
+        account_ids, _ = get_user_account_prefixes(current_user.id, db, enabled_only=True)
+        if not account_ids:
+            raise HTTPException(status_code=400, detail="Không có account nào được bật trong Settings")
+        
+        # Xử lý date range
+        if not date_from or not date_to:
+            # Default: hôm nay
+            today = datetime.now(HCM_TZ).date()
+            date_from = today.isoformat()
+            date_to = today.isoformat()
+        
+        # Convert date strings to date objects
+        try:
+            from datetime import date as date_type
+            date_from_dt = datetime.strptime(date_from, '%Y-%m-%d').date()
+            date_to_dt = datetime.strptime(date_to, '%Y-%m-%d').date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Format ngày không hợp lệ. Dùng YYYY-MM-DD")
+        
+        # Import và gọi hàm pull data
+        from app.services.facebook_api import pull_facebook_data_with_time_range
+        
+        logger.info(f"🔄 Đang pull data từ {date_from} đến {date_to} cho {len(account_ids)} accounts...")
+        
+        # Pull data với time_range
+        ad_metrics_list = pull_facebook_data_with_time_range(
+            access_token=token,
+            ad_account_ids=account_ids,
+            date_from=date_from_dt,
+            date_to=date_to_dt
+        )
+        
+        # Lưu vào database
+        from app.core.database import AdMetrics
+        saved_count = 0
+        
+        for metric in ad_metrics_list:
+            try:
+                # Kiểm tra xem đã tồn tại chưa (adset_id + date)
+                existing = db.query(AdMetrics).filter(
+                    AdMetrics.adset_id == metric.get('adset_id'),
+                    func.date(AdMetrics.date) == metric.get('date')
+                ).first()
+                
+                if existing:
+                    # Update existing
+                    for key, value in metric.items():
+                        if hasattr(existing, key):
+                            setattr(existing, key, value)
+                else:
+                    # Create new
+                    new_metric = AdMetrics(**metric)
+                    db.add(new_metric)
+                
+                saved_count += 1
+            except Exception as e:
+                logger.error(f"Lỗi khi lưu metric: {e}")
+                continue
+        
+        db.commit()
+        
+        logger.info(f"✅ Đã pull và lưu {saved_count} adsets vào database")
+        
+        return {
+            "success": True,
+            "count": saved_count,
+            "date_from": date_from,
+            "date_to": date_to,
+            "accounts": len(account_ids)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error pulling data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi pull dữ liệu: {str(e)}")
