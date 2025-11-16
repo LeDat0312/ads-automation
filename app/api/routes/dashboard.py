@@ -3448,16 +3448,29 @@ async def get_charts_data(
             query = query.filter(AdMetrics.adset_status == status)
         if date_from:
             try:
+                # Parse date và normalize về start of day để so sánh chính xác
                 date_from_dt = datetime.fromisoformat(date_from)
-                query = query.filter(AdMetrics.date >= date_from_dt)
-            except:
+                if isinstance(date_from_dt, str):
+                    date_from_dt = datetime.fromisoformat(date_from_dt)
+                date_from_dt = date_from_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
+                query = query.filter(func.date(AdMetrics.date) >= func.date(date_from_dt))
+                logger.info(f"Filtering date_from: {date_from} -> {date_from_dt}")
+            except Exception as e:
+                logger.warning(f"Error parsing date_from {date_from}: {e}")
                 pass
         if date_to:
             try:
+                # Parse date và normalize về end of day
                 date_to_dt = datetime.fromisoformat(date_to)
-                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
-                query = query.filter(AdMetrics.date <= date_to_dt)
-            except:
+                if isinstance(date_to_dt, str):
+                    date_to_dt = datetime.fromisoformat(date_to_dt)
+                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
+                query = query.filter(func.date(AdMetrics.date) <= func.date(date_to_dt))
+                logger.info(f"Filtering date_to: {date_to} -> {date_to_dt}")
+            except Exception as e:
+                logger.warning(f"Error parsing date_to {date_to}: {e}")
                 pass
         
         # Daily data for line chart
