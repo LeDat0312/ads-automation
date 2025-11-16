@@ -811,9 +811,9 @@ async def dashboard_page(
             }}
             
             .table-header h2 {{
-                font-size: 20px;
-                font-weight: 700;
-                color: #1e293b;
+                font-size: 18px;
+                font-weight: 600;
+                color: #1c1e21;
                 margin: 0;
             }}
             
@@ -1404,50 +1404,6 @@ async def dashboard_page(
                 border-bottom: 1px solid #e2e8f0;
             }}
             
-            .stats-grid {{
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-                gap: 24px;
-                margin-bottom: 32px;
-                width: 100%;
-            }}
-            
-            .stat-card {{
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(20px);
-                -webkit-backdrop-filter: blur(20px);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 16px;
-                padding: 24px;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                position: relative;
-                overflow: hidden;
-                animation: fadeIn 0.6s ease-out;
-                display: flex;
-                flex-direction: column;
-            }}
-            
-            .stat-card::before {{
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 4px;
-                background: linear-gradient(90deg, #667eea, #764ba2);
-                transform: scaleX(0);
-                transition: transform 0.3s ease;
-            }}
-            
-            .stat-card:hover {{
-                transform: translateY(-4px);
-                box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
-            }}
-            
-            .stat-card:hover::before {{
-                transform: scaleX(1);
-            }}
             
             .stat-card-header {{
                 display: flex;
@@ -1489,15 +1445,11 @@ async def dashboard_page(
             }}
             
             .charts-section {{
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(20px);
-                -webkit-backdrop-filter: blur(20px);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 24px;
-                padding: 32px;
-                margin-bottom: 32px;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-                animation: fadeIn 0.7s ease-out;
+                background: #ffffff;
+                border: 1px solid #e4e6eb;
+                border-radius: 8px;
+                padding: 24px;
+                margin-bottom: 24px;
             }}
             
             .charts-header {{
@@ -1505,32 +1457,32 @@ async def dashboard_page(
             }}
             
             .charts-header h2 {{
-                font-size: 20px;
-                font-weight: 700;
-                color: #1e293b;
-                margin-bottom: 8px;
+                font-size: 18px;
+                font-weight: 600;
+                color: #1c1e21;
+                margin-bottom: 6px;
             }}
             
             .charts-header p {{
-                font-size: 14px;
-                color: #64748b;
+                font-size: 13px;
+                color: #65676b;
             }}
             
             .charts-grid {{
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-                gap: 24px;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
             }}
             
             .chart-container {{
-                background: #f8fafc;
-                border-radius: 12px;
-                padding: 24px;
+                background: #f2f3f5;
+                border-radius: 8px;
+                padding: 20px;
                 min-height: 300px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                color: #94a3b8;
+                color: #65676b;
                 font-size: 14px;
             }}
             
@@ -1544,51 +1496,49 @@ async def dashboard_page(
             
             .prefix-tabs {{
                 display: flex;
-                gap: 12px;
-                margin-bottom: 24px;
-                border-bottom: 2px solid #e2e8f0;
+                gap: 0;
+                margin-bottom: 20px;
+                border-bottom: 1px solid #e4e6eb;
             }}
             
             .prefix-tab {{
-                padding: 12px 24px;
+                padding: 8px 16px;
                 background: transparent;
                 border: none;
-                border-bottom: 3px solid transparent;
+                border-bottom: 2px solid transparent;
                 font-size: 14px;
-                font-weight: 600;
-                color: #64748b;
+                font-weight: 500;
+                color: #65676b;
                 cursor: pointer;
-                transition: all 0.3s ease;
+                transition: all 0.2s;
                 margin-bottom: -2px;
             }}
             
             .prefix-tab:hover {{
-                color: #667eea;
+                color: #1877f2;
             }}
             
             .prefix-tab.active {{
-                color: #667eea;
-                border-bottom-color: #667eea;
+                color: #1877f2;
+                border-bottom-color: #1877f2;
             }}
             
             .prefix-grid {{
                 display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-                gap: 20px;
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 16px;
             }}
             
             .prefix-card {{
-                background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
-                border: 2px solid #e2e8f0;
-                border-radius: 16px;
-                padding: 20px;
-                transition: all 0.3s ease;
+                background: #ffffff;
+                border: 1px solid #e4e6eb;
+                border-radius: 8px;
+                padding: 16px;
+                transition: border-color 0.2s;
             }}
             
             .prefix-card:hover {{
-                border-color: #667eea;
-                transform: translateY(-4px);
-                box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+                border-color: #1877f2;
             }}
             
             .prefix-card-header {{
