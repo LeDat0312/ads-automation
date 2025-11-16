@@ -2162,14 +2162,14 @@ async def dashboard_page(
                             <div class="calendar-nav">
                                 <button onclick="changeMonth(-1)">‹</button>
                                 <select onchange="changeMonthBySelect(this.value)">
-                                    ` + Array.from({length: 12}, (_, i) => `
+                                    ` + Array.from({{length: 12}}, (_, i) => `
                                         <option value="` + i + `" ` + (i === month ? 'selected' : '') + `>
                                             Tháng ` + (i + 1) + `
                                         </option>
                                     `).join('') + `
                                 </select>
                                 <select onchange="changeYearBySelect(this.value)">
-                                    ` + Array.from({length: 10}, (_, i) => year - 5 + i).map(y => `
+                                    ` + Array.from({{length: 10}}, (_, i) => year - 5 + i).map(y => `
                                         <option value="` + y + `" ` + (y === year ? 'selected' : '') + `>` + y + `</option>
                                     `).join('') + `
                                 </select>
