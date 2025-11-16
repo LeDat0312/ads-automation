@@ -561,24 +561,26 @@ async def dashboard_page(
             .search-box-compact {{
                 position: relative;
                 flex: 1;
-                max-width: 300px;
-            }}
-            
-            .search-box-compact input {{
-                width: 100%;
-                padding: 6px 10px 6px 32px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 12px;
                 border: 1px solid #ccd0d5;
                 border-radius: 6px;
-                font-size: 14px;
                 background: #f2f3f5;
                 height: 32px;
             }}
             
+            .search-box-compact input {{
+                flex: 1;
+                border: none;
+                background: transparent;
+                font-size: 14px;
+                outline: none;
+                padding: 0;
+            }}
+            
             .search-box-compact .search-icon {{
-                position: absolute;
-                left: 10px;
-                top: 50%;
-                transform: translateY(-50%);
                 color: #8a8d91;
                 font-size: 14px;
             }}
@@ -2095,36 +2097,36 @@ async def dashboard_page(
                 
                 <!-- Filters Bar - Madgicx Style -->
                 <div class="filters-bar">
-                    <button class="filters-btn" onclick="toggleFilterPanel()" id="filtersBtn">
-                        <span>⚙️</span>
-                        <span>Filters</span>
-                        <span class="filters-badge" id="filtersBadge" style="display: none;">0</span>
-                    </button>
-                    <div class="search-box-compact">
+                    <div class="search-box-compact" style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                        <button class="filters-btn" onclick="toggleFilterPanel()" id="filtersBtn">
+                            <span>⚙️</span>
+                            <span>Bộ lọc</span>
+                            <span class="filters-badge" id="filtersBadge" style="display: none;">0</span>
+                        </button>
                         <span class="search-icon">🔍</span>
-                        <input type="text" id="searchInput" placeholder="Search..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
-                    </div>
-                    <div class="load-preset-btn" onclick="togglePresetDropdown(event)" id="loadPresetBtn">
-                        <span>Load filter preset</span>
-                        <span>▼</span>
-                        <div class="preset-dropdown" id="presetDropdown">
-                            <div class="preset-item" onclick="loadPreset('active')">Active Ad Sets</div>
-                            <div class="preset-item" onclick="loadPreset('paused')">Paused Ad Sets</div>
-                            <div class="preset-item" onclick="loadPreset('all')">All Ad Sets</div>
+                        <input type="text" id="searchInput" placeholder="Tìm kiếm..." onkeyup="handleSearch(event)" oninput="handleSearch(event)" style="flex: 1; border: none; background: transparent; outline: none;">
+                        <div class="load-preset-btn" onclick="togglePresetDropdown(event)" id="loadPresetBtn" style="margin-left: auto;">
+                            <span>Tải bộ lọc đã lưu</span>
+                            <span>▼</span>
+                            <div class="preset-dropdown" id="presetDropdown">
+                                <div class="preset-item" onclick="loadPreset('active')">Ad Sets đang hoạt động</div>
+                                <div class="preset-item" onclick="loadPreset('paused')">Ad Sets đã tạm dừng</div>
+                                <div class="preset-item" onclick="loadPreset('all')">Tất cả Ad Sets</div>
+                            </div>
                         </div>
                     </div>
-                    <button class="btn-refresh-small" onclick="refreshData()" id="refreshBtn" title="Refresh">
+                    <button class="btn-refresh-small" onclick="refreshData()" id="refreshBtn" title="Làm mới dữ liệu">
                         🔄
                     </button>
                     <div class="date-picker-compact" onclick="openDatePicker()">
                         <span>📅</span>
-                        <span id="dateRangeText">Today</span>
+                        <span id="dateRangeText">Hôm nay</span>
                         <span>▼</span>
                     </div>
                     <div class="view-selector">
-                        <span>View:</span>
+                        <span>Chế độ xem:</span>
                         <select id="viewTypeFilter" onchange="handleViewTypeChange()">
-                            <option value="all">All</option>
+                            <option value="all">Tất cả</option>
                             <option value="ECOMMERCE">E-commerce</option>
                             <option value="LEAD">Lead Generation</option>
                         </select>
@@ -2135,46 +2137,46 @@ async def dashboard_page(
                 <div class="filter-panel" id="filterPanel" onclick="if(event.target === this) toggleFilterPanel()">
                     <div class="filter-panel-content" onclick="event.stopPropagation()">
                         <div class="filter-panel-header">
-                            <h3>Filters</h3>
+                            <h3>Bộ lọc</h3>
                             <button onclick="toggleFilterPanel()" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
                         </div>
                         <div class="filter-panel-body">
                             <div class="selected-filters-section">
                                 <div class="selected-filters-header">
-                                    <h4>Selected filters</h4>
+                                    <h4>Bộ lọc đã chọn</h4>
                                     <div style="display: flex; gap: 8px;">
-                                        <button class="btn-close" onclick="clearAllFilters()">Clear All Filters</button>
-                                        <button class="btn-apply" onclick="saveFilters()">Save Filters</button>
+                                        <button class="btn-close" onclick="clearAllFilters()">Xóa tất cả</button>
+                                        <button class="btn-apply" onclick="saveFilters()">Lưu bộ lọc</button>
                                     </div>
                                 </div>
                                 <div id="selectedFiltersList">
                                     <!-- Selected filters will be added here -->
                                 </div>
-                                <button onclick="addFilter()" style="padding: 8px 12px; background: #f2f3f5; border: 1px dashed #ccd0d5; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 8px;">+ Add filter</button>
+                                <button onclick="addFilter()" style="padding: 8px 12px; background: #f2f3f5; border: 1px dashed #ccd0d5; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 8px;">+ Thêm bộ lọc</button>
                             </div>
                             <div class="suggestions-section">
-                                <h4>Suggestions</h4>
+                                <h4>Gợi ý</h4>
                                 <div class="suggestion-item" onclick="addSuggestionFilter('status')">
                                     <span>⚪</span>
-                                    <span>Status is ...</span>
+                                    <span>Trạng thái là ...</span>
                                 </div>
                                 <div class="suggestion-item" onclick="addSuggestionFilter('name')">
                                     <span>📝</span>
-                                    <span>Name contains ...</span>
+                                    <span>Tên chứa ...</span>
                                 </div>
                                 <div class="suggestion-item" onclick="addSuggestionFilter('account')">
                                     <span>👤</span>
-                                    <span>Account is ...</span>
+                                    <span>Tài khoản là ...</span>
                                 </div>
                                 <div class="suggestion-item" onclick="addSuggestionFilter('prefix')">
                                     <span>🏷️</span>
-                                    <span>Prefix is ...</span>
+                                    <span>Prefix là ...</span>
                                 </div>
                             </div>
                         </div>
                         <div class="filter-panel-footer">
-                            <button class="btn-close" onclick="toggleFilterPanel()">Close</button>
-                            <button class="btn-apply" onclick="applyFilters()">Apply</button>
+                            <button class="btn-close" onclick="toggleFilterPanel()">Đóng</button>
+                            <button class="btn-apply" onclick="applyFilters()">Áp dụng</button>
                         </div>
                     </div>
                 </div>
@@ -2557,7 +2559,7 @@ async def dashboard_page(
                             currentFilters.dateTo = formatDateForAPI(today);
                             const dateRangeText = document.getElementById('dateRangeText');
                             if (dateRangeText) {{
-                                dateRangeText.textContent = 'Today ' + formatDateForAPI(today) + ' - ' + formatDateForAPI(today);
+                                dateRangeText.textContent = 'Hôm nay ' + formatDateForAPI(today) + ' - ' + formatDateForAPI(today);
                             }}
                         }}
                         
@@ -3558,19 +3560,19 @@ async def dashboard_page(
                 if (currentFilters.searchTerm) activeFilters++;
                 
                 if (currentFilters.account) {{
-                    html += '<div class="filter-item"><span>Account:</span><select id="filterAccount' + activeFilters + '" onchange="updateFilter(\'account\', this.value)"><option value="">All</option></select><button class="remove-filter" onclick="removeFilter(\'account\')">×</button></div>';
+                    html += '<div class="filter-item"><span>Tài khoản:</span><select id="filterAccount' + activeFilters + '" onchange="updateFilter(\'account\', this.value)"><option value="">Tất cả</option></select><button class="remove-filter" onclick="removeFilter(\'account\')">×</button></div>';
                 }}
                 if (currentFilters.prefix) {{
-                    html += '<div class="filter-item"><span>Prefix:</span><select id="filterPrefix' + activeFilters + '" onchange="updateFilter(\'prefix\', this.value)"><option value="">All</option></select><button class="remove-filter" onclick="removeFilter(\'prefix\')">×</button></div>';
+                    html += '<div class="filter-item"><span>Prefix:</span><select id="filterPrefix' + activeFilters + '" onchange="updateFilter(\'prefix\', this.value)"><option value="">Tất cả</option></select><button class="remove-filter" onclick="removeFilter(\'prefix\')">×</button></div>';
                 }}
                 if (currentFilters.status) {{
-                    html += '<div class="filter-item"><span>Status:</span><select onchange="updateFilter(\'status\', this.value)"><option value="">All</option><option value="ACTIVE"' + (currentFilters.status === 'ACTIVE' ? ' selected' : '') + '>Active</option><option value="PAUSED"' + (currentFilters.status === 'PAUSED' ? ' selected' : '') + '>Paused</option></select><button class="remove-filter" onclick="removeFilter(\'status\')">×</button></div>';
+                    html += '<div class="filter-item"><span>Trạng thái:</span><select onchange="updateFilter(\'status\', this.value)"><option value="">Tất cả</option><option value="ACTIVE"' + (currentFilters.status === 'ACTIVE' ? ' selected' : '') + '>Đang hoạt động</option><option value="PAUSED"' + (currentFilters.status === 'PAUSED' ? ' selected' : '') + '>Đã tạm dừng</option></select><button class="remove-filter" onclick="removeFilter(\'status\')">×</button></div>';
                 }}
                 if (currentFilters.searchTerm) {{
-                    html += '<div class="filter-item"><span>Name contains:</span><input type="text" value="' + currentFilters.searchTerm + '" onchange="updateFilter(\'searchTerm\', this.value)"><button class="remove-filter" onclick="removeFilter(\'searchTerm\')">×</button></div>';
+                    html += '<div class="filter-item"><span>Tên chứa:</span><input type="text" value="' + currentFilters.searchTerm + '" onchange="updateFilter(\'searchTerm\', this.value)"><button class="remove-filter" onclick="removeFilter(\'searchTerm\')">×</button></div>';
                 }}
                 
-                list.innerHTML = html || '<div style="color: #8a8d91; font-size: 13px; padding: 8px;">No filters selected</div>';
+                list.innerHTML = html || '<div style="color: #8a8d91; font-size: 13px; padding: 8px;">Chưa có bộ lọc nào được chọn</div>';
                 
                 if (activeFilters > 0) {{
                     badge.textContent = activeFilters;
