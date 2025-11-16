@@ -454,8 +454,7 @@ def update_adset_budget(
 def pull_facebook_data(
     access_token: str,
     ad_account_ids: List[str],
-    date_preset: Optional[str] = "yesterday",
-    time_range: Optional[Dict[str, str]] = None
+    date_preset: str = "yesterday"
 ) -> List[Dict[str, Any]]:
     """
     Kéo dữ liệu Insights level=ad từ Facebook API
@@ -465,12 +464,10 @@ def pull_facebook_data(
         List of ad metrics dictionaries
     """
     # Fields hợp lệ cho insights
-    # Lưu ý: date_start chỉ có khi có breakdown=day
     fields = [
         'account_name', 'account_id', 'campaign_name', 'campaign_id',
         'adset_id', 'adset_name',
         'ad_id', 'ad_name',
-        'date_start',  # Thêm date_start để lấy ngày chính xác khi có breakdown
         'spend', 'impressions', 'reach', 'frequency', 'clicks', 'ctr', 'cpc',
         'cost_per_initiate_checkout', 'cost_per_purchase',
         'cost_per_action_type', 'actions', 'action_values'
@@ -481,8 +478,7 @@ def pull_facebook_data(
     
     for account_id in ad_account_ids:
         try:
-            date_info = f"time_range: {time_range}" if time_range else f"date_preset: {date_preset}"
-            logger.info(f"Đang kéo dữ liệu cho tài khoản: {account_id} ({date_info})")
+            logger.info(f"Đang kéo dữ liệu cho tài khoản: {account_id} (Phạm vi: {date_preset})")
             
             # Xử lý pagination: Lấy TẤT CẢ pages (không chỉ page đầu tiên)
             next_url = None
@@ -506,20 +502,12 @@ def pull_facebook_data(
                         f"&access_token={access_token}"
                     )
                     
-                    # Xử lý date_preset hoặc time_range
-                    import json
-                    from urllib.parse import quote
-                    
-                    use_breakdown = False
-                    if time_range:
-                        # Sử dụng time_range nếu được cung cấp - thêm breakdown=day để có date_start
-                        time_range_json = json.dumps(time_range)
-                        url += f'&time_range={quote(time_range_json)}'
-                        url += '&breakdown=day'  # Cần breakdown để có date_start
-                        use_breakdown = True
-                    elif date_preset == 'yesterday':
+                    # Xử lý date_preset
+                    if date_preset == 'yesterday':
                         # Convert yesterday sang time_range để chính xác hơn (giống Google Script)
                         from datetime import timezone, timedelta
+                        import json
+                        from urllib.parse import quote
                         # Dùng timezone Asia/Ho_Chi_Minh (UTC+7)
                         tz = timezone(timedelta(hours=7))
                         now = datetime.now(tz)
@@ -530,9 +518,7 @@ def pull_facebook_data(
                         until = today.strftime('%Y-%m-%d')
                         time_range_json = json.dumps({"since": since, "until": until})
                         url += f'&time_range={quote(time_range_json)}'
-                        url += '&breakdown=day'  # Cần breakdown để có date_start
-                        use_breakdown = True
-                    elif date_preset:
+                    else:
                         url += f'&date_preset={date_preset}'
                     
                     # Thêm action_report_time và attribution settings (giống Google Script)
@@ -564,7 +550,7 @@ def pull_facebook_data(
                         logger.warning("   (Có thể do: không có ads chạy trong khoảng thời gian này, hoặc không có quyền truy cập)")
                     break  # Không có dữ liệu, thoát khỏi vòng lặp
                 
-                logger.info(f"   📊 Page {page_count}: Nhận được {len(data)} ads từ API... (breakdown={use_breakdown})")
+                logger.info(f"   📊 Page {page_count}: Nhận được {len(data)} ads từ API...")
                 
                 for item in data:
                     # Parse actions và action_values
@@ -720,33 +706,6 @@ def pull_facebook_data(
                     from app.services.campaign_detector import detect_campaign_type_from_objective
                     campaign_type = detect_campaign_type_from_objective(campaign_objective)
                     
-                    # Xử lý date - ưu tiên date_start từ API (khi có breakdown=day), nếu không dùng time_range hoặc datetime.now()
-                    item_date = None
-                    if use_breakdown and 'date_start' in item:
-                        # Có breakdown=day nên có date_start
-                        date_start_str = item.get('date_start', '')
-                        if date_start_str:
-                            try:
-                                # Parse date_start (format: YYYY-MM-DD)
-                                item_date = datetime.strptime(date_start_str, '%Y-%m-%d')
-                            except:
-                                item_date = None
-                    
-                    if not item_date:
-                        # Không có date_start, dùng time_range hoặc datetime.now()
-                        if time_range:
-                            try:
-                                # Dùng since từ time_range làm date mặc định
-                                since_str = time_range.get('since', '')
-                                if since_str:
-                                    item_date = datetime.strptime(since_str, '%Y-%m-%d')
-                            except:
-                                pass
-                        
-                        # Fallback: dùng datetime.now() nếu không có gì
-                        if not item_date:
-                            item_date = datetime.now()
-                    
                     # Tạo row data
                     row = {
                         'account_name': item.get('account_name', ''),
@@ -788,8 +747,8 @@ def pull_facebook_data(
                         'cost_per_messaging_conversation': (spend / messages) if messages > 0 else 0,
                         'post_comments': comments,
                         'messaging_conversations_started': messages,
-                        'date': item_date,
-                        'date_preset': date_preset or '',
+                        'date': datetime.now(),
+                        'date_preset': date_preset,
                     }
                     
                     all_rows.append(row)

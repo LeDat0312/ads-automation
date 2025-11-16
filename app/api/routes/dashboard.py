@@ -3,19 +3,19 @@ Dashboard API Routes - Tổng quan hiệu suất và thống kê quảng cáo
 Hiển thị dữ liệu theo E-commerce và Lead Generation
 """
 import logging
-from fastapi import APIRouter, Depends, Query, Request, HTTPException
+from fastapi import APIRouter, Depends, Query, Request, HTTPException, Body
 from fastapi.responses import HTMLResponse, JSONResponse
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_, distinct, case, desc
+from sqlalchemy import func, and_, or_, distinct, case
 import pytz
 
 from app.core.database import get_db, AdMetrics
 from app.models.account_prefix import Account, Prefix, AccountPrefix
 from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
-from app.core.ui_helpers import get_account_locked_message
+from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +33,9 @@ def get_user_account_prefixes(user_id: int, db: Session, enabled_only: bool = Tr
     user_accounts = query.all()
     account_ids = [acc[0] for acc in user_accounts]
     
-    # Lấy prefixes từ user's prefixes - chỉ lấy enabled nếu enabled_only=True
-    prefix_query = db.query(Prefix.prefix).filter(Prefix.user_id == user_id)
-    if enabled_only:
-        prefix_query = prefix_query.filter(Prefix.enabled == True)
-    user_prefixes = prefix_query.all()
+    # Lấy prefixes từ user's prefixes
+    user_prefixes = db.query(Prefix.prefix).filter(Prefix.user_id == user_id).all()
     prefixes = [pref[0] for pref in user_prefixes]
-    
-    logger.info(f"User {user_id}: Found {len(account_ids)} accounts, {len(prefixes)} prefixes (enabled_only={enabled_only})")
     
     return account_ids, prefixes
 
@@ -65,7 +60,10 @@ async def dashboard_page(
         if not current_user.is_active:
             return HTMLResponse(content=get_account_locked_message())
         
+        user_menu = get_user_dropdown_menu(current_user)
+        
         # Tạo HTML với date picker giống Facebook và UI đẹp
+        # Sử dụng format string để tránh lỗi với user_menu có chứa {{}}
         html_content = f"""
     <!DOCTYPE html>
     <html lang="vi">
@@ -74,7 +72,6 @@ async def dashboard_page(
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Dashboard - Facebook Ads Automation</title>
         <link rel="icon" type="image/png" href="/static/favicon.png">
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
             
@@ -135,51 +132,24 @@ async def dashboard_page(
                 backdrop-filter: blur(20px);
                 -webkit-backdrop-filter: blur(20px);
                 border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-                padding: 8px 16px;
+                padding: 16px 32px;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
                 z-index: 100;
                 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-                min-height: 50px;
             }}
             
             .header h1 {{
-                font-size: 18px;
+                font-size: 24px;
                 font-weight: 700;
                 color: #1e293b;
-                margin: 0;
             }}
             
             .header-actions {{
                 display: flex;
                 align-items: center;
-                gap: 8px;
-                flex-shrink: 0;
-            }}
-            
-            .header-left {{
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                flex: 1;
-                min-width: 0;
-            }}
-            
-            .header-left a {{
-                text-decoration: none;
-                color: #667eea;
-                font-weight: 600;
-                padding: 6px 12px;
-                border-radius: 6px;
-                transition: all 0.3s ease;
-                background: rgba(102, 126, 234, 0.1);
-                font-size: 13px;
-                white-space: nowrap;
-            }}
-            
-            .header-left a:hover {{
-                background: rgba(102, 126, 234, 0.2);
+                gap: 12px;
             }}
             
             .search-box {{
@@ -245,19 +215,17 @@ async def dashboard_page(
             }}
             
             .btn-refresh {{
-                padding: 6px 12px;
+                padding: 10px 20px;
                 background: #667eea;
                 border: none;
-                border-radius: 6px;
+                border-radius: 8px;
                 color: white;
                 cursor: pointer;
                 font-weight: 500;
                 display: flex;
                 align-items: center;
-                gap: 6px;
+                gap: 8px;
                 transition: all 0.3s ease;
-                font-size: 13px;
-                white-space: nowrap;
             }}
             
             .btn-refresh:hover {{
@@ -315,57 +283,292 @@ async def dashboard_page(
                 max-width: 1400px;
                 width: 100%;
                 margin: 0 auto;
-                padding: 70px 32px 40px;
+                padding: 100px 32px 40px;
                 box-sizing: border-box;
                 position: relative;
                 z-index: 1;
                 animation: fadeIn 0.5s ease-out;
             }}
             
-            .dashboard-layout {{
-                display: flex;
-                gap: 32px;
-                max-width: 1400px;
-                width: 100%;
-                margin: 0 auto;
-                padding: 70px 32px 40px;
-                box-sizing: border-box;
-                position: relative;
-                z-index: 1;
-                animation: fadeIn 0.5s ease-out;
-            }}
-            
-            .sidebar-filters {{
-                width: 320px;
-                flex-shrink: 0;
+            /* Sticky Filter Bar */
+            .sticky-filter-bar {{
                 position: sticky;
-                top: 60px;
-                height: fit-content;
-                max-height: calc(100vh - 80px);
-                overflow-y: auto;
-                overflow-x: hidden;
+                top: 70px;
+                z-index: 20;
+                background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 16px;
+                padding: 20px;
+                margin-bottom: 24px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
             }}
             
-            .sidebar-filters::-webkit-scrollbar {{
-                width: 6px;
+            .filter-bar-row {{
+                display: flex;
+                gap: 16px;
+                align-items: flex-end;
+                margin-bottom: 12px;
+                flex-wrap: wrap;
             }}
             
-            .sidebar-filters::-webkit-scrollbar-track {{
-                background: transparent;
+            .filter-bar-row:last-child {{
+                margin-bottom: 0;
             }}
             
-            .sidebar-filters::-webkit-scrollbar-thumb {{
-                background: #cbd5e1;
-                border-radius: 3px;
-            }}
-            
-            .sidebar-filters::-webkit-scrollbar-thumb:hover {{
-                background: #94a3b8;
-            }}
-            
-            .main-content {{
+            .search-box-filter {{
+                position: relative;
                 flex: 1;
-                min-width: 0;
+                min-width: 300px;
+            }}
+            
+            .search-box-filter input {{
+                width: 100%;
+                padding: 12px 16px 12px 44px;
+                border: 2px solid #e2e8f0;
+                border-radius: 10px;
+                font-size: 14px;
+                transition: all 0.3s ease;
+                background: white;
+            }}
+            
+            .search-box-filter input:focus {{
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            }}
+            
+            .search-box-filter .search-icon {{
+                position: absolute;
+                left: 16px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 18px;
+                pointer-events: none;
+                z-index: 1;
+            }}
+            
+            .btn-refresh-filter {{
+                padding: 12px 20px;
+                background: #667eea;
+                border: none;
+                border-radius: 10px;
+                color: white;
+                cursor: pointer;
+                font-weight: 500;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                transition: all 0.3s ease;
+                font-size: 14px;
+                white-space: nowrap;
+            }}
+            
+            .btn-refresh-filter:hover {{
+                background: #5568d3;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            }}
+            
+            .filter-group-inline {{
+                display: flex;
+                flex-direction: column;
+                min-width: 150px;
+            }}
+            
+            .filter-group-inline label {{
+                font-size: 12px;
+                font-weight: 500;
+                color: #64748b;
+                margin-bottom: 6px;
+            }}
+            
+            .filter-group-inline select {{
+                padding: 10px 12px;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                font-size: 13px;
+                background: white;
+                transition: all 0.3s ease;
+            }}
+            
+            .filter-group-inline select:focus {{
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }}
+            
+            .date-picker-btn-inline {{
+                padding: 10px 12px;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                font-size: 13px;
+                background: white;
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                transition: all 0.3s ease;
+            }}
+            
+            .date-picker-btn-inline:hover {{
+                border-color: #667eea;
+            }}
+            
+            .quick-filters-inline {{
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                width: 100%;
+            }}
+            
+            /* Multi-select Styles */
+            .multi-select-wrapper {{
+                position: relative;
+            }}
+            
+            .multi-select-btn {{
+                padding: 10px 12px;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                font-size: 13px;
+                background: white;
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                transition: all 0.3s ease;
+                min-width: 150px;
+            }}
+            
+            .multi-select-btn:hover {{
+                border-color: #667eea;
+            }}
+            
+            .multi-select-btn.active {{
+                border-color: #667eea;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }}
+            
+            .multi-select-dropdown {{
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+                z-index: 1000;
+                max-height: 300px;
+                overflow: hidden;
+                margin-top: 4px;
+            }}
+            
+            .multi-select-dropdown.show {{
+                display: block;
+            }}
+            
+            .multi-select-search {{
+                padding: 8px;
+                border-bottom: 1px solid #e2e8f0;
+            }}
+            
+            .multi-select-search input {{
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                font-size: 13px;
+            }}
+            
+            .multi-select-options {{
+                max-height: 250px;
+                overflow-y: auto;
+            }}
+            
+            .multi-select-option {{
+                padding: 10px 12px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                transition: background 0.2s;
+            }}
+            
+            .multi-select-option:hover {{
+                background: #f1f5f9;
+            }}
+            
+            .multi-select-option input[type="checkbox"] {{
+                width: 16px;
+                height: 16px;
+                cursor: pointer;
+            }}
+            
+            .multi-select-option label {{
+                cursor: pointer;
+                flex: 1;
+                font-size: 13px;
+                margin: 0;
+            }}
+            
+            /* Batch Action Bar */
+            .batch-action-bar {{
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 16px 20px;
+                border-radius: 12px;
+                margin-bottom: 16px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+                animation: slideInRight 0.3s ease;
+            }}
+            
+            .batch-action-info {{
+                font-size: 14px;
+                font-weight: 600;
+            }}
+            
+            .batch-action-buttons {{
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }}
+            
+            .btn-batch-action {{
+                padding: 8px 16px;
+                background: rgba(255, 255, 255, 0.2);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 8px;
+                color: white;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 500;
+                transition: all 0.3s ease;
+            }}
+            
+            .btn-batch-action:hover {{
+                background: rgba(255, 255, 255, 0.3);
+                transform: translateY(-2px);
+            }}
+            
+            .btn-batch-action.btn-cancel {{
+                background: rgba(255, 255, 255, 0.1);
+            }}
+            
+            .row-selected {{
+                background: rgba(102, 126, 234, 0.1) !important;
+            }}
+            
+            .row-checkbox {{
+                width: 18px;
+                height: 18px;
+                cursor: pointer;
             }}
             
             .filters-section {{
@@ -1032,24 +1235,24 @@ async def dashboard_page(
             
             .stats-grid {{
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
                 gap: 24px;
                 margin-bottom: 32px;
                 width: 100%;
             }}
             
             .stat-card {{
-                background: rgba(255, 255, 255, 0.98);
+                background: rgba(255, 255, 255, 0.95);
                 backdrop-filter: blur(20px);
                 -webkit-backdrop-filter: blur(20px);
-                border: 1px solid rgba(255, 255, 255, 0.5);
-                border-radius: 20px;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 16px;
                 padding: 24px;
                 box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 position: relative;
                 overflow: hidden;
-                animation: fadeIn 0.5s ease-out;
+                animation: fadeIn 0.6s ease-out;
                 display: flex;
                 flex-direction: column;
             }}
@@ -1060,15 +1263,15 @@ async def dashboard_page(
                 top: 0;
                 left: 0;
                 right: 0;
-                height: 3px;
-                background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+                height: 4px;
+                background: linear-gradient(90deg, #667eea, #764ba2);
                 transform: scaleX(0);
                 transition: transform 0.3s ease;
             }}
             
             .stat-card:hover {{
-                transform: translateY(-2px);
-                box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+                transform: translateY(-4px);
+                box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
             }}
             
             .stat-card:hover::before {{
@@ -1097,7 +1300,7 @@ async def dashboard_page(
             }}
             
             .stat-card .value {{
-                font-size: 28px;
+                font-size: 32px;
                 font-weight: 700;
                 color: #1e293b;
                 transition: all 0.3s ease;
@@ -1321,30 +1524,23 @@ async def dashboard_page(
             
             @media (max-width: 768px) {{
                 .header {{
-                    padding: 6px 12px;
-                    min-height: 45px;
+                    padding: 12px 16px;
+                    flex-direction: column;
+                    gap: 12px;
+                    align-items: flex-start;
                 }}
                 
                 .header h1 {{
-                    font-size: 16px;
+                    font-size: 20px;
                 }}
                 
-                .header-left a {{
-                    padding: 4px 8px;
-                    font-size: 12px;
+                .header-actions {{
+                    width: 100%;
+                    justify-content: flex-end;
                 }}
                 
-                .btn-refresh {{
-                    padding: 4px 8px;
-                    font-size: 12px;
-                }}
-                
-                .container, .dashboard-layout {{
-                    padding: 60px 16px 20px;
-                }}
-                
-                .sidebar-filters {{
-                    top: 50px;
+                .dashboard-layout {{
+                    padding: 100px 16px 40px;
                 }}
                 
                 .filters-section {{
@@ -1422,31 +1618,13 @@ async def dashboard_page(
             }}
             
             @media (max-width: 480px) {{
-                .header {{
-                    padding: 4px 8px;
-                    min-height: 40px;
-                }}
-                
                 .header h1 {{
-                    font-size: 14px;
-                }}
-                
-                .header-left a {{
-                    padding: 4px 6px;
-                    font-size: 11px;
+                    font-size: 18px;
                 }}
                 
                 .btn-refresh {{
-                    padding: 4px 6px;
-                    font-size: 11px;
-                }}
-                
-                .container, .dashboard-layout {{
-                    padding: 50px 12px 16px;
-                }}
-                
-                .sidebar-filters {{
-                    top: 45px;
+                    padding: 8px 12px;
+                    font-size: 13px;
                 }}
                 
                 .stat-card .value {{
@@ -1461,15 +1639,13 @@ async def dashboard_page(
         </style>
     </head>
     <body>
+        """ + user_menu + """
         <div class="header">
-            <div class="header-left">
-                <a href="/">← Trang chủ</a>
-                <h1>📊 Dashboard</h1>
-            </div>
+            <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
             <div class="header-actions">
-                <div id="lastUpdateTime" style="font-size: 11px; color: #64748b; margin-right: 8px; white-space: nowrap; display: none;">--:--:--</div>
+                <div id="lastUpdateTime" style="font-size: 12px; color: rgba(255, 255, 255, 0.8); margin-right: 16px; white-space: nowrap;">Cập nhật lần cuối: --:--:--</div>
                 <button class="btn-refresh" onclick="refreshData()" id="refreshBtn">
-                    🔄
+                    🔄 Làm mới
                 </button>
             </div>
         </div>
@@ -1536,9 +1712,87 @@ async def dashboard_page(
                     🔍 Bộ Lọc
                 </button>
                 
-                <div class="search-box" style="margin-bottom: 24px;">
-                    <span class="search-icon">🔍</span>
-                    <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
+                <!-- Sticky Filter Bar -->
+                <div class="sticky-filter-bar" id="stickyFilterBar">
+                    <div class="filter-bar-row">
+                        <div class="search-box-filter">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign, ID..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
+                        </div>
+                        <button class="btn-refresh-filter" onclick="refreshData()" id="refreshBtnFilter">
+                            🔄 Làm mới
+                        </button>
+                    </div>
+                    <div class="filter-bar-row">
+                        <div class="filter-group-inline">
+                            <label>Account</label>
+                            <div class="multi-select-wrapper">
+                                <div class="multi-select-btn" onclick="toggleMultiSelect('account')" id="accountMultiSelectBtn">
+                                    <span id="accountMultiSelectText">Tất cả Accounts</span>
+                                    <span>▼</span>
+                                </div>
+                                <div class="multi-select-dropdown" id="accountMultiSelectDropdown">
+                                    <div class="multi-select-search">
+                                        <input type="text" placeholder="Tìm account..." onkeyup="filterMultiSelectOptions('account', this.value)">
+                                    </div>
+                                    <div class="multi-select-options" id="accountMultiSelectOptions">
+                                        <!-- Options will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="filter-group-inline">
+                            <label>Prefix</label>
+                            <div class="multi-select-wrapper">
+                                <div class="multi-select-btn" onclick="toggleMultiSelect('prefix')" id="prefixMultiSelectBtn">
+                                    <span id="prefixMultiSelectText">Tất cả Prefixes</span>
+                                    <span>▼</span>
+                                </div>
+                                <div class="multi-select-dropdown" id="prefixMultiSelectDropdown">
+                                    <div class="multi-select-search">
+                                        <input type="text" placeholder="Tìm prefix..." onkeyup="filterMultiSelectOptions('prefix', this.value)">
+                                    </div>
+                                    <div class="multi-select-options" id="prefixMultiSelectOptions">
+                                        <!-- Options will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="filter-group-inline">
+                            <label>Loại Campaign</label>
+                            <select id="campaignTypeFilter" onchange="handleFilterChange()">
+                                <option value="">Tất cả</option>
+                                <option value="ECOMMERCE">E-commerce</option>
+                                <option value="LEAD">Lead Generation</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-inline">
+                            <label>Trạng thái</label>
+                            <select id="statusFilter" onchange="handleFilterChange()">
+                                <option value="">Tất cả</option>
+                                <option value="ACTIVE">Đang chạy</option>
+                                <option value="PAUSED">Tạm dừng</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-inline">
+                            <label>Khoảng thời gian</label>
+                            <div class="date-picker-btn-inline" onclick="openDatePicker()">
+                                <span id="dateRangeText">Chọn khoảng thời gian</span>
+                                <span>📅</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="filter-bar-row">
+                        <div class="quick-filters-inline">
+                            <button class="quick-filter-btn" onclick="applyQuickFilter('today', this)">Hôm nay</button>
+                            <button class="quick-filter-btn" onclick="applyQuickFilter('yesterday', this)">Hôm qua</button>
+                            <button class="quick-filter-btn" onclick="applyQuickFilter('last7days', this)">7 ngày qua</button>
+                            <button class="quick-filter-btn" onclick="applyQuickFilter('last14days', this)">14 ngày qua</button>
+                            <button class="quick-filter-btn" onclick="applyQuickFilter('last30days', this)">30 ngày qua</button>
+                            <button class="quick-filter-btn" onclick="applyQuickFilter('thisMonth', this)">Tháng này</button>
+                            <button class="quick-filter-btn" onclick="applyQuickFilter('lastMonth', this)">Tháng trước</button>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="stats-grid" id="statsGrid">
@@ -1604,6 +1858,24 @@ async def dashboard_page(
                     </div>
                 </div>
                 
+                <!-- CHUYỂN TABLE LÊN TRƯỚC PREFIX OVERVIEW -->
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>📋 Chi Tiết Quảng Cáo</h2>
+                        <div class="table-header-actions">
+                            <div id="tableInfo" style="font-size: 14px; color: #64748b;">Hiển thị 0 / 0 kết quả</div>
+                            <button class="btn-export" onclick="exportData()" id="exportBtn">📥 Xuất Excel</button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper" id="tableWrapper">
+                        <div class="loading">
+                            <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
+                            <div style="font-size: 16px; font-weight: 500;">Đang tải dữ liệu...</div>
+                        </div>
+                    </div>
+                    <div class="pagination" id="pagination"></div>
+                </div>
+                
                 <div class="prefix-summary-section" id="prefixSummarySection">
                     <div class="charts-header">
                         <h2>📊 Tổng Quan Theo Prefix</h2>
@@ -1626,29 +1898,20 @@ async def dashboard_page(
                     </div>
                     <div class="charts-grid">
                         <div class="chart-container">
-                            <canvas id="lineChart" style="max-height: 300px;"></canvas>
+                            <div style="text-align: center;">
+                                <div style="font-size: 48px; margin-bottom: 12px;">📈</div>
+                                <div>Line Chart: Chi tiêu & Kết quả theo ngày</div>
+                                <div style="font-size: 12px; margin-top: 8px; color: #cbd5e1;">(Sẽ tích hợp Chart.js sau)</div>
+                            </div>
                         </div>
                         <div class="chart-container">
-                            <canvas id="barChart" style="max-height: 300px;"></canvas>
+                            <div style="text-align: center;">
+                                <div style="font-size: 48px; margin-bottom: 12px;">📊</div>
+                                <div>Bar Chart: Chi tiêu theo Prefix</div>
+                                <div style="font-size: 12px; margin-top: 8px; color: #cbd5e1;">(Sẽ tích hợp Chart.js sau)</div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                <div class="table-container">
-                    <div class="table-header">
-                        <h2>📋 Chi Tiết Quảng Cáo</h2>
-                        <div class="table-header-actions">
-                            <div id="tableInfo" style="font-size: 14px; color: #64748b;">Hiển thị 0 / 0 kết quả</div>
-                            <button class="btn-export" onclick="exportData()" id="exportBtn">📥 Xuất Excel</button>
-                        </div>
-                    </div>
-                    <div class="table-wrapper" id="tableWrapper">
-                        <div class="loading">
-                            <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
-                            <div style="font-size: 16px; font-weight: 500;">Đang tải dữ liệu...</div>
-                        </div>
-                    </div>
-                    <div class="pagination" id="pagination"></div>
                 </div>
             </div>
         </div>
@@ -1684,13 +1947,23 @@ async def dashboard_page(
             const pageSize = 50;
             let selectedDateRange = {{ start: null, end: null }};
             let currentFilters = {{
-                account: '',
-                prefix: '',
+                accounts: [],  // Changed to array for multi-select
+                prefixes: [],  // Changed to array for multi-select
                 campaignType: '',
                 status: '',
                 dateFrom: '',
-                dateTo: ''
+                dateTo: '',
+                searchTerm: ''
             }};
+            
+            // Multi-select state
+            let selectedAccounts = [];
+            let selectedPrefixes = [];
+            let allAccounts = [];
+            let allPrefixes = [];
+            
+            // Batch selection state
+            let selectedAdsetIds = new Set();
             
             // Date Picker Logic
             function openDatePicker() {{
@@ -1775,14 +2048,14 @@ async def dashboard_page(
                             <div class="calendar-nav">
                                 <button onclick="changeMonth(-1)">‹</button>
                                 <select onchange="changeMonthBySelect(this.value)">
-                                    ` + Array.from({{length: 12}}, (_, i) => `
+                                    ` + Array.from({length: 12}, (_, i) => `
                                         <option value="` + i + `" ` + (i === month ? 'selected' : '') + `>
                                             Tháng ` + (i + 1) + `
                                         </option>
                                     `).join('') + `
                                 </select>
                                 <select onchange="changeYearBySelect(this.value)">
-                                    ` + Array.from({{length: 10}}, (_, i) => year - 5 + i).map(y => `
+                                    ` + Array.from({length: 10}, (_, i) => year - 5 + i).map(y => `
                                         <option value="` + y + `" ` + (y === year ? 'selected' : '') + `>` + y + `</option>
                                     `).join('') + `
                                 </select>
@@ -1862,7 +2135,7 @@ async def dashboard_page(
                 renderCalendars();
             }}
             
-            async function applyDateRange() {{
+            function applyDateRange() {{
                 if (selectedDateRange.start && selectedDateRange.end) {{
                     const startStr = selectedDateRange.start.toISOString().split('T')[0];
                     const endStr = selectedDateRange.end.toISOString().split('T')[0];
@@ -1874,37 +2147,34 @@ async def dashboard_page(
                     document.getElementById('dateRangeText').textContent = startFormatted + ' - ' + endFormatted;
                     
                     closeDatePicker();
-                    
-                    // Pull data from Facebook when date range is applied
-                    try {{
-                        const token = localStorage.getItem('access_token') || getCookie('access_token');
-                        if (token) {{
-                            const startStr = selectedDateRange.start.toISOString().split('T')[0];
-                            const endStr = selectedDateRange.end.toISOString().split('T')[0];
-                            
-                            const response = await fetch('/dashboard/pull-data?date_from=' + startStr + '&date_to=' + endStr, {{
-                                method: 'POST',
-                                headers: {{
-                                    'Authorization': 'Bearer ' + token,
-                                    'Content-Type': 'application/json'
-                                }}
-                            }});
-                            if (response.ok) {{
-                                const data = await response.json();
-                                console.log('✅ Đã pull dữ liệu từ Facebook:', data.count || 0, 'adsets');
-                            }} else {{
-                                const errorData = await response.json();
-                                console.error('Lỗi khi pull dữ liệu:', errorData.detail || 'Unknown error');
-                            }}
-                        }}
-                    }} catch (error) {{
-                        console.error('Lỗi khi pull dữ liệu:', error);
+                    // Pull data from Facebook for the selected date range
+                    pullFacebookDataForDateRange(startStr, endStr).then(() => {{
+                        loadData();
+                    }});
+                }}
+            }}
+            
+            // Pull Facebook data for specific date range
+            async function pullFacebookDataForDateRange(dateFrom, dateTo) {{
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const response = await fetch('/dashboard/pull-data', {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/json'
+                        }},
+                        body: JSON.stringify({{
+                            date_from: dateFrom,
+                            date_to: dateTo
+                        }})
+                    }});
+                    const data = await response.json();
+                    if (response.ok && data.success) {{
+                        console.log('✅ Đã pull dữ liệu:', data.count + ' adsets');
                     }}
-                    
-                    // Load data after pulling
-                    await loadData();
-                    await loadPrefixSummary();
-                    await loadCharts();
+                }} catch (error) {{
+                    console.error('❌ Lỗi khi pull dữ liệu:', error.message);
                 }}
             }}
             
@@ -1915,29 +2185,130 @@ async def dashboard_page(
                 return day + ' Tháng ' + month + ', ' + year;
             }}
             
+            // Multi-select functions
+            function toggleMultiSelect(type) {{
+                const dropdown = document.getElementById(type + 'MultiSelectDropdown');
+                const btn = document.getElementById(type + 'MultiSelectBtn');
+                const isOpen = dropdown.classList.contains('show');
+                
+                // Close all dropdowns first
+                document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('show'));
+                document.querySelectorAll('.multi-select-btn').forEach(b => b.classList.remove('active'));
+                
+                if (!isOpen) {{
+                    dropdown.classList.add('show');
+                    btn.classList.add('active');
+                }}
+            }}
+            
+            function filterMultiSelectOptions(type, searchTerm) {{
+                const options = document.querySelectorAll('#' + type + 'MultiSelectOptions .multi-select-option');
+                const term = searchTerm.toLowerCase();
+                options.forEach(option => {{
+                    const text = option.textContent.toLowerCase();
+                    option.style.display = text.includes(term) ? 'flex' : 'none';
+                }});
+            }}
+            
+            function updateMultiSelectDisplay(type, selectedItems) {{
+                const btnText = document.getElementById(type + 'MultiSelectText');
+                if (selectedItems.length === 0) {{
+                    btnText.textContent = type === 'account' ? 'Tất cả Accounts' : 'Tất cả Prefixes';
+                }} else if (selectedItems.length === 1) {{
+                    btnText.textContent = selectedItems[0];
+                }} else {{
+                    btnText.textContent = selectedItems.length + ' đã chọn';
+                }}
+            }}
+            
+            function handleMultiSelectChange(type, value, checked) {{
+                const selected = type === 'account' ? selectedAccounts : selectedPrefixes;
+                if (checked) {{
+                    if (!selected.includes(value)) {{
+                        selected.push(value);
+                    }}
+                }} else {{
+                    const index = selected.indexOf(value);
+                    if (index > -1) {{
+                        selected.splice(index, 1);
+                    }}
+                }}
+                updateMultiSelectDisplay(type, selected);
+                updateCurrentFilters();
+                debouncedLoadData();
+            }}
+            
+            function updateCurrentFilters() {{
+                currentFilters.accounts = selectedAccounts;
+                currentFilters.prefixes = selectedPrefixes;
+            }}
+            
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', function(event) {{
+                if (!event.target.closest('.multi-select-wrapper')) {{
+                    document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('show'));
+                    document.querySelectorAll('.multi-select-btn').forEach(b => b.classList.remove('active'));
+                }}
+            }});
+            
+            // Debounce function for loadData
+            function debounce(func, wait) {{
+                let timeout;
+                return function executedFunction(...args) {{
+                    const later = () => {{
+                        clearTimeout(timeout);
+                        func(...args);
+                    }};
+                    clearTimeout(timeout);
+                    timeout = setTimeout(later, wait);
+                }};
+            }}
+            
+            const debouncedLoadData = debounce(loadData, 300);
+            
+            function handleFilterChange() {{
+                currentFilters.campaignType = document.getElementById('campaignTypeFilter').value;
+                currentFilters.status = document.getElementById('statusFilter').value;
+                debouncedLoadData();
+            }}
+            
+            function handleSearch(event) {{
+                currentFilters.searchTerm = event.target.value;
+                debouncedLoadData();
+            }}
+            
             // Load data
             async function loadData() {{
-                const account = document.getElementById('accountFilter').value;
-                const prefix = document.getElementById('prefixFilter').value;
-                const campaignType = document.getElementById('campaignTypeFilter').value;
-                const status = document.getElementById('statusFilter').value;
+                // Get filters from sticky filter bar
+                const campaignType = document.getElementById('campaignTypeFilter')?.value || '';
+                const status = document.getElementById('statusFilter')?.value || '';
+                const searchTerm = document.getElementById('searchInput')?.value || '';
                 
-                currentFilters.account = account;
-                currentFilters.prefix = prefix;
+                // Update currentFilters
                 currentFilters.campaignType = campaignType;
                 currentFilters.status = status;
+                currentFilters.searchTerm = searchTerm;
+                updateCurrentFilters(); // Update accounts and prefixes arrays
                 
                 const params = new URLSearchParams({{
                     page: currentPage,
                     page_size: pageSize
                 }});
                 
-                if (account) params.append('account_id', account);
-                if (prefix) params.append('prefix', prefix);
+                // Add multi-select filters (arrays)
+                if (currentFilters.accounts && currentFilters.accounts.length > 0) {{
+                    currentFilters.accounts.forEach(acc => params.append('account_ids', acc));
+                }}
+                if (currentFilters.prefixes && currentFilters.prefixes.length > 0) {{
+                    currentFilters.prefixes.forEach(pref => params.append('prefixes', pref));
+                }}
+                
+                // Add single filters
                 if (campaignType) params.append('campaign_type', campaignType);
                 if (status) params.append('status', status);
                 if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
                 if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
+                if (searchTerm) params.append('search_term', searchTerm);
                 
                 try {{
                     // Show loading skeleton
@@ -1950,64 +2321,23 @@ async def dashboard_page(
                         '</div>';
                     document.getElementById('tableWrapper').innerHTML = skeleton;
                     
-                    const token = localStorage.getItem('access_token') || getCookie('access_token');
-                    if (!token) {{
-                        throw new Error('Chưa đăng nhập. Vui lòng đăng nhập lại.');
-                    }}
-                    
                     const response = await fetch('/dashboard/data?' + params.toString(), {{
                         headers: {{
-                            'Authorization': 'Bearer ' + token
+                            'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || getCookie('access_token'))
                         }}
                     }});
                     
-                    if (!response.ok) {{
-                        const errorText = await response.text();
-                        let errorMsg = 'Lỗi khi tải dữ liệu';
-                        try {{
-                            const errorJson = JSON.parse(errorText);
-                            errorMsg = errorJson.detail || errorJson.message || errorMsg;
-                        }} catch {{
-                            errorMsg = errorText.substring(0, 200);
-                        }}
-                        throw new Error(errorMsg);
-                    }}
+                    if (!response.ok) throw new Error('Failed to load data');
                     
                     const data = await response.json();
                     if (data.stats) {{
                         updateStats(data.stats);
-                    }} else {{
-                        // Reset stats về 0 nếu không có data
-                        updateStats({{
-                            total_spend: 0,
-                            total_results: 0,
-                            avg_gia_data: 0,
-                            active_adsets: 0,
-                            paused_adsets: 0,
-                            total_adsets: 0
-                        }});
                     }}
                     renderTable(data);
                 }} catch (error) {{
                     console.error('Error loading data:', error);
-                    const errorMsg = error.message || 'Lỗi khi tải dữ liệu';
                     document.getElementById('tableWrapper').innerHTML = 
-                        '<div class="empty-state">' +
-                        '<div class="icon">⚠️</div>' +
-                        '<h3>Lỗi khi tải dữ liệu</h3>' +
-                        '<p>' + errorMsg + '</p>' +
-                        '<button class="btn-primary" onclick="loadData()" style="margin-top: 16px; padding: 10px 20px;">Thử lại</button>' +
-                        '</div>';
-                    
-                    // Reset stats về 0 khi có lỗi
-                    updateStats({{
-                        total_spend: 0,
-                        total_results: 0,
-                        avg_gia_data: 0,
-                        active_adsets: 0,
-                        paused_adsets: 0,
-                        total_adsets: 0
-                    }});
+                        '<div class="empty-state"><div class="icon">⚠️</div>Lỗi khi tải dữ liệu</div>';
                 }}
             }}
             
@@ -2052,6 +2382,9 @@ async def dashboard_page(
             }}
             
             function renderTable(data) {{
+                // Store data globally for batch actions
+                window.currentAdsData = data;
+                
                 const ads = data.ads || [];
                 const total = data.total || 0;
                 const campaignType = currentFilters.campaignType || 'ECOMMERCE';
@@ -2073,22 +2406,24 @@ async def dashboard_page(
                     return;
                 }}
                 
-                // Define columns based on campaign type
+                // Define columns based on campaign type - Add checkbox column first
                 const columns = campaignType === 'ECOMMERCE' ? [
-                    'Thao tác', 'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
+                    '<input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)">', 
+                    'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
                     '% ADS', 'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
                     'Giá trị chuyển đổi từ lượt mua', 'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)',
-                    'CTR (tất cả)', 'CPC (tất cả)'
+                    'CTR (tất cả)', 'CPC (tất cả)', 'Thao tác'
                 ] : [
-                    'Thao tác', 'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
+                    '<input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)">',
+                    'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
                     'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
-                    'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)'
-                ];
+                    'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)', 'Thao tác'
+                };
                 
                 // Define sortable columns
-                const sortableColumns = {{
+                const sortableColumns = {
                     'Số tiền chi tiêu': 'spend',
                     'Kết quả': 'results',
                     'Giá DATA': 'gia_data',
@@ -2097,34 +2432,49 @@ async def dashboard_page(
                     'Số lần nhấp (tất cả)': 'clicks',
                     'CTR (tất cả)': 'ctr',
                     'CPC (tất cả)': 'cpc'
-                }};
+                };
                 
-                let html = '<table><thead><tr>';
+                // Batch action bar
+                let batchActionBar = '';
+                if (selectedAdsetIds.size > 0) {{
+                    batchActionBar = `
+                        <div class="batch-action-bar" id="batchActionBar">
+                            <div class="batch-action-info">
+                                <strong>${{selectedAdsetIds.size}}</strong> adsets đã chọn
+                            </div>
+                            <div class="batch-action-buttons">
+                                <button class="btn-batch-action" onclick="batchAction('activate')">▶️ Bật tất cả</button>
+                                <button class="btn-batch-action" onclick="batchAction('pause')">⏸️ Tắt tất cả</button>
+                                <button class="btn-batch-action" onclick="batchAction('increase_budget')">📈 Tăng +20%</button>
+                                <button class="btn-batch-action" onclick="batchAction('decrease_budget')">📉 Giảm -20%</button>
+                                <button class="btn-batch-action btn-cancel" onclick="clearSelection()">✕ Bỏ chọn</button>
+                            </div>
+                        </div>
+                    `;
+                }}
+                
+                let html = batchActionBar + '<table><thead><tr>';
                 columns.forEach((col, idx) => {{
-                    const sortKey = sortableColumns[col];
-                    if (sortKey) {{
-                        html += '<th class="sortable" onclick="sortTable(' + idx + ', \\'' + sortKey + '\\')">' + col + '</th>';
-                    }} else {{
+                    // Skip sorting for checkbox column (index 0)
+                    if (idx === 0) {{
                         html += '<th>' + col + '</th>';
+                    }} else {{
+                        const sortKey = sortableColumns[col];
+                        if (sortKey) {{
+                            html += '<th class="sortable" onclick="sortTable(' + idx + ', \\'' + sortKey + '\\')">' + col + '</th>';
+                        }} else {{
+                            html += '<th>' + col + '</th>';
+                        }}
                     }}
                 }});
                 html += '</tr></thead><tbody>';
                 
                 ads.forEach(ad => {{
-                    html += '<tr data-adset-id="' + (ad.adset_id || '') + '" data-account-id="' + (ad.account_id || '') + '">';
-                    
-                    // Action buttons - moved to first column
-                    const isActive = (ad.adset_status || '').toUpperCase() === 'ACTIVE';
-                    html += '<td class="action-buttons">';
-                    if (isActive) {{
-                        html += '<button class="btn-action btn-pause" onclick="pauseAdset(\\'' + (ad.adset_id || '') + '\\', this)" title="Tắt adset">⏸️</button>';
-                    }} else {{
-                        html += '<button class="btn-action btn-activate" onclick="activateAdset(\\'' + (ad.adset_id || '') + '\\', this)" title="Bật adset">▶️</button>';
-                    }}
-                    html += '<button class="btn-action btn-increase" onclick="increaseBudget(\\'' + (ad.adset_id || '') + '\\', this)" title="Tăng ngân sách 10%">+10%</button>';
-                    html += '<button class="btn-action btn-decrease" onclick="decreaseBudget(\\'' + (ad.adset_id || '') + '\\', this)" title="Giảm ngân sách 10%">-10%</button>';
-                    html += '</td>';
-                    
+                    const adsetId = ad.adset_id || '';
+                    const isSelected = selectedAdsetIds.has(adsetId);
+                    html += '<tr data-adset-id="' + adsetId + '" data-account-id="' + (ad.account_id || '') + '" class="' + (isSelected ? 'row-selected' : '') + '">';
+                    // Checkbox column
+                    html += '<td><input type="checkbox" class="row-checkbox" value="' + adsetId + '" onchange="toggleRowSelection(\'' + adsetId + '\', this.checked)" ' + (isSelected ? 'checked' : '') + '></td>';
                     html += '<td><span class="status-badge status-' + (ad.adset_status || '').toLowerCase() + '">' + (ad.adset_status || '') + '</span></td>';
                     html += '<td>' + (ad.adset_name || '') + '</td>';
                     html += '<td>' + (ad.account_id || '-') + '</td>';
@@ -2166,6 +2516,18 @@ async def dashboard_page(
                     html += '<td class="number-cell">' + formatNumber(ad.clicks || 0) + '</td>';
                     html += '<td class="number-cell">' + ((ad.ctr || 0)).toFixed(2) + '%</td>';
                     html += '<td class="number-cell">' + formatNumber(ad.cpc || 0) + '</td>';
+                    
+                    // Action buttons
+                    const isActive = (ad.adset_status || '').toUpperCase() === 'ACTIVE';
+                    html += '<td class="action-buttons">';
+                    if (isActive) {{
+                        html += '<button class="btn-action btn-pause" onclick="pauseAdset(\\'' + (ad.adset_id || '') + '\\', this)" title="Tắt adset">⏸️</button>';
+                    }} else {{
+                        html += '<button class="btn-action btn-activate" onclick="activateAdset(\\'' + (ad.adset_id || '') + '\\', this)" title="Bật adset">▶️</button>';
+                    }}
+                    html += '<button class="btn-action btn-increase" onclick="increaseBudget(\\'' + (ad.adset_id || '') + '\\', this)" title="Tăng ngân sách 10%">+10%</button>';
+                    html += '<button class="btn-action btn-decrease" onclick="decreaseBudget(\\'' + (ad.adset_id || '') + '\\', this)" title="Giảm ngân sách 10%">-10%</button>';
+                    html += '</td>';
                     html += '</tr>';
                 }});
                 
@@ -2384,6 +2746,112 @@ async def dashboard_page(
                 }} finally {{
                     btn.disabled = false;
                     btn.classList.remove('loading');
+                }}
+            }}
+            
+            // Batch selection functions
+            function toggleSelectAll(checked) {{
+                const checkboxes = document.querySelectorAll('.row-checkbox');
+                checkboxes.forEach(cb => {{
+                    cb.checked = checked;
+                    const adsetId = cb.value;
+                    if (checked) {{
+                        selectedAdsetIds.add(adsetId);
+                    }} else {{
+                        selectedAdsetIds.delete(adsetId);
+                    }}
+                }});
+                updateBatchActionBar();
+            }}
+            
+            function toggleRowSelection(adsetId, checked) {{
+                if (checked) {{
+                    selectedAdsetIds.add(adsetId);
+                }} else {{
+                    selectedAdsetIds.delete(adsetId);
+                }}
+                updateBatchActionBar();
+                // Update select all checkbox
+                const allCheckboxes = document.querySelectorAll('.row-checkbox');
+                const selectAll = document.getElementById('selectAll');
+                if (selectAll && allCheckboxes.length > 0) {{
+                    selectAll.checked = Array.from(allCheckboxes).every(cb => cb.checked);
+                }}
+                // Update row styling
+                const row = document.querySelector(`tr[data-adset-id="${{adsetId}}"]`);
+                if (row) {{
+                    if (checked) {{
+                        row.classList.add('row-selected');
+                    }} else {{
+                        row.classList.remove('row-selected');
+                    }}
+                }}
+            }}
+            
+            function clearSelection() {{
+                selectedAdsetIds.clear();
+                document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
+                const selectAll = document.getElementById('selectAll');
+                if (selectAll) selectAll.checked = false;
+                document.querySelectorAll('.row-selected').forEach(row => row.classList.remove('row-selected'));
+                updateBatchActionBar();
+            }}
+            
+            function updateBatchActionBar() {{
+                const bar = document.getElementById('batchActionBar');
+                if (selectedAdsetIds.size > 0) {{
+                    if (!bar) {{
+                        // Re-render table to show batch action bar
+                        if (window.currentAdsData) {{
+                            renderTable(window.currentAdsData);
+                        }}
+                    }} else {{
+                        bar.querySelector('.batch-action-info').innerHTML = '<strong>' + selectedAdsetIds.size + '</strong> adsets đã chọn';
+                    }}
+                }} else {{
+                    if (bar) bar.remove();
+                }}
+            }}
+            
+            async function batchAction(action) {{
+                if (selectedAdsetIds.size === 0) return;
+                
+                const actionNames = {{
+                    'activate': 'bật',
+                    'pause': 'tắt',
+                    'increase_budget': 'tăng ngân sách +20%',
+                    'decrease_budget': 'giảm ngân sách -20%'
+                }};
+                
+                if (!confirm(`Bạn có chắc muốn ${{actionNames[action]}} cho ${{selectedAdsetIds.size}} adsets?`)) return;
+                
+                const adsetIds = Array.from(selectedAdsetIds);
+                const token = localStorage.getItem('access_token') || getCookie('access_token');
+                
+                try {{
+                    const response = await fetch('/dashboard/adsets/batch-action', {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/json'
+                        }},
+                        body: JSON.stringify({{
+                            adset_ids: adsetIds,
+                            action: action
+                        }})
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {{
+                        showToast(`✅ Đã ${{actionNames[action]}} thành công cho ${{result.success_count || adsetIds.length}} adsets`, 'success');
+                        clearSelection();
+                        setTimeout(() => loadData(), 1000);
+                    }} else {{
+                        showToast('❌ Lỗi: ' + (result.detail || result.message || 'Unknown error'), 'error');
+                    }}
+                }} catch (error) {{
+                    showToast('❌ Lỗi: ' + error.message, 'error');
                 }}
             }}
             
@@ -2656,12 +3124,27 @@ async def dashboard_page(
             
             // Reset filters
             function resetFilters() {{
-                document.getElementById('accountFilter').value = '';
-                document.getElementById('prefixFilter').value = '';
+                // Reset old select filters (backward compatibility)
+                const accountFilter = document.getElementById('accountFilter');
+                const prefixFilter = document.getElementById('prefixFilter');
+                if (accountFilter) accountFilter.value = '';
+                if (prefixFilter) prefixFilter.value = '';
+                
+                // Reset multi-select
+                selectedAccounts = [];
+                selectedPrefixes = [];
+                document.querySelectorAll('#accountMultiSelectOptions input[type="checkbox"]').forEach(cb => cb.checked = false);
+                document.querySelectorAll('#prefixMultiSelectOptions input[type="checkbox"]').forEach(cb => cb.checked = false);
+                updateMultiSelectDisplay('account', []);
+                updateMultiSelectDisplay('prefix', []);
+                
+                // Reset other filters
                 document.getElementById('campaignTypeFilter').value = '';
                 document.getElementById('statusFilter').value = '';
                 document.getElementById('searchInput').value = '';
                 currentSearchTerm = '';
+                
+                // Reset date range
                 const today = new Date();
                 selectedDateRange.start = today;
                 selectedDateRange.end = today;
@@ -2669,6 +3152,9 @@ async def dashboard_page(
                 currentFilters.dateTo = today.toISOString().split('T')[0];
                 document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
                 document.querySelectorAll('.quick-filter-btn').forEach(btn => btn.classList.remove('active'));
+                
+                // Update filters and reload
+                updateCurrentFilters();
                 loadData();
                 loadPrefixSummary();
                 updateLastUpdateTime();
@@ -2685,28 +3171,20 @@ async def dashboard_page(
             
             async function refreshData() {{
                 const btn = document.getElementById('refreshBtn');
-                if (btn.classList.contains('loading')) return; // Prevent double click
-                
                 btn.classList.add('loading');
                 btn.disabled = true;
                 
-                try {{
-                    await Promise.all([
-                        loadData(),
-                        loadPrefixSummary(),
-                        loadCharts()
-                    ]);
-                    updateLastUpdateTime();
-                    showToast('✅ Đã làm mới dữ liệu thành công', 'success');
-                }} catch (error) {{
-                    console.error('Error refreshing data:', error);
-                    showToast('❌ Lỗi khi làm mới dữ liệu', 'error');
-                }} finally {{
-                    setTimeout(() => {{
-                        btn.classList.remove('loading');
-                        btn.disabled = false;
-                    }}, 500);
-                }}
+                await Promise.all([
+                    loadData(),
+                    loadPrefixSummary()
+                ]);
+                
+                updateLastUpdateTime();
+                
+                setTimeout(() => {{
+                    btn.classList.remove('loading');
+                    btn.disabled = false;
+                }}, 500);
             }}
             
             async function loadFilters() {{
@@ -2721,23 +3199,56 @@ async def dashboard_page(
                     
                     const filters = await response.json();
                     
-                    // Populate account filter
-                    const accountFilter = document.getElementById('accountFilter');
-                    filters.accounts.forEach(account => {{
-                        const option = document.createElement('option');
-                        option.value = account;
-                        option.textContent = account;
-                        accountFilter.appendChild(option);
+                    // Store all accounts and prefixes
+                    allAccounts = filters.accounts || [];
+                    allPrefixes = filters.prefixes || [];
+                    
+                    // Populate account multi-select
+                    const accountOptions = document.getElementById('accountMultiSelectOptions');
+                    accountOptions.innerHTML = '';
+                    allAccounts.forEach(account => {{
+                        const option = document.createElement('div');
+                        option.className = 'multi-select-option';
+                        option.innerHTML = `
+                            <input type="checkbox" id="account_${account}" value="${account}" onchange="handleMultiSelectChange('account', '${account}', this.checked)">
+                            <label for="account_${account}">${account}</label>
+                        `;
+                        accountOptions.appendChild(option);
                     }});
                     
-                    // Populate prefix filter
-                    const prefixFilter = document.getElementById('prefixFilter');
-                    filters.prefixes.forEach(prefix => {{
-                        const option = document.createElement('option');
-                        option.value = prefix;
-                        option.textContent = prefix;
-                        prefixFilter.appendChild(option);
+                    // Populate prefix multi-select
+                    const prefixOptions = document.getElementById('prefixMultiSelectOptions');
+                    prefixOptions.innerHTML = '';
+                    allPrefixes.forEach(prefix => {{
+                        const option = document.createElement('div');
+                        option.className = 'multi-select-option';
+                        option.innerHTML = `
+                            <input type="checkbox" id="prefix_${prefix}" value="${prefix}" onchange="handleMultiSelectChange('prefix', '${prefix}', this.checked)">
+                            <label for="prefix_${prefix}">${prefix}</label>
+                        `;
+                        prefixOptions.appendChild(option);
                     }});
+                    
+                    // Also populate old select for backward compatibility (sidebar)
+                    const accountFilter = document.getElementById('accountFilter');
+                    if (accountFilter) {{
+                        allAccounts.forEach(account => {{
+                            const option = document.createElement('option');
+                            option.value = account;
+                            option.textContent = account;
+                            accountFilter.appendChild(option);
+                        }});
+                    }}
+                    
+                    const prefixFilter = document.getElementById('prefixFilter');
+                    if (prefixFilter) {{
+                        allPrefixes.forEach(prefix => {{
+                            const option = document.createElement('option');
+                            option.value = prefix;
+                            option.textContent = prefix;
+                            prefixFilter.appendChild(option);
+                        }});
+                    }}
                 }} catch (error) {{
                     console.error('Error loading filters:', error);
                 }}
@@ -2885,246 +3396,60 @@ async def dashboard_page(
                 }}
             }}
             
-            // Set default date to today
+            // Set default date to today and auto-pull data
             window.addEventListener('DOMContentLoaded', async () => {{
                 const today = new Date();
                 
+                // Set default date range to today
                 selectedDateRange.start = today;
                 selectedDateRange.end = today;
                 currentFilters.dateFrom = today.toISOString().split('T')[0];
                 currentFilters.dateTo = today.toISOString().split('T')[0];
                 document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
                 
+                // Load filters first
                 await loadFilters();
                 
-                // Pull data from Facebook for today when page loads
+                // Auto-pull data from Facebook for today (like Facebook Ads Manager)
                 try {{
                     const token = localStorage.getItem('access_token') || getCookie('access_token');
-                    if (token) {{
-                        const todayStr = today.toISOString().split('T')[0];
-                        console.log('🔄 Pulling data for today:', todayStr);
-                        
-                        const response = await fetch('/dashboard/pull-data?date_from=' + todayStr + '&date_to=' + todayStr, {{
-                            method: 'POST',
-                            headers: {{
-                                'Authorization': 'Bearer ' + token,
-                                'Content-Type': 'application/json'
-                            }}
-                        }});
-                        if (response.ok) {{
-                            const data = await response.json();
-                            console.log('✅ Đã pull dữ liệu từ Facebook:', data.count || 0, 'adsets');
-                        }} else {{
-                            const errorData = await response.json();
-                            console.error('Lỗi khi pull dữ liệu:', errorData.detail || 'Unknown error');
-                        }}
+                    const response = await fetch('/dashboard/pull-data', {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/json'
+                        }},
+                        body: JSON.stringify({{
+                            date_from: currentFilters.dateFrom,
+                            date_to: currentFilters.dateTo
+                        }})
+                    }});
+                    const data = await response.json();
+                    if (response.ok && data.success) {{
+                        console.log('✅ Đã pull dữ liệu:', data.count + ' adsets');
                     }}
                 }} catch (error) {{
-                    console.error('Lỗi khi pull dữ liệu:', error);
+                    console.error('❌ Lỗi khi pull dữ liệu:', error.message);
                 }}
                 
-                // Load data after pulling
+                // Then load data from database
                 loadData();
                 loadPrefixSummary();
                 updateLastUpdateTime();
                 
                 // Add event listeners với debounce cho performance
-                const debouncedLoadData = debounce(loadData, 300);
-                document.getElementById('accountFilter').addEventListener('change', debouncedLoadData);
-                document.getElementById('prefixFilter').addEventListener('change', debouncedLoadData);
-                document.getElementById('campaignTypeFilter').addEventListener('change', debouncedLoadData);
-                document.getElementById('statusFilter').addEventListener('change', debouncedLoadData);
+                const accountFilter = document.getElementById('accountFilter');
+                const prefixFilter = document.getElementById('prefixFilter');
+                if (accountFilter) accountFilter.addEventListener('change', debouncedLoadData);
+                if (prefixFilter) prefixFilter.addEventListener('change', debouncedLoadData);
                 
                 // Auto refresh mỗi 5 phút
                 setInterval(() => {{
                     loadData();
                     loadPrefixSummary();
-                    loadCharts();
                     updateLastUpdateTime();
                 }}, 5 * 60 * 1000);
-                
-                // Load charts
-                loadCharts();
             }});
-            
-            // Chart.js instances
-            let lineChartInstance = null;
-            let barChartInstance = null;
-            
-            // Load charts data
-            async function loadCharts() {{
-                try {{
-                    const token = localStorage.getItem('access_token') || getCookie('access_token');
-                    const params = new URLSearchParams();
-                    if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
-                    if (currentFilters.dateTo) params.append('date_to', currentFilters.dateTo);
-                    if (currentFilters.account) params.append('account_id', currentFilters.account);
-                    if (currentFilters.prefix) params.append('prefix', currentFilters.prefix);
-                    if (currentFilters.campaignType) params.append('campaign_type', currentFilters.campaignType);
-                    if (currentFilters.status) params.append('status', currentFilters.status);
-                    
-                    const response = await fetch('/dashboard/charts-data?' + params.toString(), {{
-                        headers: {{
-                            'Authorization': 'Bearer ' + token
-                        }}
-                    }});
-                    
-                    if (!response.ok) {{
-                        console.error('Failed to load charts data');
-                        return;
-                    }}
-                    
-                    const data = await response.json();
-                    renderCharts(data);
-                }} catch (error) {{
-                    console.error('Error loading charts:', error);
-                }}
-            }}
-            
-            function renderCharts(data) {{
-                // Line Chart: Chi tiêu & Kết quả theo ngày
-                const lineCtx = document.getElementById('lineChart');
-                if (!lineCtx) return;
-                
-                if (lineChartInstance) {{
-                    lineChartInstance.destroy();
-                }}
-                
-                const labels = data.daily_data ? data.daily_data.map(d => d.date) : [];
-                const spendData = data.daily_data ? data.daily_data.map(d => d.spend || 0) : [];
-                const resultsData = data.daily_data ? data.daily_data.map(d => d.results || 0) : [];
-                
-                lineChartInstance = new Chart(lineCtx, {{
-                    type: 'line',
-                    data: {{
-                        labels: labels,
-                        datasets: [
-                            {{
-                                label: 'Chi tiêu (₫)',
-                                data: spendData,
-                                borderColor: '#667eea',
-                                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                                tension: 0.4,
-                                yAxisID: 'y'
-                            }},
-                            {{
-                                label: 'Kết quả',
-                                data: resultsData,
-                                borderColor: '#10b981',
-                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                                tension: 0.4,
-                                yAxisID: 'y1'
-                            }}
-                        ]
-                    }},
-                    options: {{
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        plugins: {{
-                            legend: {{
-                                display: true,
-                                position: 'top'
-                            }},
-                            tooltip: {{
-                                mode: 'index',
-                                intersect: false
-                            }}
-                        }},
-                        scales: {{
-                            y: {{
-                                type: 'linear',
-                                display: true,
-                                position: 'left',
-                                title: {{
-                                    display: true,
-                                    text: 'Chi tiêu (₫)'
-                                }}
-                            }},
-                            y1: {{
-                                type: 'linear',
-                                display: true,
-                                position: 'right',
-                                title: {{
-                                    display: true,
-                                    text: 'Kết quả'
-                                }},
-                                grid: {{
-                                    drawOnChartArea: false
-                                }}
-                            }}
-                        }}
-                    }}
-                }});
-                
-                // Bar Chart: Chi tiêu theo Prefix
-                const barCtx = document.getElementById('barChart');
-                if (!barCtx) return;
-                
-                if (barChartInstance) {{
-                    barChartInstance.destroy();
-                }}
-                
-                const prefixLabels = data.prefix_data ? Object.keys(data.prefix_data) : [];
-                const prefixSpendData = data.prefix_data ? prefixLabels.map(p => data.prefix_data[p].spend || 0) : [];
-                
-                barChartInstance = new Chart(barCtx, {{
-                    type: 'bar',
-                    data: {{
-                        labels: prefixLabels,
-                        datasets: [{{
-                            label: 'Chi tiêu theo Prefix (₫)',
-                            data: prefixSpendData,
-                            backgroundColor: [
-                                'rgba(102, 126, 234, 0.8)',
-                                'rgba(16, 185, 129, 0.8)',
-                                'rgba(245, 158, 11, 0.8)',
-                                'rgba(239, 68, 68, 0.8)',
-                                'rgba(139, 92, 246, 0.8)',
-                                'rgba(236, 72, 153, 0.8)'
-                            ],
-                            borderColor: [
-                                '#667eea',
-                                '#10b981',
-                                '#f59e0b',
-                                '#ef4444',
-                                '#8b5cf6',
-                                '#ec4899'
-                            ],
-                            borderWidth: 2
-                        }}]
-                    }},
-                    options: {{
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        plugins: {{
-                            legend: {{
-                                display: false
-                            }},
-                            tooltip: {{
-                                callbacks: {{
-                                    label: function(context) {{
-                                        return 'Chi tiêu: ' + new Intl.NumberFormat('vi-VN').format(context.parsed.y) + ' ₫';
-                                    }}
-                                }}
-                            }}
-                        }},
-                        scales: {{
-                            y: {{
-                                beginAtZero: true,
-                                title: {{
-                                    display: true,
-                                    text: 'Chi tiêu (₫)'
-                                }},
-                                ticks: {{
-                                    callback: function(value) {{
-                                        return new Intl.NumberFormat('vi-VN').format(value);
-                                    }}
-                                }}
-                            }}
-                        }}
-                    }}
-                }});
-            }}
             
             function getCookie(name) {{
                 const value = '; ' + document.cookie;
@@ -3158,18 +3483,21 @@ async def dashboard_page(
 @router.get("/data")
 async def get_dashboard_data(
     request: Request,
-    account_id: Optional[str] = Query(None),
-    prefix: Optional[str] = Query(None),
+    account_id: Optional[str] = Query(None),  # Backward compatibility
+    account_ids: Optional[List[str]] = Query(None),  # New: multi-select support
+    prefix: Optional[str] = Query(None),  # Backward compatibility
+    prefixes: Optional[List[str]] = Query(None),  # New: multi-select support
     campaign_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    search_term: Optional[str] = Query(None),  # New: search support
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Lấy dữ liệu dashboard với filters và pagination"""
+    """Lấy dữ liệu dashboard với filters và pagination - Hỗ trợ multi-select và search"""
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
@@ -3178,80 +3506,55 @@ async def get_dashboard_data(
     
     try:
         # Get user's accounts and prefixes
-        account_ids, _ = get_user_account_prefixes(current_user.id, db)
-        logger.info(f"Dashboard data - User {current_user.id}: Found {len(account_ids)} enabled accounts: {account_ids}")
+        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
         
-        if not account_ids:
-            logger.warning(f"User {current_user.id} has no enabled accounts configured")
-            return {
-                "stats": {
-                    "total_spend": 0,
-                    "total_results": 0,
-                    "avg_gia_data": 0,
-                    "active_adsets": 0,
-                    "paused_adsets": 0,
-                    "total_adsets": 0
-                },
-                "ads": [],
-                "total": 0,
-                "page": page,
-                "page_size": page_size,
-                "message": "Chưa có accounts được bật. Vui lòng vào Settings để thêm và bật accounts."
-            }
+        # Normalize account_ids: support both single and multi-select
+        filter_account_ids = []
+        if account_ids:
+            # Multi-select: filter to only user's accounts
+            filter_account_ids = [acc for acc in account_ids if acc in user_account_ids]
+        elif account_id and account_id in user_account_ids:
+            # Single select (backward compatibility)
+            filter_account_ids = [account_id]
+        else:
+            # No filter: use all user's accounts
+            filter_account_ids = user_account_ids
+        
+        # Normalize prefixes: support both single and multi-select
+        filter_prefixes = []
+        if prefixes:
+            # Multi-select: filter to only user's prefixes
+            filter_prefixes = [pref for pref in prefixes if pref in user_prefixes]
+        elif prefix and prefix in user_prefixes:
+            # Single select (backward compatibility)
+            filter_prefixes = [prefix]
+        # If no prefix filter, don't filter by prefix (show all)
         
         # Build base query
-        base_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
-        logger.info(f"Querying AdMetrics with account_ids: {account_ids}")
+        base_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(filter_account_ids))
         
-        # Debug: Check if there's any data in AdMetrics for these accounts
-        total_records = base_query.count()
-        logger.info(f"Total AdMetrics records found for user {current_user.id}: {total_records}")
-        
-        if total_records == 0:
-            # Check if there's any data at all in AdMetrics
-            all_records_count = db.query(AdMetrics).count()
-            logger.warning(f"No AdMetrics found for account_ids {account_ids}. Total records in AdMetrics: {all_records_count}")
-            
-            # Check sample account_ids from AdMetrics
-            sample_accounts = db.query(AdMetrics.account_id).distinct().limit(10).all()
-            sample_account_ids = [acc[0] for acc in sample_accounts if acc[0]]
-            logger.info(f"Sample account_ids found in AdMetrics: {sample_account_ids}")
+        # Apply prefix filter if specified
+        if filter_prefixes:
+            base_query = base_query.filter(AdMetrics.prefix.in_(filter_prefixes))
         
         # Apply filters for stats
         stats_query = base_query
-        if account_id and account_id in account_ids:
-            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
-        if prefix:
-            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
         if campaign_type:
             stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
         if status:
             stats_query = stats_query.filter(AdMetrics.adset_status == status)
         if date_from:
             try:
-                # Parse date và normalize về start of day để so sánh chính xác
                 date_from_dt = datetime.fromisoformat(date_from)
-                if isinstance(date_from_dt, str):
-                    date_from_dt = datetime.fromisoformat(date_from_dt)
-                date_from_dt = date_from_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
                 stats_query = stats_query.filter(func.date(AdMetrics.date) >= func.date(date_from_dt))
-                logger.info(f"Filtering date_from: {date_from} -> {date_from_dt}")
-            except Exception as e:
-                logger.warning(f"Error parsing date_from {date_from}: {e}")
+            except:
                 pass
         if date_to:
             try:
-                # Parse date và normalize về end of day
                 date_to_dt = datetime.fromisoformat(date_to)
-                if isinstance(date_to_dt, str):
-                    date_to_dt = datetime.fromisoformat(date_to_dt)
-                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
-                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
+                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
                 stats_query = stats_query.filter(func.date(AdMetrics.date) <= func.date(date_to_dt))
-                logger.info(f"Filtering date_to: {date_to} -> {date_to_dt}")
-            except Exception as e:
-                logger.warning(f"Error parsing date_to {date_to}: {e}")
+            except:
                 pass
         
         # Calculate stats
@@ -3276,7 +3579,7 @@ async def get_dashboard_data(
             "total_adsets": int(total_adsets_count)
         }
         
-        if not account_ids:
+        if not filter_account_ids:
             return {
                 "stats": stats_result,
                 "ads": [],
@@ -3288,60 +3591,47 @@ async def get_dashboard_data(
         # Build query for ads
         query = base_query
         
-        # Apply filters for ads
-        if account_id and account_id in account_ids:
-            query = query.filter(AdMetrics.account_id == account_id)
-        if prefix:
-            query = query.filter(AdMetrics.prefix == prefix)
+        # Apply filters for ads (account_ids and prefixes already filtered in base_query)
         if campaign_type:
             query = query.filter(AdMetrics.campaign_type == campaign_type)
         if status:
             query = query.filter(AdMetrics.adset_status == status)
         if date_from:
             try:
-                # Parse date và normalize về start of day để so sánh chính xác
                 date_from_dt = datetime.fromisoformat(date_from)
-                if isinstance(date_from_dt, str):
-                    date_from_dt = datetime.fromisoformat(date_from_dt)
-                date_from_dt = date_from_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
                 query = query.filter(func.date(AdMetrics.date) >= func.date(date_from_dt))
-                logger.info(f"Filtering date_from: {date_from} -> {date_from_dt}")
-            except Exception as e:
-                logger.warning(f"Error parsing date_from {date_from}: {e}")
+            except:
                 pass
         if date_to:
             try:
-                # Parse date và normalize về end of day
                 date_to_dt = datetime.fromisoformat(date_to)
-                if isinstance(date_to_dt, str):
-                    date_to_dt = datetime.fromisoformat(date_to_dt)
-                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
-                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
+                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
                 query = query.filter(func.date(AdMetrics.date) <= func.date(date_to_dt))
-                logger.info(f"Filtering date_to: {date_to} -> {date_to_dt}")
-            except Exception as e:
-                logger.warning(f"Error parsing date_to {date_to}: {e}")
+            except:
                 pass
         
-        # Optimize: Aggregate trong query thay vì loop Python
-        adsets_query_optimized = query.with_entities(
+        # Apply search filter (search in adset_name, campaign_name, adset_id, account_id)
+        if search_term:
+            search_term_lower = search_term.lower()
+            query = query.filter(
+                or_(
+                    func.lower(AdMetrics.adset_name).contains(search_term_lower),
+                    func.lower(AdMetrics.campaign_name).contains(search_term_lower),
+                    func.lower(AdMetrics.adset_id).contains(search_term_lower),
+                    func.lower(AdMetrics.account_id).contains(search_term_lower)
+                )
+            )
+        
+        # Group by adset_id to aggregate metrics
+        # Get distinct adsets
+        adsets_query = query.with_entities(
             AdMetrics.adset_id,
             AdMetrics.adset_name,
             AdMetrics.campaign_name,
             AdMetrics.prefix,
             AdMetrics.account_id,
             AdMetrics.campaign_type,
-            func.sum(AdMetrics.spend).label('total_spend'),
-            func.sum(AdMetrics.results).label('total_results'),
-            func.sum(AdMetrics.impressions).label('total_impressions'),
-            func.sum(AdMetrics.clicks).label('total_clicks'),
-            func.sum(AdMetrics.purchases).label('total_purchases'),
-            func.sum(AdMetrics.purchase_value).label('total_purchase_value'),
-            func.sum(AdMetrics.sdt).label('checkouts_initiated'),
-            func.avg(AdMetrics.gia_data).label('avg_gia_data'),
-            func.avg(AdMetrics.ctr).label('avg_ctr'),
-            func.avg(AdMetrics.cpc).label('avg_cpc')
+            func.max(AdMetrics.adset_status).label('adset_status')
         ).group_by(
             AdMetrics.adset_id,
             AdMetrics.adset_name,
@@ -3352,54 +3642,53 @@ async def get_dashboard_data(
         )
         
         # Get total count
-        total = adsets_query_optimized.count()
+        total = adsets_query.count()
         
         # Get paginated results
-        adsets = adsets_query_optimized.offset((page - 1) * page_size).limit(page_size).all()
+        adsets = adsets_query.offset((page - 1) * page_size).limit(page_size).all()
         
-        # Get latest status for each adset from the most recent date (not using func.max which gets alphabetically max)
-        adset_ids = [adset.adset_id for adset in adsets]
-        latest_statuses = {}
-        if adset_ids:
-            # Get the most recent status for each adset by querying the latest date record
-            for adset_id in adset_ids:
-                latest_record = db.query(AdMetrics.adset_status).filter(
-                    AdMetrics.adset_id == adset_id
-                ).order_by(desc(AdMetrics.date)).first()
-                if latest_record:
-                    latest_statuses[adset_id] = latest_record[0] or 'UNKNOWN'
-                else:
-                    latest_statuses[adset_id] = 'UNKNOWN'
-        
-        # Build ads_dict từ kết quả đã aggregate (không cần query lại)
+        # Get aggregated metrics for each adset
         ads_dict = []
         for adset in adsets:
-            total_spend = float(adset.total_spend or 0)
-            total_purchases = float(adset.total_purchases or 0)
-            cost_per_purchase = (total_spend / total_purchases) if total_purchases > 0 else 0
+            adset_metrics = query.filter(AdMetrics.adset_id == adset.adset_id).all()
             
-            # Get latest status from the lookup dict
-            adset_status = latest_statuses.get(adset.adset_id, 'UNKNOWN')
+            # Aggregate metrics
+            total_spend = sum(m.spend or 0 for m in adset_metrics)
+            total_results = sum(m.results or 0 for m in adset_metrics)
+            total_impressions = sum(m.impressions or 0 for m in adset_metrics)
+            total_clicks = sum(m.clicks or 0 for m in adset_metrics)
+            total_purchases = sum(m.purchases or 0 for m in adset_metrics)
+            total_purchase_value = sum(m.purchase_value or 0 for m in adset_metrics)
+            
+            # Calculate averages
+            avg_gia_data = sum(m.gia_data or 0 for m in adset_metrics) / len(adset_metrics) if adset_metrics else 0
+            avg_ctr = sum(m.ctr or 0 for m in adset_metrics) / len(adset_metrics) if adset_metrics else 0
+            avg_cpc = sum(m.cpc or 0 for m in adset_metrics) / len(adset_metrics) if adset_metrics else 0
+            
+            # Calculate derived metrics
+            cost_per_checkout_initiated = 0  # Cần lấy từ Facebook API hoặc tính từ checkouts
+            checkouts_initiated = sum(m.sdt or 0 for m in adset_metrics)  # Sử dụng sdt như checkouts
+            cost_per_purchase = (total_spend / total_purchases) if total_purchases > 0 else 0
             
             ads_dict.append({
                 "adset_id": adset.adset_id,
-                "adset_name": adset.adset_name or '',
-                "campaign_name": adset.campaign_name or '',
-                "prefix": adset.prefix or '',
-                "account_id": adset.account_id or '',
-                "campaign_type": adset.campaign_type or '',
-                "adset_status": adset_status,
+                "adset_name": adset.adset_name,
+                "campaign_name": adset.campaign_name,
+                "prefix": adset.prefix,
+                "account_id": adset.account_id,
+                "campaign_type": adset.campaign_type,
+                "adset_status": adset.adset_status,
                 "spend": total_spend,
-                "results": int(adset.total_results or 0),
-                "gia_data": float(adset.avg_gia_data or 0),
-                "impressions": int(adset.total_impressions or 0),
-                "clicks": int(adset.total_clicks or 0),
-                "ctr": float(adset.avg_ctr or 0),
-                "cpc": float(adset.avg_cpc or 0),
-                "purchases": int(total_purchases),
-                "purchase_value": float(adset.total_purchase_value or 0),
-                "cost_per_checkout_initiated": 0,  # Cần lấy từ Facebook API
-                "checkouts_initiated": int(adset.checkouts_initiated or 0),
+                "results": total_results,
+                "gia_data": avg_gia_data,
+                "impressions": total_impressions,
+                "clicks": total_clicks,
+                "ctr": avg_ctr,
+                "cpc": avg_cpc,
+                "purchases": total_purchases,
+                "purchase_value": total_purchase_value,
+                "cost_per_checkout_initiated": cost_per_checkout_initiated,
+                "checkouts_initiated": checkouts_initiated,
                 "cost_per_purchase": cost_per_purchase
             })
         
@@ -3414,116 +3703,10 @@ async def get_dashboard_data(
             "page_size": page_size
         }
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
         logger.error(f"Error getting dashboard data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy dữ liệu: {str(e)}")
-
-
-@router.get("/charts-data")
-async def get_charts_data(
-    request: Request,
-    account_id: Optional[str] = Query(None),
-    prefix: Optional[str] = Query(None),
-    campaign_type: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Lấy dữ liệu cho charts (line chart và bar chart)"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
-    
-    if not current_user.is_active:
-        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
-    
-    try:
-        # Get user's accounts
-        account_ids, _ = get_user_account_prefixes(current_user.id, db)
-        
-        if not account_ids:
-            return {
-                "daily_data": [],
-                "prefix_data": {}
-            }
-        
-        # Build base query
-        query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
-        
-        # Apply filters
-        if account_id and account_id in account_ids:
-            query = query.filter(AdMetrics.account_id == account_id)
-        if prefix:
-            query = query.filter(AdMetrics.prefix == prefix)
-        if campaign_type:
-            query = query.filter(AdMetrics.campaign_type == campaign_type)
-        if status:
-            query = query.filter(AdMetrics.adset_status == status)
-        if date_from:
-            try:
-                # Parse date và normalize về start of day để so sánh chính xác
-                date_from_dt = datetime.fromisoformat(date_from)
-                if isinstance(date_from_dt, str):
-                    date_from_dt = datetime.fromisoformat(date_from_dt)
-                date_from_dt = date_from_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
-                query = query.filter(func.date(AdMetrics.date) >= func.date(date_from_dt))
-                logger.info(f"Filtering date_from: {date_from} -> {date_from_dt}")
-            except Exception as e:
-                logger.warning(f"Error parsing date_from {date_from}: {e}")
-                pass
-        if date_to:
-            try:
-                # Parse date và normalize về end of day
-                date_to_dt = datetime.fromisoformat(date_to)
-                if isinstance(date_to_dt, str):
-                    date_to_dt = datetime.fromisoformat(date_to_dt)
-                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
-                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
-                query = query.filter(func.date(AdMetrics.date) <= func.date(date_to_dt))
-                logger.info(f"Filtering date_to: {date_to} -> {date_to_dt}")
-            except Exception as e:
-                logger.warning(f"Error parsing date_to {date_to}: {e}")
-                pass
-        
-        # Daily data for line chart
-        daily_metrics = query.with_entities(
-            func.date(AdMetrics.date).label('date'),
-            func.sum(AdMetrics.spend).label('spend'),
-            func.sum(AdMetrics.results).label('results')
-        ).group_by(func.date(AdMetrics.date)).order_by(func.date(AdMetrics.date)).all()
-        
-        daily_data = []
-        for metric in daily_metrics:
-            daily_data.append({
-                "date": metric.date.strftime('%Y-%m-%d') if metric.date else '',
-                "spend": float(metric.spend or 0),
-                "results": int(metric.results or 0)
-            })
-        
-        # Prefix data for bar chart
-        prefix_metrics = query.with_entities(
-            AdMetrics.prefix,
-            func.sum(AdMetrics.spend).label('spend'),
-            func.sum(AdMetrics.results).label('results')
-        ).group_by(AdMetrics.prefix).all()
-        
-        prefix_data = {}
-        for metric in prefix_metrics:
-            prefix_name = metric.prefix or 'Không có prefix'
-            prefix_data[prefix_name] = {
-                "spend": float(metric.spend or 0),
-                "results": int(metric.results or 0)
-            }
-        
-        return {
-            "daily_data": daily_data,
-            "prefix_data": prefix_data
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting charts data: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Lỗi khi lấy dữ liệu charts: {str(e)}")
 
 
 @router.get("/filters")
@@ -3540,20 +3723,30 @@ async def get_filters(
         raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
     
     try:
-        account_ids, prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
+        account_ids, prefixes = get_user_account_prefixes(current_user.id, db)
         
-        # Return ALL enabled accounts and prefixes from settings, not just from metrics
-        # This ensures users see all configured accounts/prefixes even if no data exists yet
-        accounts = account_ids if account_ids else []
-        prefixes_list = prefixes if prefixes else []
+        # Get unique accounts from metrics
+        accounts = db.query(AdMetrics.account_id.distinct()).filter(
+            AdMetrics.account_id.in_(account_ids),
+            AdMetrics.account_id.isnot(None)
+        ).all()
+        accounts = [acc[0] for acc in accounts if acc[0]]
         
-        logger.info(f"Filters for user {current_user.id}: {len(accounts)} accounts, {len(prefixes_list)} prefixes")
+        # Get unique prefixes from metrics
+        prefixes_from_metrics = db.query(AdMetrics.prefix.distinct()).filter(
+            AdMetrics.account_id.in_(account_ids),
+            AdMetrics.prefix.isnot(None),
+            AdMetrics.prefix.in_(prefixes) if prefixes else True
+        ).all()
+        prefixes_list = [pref[0] for pref in prefixes_from_metrics if pref[0]]
         
         return {
             "accounts": accounts,
             "prefixes": prefixes_list
         }
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
         logger.error(f"Error getting filters: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy filters: {str(e)}")
 
@@ -3590,29 +3783,16 @@ async def get_prefix_summary(
         # Apply date filters
         if date_from:
             try:
-                # Parse date và normalize về start of day để so sánh chính xác
                 date_from_dt = datetime.fromisoformat(date_from)
-                if isinstance(date_from_dt, str):
-                    date_from_dt = datetime.fromisoformat(date_from_dt)
-                date_from_dt = date_from_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
-                base_query = base_query.filter(func.date(AdMetrics.date) >= func.date(date_from_dt))
-                logger.info(f"Filtering date_from: {date_from} -> {date_from_dt}")
-            except Exception as e:
-                logger.warning(f"Error parsing date_from {date_from}: {e}")
+                base_query = base_query.filter(AdMetrics.date >= date_from_dt)
+            except:
                 pass
         if date_to:
             try:
-                # Parse date và normalize về end of day
                 date_to_dt = datetime.fromisoformat(date_to)
-                if isinstance(date_to_dt, str):
-                    date_to_dt = datetime.fromisoformat(date_to_dt)
-                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
-                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
-                base_query = base_query.filter(func.date(AdMetrics.date) <= func.date(date_to_dt))
-                logger.info(f"Filtering date_to: {date_to} -> {date_to_dt}")
-            except Exception as e:
-                logger.warning(f"Error parsing date_to {date_to}: {e}")
+                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
+                base_query = base_query.filter(AdMetrics.date <= date_to_dt)
+            except:
                 pass
         
         # Get all prefixes from metrics
@@ -3689,114 +3869,6 @@ async def get_prefix_summary(
     except Exception as e:
         logger.error(f"Error getting prefix summary: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy prefix summary: {str(e)}")
-
-
-@router.post("/pull-data")
-async def pull_facebook_data_endpoint(
-    request: Request,
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Pull dữ liệu từ Facebook API và lưu vào database"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
-    
-    if not current_user.is_active:
-        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
-    
-    try:
-        from app.models.user_settings import UserSettings
-        from app.core.security import decrypt_token
-        
-        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
-        if not user_settings or not user_settings.facebook_token_encrypted:
-            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token")
-        
-        token = decrypt_token(user_settings.facebook_token_encrypted)
-        
-        # Lấy danh sách enabled accounts
-        account_ids, _ = get_user_account_prefixes(current_user.id, db, enabled_only=True)
-        if not account_ids:
-            raise HTTPException(status_code=400, detail="Không có tài khoản quảng cáo nào được bật")
-        
-        # Xử lý date range
-        time_range = None
-        if date_from and date_to:
-            # Convert date range to time_range format
-            from datetime import datetime as dt
-            try:
-                start_date = dt.fromisoformat(date_from)
-                end_date = dt.fromisoformat(date_to)
-                # Format as YYYY-MM-DD
-                since = start_date.strftime('%Y-%m-%d')
-                until = end_date.strftime('%Y-%m-%d')
-                time_range = {"since": since, "until": until}
-                date_preset = None
-            except Exception as e:
-                logger.warning(f"Error parsing date range: {e}, using yesterday")
-                date_preset = "yesterday"
-                time_range = None
-        else:
-            date_preset = "yesterday"
-            time_range = None
-        
-        # Import service
-        from app.services.facebook_api import pull_facebook_data
-        
-        # Pull data
-        logger.info(f"Pulling Facebook data for user {current_user.id}, accounts: {len(account_ids)}, time_range: {time_range}, date_preset: {date_preset}")
-        ad_metrics_list = pull_facebook_data(token, account_ids, date_preset=date_preset, time_range=time_range)
-        
-        if not ad_metrics_list:
-            return {
-                "success": True,
-                "message": "Không có dữ liệu mới",
-                "count": 0
-            }
-        
-        # Save to database
-        saved_count = 0
-        for metric in ad_metrics_list:
-            try:
-                # Check if record exists
-                existing = db.query(AdMetrics).filter(
-                    AdMetrics.ad_id == metric.get('ad_id'),
-                    AdMetrics.date == metric.get('date')
-                ).first()
-                
-                if existing:
-                    # Update existing record
-                    for key, value in metric.items():
-                        if hasattr(existing, key):
-                            setattr(existing, key, value)
-                else:
-                    # Create new record
-                    ad_metric = AdMetrics(**metric)
-                    db.add(ad_metric)
-                
-                saved_count += 1
-            except Exception as e:
-                logger.error(f"Error saving metric: {e}")
-                continue
-        
-        db.commit()
-        
-        logger.info(f"Saved {saved_count} ad metrics to database")
-        
-        return {
-            "success": True,
-            "message": f"Đã pull và lưu {saved_count} records",
-            "count": saved_count
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error pulling Facebook data: {e}", exc_info=True)
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Lỗi khi pull dữ liệu: {str(e)}")
 
 
 @router.post("/adset/pause")
@@ -3983,3 +4055,98 @@ async def decrease_adset_budget(
     except Exception as e:
         logger.error(f"Error decreasing adset budget: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi giảm ngân sách: {str(e)}")
+
+
+@router.post("/adsets/batch-action")
+async def batch_action_adsets(
+    request: Request,
+    adset_ids: List[str] = Body(...),
+    action: str = Body(...),  # 'activate', 'pause', 'increase_budget', 'decrease_budget'
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Batch action cho nhiều adsets: bật/tắt, tăng/giảm ngân sách"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    if not adset_ids or len(adset_ids) == 0:
+        raise HTTPException(status_code=400, detail="Danh sách adset_ids không được rỗng")
+    
+    if action not in ['activate', 'pause', 'increase_budget', 'decrease_budget']:
+        raise HTTPException(status_code=400, detail="Action không hợp lệ")
+    
+    try:
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        from app.services.facebook_api import pause_adsets, resume_adsets, update_adset_budget
+        
+        success_count = 0
+        error_count = 0
+        errors = []
+        
+        if action == 'pause':
+            result = pause_adsets(adset_ids, token)
+            success_count = result.get("success", 0)
+            error_count = len(adset_ids) - success_count
+            if result.get("errorDetails"):
+                errors = [err.get("error", "Unknown error") for err in result.get("errorDetails", [])]
+        
+        elif action == 'activate':
+            result = resume_adsets(adset_ids, token)
+            success_count = result.get("success", 0)
+            error_count = len(adset_ids) - success_count
+            if result.get("errorDetails"):
+                errors = [err.get("error", "Unknown error") for err in result.get("errorDetails", [])]
+        
+        elif action == 'increase_budget':
+            # Tăng ngân sách 20% cho mỗi adset
+            for adset_id in adset_ids:
+                try:
+                    result = update_adset_budget(adset_id, token, action_type="increase", percent=20.0)
+                    if result.get("success"):
+                        success_count += 1
+                    else:
+                        error_count += 1
+                        errors.append(f"Adset {adset_id}: {result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    error_count += 1
+                    errors.append(f"Adset {adset_id}: {str(e)}")
+        
+        elif action == 'decrease_budget':
+            # Giảm ngân sách 20% cho mỗi adset
+            for adset_id in adset_ids:
+                try:
+                    result = update_adset_budget(adset_id, token, action_type="decrease", percent=20.0)
+                    if result.get("success"):
+                        success_count += 1
+                    else:
+                        error_count += 1
+                        errors.append(f"Adset {adset_id}: {result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    error_count += 1
+                    errors.append(f"Adset {adset_id}: {str(e)}")
+        
+        return {
+            "success": success_count > 0,
+            "success_count": success_count,
+            "error_count": error_count,
+            "total": len(adset_ids),
+            "action": action,
+            "errors": errors[:10]  # Limit to first 10 errors
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in batch action: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi thực hiện batch action: {str(e)}")
