@@ -1259,10 +1259,25 @@ async def dashboard_page(
             .pagination {{
                 padding: 20px 24px;
                 display: flex;
-                justify-content: center;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+                border-top: 1px solid #e2e8f0;
+                flex-wrap: wrap;
+            }}
+            
+            .pagination-info {{
+                font-size: 13px;
+                color: #64748b;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }}
+            
+            .pagination-controls {{
+                display: flex;
                 align-items: center;
                 gap: 8px;
-                border-top: 1px solid #e2e8f0;
             }}
             
             .pagination button {{
@@ -1273,21 +1288,33 @@ async def dashboard_page(
                 cursor: pointer;
                 font-size: 14px;
                 transition: all 0.2s;
+                min-width: 40px;
             }}
             
             .pagination button:hover:not(:disabled) {{
                 background: #f1f5f9;
+                border-color: #667eea;
             }}
             
             .pagination button.active {{
                 background: #667eea;
                 color: white;
                 border-color: #667eea;
+                font-weight: 600;
             }}
             
             .pagination button:disabled {{
                 opacity: 0.5;
                 cursor: not-allowed;
+            }}
+            
+            .pagination select {{
+                padding: 6px 10px;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                font-size: 13px;
+                background: white;
+                cursor: pointer;
             }}
             
             .loading {{
@@ -2434,7 +2461,14 @@ async def dashboard_page(
                             '</div>'
                         ).join('') +
                         '</div>';
-                    document.getElementById('tableWrapper').innerHTML = skeleton;
+                    const tableWrapper = document.getElementById('tableWrapper');
+                    if (tableWrapper) tableWrapper.innerHTML = skeleton;
+                    
+                    // Show loading for stats
+                    const statsGrid = document.getElementById('statsGrid');
+                    if (statsGrid) {{
+                        statsGrid.style.opacity = '0.6';
+                    }}
                     
                     const response = await fetch('/dashboard/data?' + params.toString(), {{
                         headers: {{
