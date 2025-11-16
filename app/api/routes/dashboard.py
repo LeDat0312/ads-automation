@@ -1694,13 +1694,23 @@ async def dashboard_page(
                     align-items: flex-start;
                 }}
                 
+                .header-left {{
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 8px;
+                }}
+                
                 .header h1 {{
-                    font-size: 20px;
+                    font-size: 18px;
                 }}
                 
                 .header-actions {{
                     width: 100%;
                     justify-content: flex-end;
+                }}
+                
+                .container {{
+                    padding: 16px;
                 }}
                 
                 .dashboard-layout {{
@@ -1713,15 +1723,19 @@ async def dashboard_page(
                 
                 .stats-grid {{
                     grid-template-columns: repeat(2, 1fr);
-                    gap: 16px;
+                    gap: 12px;
                 }}
                 
                 .stat-card {{
-                    padding: 20px;
+                    padding: 16px;
                 }}
                 
                 .stat-card .value {{
-                    font-size: 24px;
+                    font-size: 20px;
+                }}
+                
+                .stat-card .label {{
+                    font-size: 12px;
                 }}
                 
                 .charts-grid {{
@@ -2045,7 +2059,7 @@ async def dashboard_page(
         
         <script>
             let currentPage = 1;
-            const pageSize = 50;
+            let pageSize = 50; // Allow changing page size
             let selectedDateRange = {{ start: null, end: null }};
             let currentFilters = {{
                 account: '',
@@ -2431,14 +2445,29 @@ async def dashboard_page(
                     if (!response.ok) throw new Error('Failed to load data');
                     
                     const data = await response.json();
+                    // Store total for pagination
+                    window.currentTotal = data.total || 0;
                     if (data.stats) {{
                         updateStats(data.stats);
                     }}
                     renderTable(data);
+                    
+                    // Restore stats opacity
+                    const statsGrid = document.getElementById('statsGrid');
+                    if (statsGrid) {{
+                        statsGrid.style.opacity = '1';
+                    }}
                 }} catch (error) {{
                     console.error('Error loading data:', error);
-                    document.getElementById('tableWrapper').innerHTML = 
-                        '<div class="empty-state"><div class="icon">⚠️</div>Lỗi khi tải dữ liệu</div>';
+                    const tableWrapper = document.getElementById('tableWrapper');
+                    if (tableWrapper) {{
+                        tableWrapper.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>Lỗi khi tải dữ liệu</div>';
+                    }}
+                    // Restore stats opacity
+                    const statsGrid = document.getElementById('statsGrid');
+                    if (statsGrid) {{
+                        statsGrid.style.opacity = '1';
+                    }}
                 }}
             }}
             
@@ -2674,27 +2703,59 @@ async def dashboard_page(
             
             function renderPagination(totalPages) {{
                 const pagination = document.getElementById('pagination');
+                if (!pagination) return;
+                
                 if (totalPages <= 1) {{
-                    pagination.innerHTML = '';
+                    pagination.innerHTML = '<div class="pagination-info">Hiển thị tất cả kết quả</div>';
                     return;
                 }}
                 
-                let html = '';
-                html += '<button onclick="goToPage(1)"' + (currentPage === 1 ? ' disabled' : '') + '>«</button>';
-                html += '<button onclick="goToPage(' + (currentPage - 1) + ')"' + (currentPage === 1 ? ' disabled' : '') + '>‹</button>';
+                const startItem = (currentPage - 1) * pageSize + 1;
+                const endItem = Math.min(currentPage * pageSize, window.currentTotal || 0);
+                const totalItems = window.currentTotal || 0;
+                
+                let html = '<div class="pagination-info">';
+                html += '<span>Hiển thị ' + startItem + '-' + endItem + ' / ' + totalItems + ' kết quả</span>';
+                html += '<select onchange="changePageSize(parseInt(this.value))">';
+                html += '<option value="25"' + (pageSize === 25 ? ' selected' : '') + '>25 / trang</option>';
+                html += '<option value="50"' + (pageSize === 50 ? ' selected' : '') + '>50 / trang</option>';
+                html += '<option value="100"' + (pageSize === 100 ? ' selected' : '') + '>100 / trang</option>';
+                html += '</select>';
+                html += '</div>';
+                
+                html += '<div class="pagination-controls">';
+                html += '<button onclick="goToPage(1)"' + (currentPage === 1 ? ' disabled' : '') + ' title="Trang đầu">«</button>';
+                html += '<button onclick="goToPage(' + (currentPage - 1) + ')"' + (currentPage === 1 ? ' disabled' : '') + ' title="Trang trước">‹</button>';
                 
                 const startPage = Math.max(1, currentPage - 2);
                 const endPage = Math.min(totalPages, currentPage + 2);
+                
+                if (startPage > 1) {{
+                    html += '<button onclick="goToPage(1)">1</button>';
+                    if (startPage > 2) html += '<span style="padding: 0 8px; color: #64748b;">...</span>';
+                }}
                 
                 for (let i = startPage; i <= endPage; i++) {{
                     const activeClass = i === currentPage ? 'active' : '';
                     html += '<button class="' + activeClass + '" onclick="goToPage(' + i + ')">' + i + '</button>';
                 }}
                 
-                html += '<button onclick="goToPage(' + (currentPage + 1) + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>›</button>';
-                html += '<button onclick="goToPage(' + totalPages + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>»</button>';
+                if (endPage < totalPages) {{
+                    if (endPage < totalPages - 1) html += '<span style="padding: 0 8px; color: #64748b;">...</span>';
+                    html += '<button onclick="goToPage(' + totalPages + ')">' + totalPages + '</button>';
+                }}
+                
+                html += '<button onclick="goToPage(' + (currentPage + 1) + ')"' + (currentPage === totalPages ? ' disabled' : '') + ' title="Trang sau">›</button>';
+                html += '<button onclick="goToPage(' + totalPages + ')"' + (currentPage === totalPages ? ' disabled' : '') + ' title="Trang cuối">»</button>';
+                html += '</div>';
                 
                 pagination.innerHTML = html;
+            }}
+            
+            function changePageSize(newSize) {{
+                pageSize = newSize;
+                currentPage = 1;
+                loadData();
             }}
             
             function goToPage(page) {{
@@ -3382,6 +3443,20 @@ async def dashboard_page(
             
             async function loadPrefixSummary() {{
                 try {{
+                    const prefixGrid = document.getElementById('prefixGrid');
+                    if (prefixGrid) {{
+                        // Show loading skeleton
+                        prefixGrid.innerHTML = '<div class="loading-skeleton">' +
+                            Array(4).fill(0).map(() => 
+                                '<div class="skeleton-row" style="padding: 16px; margin-bottom: 12px; background: white; border-radius: 8px;">' +
+                                '<div class="skeleton-item" style="width: 60px; height: 20px; margin-bottom: 8px;"></div>' +
+                                '<div class="skeleton-item" style="width: 100px; height: 24px; margin-bottom: 4px;"></div>' +
+                                '<div class="skeleton-item" style="width: 80px; height: 16px;"></div>' +
+                                '</div>'
+                            ).join('') +
+                            '</div>';
+                    }}
+                    
                     const token = localStorage.getItem('access_token') || getCookie('access_token');
                     const params = new URLSearchParams();
                     if (currentFilters.dateFrom) params.append('date_from', currentFilters.dateFrom);
@@ -3400,6 +3475,10 @@ async def dashboard_page(
                     renderPrefixSummary(data);
                 }} catch (error) {{
                     console.error('Error loading prefix summary:', error);
+                    const prefixGrid = document.getElementById('prefixGrid');
+                    if (prefixGrid) {{
+                        prefixGrid.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>Lỗi khi tải dữ liệu prefix</div>';
+                    }}
                 }}
             }}
             
