@@ -294,32 +294,49 @@ async def dashboard_page(
                 width: 100%;
             }}
             
-            /* Filter Bar - Madgicx Style: Gọn, Nhẹ */
-            .sticky-filter-bar {{
-                position: sticky;
-                top: 56px;
-                z-index: 20;
+            /* Filter Section - Nằm giữa KPI và Table */
+            .filters-section {{
                 background: #ffffff;
-                border-bottom: 1px solid #e4e6eb;
-                padding: 12px 16px;
-                margin-bottom: 0;
+                border: 1px solid #e4e6eb;
+                border-radius: 8px;
+                padding: 16px 20px;
+                margin-bottom: 24px;
             }}
             
-            .filter-bar-row {{
+            .filters-header {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 16px;
+            }}
+            
+            .filters-header h3 {{
+                font-size: 16px;
+                font-weight: 600;
+                color: #1c1e21;
+                margin: 0;
+            }}
+            
+            .filters-content {{
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }}
+            
+            .filter-row {{
                 display: flex;
                 gap: 12px;
-                align-items: center;
-                margin-bottom: 8px;
+                align-items: flex-end;
                 flex-wrap: wrap;
             }}
             
-            .filter-bar-row:last-child {{
+            .filter-row:last-child {{
                 margin-bottom: 0;
             }}
             
             .search-box-filter {{
                 position: relative;
-                flex: 0 0 320px;
+                flex: 0 0 300px;
             }}
             
             .search-box-filter .search-icon {{
@@ -1827,65 +1844,9 @@ async def dashboard_page(
         
         <div class="container">
             <div class="dashboard-layout">
-                <!-- Filter Bar - Madgicx Style -->
-                <div class="sticky-filter-bar" id="stickyFilterBar">
-                <div class="filter-bar-row">
-                    <div class="search-box-filter">
-                        <span class="search-icon">🔍</span>
-                        <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign, ID..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
-                    </div>
-                    <div class="filter-group-inline">
-                        <label>Account</label>
-                        <select id="accountFilter" onchange="handleFilterChange()">
-                            <option value="">Tất cả</option>
-                        </select>
-                    </div>
-                    <div class="filter-group-inline">
-                        <label>Prefix</label>
-                        <select id="prefixFilter" onchange="handleFilterChange()">
-                            <option value="">Tất cả</option>
-                        </select>
-                    </div>
-                    <div class="filter-group-inline">
-                        <label>Loại Campaign</label>
-                        <select id="campaignTypeFilter" onchange="handleFilterChange()">
-                            <option value="">Tất cả</option>
-                            <option value="ECOMMERCE">E-commerce</option>
-                            <option value="LEAD">Lead Generation</option>
-                        </select>
-                    </div>
-                    <div class="filter-group-inline">
-                        <label>Trạng thái</label>
-                        <select id="statusFilter" onchange="handleFilterChange()">
-                            <option value="">Tất cả</option>
-                            <option value="ACTIVE">Đang hoạt động</option>
-                            <option value="PAUSED">Đã tắt</option>
-                        </select>
-                    </div>
-                    <div class="filter-group-inline date-picker-wrapper">
-                        <label>Khoảng thời gian</label>
-                        <div class="date-picker-btn-inline" onclick="openDatePicker()">
-                            <span id="dateRangeText">Chọn khoảng thời gian</span>
-                            <span>📅</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="filter-bar-row">
-                    <div class="quick-filters-inline">
-                        <button class="quick-filter-btn" onclick="applyQuickFilter('today', this)">Hôm nay</button>
-                        <button class="quick-filter-btn" onclick="applyQuickFilter('yesterday', this)">Hôm qua</button>
-                        <button class="quick-filter-btn" onclick="applyQuickFilter('last7days', this)">7 ngày qua</button>
-                        <button class="quick-filter-btn" onclick="applyQuickFilter('last14days', this)">14 ngày qua</button>
-                        <button class="quick-filter-btn" onclick="applyQuickFilter('last30days', this)">30 ngày qua</button>
-                        <button class="quick-filter-btn" onclick="applyQuickFilter('thisMonth', this)">Tháng này</button>
-                        <button class="quick-filter-btn" onclick="applyQuickFilter('lastMonth', this)">Tháng trước</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="main-content" style="display: flex; flex-direction: column; gap: 0; padding: 24px;">
-                
-                <div class="stats-grid" id="statsGrid">
+                <div class="main-content" style="display: flex; flex-direction: column; gap: 0; padding: 24px;">
+                    
+                    <div class="stats-grid" id="statsGrid">
                     <div class="stat-card">
                         <div class="stat-card-header">
                             <div>
@@ -1948,7 +1909,71 @@ async def dashboard_page(
                     </div>
                 </div>
                 
-                <!-- Chi Tiết Quảng Cáo - Move lên trước Tổng Quan Theo Prefix -->
+                <!-- Filters Section - Nằm giữa KPI và Table -->
+                <div class="filters-section">
+                    <div class="filters-header">
+                        <h3>🔍 Bộ Lọc</h3>
+                        <button class="btn-refresh" onclick="refreshData()" id="refreshBtnFilter" title="Làm mới dữ liệu" style="padding: 6px 12px; font-size: 13px;">
+                            🔄 Làm mới
+                        </button>
+                    </div>
+                    <div class="filters-content">
+                        <div class="filter-row">
+                            <div class="search-box-filter" style="flex: 0 0 300px;">
+                                <span class="search-icon">🔍</span>
+                                <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign, ID..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
+                            </div>
+                            <div class="filter-group-inline">
+                                <label>Account</label>
+                                <select id="accountFilter" onchange="handleFilterChange()">
+                                    <option value="">Tất cả</option>
+                                </select>
+                            </div>
+                            <div class="filter-group-inline">
+                                <label>Prefix</label>
+                                <select id="prefixFilter" onchange="handleFilterChange()">
+                                    <option value="">Tất cả</option>
+                                </select>
+                            </div>
+                            <div class="filter-group-inline">
+                                <label>Loại Campaign</label>
+                                <select id="campaignTypeFilter" onchange="handleFilterChange()">
+                                    <option value="">Tất cả</option>
+                                    <option value="ECOMMERCE">E-commerce</option>
+                                    <option value="LEAD">Lead Generation</option>
+                                </select>
+                            </div>
+                            <div class="filter-group-inline">
+                                <label>Trạng thái</label>
+                                <select id="statusFilter" onchange="handleFilterChange()">
+                                    <option value="">Tất cả</option>
+                                    <option value="ACTIVE">Đang hoạt động</option>
+                                    <option value="PAUSED">Đã tắt</option>
+                                </select>
+                            </div>
+                            <div class="filter-group-inline date-picker-wrapper">
+                                <label>Khoảng thời gian</label>
+                                <div class="date-picker-btn-inline" onclick="openDatePicker()">
+                                    <span id="dateRangeText">Chọn khoảng thời gian</span>
+                                    <span>📅</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <div class="quick-filters-inline">
+                                <button class="quick-filter-btn" onclick="applyQuickFilter('today', this)">Hôm nay</button>
+                                <button class="quick-filter-btn" onclick="applyQuickFilter('yesterday', this)">Hôm qua</button>
+                                <button class="quick-filter-btn" onclick="applyQuickFilter('last7days', this)">7 ngày qua</button>
+                                <button class="quick-filter-btn" onclick="applyQuickFilter('last14days', this)">14 ngày qua</button>
+                                <button class="quick-filter-btn" onclick="applyQuickFilter('last30days', this)">30 ngày qua</button>
+                                <button class="quick-filter-btn" onclick="applyQuickFilter('thisMonth', this)">Tháng này</button>
+                                <button class="quick-filter-btn" onclick="applyQuickFilter('lastMonth', this)">Tháng trước</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chi Tiết Quảng Cáo -->
                 <div class="table-container">
                     <div class="table-header">
                         <div style="display: flex; align-items: center; gap: 16px;">
