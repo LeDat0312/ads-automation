@@ -3171,21 +3171,56 @@ async def dashboard_page(
             }}
             
             async function refreshData() {{
-                const btn = document.getElementById('refreshBtn');
-                btn.classList.add('loading');
-                btn.disabled = true;
+                const btn = document.getElementById('refreshBtn') || document.getElementById('refreshBtnFilter');
+                if (btn) {{
+                    btn.classList.add('loading');
+                    btn.disabled = true;
+                }}
                 
-                await Promise.all([
-                    loadData(),
-                    loadPrefixSummary()
-                ]);
-                
-                updateLastUpdateTime();
-                
-                setTimeout(() => {{
-                    btn.classList.remove('loading');
-                    btn.disabled = false;
-                }}, 500);
+                try {{
+                    // Pull data từ Facebook trước
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const dateFrom = currentFilters.dateFrom || new Date().toISOString().split('T')[0];
+                    const dateTo = currentFilters.dateTo || new Date().toISOString().split('T')[0];
+                    
+                    try {{
+                        const pullResponse = await fetch('/dashboard/pull-data', {{
+                            method: 'POST',
+                            headers: {{
+                                'Authorization': 'Bearer ' + token,
+                                'Content-Type': 'application/json'
+                            }},
+                            body: JSON.stringify({{
+                                date_from: dateFrom,
+                                date_to: dateTo
+                            }})
+                        }});
+                        const pullData = await pullResponse.json();
+                        if (pullResponse.ok && pullData.success) {{
+                            console.log('✅ Đã pull dữ liệu:', pullData.count + ' adsets');
+                            showToast('✅ Đã cập nhật dữ liệu từ Facebook: ' + pullData.count + ' adsets', 'success');
+                        }}
+                    }} catch (pullError) {{
+                        console.error('❌ Lỗi khi pull dữ liệu:', pullError);
+                        showToast('⚠️ Lỗi khi pull dữ liệu từ Facebook. Đang tải dữ liệu từ database...', 'error');
+                    }}
+                    
+                    // Sau đó load data từ database
+                    await Promise.all([
+                        loadData(),
+                        loadPrefixSummary()
+                    ]);
+                    
+                    updateLastUpdateTime();
+                }} catch (error) {{
+                    console.error('Lỗi khi refresh:', error);
+                    showToast('❌ Lỗi khi làm mới dữ liệu', 'error');
+                }} finally {{
+                    if (btn) {{
+                        btn.classList.remove('loading');
+                        btn.disabled = false;
+                    }}
+                }}
             }}
             
             async function loadFilters() {{
@@ -3785,14 +3820,14 @@ async def get_prefix_summary(
         if date_from:
             try:
                 date_from_dt = datetime.fromisoformat(date_from)
-                base_query = base_query.filter(AdMetrics.date >= date_from_dt)
+                base_query = base_query.filter(func.date(AdMetrics.date) >= func.date(date_from_dt))
             except:
                 pass
         if date_to:
             try:
                 date_to_dt = datetime.fromisoformat(date_to)
                 date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
-                base_query = base_query.filter(AdMetrics.date <= date_to_dt)
+                base_query = base_query.filter(func.date(AdMetrics.date) <= func.date(date_to_dt))
             except:
                 pass
         
@@ -4219,9 +4254,15 @@ async def pull_data_endpoint(
         for metric in ad_metrics_list:
             try:
                 # Kiểm tra xem đã tồn tại chưa (adset_id + date)
+                metric_date = metric.get('date')
+                if isinstance(metric_date, datetime):
+                    metric_date = metric_date.date()
+                elif hasattr(metric_date, 'date'):
+                    metric_date = metric_date.date()
+                
                 existing = db.query(AdMetrics).filter(
                     AdMetrics.adset_id == metric.get('adset_id'),
-                    func.date(AdMetrics.date) == metric.get('date')
+                    func.date(AdMetrics.date) == metric_date
                 ).first()
                 
                 if existing:
