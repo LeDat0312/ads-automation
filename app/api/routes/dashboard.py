@@ -3700,19 +3700,19 @@ async def get_dashboard_data(
             stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
         if status:
             stats_query = stats_query.filter(AdMetrics.adset_status == status)
+        # Fix date filtering: Use func.date() to compare date part only (timezone-safe)
         if date_from:
             try:
-                date_from_dt = datetime.fromisoformat(date_from)
-                stats_query = stats_query.filter(AdMetrics.date >= date_from_dt)
-            except:
-                pass
+                date_from_dt = datetime.fromisoformat(date_from).date()
+                stats_query = stats_query.filter(func.date(AdMetrics.date) >= date_from_dt)
+            except Exception as e:
+                logger.warning(f"Error parsing date_from {date_from}: {e}")
         if date_to:
             try:
-                date_to_dt = datetime.fromisoformat(date_to)
-                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
-                stats_query = stats_query.filter(AdMetrics.date <= date_to_dt)
-            except:
-                pass
+                date_to_dt = datetime.fromisoformat(date_to).date()
+                stats_query = stats_query.filter(func.date(AdMetrics.date) <= date_to_dt)
+            except Exception as e:
+                logger.warning(f"Error parsing date_to {date_to}: {e}")
         
         # Calculate stats
         total_spend = stats_query.with_entities(func.sum(AdMetrics.spend)).scalar() or 0
@@ -3757,19 +3757,19 @@ async def get_dashboard_data(
             query = query.filter(AdMetrics.campaign_type == campaign_type)
         if status:
             query = query.filter(AdMetrics.adset_status == status)
+        # Fix date filtering: Use func.date() to compare date part only (timezone-safe)
         if date_from:
             try:
-                date_from_dt = datetime.fromisoformat(date_from)
-                query = query.filter(AdMetrics.date >= date_from_dt)
-            except:
-                pass
+                date_from_dt = datetime.fromisoformat(date_from).date()
+                query = query.filter(func.date(AdMetrics.date) >= date_from_dt)
+            except Exception as e:
+                logger.warning(f"Error parsing date_from {date_from}: {e}")
         if date_to:
             try:
-                date_to_dt = datetime.fromisoformat(date_to)
-                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
-                query = query.filter(AdMetrics.date <= date_to_dt)
-            except:
-                pass
+                date_to_dt = datetime.fromisoformat(date_to).date()
+                query = query.filter(func.date(AdMetrics.date) <= date_to_dt)
+            except Exception as e:
+                logger.warning(f"Error parsing date_to {date_to}: {e}")
         
         # Group by level (campaign/adset/ad) to aggregate metrics
         level = level or 'adset'
@@ -4010,20 +4010,19 @@ async def get_prefix_summary(
         # Build base query
         base_query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(account_ids))
         
-        # Apply date filters
+        # Apply date filters: Use func.date() to compare date part only (timezone-safe)
         if date_from:
             try:
-                date_from_dt = datetime.fromisoformat(date_from)
-                base_query = base_query.filter(AdMetrics.date >= date_from_dt)
-            except:
-                pass
+                date_from_dt = datetime.fromisoformat(date_from).date()
+                base_query = base_query.filter(func.date(AdMetrics.date) >= date_from_dt)
+            except Exception as e:
+                logger.warning(f"Error parsing date_from {date_from}: {e}")
         if date_to:
             try:
-                date_to_dt = datetime.fromisoformat(date_to)
-                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
-                base_query = base_query.filter(AdMetrics.date <= date_to_dt)
-            except:
-                pass
+                date_to_dt = datetime.fromisoformat(date_to).date()
+                base_query = base_query.filter(func.date(AdMetrics.date) <= date_to_dt)
+            except Exception as e:
+                logger.warning(f"Error parsing date_to {date_to}: {e}")
         
         # Get all prefixes from metrics
         all_prefixes = db.query(AdMetrics.prefix.distinct()).filter(
