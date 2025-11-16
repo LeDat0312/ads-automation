@@ -2383,6 +2383,47 @@ async def dashboard_page(
             }}
             
             // Action functions for adset control
+            // Toggle adset status (thay thế pauseAdset và activateAdset)
+            async function toggleAdsetStatus(adsetId, checkboxElement) {{
+                const isActive = checkboxElement.checked;
+                const originalState = !isActive; // Lưu trạng thái ban đầu để rollback nếu lỗi
+                
+                // Disable checkbox trong khi xử lý
+                checkboxElement.disabled = true;
+                
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const endpoint = isActive ? '/dashboard/adsets/activate' : '/dashboard/adsets/pause';
+                    
+                    const response = await fetch(endpoint, {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/json'
+                        }},
+                        body: JSON.stringify({{ adset_id: adsetId }})
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {{
+                        showToast('✅ Đã ' + (isActive ? 'bật' : 'tắt') + ' adset thành công', 'success');
+                        // Reload data để cập nhật UI
+                        loadData();
+                    }} else {{
+                        // Rollback UI
+                        checkboxElement.checked = originalState;
+                        showToast('❌ Lỗi: ' + (result.detail || result.message || 'Unknown error'), 'error');
+                    }}
+                }} catch (error) {{
+                    // Rollback UI
+                    checkboxElement.checked = originalState;
+                    showToast('❌ Lỗi: ' + error.message, 'error');
+                }} finally {{
+                    checkboxElement.disabled = false;
+                }}
+            }}
+            
             async function pauseAdset(adsetId, buttonElement) {{
                 if (!confirm('Bạn có chắc muốn tắt adset này?')) return;
                 
