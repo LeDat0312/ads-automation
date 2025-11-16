@@ -834,6 +834,37 @@ async def dashboard_page(
                 font-size: 20px;
                 font-weight: 700;
                 color: #1e293b;
+                margin: 0;
+            }}
+            
+            .view-type-tabs {{
+                display: flex;
+                gap: 4px;
+                background: #f3f4f6;
+                padding: 4px;
+                border-radius: 8px;
+            }}
+            
+            .view-type-tab {{
+                padding: 6px 12px;
+                background: transparent;
+                border: none;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: 500;
+                color: #64748b;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }}
+            
+            .view-type-tab:hover {{
+                background: rgba(102, 126, 234, 0.1);
+                color: #667eea;
+            }}
+            
+            .view-type-tab.active {{
+                background: #667eea;
+                color: white;
             }}
             
             .table-header-actions {{
@@ -1909,10 +1940,30 @@ async def dashboard_page(
                 <!-- Chi Tiết Quảng Cáo - Move lên trước Tổng Quan Theo Prefix -->
                 <div class="table-container">
                     <div class="table-header">
-                        <h2>📋 Chi Tiết Quảng Cáo</h2>
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <h2>📋 Chi Tiết Quảng Cáo</h2>
+                            <!-- View Type Tabs: Campaign / Adset / Ad -->
+                            <div class="view-type-tabs" style="display: flex; gap: 4px; background: #f3f4f6; padding: 4px; border-radius: 8px;">
+                                <button class="view-type-tab active" onclick="switchViewType('campaign', this)" data-view="campaign">Chiến dịch</button>
+                                <button class="view-type-tab" onclick="switchViewType('adset', this)" data-view="adset">Nhóm quảng cáo</button>
+                                <button class="view-type-tab" onclick="switchViewType('ad', this)" data-view="ad">Quảng cáo</button>
+                            </div>
+                        </div>
                         <div class="table-header-actions">
                             <div id="tableInfo" style="font-size: 14px; color: #64748b;">Hiển thị 0 / 0 kết quả</div>
                             <button class="btn-export" onclick="exportData()" id="exportBtn">📥 Xuất Excel</button>
+                        </div>
+                    </div>
+                    <!-- Batch Actions Bar (hidden by default) -->
+                    <div id="batchActionsBar" style="display: none; padding: 12px 16px; background: #f3f4f6; border-bottom: 1px solid #e2e8f0; margin-bottom: 0;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span id="selectedCount" style="font-weight: 500; color: #1e293b;">0 mục đã chọn</span>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn-batch-action" onclick="batchAction('pause')" style="padding: 6px 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">⏸️ Tắt</button>
+                                <button class="btn-batch-action" onclick="batchAction('activate')" style="padding: 6px 12px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">▶️ Bật</button>
+                                <button class="btn-batch-action" onclick="batchAction('increase')" style="padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">+20% Ngân sách</button>
+                                <button class="btn-batch-action" onclick="batchAction('decrease')" style="padding: 6px 12px; background: #f59e0b; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">-20% Ngân sách</button>
+                            </div>
                         </div>
                     </div>
                     <div class="table-wrapper" id="tableWrapper">
@@ -2021,48 +2072,70 @@ async def dashboard_page(
                 }}
             }}
             
+            // Get today in Asia/Ho_Chi_Minh timezone
+            function getTodayVN() {{
+                const now = new Date();
+                // Convert to VN timezone (UTC+7)
+                const vnTime = new Date(now.toLocaleString('en-US', {{ timeZone: 'Asia/Ho_Chi_Minh' }}));
+                return new Date(vnTime.getFullYear(), vnTime.getMonth(), vnTime.getDate());
+            }}
+            
             function selectQuickDate(type) {{
-                const today = new Date();
+                const today = getTodayVN();
                 let start, end;
                 
                 switch(type) {{
                     case 'today':
+                        // Hôm nay: since = today 00:00, until = today 23:59:59
                         start = new Date(today);
                         end = new Date(today);
+                        end.setHours(23, 59, 59, 999);
                         break;
                     case 'yesterday':
+                        // Hôm qua: today - 1 day
                         start = new Date(today);
                         start.setDate(start.getDate() - 1);
                         end = new Date(start);
+                        end.setHours(23, 59, 59, 999);
                         break;
                     case 'last7days':
+                        // 7 ngày qua: today - 6 → today (bao gồm hôm nay)
                         start = new Date(today);
                         start.setDate(start.getDate() - 6);
                         end = new Date(today);
+                        end.setHours(23, 59, 59, 999);
                         break;
                     case 'last14days':
+                        // 14 ngày qua: today - 13 → today
                         start = new Date(today);
                         start.setDate(start.getDate() - 13);
                         end = new Date(today);
+                        end.setHours(23, 59, 59, 999);
                         break;
                     case 'last30days':
+                        // 30 ngày qua: today - 29 → today
                         start = new Date(today);
                         start.setDate(start.getDate() - 29);
                         end = new Date(today);
+                        end.setHours(23, 59, 59, 999);
                         break;
                     case 'thisMonth':
+                        // Tháng này: từ ngày 1 đến hôm nay
                         start = new Date(today.getFullYear(), today.getMonth(), 1);
                         end = new Date(today);
+                        end.setHours(23, 59, 59, 999);
                         break;
                     case 'lastMonth':
+                        // Tháng trước: full tháng trước
                         start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
                         end = new Date(today.getFullYear(), today.getMonth(), 0);
+                        end.setHours(23, 59, 59, 999);
                         break;
                 }}
                 
                 selectedDateRange.start = start;
                 selectedDateRange.end = end;
-                currentFilters.datePreset = type; // Save preset type
+                currentFilters.datePreset = type;
                 renderCalendars();
                 applyDateRange();
             }}
@@ -2185,32 +2258,62 @@ async def dashboard_page(
                     const saved = localStorage.getItem(FILTER_STORAGE_KEY);
                     if (saved) {{
                         const savedFilters = JSON.parse(saved);
-                        currentFilters = {{ ...currentFilters, ...savedFilters }};
+                        
+                        // Restore account and prefix
+                        if (savedFilters.account) {{
+                            currentFilters.account = savedFilters.account;
+                            setTimeout(() => {{
+                                const accountFilter = document.getElementById('accountFilter');
+                                if (accountFilter) accountFilter.value = savedFilters.account;
+                            }}, 500);
+                        }}
+                        
+                        if (savedFilters.prefix) {{
+                            currentFilters.prefix = savedFilters.prefix;
+                            setTimeout(() => {{
+                                const prefixFilter = document.getElementById('prefixFilter');
+                                if (prefixFilter) prefixFilter.value = savedFilters.prefix;
+                            }}, 500);
+                        }}
+                        
+                        // Restore campaign type and status
+                        if (savedFilters.campaignType) {{
+                            currentFilters.campaignType = savedFilters.campaignType;
+                            const campaignTypeFilter = document.getElementById('campaignTypeFilter');
+                            if (campaignTypeFilter) campaignTypeFilter.value = savedFilters.campaignType;
+                        }}
+                        
+                        if (savedFilters.status) {{
+                            currentFilters.status = savedFilters.status;
+                            const statusFilter = document.getElementById('statusFilter');
+                            if (statusFilter) statusFilter.value = savedFilters.status;
+                        }}
                         
                         // Restore date range
-                        if (savedFilters.dateRange) {{
+                        if (savedFilters.dateRange && savedFilters.dateRange.from && savedFilters.dateRange.to) {{
                             selectedDateRange.start = new Date(savedFilters.dateRange.from);
                             selectedDateRange.end = new Date(savedFilters.dateRange.to);
                             currentFilters.dateFrom = savedFilters.dateRange.from;
                             currentFilters.dateTo = savedFilters.dateRange.to;
-                            document.getElementById('dateRangeText').textContent = 
-                                formatDateVN(selectedDateRange.start) + ' - ' + formatDateVN(selectedDateRange.end);
+                            const dateRangeText = document.getElementById('dateRangeText');
+                            if (dateRangeText) {{
+                                dateRangeText.textContent = formatDateVN(selectedDateRange.start) + ' - ' + formatDateVN(selectedDateRange.end);
+                            }}
+                        }} else if (savedFilters.datePreset) {{
+                            // Restore quick date preset
+                            selectQuickDate(savedFilters.datePreset);
                         }}
                         
-                        // Restore other filters
-                        if (savedFilters.campaignType) {{
-                            document.getElementById('campaignTypeFilter').value = savedFilters.campaignType;
-                            currentFilters.campaignType = savedFilters.campaignType;
-                        }}
-                        
-                        if (savedFilters.status) {{
-                            document.getElementById('statusFilter').value = savedFilters.status;
-                            currentFilters.status = savedFilters.status;
-                        }}
-                        
+                        // Restore search
                         if (savedFilters.search) {{
-                            document.getElementById('searchInput').value = savedFilters.search;
                             currentFilters.searchTerm = savedFilters.search;
+                            const searchInput = document.getElementById('searchInput');
+                            if (searchInput) searchInput.value = savedFilters.search;
+                        }}
+                        
+                        // Restore view type
+                        if (savedFilters.viewType) {{
+                            currentFilters.viewType = savedFilters.viewType;
                         }}
                     }}
                 }} catch (e) {{
@@ -2222,13 +2325,17 @@ async def dashboard_page(
             function saveFilterState() {{
                 try {{
                     const stateToSave = {{
-                        campaignType: currentFilters.campaignType,
-                        status: currentFilters.status,
+                        account: currentFilters.account || '',
+                        prefix: currentFilters.prefix || '',
+                        campaignType: currentFilters.campaignType || '',
+                        status: currentFilters.status || '',
                         dateRange: {{
-                            from: currentFilters.dateFrom,
-                            to: currentFilters.dateTo
+                            from: currentFilters.dateFrom || '',
+                            to: currentFilters.dateTo || ''
                         }},
-                        search: currentFilters.searchTerm || ''
+                        datePreset: currentFilters.datePreset || '',
+                        search: currentFilters.searchTerm || '',
+                        viewType: currentFilters.viewType || 'adset'
                     }};
                     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(stateToSave));
                 }} catch (e) {{
@@ -2238,8 +2345,9 @@ async def dashboard_page(
             
             function applyDateRange() {{
                 if (selectedDateRange.start && selectedDateRange.end) {{
-                    const startStr = selectedDateRange.start.toISOString().split('T')[0];
-                    const endStr = selectedDateRange.end.toISOString().split('T')[0];
+                    // Format dates as YYYY-MM-DD for API (timezone VN)
+                    const startStr = formatDateForAPI(selectedDateRange.start);
+                    const endStr = formatDateForAPI(selectedDateRange.end);
                     currentFilters.dateFrom = startStr;
                     currentFilters.dateTo = endStr;
                     
@@ -2247,10 +2355,18 @@ async def dashboard_page(
                     const endFormatted = formatDateVN(selectedDateRange.end);
                     document.getElementById('dateRangeText').textContent = startFormatted + ' - ' + endFormatted;
                     
-                    saveFilterState(); // Save to localStorage
+                    saveFilterState();
                     closeDatePicker();
                     loadData();
                 }}
+            }}
+            
+            // Format date as YYYY-MM-DD in VN timezone
+            function formatDateForAPI(date) {{
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return year + '-' + month + '-' + day;
             }}
             
             function formatDateVN(date) {{
@@ -2389,15 +2505,19 @@ async def dashboard_page(
                     return;
                 }}
                 
-                // Define columns based on campaign type
+                // Define columns based on view type and campaign type
+                const viewType = currentFilters.viewType || 'adset';
+                const nameColumn = viewType === 'campaign' ? 'Tên chiến dịch' : 
+                                  viewType === 'ad' ? 'Tên quảng cáo' : 'Tên nhóm quảng cáo';
+                
                 const columns = campaignType === 'ECOMMERCE' ? [
-                    'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
+                    'Chọn', 'Tắt/Bật', nameColumn, 'Account', 'Prefix', 'Số tiền chi tiêu',
                     '% ADS', 'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
                     'Giá trị chuyển đổi từ lượt mua', 'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)',
                     'CTR (tất cả)', 'CPC (tất cả)', 'Ngân sách', 'Thao tác'
                 ] : [
-                    'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
+                    'Chọn', 'Tắt/Bật', nameColumn, 'Account', 'Prefix', 'Số tiền chi tiêu',
                     'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
                     'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)', 'Ngân sách', 'Thao tác'
@@ -2418,25 +2538,40 @@ async def dashboard_page(
                 
                 let html = '<table><thead><tr>';
                 columns.forEach((col, idx) => {{
-                    const sortKey = sortableColumns[col];
-                    if (sortKey) {{
-                        html += '<th class="sortable" onclick="sortTable(' + idx + ', \\'' + sortKey + '\\')">' + col + '</th>';
+                    if (col === 'Chọn') {{
+                        // Checkbox header for select all
+                        html += '<th style="width: 40px;"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>';
                     }} else {{
-                        html += '<th>' + col + '</th>';
+                        const sortKey = sortableColumns[col];
+                        if (sortKey) {{
+                            html += '<th class="sortable" onclick="sortTable(' + idx + ', \\'' + sortKey + '\\')">' + col + '</th>';
+                        }} else {{
+                            html += '<th>' + col + '</th>';
+                        }}
                     }}
                 }});
                 html += '</tr></thead><tbody>';
                 
                 ads.forEach(ad => {{
-                    html += '<tr data-adset-id="' + (ad.adset_id || '') + '" data-account-id="' + (ad.account_id || '') + '">';
+                    const rowId = (ad.adset_id || ad.campaign_id || ad.ad_id || '') + '_' + Math.random().toString(36).substr(2, 9);
+                    const entityId = viewType === 'campaign' ? (ad.campaign_id || '') : 
+                                    viewType === 'ad' ? (ad.ad_id || '') : (ad.adset_id || '');
+                    const entityName = viewType === 'campaign' ? (ad.campaign_name || '') : 
+                                      viewType === 'ad' ? (ad.ad_name || '') : (ad.adset_name || '');
+                    
+                    html += '<tr data-row-id="' + rowId + '" data-entity-id="' + entityId + '" data-account-id="' + (ad.account_id || '') + '">';
+                    
+                    // Checkbox for multi-select
+                    html += '<td><input type="checkbox" class="row-checkbox" onchange="updateBatchActionsBar()" data-entity-id="' + entityId + '"></td>';
+                    
                     // Toggle switch cho status
-                    const isActive = (ad.adset_status || '').toUpperCase() === 'ACTIVE';
-                    html += '<td><label class="toggle-switch" title="' + (isActive ? 'Tắt adset' : 'Bật adset') + '">' +
+                    const isActive = (ad.adset_status || ad.campaign_status || ad.ad_status || '').toUpperCase() === 'ACTIVE';
+                    html += '<td><label class="toggle-switch" title="' + (isActive ? 'Tắt' : 'Bật') + '">' +
                         '<input type="checkbox" ' + (isActive ? 'checked' : '') + 
-                        ' onchange="toggleAdsetStatus(\\'' + (ad.adset_id || '') + '\\', this)">' +
+                        ' onchange="toggleAdsetStatus(\\'' + entityId + '\\', this)">' +
                         '<span class="toggle-slider"></span>' +
                         '</label></td>';
-                    html += '<td>' + (ad.adset_name || '') + '</td>';
+                    html += '<td>' + entityName + '</td>';
                     html += '<td>' + (ad.account_id || '-') + '</td>';
                     html += '<td>' + (ad.prefix || '-') + '</td>';
                     const cpm = ad.impressions > 0 ? ((ad.spend / ad.impressions) * 1000) : 0;
@@ -3371,36 +3506,130 @@ async def dashboard_page(
                 }}
             }}
             
-            // Set default date to last 7 days
-            window.addEventListener('DOMContentLoaded', () => {{
-                const today = new Date();
-                const last7Days = new Date(today);
-                last7Days.setDate(last7Days.getDate() - 6);
-                
-                selectedDateRange.start = last7Days;
-                selectedDateRange.end = today;
-                currentFilters.dateFrom = last7Days.toISOString().split('T')[0];
-                currentFilters.dateTo = today.toISOString().split('T')[0];
-                document.getElementById('dateRangeText').textContent = formatDateVN(last7Days) + ' - ' + formatDateVN(today);
-                
-                loadFilters();
+            // View Type Switch
+            function switchViewType(type, buttonElement) {{
+                document.querySelectorAll('.view-type-tab').forEach(btn => btn.classList.remove('active'));
+                buttonElement.classList.add('active');
+                currentFilters.viewType = type;
+                saveFilterState();
                 loadData();
-                loadPrefixSummary();
-                updateLastUpdateTime();
+            }}
+            
+            // Multi-select functions
+            function toggleSelectAll(checkbox) {{
+                const checkboxes = document.querySelectorAll('.row-checkbox');
+                checkboxes.forEach(cb => cb.checked = checkbox.checked);
+                updateBatchActionsBar();
+            }}
+            
+            function updateBatchActionsBar() {{
+                const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+                const count = checkboxes.length;
+                const batchBar = document.getElementById('batchActionsBar');
+                const selectedCount = document.getElementById('selectedCount');
                 
-                // Add event listeners với debounce cho performance
-                const debouncedLoadData = debounce(loadData, 300);
-                document.getElementById('accountFilter').addEventListener('change', debouncedLoadData);
-                document.getElementById('prefixFilter').addEventListener('change', debouncedLoadData);
-                document.getElementById('campaignTypeFilter').addEventListener('change', debouncedLoadData);
-                document.getElementById('statusFilter').addEventListener('change', debouncedLoadData);
+                if (count > 0) {{
+                    batchBar.style.display = 'block';
+                    selectedCount.textContent = count + ' mục đã chọn';
+                }} else {{
+                    batchBar.style.display = 'none';
+                }}
                 
-                // Auto refresh mỗi 5 phút
-                setInterval(() => {{
+                const selectAll = document.getElementById('selectAllCheckbox');
+                if (selectAll) {{
+                    const allCheckboxes = document.querySelectorAll('.row-checkbox');
+                    selectAll.checked = allCheckboxes.length > 0 && checkboxes.length === allCheckboxes.length;
+                }}
+            }}
+            
+            // Batch Actions
+            async function batchAction(action) {{
+                const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+                if (checkboxes.length === 0) {{
+                    showToast('❌ Vui lòng chọn ít nhất 1 mục', 'error');
+                    return;
+                }}
+                
+                const entityIds = Array.from(checkboxes).map(cb => cb.getAttribute('data-entity-id')).filter(id => id);
+                if (entityIds.length === 0) return;
+                
+                const viewType = currentFilters.viewType || 'adset';
+                const actionText = action === 'pause' ? 'tắt' : action === 'activate' ? 'bật' : 
+                                 action === 'increase' ? 'tăng ngân sách' : 'giảm ngân sách';
+                
+                if (!confirm('Bạn có chắc muốn ' + actionText + ' ' + entityIds.length + ' mục đã chọn?')) return;
+                
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    const response = await fetch('/dashboard/adsets/batch-action', {{
+                        method: 'POST',
+                        headers: {{
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/json'
+                        }},
+                        body: JSON.stringify({{
+                            entity_ids: entityIds,
+                            action: action,
+                            view_type: viewType
+                        }})
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {{
+                        showToast('✅ Đã ' + actionText + ' thành công ' + entityIds.length + ' mục', 'success');
+                        checkboxes.forEach(cb => cb.checked = false);
+                        updateBatchActionsBar();
+                        loadData();
+                    }} else {{
+                        showToast('❌ Lỗi: ' + (result.detail || result.message || 'Unknown error'), 'error');
+                    }}
+                }} catch (error) {{
+                    showToast('❌ Lỗi: ' + error.message, 'error');
+                }}
+            }}
+            
+            // Initialize on page load
+            window.addEventListener('DOMContentLoaded', () => {{
+                // Load filter state from localStorage first
+                loadFilterState();
+                
+                // Set default date to today if no saved state
+                if (!selectedDateRange.start || !selectedDateRange.end) {{
+                    const today = getTodayVN();
+                    selectedDateRange.start = new Date(today);
+                    selectedDateRange.end = new Date(today);
+                    selectedDateRange.end.setHours(23, 59, 59, 999);
+                    currentFilters.dateFrom = formatDateForAPI(selectedDateRange.start);
+                    currentFilters.dateTo = formatDateForAPI(selectedDateRange.end);
+                    currentFilters.datePreset = 'today';
+                    const dateRangeText = document.getElementById('dateRangeText');
+                    if (dateRangeText) {{
+                        dateRangeText.textContent = formatDateVN(selectedDateRange.start) + ' - ' + formatDateVN(selectedDateRange.end);
+                    }}
+                }}
+                
+                // Load filters (accounts, prefixes) from API
+                loadFilters();
+                
+                // Load data after filters are loaded
+                setTimeout(() => {{
                     loadData();
                     loadPrefixSummary();
                     updateLastUpdateTime();
-                }}, 5 * 60 * 1000);
+                }}, 500);
+                
+                // Add event listeners với debounce
+                const debouncedLoadData = debounce(loadData, 300);
+                const accountFilter = document.getElementById('accountFilter');
+                const prefixFilter = document.getElementById('prefixFilter');
+                const campaignTypeFilter = document.getElementById('campaignTypeFilter');
+                const statusFilter = document.getElementById('statusFilter');
+                
+                if (accountFilter) accountFilter.addEventListener('change', () => {{ handleFilterChange(); }});
+                if (prefixFilter) prefixFilter.addEventListener('change', () => {{ handleFilterChange(); }});
+                if (campaignTypeFilter) campaignTypeFilter.addEventListener('change', () => {{ handleFilterChange(); }});
+                if (statusFilter) statusFilter.addEventListener('change', () => {{ handleFilterChange(); }});
             }});
             
             function getCookie(name) {{
@@ -3441,12 +3670,13 @@ async def get_dashboard_data(
     status: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    level: Optional[str] = Query('adset', description="Level: campaign, adset, or ad"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Lấy dữ liệu dashboard với filters và pagination"""
+    """Lấy dữ liệu dashboard với filters và pagination. Level: campaign/adset/ad"""
     if not current_user:
         raise HTTPException(status_code=401, detail="Chưa đăng nhập")
     
