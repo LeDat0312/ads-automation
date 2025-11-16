@@ -3590,16 +3590,29 @@ async def get_prefix_summary(
         # Apply date filters
         if date_from:
             try:
+                # Parse date và normalize về start of day để so sánh chính xác
                 date_from_dt = datetime.fromisoformat(date_from)
-                base_query = base_query.filter(AdMetrics.date >= date_from_dt)
-            except:
+                if isinstance(date_from_dt, str):
+                    date_from_dt = datetime.fromisoformat(date_from_dt)
+                date_from_dt = date_from_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
+                base_query = base_query.filter(func.date(AdMetrics.date) >= func.date(date_from_dt))
+                logger.info(f"Filtering date_from: {date_from} -> {date_from_dt}")
+            except Exception as e:
+                logger.warning(f"Error parsing date_from {date_from}: {e}")
                 pass
         if date_to:
             try:
+                # Parse date và normalize về end of day
                 date_to_dt = datetime.fromisoformat(date_to)
-                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59)
-                base_query = base_query.filter(AdMetrics.date <= date_to_dt)
-            except:
+                if isinstance(date_to_dt, str):
+                    date_to_dt = datetime.fromisoformat(date_to_dt)
+                date_to_dt = date_to_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+                # Dùng func.date() để so sánh chỉ phần date, bỏ qua time
+                base_query = base_query.filter(func.date(AdMetrics.date) <= func.date(date_to_dt))
+                logger.info(f"Filtering date_to: {date_to} -> {date_to_dt}")
+            except Exception as e:
+                logger.warning(f"Error parsing date_to {date_to}: {e}")
                 pass
         
         # Get all prefixes from metrics
