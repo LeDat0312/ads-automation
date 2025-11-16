@@ -294,52 +294,287 @@ async def dashboard_page(
                 width: 100%;
             }}
             
-            /* Filter Section - Nằm giữa KPI và Table */
-            .filters-section {{
+            /* Filter Bar - Madgicx Style: Compact Bar */
+            .filters-bar {{
                 background: #ffffff;
-                border: 1px solid #e4e6eb;
-                border-radius: 8px;
-                padding: 16px 20px;
+                border-bottom: 1px solid #e4e6eb;
+                padding: 8px 16px;
                 margin-bottom: 24px;
-            }}
-            
-            .filters-header {{
                 display: flex;
                 align-items: center;
-                justify-content: space-between;
-                margin-bottom: 16px;
+                gap: 8px;
+                flex-wrap: wrap;
             }}
             
-            .filters-header h3 {{
-                font-size: 16px;
+            .filters-btn {{
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                background: #f2f3f5;
+                border: 1px solid #ccd0d5;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 500;
+                color: #1c1e21;
+                cursor: pointer;
+                transition: all 0.2s;
+                position: relative;
+            }}
+            
+            .filters-btn:hover {{
+                background: #e4e6eb;
+            }}
+            
+            .filters-btn.active {{
+                background: #e7f3ff;
+                border-color: #1877f2;
+                color: #1877f2;
+            }}
+            
+            .filters-badge {{
+                background: #1877f2;
+                color: white;
+                border-radius: 10px;
+                padding: 2px 6px;
+                font-size: 11px;
+                font-weight: 600;
+                min-width: 18px;
+                text-align: center;
+            }}
+            
+            .btn-refresh-small {{
+                padding: 6px;
+                background: #f2f3f5;
+                border: 1px solid #ccd0d5;
+                border-radius: 6px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                transition: all 0.2s;
+            }}
+            
+            .btn-refresh-small:hover {{
+                background: #e4e6eb;
+            }}
+            
+            .btn-refresh-small.loading {{
+                animation: spin 0.8s linear infinite;
+            }}
+            
+            .date-picker-compact {{
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                background: #f2f3f5;
+                border: 1px solid #ccd0d5;
+                border-radius: 6px;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }}
+            
+            .date-picker-compact:hover {{
+                background: #e4e6eb;
+            }}
+            
+            .view-selector {{
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                background: #f2f3f5;
+                border: 1px solid #ccd0d5;
+                border-radius: 6px;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }}
+            
+            .view-selector:hover {{
+                background: #e4e6eb;
+            }}
+            
+            .view-selector select {{
+                border: none;
+                background: transparent;
+                font-size: 14px;
+                color: #1c1e21;
+                cursor: pointer;
+                outline: none;
+            }}
+            
+            /* Filter Panel Modal */
+            .filter-panel {{
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 1000;
+                align-items: flex-start;
+                justify-content: center;
+                padding-top: 80px;
+            }}
+            
+            .filter-panel.active {{
+                display: flex;
+            }}
+            
+            .filter-panel-content {{
+                background: white;
+                border-radius: 8px;
+                width: 90%;
+                max-width: 800px;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            }}
+            
+            .filter-panel-header {{
+                padding: 16px 20px;
+                border-bottom: 1px solid #e4e6eb;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }}
+            
+            .filter-panel-header h3 {{
+                font-size: 18px;
                 font-weight: 600;
                 color: #1c1e21;
                 margin: 0;
             }}
             
-            .filters-content {{
+            .filter-panel-body {{
+                padding: 20px;
+            }}
+            
+            .selected-filters-section {{
+                margin-bottom: 24px;
+            }}
+            
+            .selected-filters-header {{
                 display: flex;
-                flex-direction: column;
-                gap: 12px;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
             }}
             
-            .filter-row {{
+            .selected-filters-header h4 {{
+                font-size: 14px;
+                font-weight: 600;
+                color: #1c1e21;
+                margin: 0;
+            }}
+            
+            .filter-item {{
                 display: flex;
-                gap: 12px;
-                align-items: flex-end;
-                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px;
+                background: #f2f3f5;
+                border-radius: 6px;
+                margin-bottom: 8px;
             }}
             
-            .filter-row:last-child {{
-                margin-bottom: 0;
+            .filter-item select, .filter-item input {{
+                padding: 4px 8px;
+                border: 1px solid #ccd0d5;
+                border-radius: 4px;
+                font-size: 13px;
             }}
             
-            .search-box-filter {{
+            .filter-item .remove-filter {{
+                padding: 4px 8px;
+                background: #ef4444;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+            }}
+            
+            .suggestions-section {{
+                margin-top: 24px;
+            }}
+            
+            .suggestions-section h4 {{
+                font-size: 14px;
+                font-weight: 600;
+                color: #1c1e21;
+                margin-bottom: 12px;
+            }}
+            
+            .suggestion-item {{
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px;
+                border: 1px solid #e4e6eb;
+                border-radius: 6px;
+                margin-bottom: 6px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }}
+            
+            .suggestion-item:hover {{
+                background: #f2f3f5;
+                border-color: #1877f2;
+            }}
+            
+            .filter-panel-footer {{
+                padding: 16px 20px;
+                border-top: 1px solid #e4e6eb;
+                display: flex;
+                justify-content: flex-end;
+                gap: 8px;
+            }}
+            
+            .btn-close {{
+                padding: 8px 16px;
+                background: #f2f3f5;
+                border: 1px solid #ccd0d5;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                color: #1c1e21;
+            }}
+            
+            .btn-apply {{
+                padding: 8px 16px;
+                background: #1877f2;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                color: white;
+                font-weight: 500;
+            }}
+            
+            .search-box-compact {{
                 position: relative;
-                flex: 0 0 300px;
+                flex: 1;
+                max-width: 300px;
             }}
             
-            .search-box-filter .search-icon {{
+            .search-box-compact input {{
+                width: 100%;
+                padding: 6px 10px 6px 32px;
+                border: 1px solid #ccd0d5;
+                border-radius: 6px;
+                font-size: 14px;
+                background: #f2f3f5;
+                height: 32px;
+            }}
+            
+            .search-box-compact .search-icon {{
                 position: absolute;
                 left: 10px;
                 top: 50%;
@@ -348,100 +583,53 @@ async def dashboard_page(
                 font-size: 14px;
             }}
             
-            .search-box-filter input {{
-                width: 100%;
-                padding: 6px 10px 6px 32px;
-                border: 1px solid #ccd0d5;
-                border-radius: 4px;
-                font-size: 14px;
-                transition: border-color 0.2s;
-                background: #f2f3f5;
-                height: 32px;
-            }}
-            
-            .search-box-filter input:focus {{
-                background: white;
-                border-color: #1877f2;
-                outline: none;
-            }}
-            
-            .filter-group-inline {{
+            .load-preset-btn {{
                 display: flex;
-                flex-direction: column;
-                min-width: 120px;
-            }}
-            
-            .filter-group-inline label {{
-                font-size: 12px;
-                font-weight: 500;
-                color: #65676b;
-                margin-bottom: 4px;
-            }}
-            
-            .filter-group-inline select {{
-                padding: 5px 8px;
-                border: 1px solid #ccd0d5;
-                border-radius: 4px;
-                font-size: 14px;
-                background: white;
-                transition: border-color 0.2s;
-                height: 32px;
-                cursor: pointer;
-            }}
-            
-            .filter-group-inline select:focus {{
-                outline: none;
-                border-color: #1877f2;
-            }}
-            
-            .date-picker-btn-inline {{
-                padding: 5px 8px;
-                border: 1px solid #ccd0d5;
-                border-radius: 4px;
-                font-size: 14px;
-                background: white;
-                cursor: pointer;
-                display: flex;
-                justify-content: space-between;
                 align-items: center;
-                transition: border-color 0.2s;
-                height: 32px;
-                min-width: 160px;
-            }}
-            
-            .date-picker-btn-inline:hover {{
-                border-color: #1877f2;
-            }}
-            
-            .quick-filters-inline {{
-                display: flex;
                 gap: 6px;
-                flex-wrap: wrap;
-                width: 100%;
-            }}
-            
-            .quick-filter-btn {{
-                padding: 5px 10px;
-                background: white;
+                padding: 6px 12px;
+                background: #f2f3f5;
                 border: 1px solid #ccd0d5;
-                border-radius: 4px;
-                font-size: 13px;
-                font-weight: 500;
-                color: #1c1e21;
+                border-radius: 6px;
+                font-size: 14px;
                 cursor: pointer;
                 transition: all 0.2s;
-                height: 28px;
+                position: relative;
             }}
             
-            .quick-filter-btn:hover {{
-                border-color: #1877f2;
+            .load-preset-btn:hover {{
+                background: #e4e6eb;
+            }}
+            
+            .preset-dropdown {{
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                margin-top: 4px;
+                background: white;
+                border: 1px solid #ccd0d5;
+                border-radius: 6px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                min-width: 200px;
+                z-index: 100;
+            }}
+            
+            .preset-dropdown.active {{
+                display: block;
+            }}
+            
+            .preset-item {{
+                padding: 10px 12px;
+                cursor: pointer;
+                transition: background 0.2s;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }}
+            
+            .preset-item:hover {{
                 background: #f2f3f5;
-            }}
-            
-            .quick-filter-btn.active {{
-                background: #1877f2;
-                border-color: #1877f2;
-                color: white;
             }}
             
             @media (max-width: 1400px) {{
@@ -1835,9 +2023,6 @@ async def dashboard_page(
                 <h1>📊 Dashboard – Tổng Quan Hiệu Suất</h1>
             </div>
             <div class="header-actions">
-                <button class="btn-refresh" onclick="refreshData()" id="refreshBtn" title="Làm mới dữ liệu">
-                    🔄 Làm mới
-                </button>
             </div>
         </div>
         
@@ -1908,66 +2093,88 @@ async def dashboard_page(
                     </div>
                 </div>
                 
-                <!-- Filters Section - Nằm giữa KPI và Table -->
-                <div class="filters-section">
-                    <div class="filters-header">
-                        <h3>🔍 Bộ Lọc</h3>
-                        <button class="btn-refresh" onclick="refreshData()" id="refreshBtnFilter" title="Làm mới dữ liệu" style="padding: 6px 12px; font-size: 13px;">
-                            🔄 Làm mới
-                        </button>
+                <!-- Filters Bar - Madgicx Style -->
+                <div class="filters-bar">
+                    <button class="filters-btn" onclick="toggleFilterPanel()" id="filtersBtn">
+                        <span>⚙️</span>
+                        <span>Filters</span>
+                        <span class="filters-badge" id="filtersBadge" style="display: none;">0</span>
+                    </button>
+                    <div class="search-box-compact">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="searchInput" placeholder="Search..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
                     </div>
-                    <div class="filters-content">
-                        <div class="filter-row">
-                            <div class="search-box-filter" style="flex: 0 0 300px;">
-                                <span class="search-icon">🔍</span>
-                                <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign, ID..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
+                    <div class="load-preset-btn" onclick="togglePresetDropdown(event)" id="loadPresetBtn">
+                        <span>Load filter preset</span>
+                        <span>▼</span>
+                        <div class="preset-dropdown" id="presetDropdown">
+                            <div class="preset-item" onclick="loadPreset('active')">Active Ad Sets</div>
+                            <div class="preset-item" onclick="loadPreset('paused')">Paused Ad Sets</div>
+                            <div class="preset-item" onclick="loadPreset('all')">All Ad Sets</div>
+                        </div>
+                    </div>
+                    <button class="btn-refresh-small" onclick="refreshData()" id="refreshBtn" title="Refresh">
+                        🔄
+                    </button>
+                    <div class="date-picker-compact" onclick="openDatePicker()">
+                        <span>📅</span>
+                        <span id="dateRangeText">Today</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="view-selector">
+                        <span>View:</span>
+                        <select id="viewTypeFilter" onchange="handleViewTypeChange()">
+                            <option value="all">All</option>
+                            <option value="ECOMMERCE">E-commerce</option>
+                            <option value="LEAD">Lead Generation</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Filter Panel Modal -->
+                <div class="filter-panel" id="filterPanel" onclick="if(event.target === this) toggleFilterPanel()">
+                    <div class="filter-panel-content" onclick="event.stopPropagation()">
+                        <div class="filter-panel-header">
+                            <h3>Filters</h3>
+                            <button onclick="toggleFilterPanel()" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+                        </div>
+                        <div class="filter-panel-body">
+                            <div class="selected-filters-section">
+                                <div class="selected-filters-header">
+                                    <h4>Selected filters</h4>
+                                    <div style="display: flex; gap: 8px;">
+                                        <button class="btn-close" onclick="clearAllFilters()">Clear All Filters</button>
+                                        <button class="btn-apply" onclick="saveFilters()">Save Filters</button>
+                                    </div>
+                                </div>
+                                <div id="selectedFiltersList">
+                                    <!-- Selected filters will be added here -->
+                                </div>
+                                <button onclick="addFilter()" style="padding: 8px 12px; background: #f2f3f5; border: 1px dashed #ccd0d5; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 8px;">+ Add filter</button>
                             </div>
-                            <div class="filter-group-inline">
-                                <label>Account</label>
-                                <select id="accountFilter" onchange="handleFilterChange()">
-                                    <option value="">Tất cả</option>
-                                </select>
-                            </div>
-                            <div class="filter-group-inline">
-                                <label>Prefix</label>
-                                <select id="prefixFilter" onchange="handleFilterChange()">
-                                    <option value="">Tất cả</option>
-                                </select>
-                            </div>
-                            <div class="filter-group-inline">
-                                <label>Loại Campaign</label>
-                                <select id="campaignTypeFilter" onchange="handleFilterChange()">
-                                    <option value="">Tất cả</option>
-                                    <option value="ECOMMERCE">E-commerce</option>
-                                    <option value="LEAD">Lead Generation</option>
-                                </select>
-                            </div>
-                            <div class="filter-group-inline">
-                                <label>Trạng thái</label>
-                                <select id="statusFilter" onchange="handleFilterChange()">
-                                    <option value="">Tất cả</option>
-                                    <option value="ACTIVE">Đang hoạt động</option>
-                                    <option value="PAUSED">Đã tắt</option>
-                                </select>
-                            </div>
-                            <div class="filter-group-inline date-picker-wrapper">
-                                <label>Khoảng thời gian</label>
-                                <div class="date-picker-btn-inline" onclick="openDatePicker()">
-                                    <span id="dateRangeText">Chọn khoảng thời gian</span>
-                                    <span>📅</span>
+                            <div class="suggestions-section">
+                                <h4>Suggestions</h4>
+                                <div class="suggestion-item" onclick="addSuggestionFilter('status')">
+                                    <span>⚪</span>
+                                    <span>Status is ...</span>
+                                </div>
+                                <div class="suggestion-item" onclick="addSuggestionFilter('name')">
+                                    <span>📝</span>
+                                    <span>Name contains ...</span>
+                                </div>
+                                <div class="suggestion-item" onclick="addSuggestionFilter('account')">
+                                    <span>👤</span>
+                                    <span>Account is ...</span>
+                                </div>
+                                <div class="suggestion-item" onclick="addSuggestionFilter('prefix')">
+                                    <span>🏷️</span>
+                                    <span>Prefix is ...</span>
                                 </div>
                             </div>
                         </div>
-                        <div class="filter-row">
-                            <div class="quick-filters-inline">
-                                <button class="quick-filter-btn" onclick="applyQuickFilter('today', this)">Hôm nay</button>
-                                <button class="quick-filter-btn" onclick="applyQuickFilter('yesterday', this)">Hôm qua</button>
-                                <button class="quick-filter-btn" onclick="applyQuickFilter('last7days', this)">7 ngày qua</button>
-                                <button class="quick-filter-btn" onclick="applyQuickFilter('last14days', this)">14 ngày qua</button>
-                                <button class="quick-filter-btn" onclick="applyQuickFilter('last30days', this)">30 ngày qua</button>
-                                <button class="quick-filter-btn" onclick="applyQuickFilter('thisMonth', this)">Tháng này</button>
-                                <button class="quick-filter-btn" onclick="applyQuickFilter('lastMonth', this)">Tháng trước</button>
-                            </div>
+                        <div class="filter-panel-footer">
+                            <button class="btn-close" onclick="toggleFilterPanel()">Close</button>
+                            <button class="btn-apply" onclick="applyFilters()">Apply</button>
                         </div>
                     </div>
                 </div>
@@ -3295,13 +3502,146 @@ async def dashboard_page(
                 }});
             }}
             
-            // Filter change handler
+            // Filter Panel Functions
+            function toggleFilterPanel() {{
+                const panel = document.getElementById('filterPanel');
+                const btn = document.getElementById('filtersBtn');
+                if (panel.classList.contains('active')) {{
+                    panel.classList.remove('active');
+                    btn.classList.remove('active');
+                }} else {{
+                    panel.classList.add('active');
+                    btn.classList.add('active');
+                    updateSelectedFiltersDisplay();
+                }}
+            }}
+            
+            function updateSelectedFiltersDisplay() {{
+                const list = document.getElementById('selectedFiltersList');
+                const badge = document.getElementById('filtersBadge');
+                let activeFilters = 0;
+                let html = '';
+                
+                if (currentFilters.account) activeFilters++;
+                if (currentFilters.prefix) activeFilters++;
+                if (currentFilters.status) activeFilters++;
+                if (currentFilters.searchTerm) activeFilters++;
+                
+                if (currentFilters.account) {{
+                    html += '<div class="filter-item"><span>Account:</span><select id="filterAccount' + activeFilters + '" onchange="updateFilter(\'account\', this.value)"><option value="">All</option></select><button class="remove-filter" onclick="removeFilter(\'account\')">×</button></div>';
+                }}
+                if (currentFilters.prefix) {{
+                    html += '<div class="filter-item"><span>Prefix:</span><select id="filterPrefix' + activeFilters + '" onchange="updateFilter(\'prefix\', this.value)"><option value="">All</option></select><button class="remove-filter" onclick="removeFilter(\'prefix\')">×</button></div>';
+                }}
+                if (currentFilters.status) {{
+                    html += '<div class="filter-item"><span>Status:</span><select onchange="updateFilter(\'status\', this.value)"><option value="">All</option><option value="ACTIVE"' + (currentFilters.status === 'ACTIVE' ? ' selected' : '') + '>Active</option><option value="PAUSED"' + (currentFilters.status === 'PAUSED' ? ' selected' : '') + '>Paused</option></select><button class="remove-filter" onclick="removeFilter(\'status\')">×</button></div>';
+                }}
+                if (currentFilters.searchTerm) {{
+                    html += '<div class="filter-item"><span>Name contains:</span><input type="text" value="' + currentFilters.searchTerm + '" onchange="updateFilter(\'searchTerm\', this.value)"><button class="remove-filter" onclick="removeFilter(\'searchTerm\')">×</button></div>';
+                }}
+                
+                list.innerHTML = html || '<div style="color: #8a8d91; font-size: 13px; padding: 8px;">No filters selected</div>';
+                
+                if (activeFilters > 0) {{
+                    badge.textContent = activeFilters;
+                    badge.style.display = 'inline-block';
+                }} else {{
+                    badge.style.display = 'none';
+                }}
+            }}
+            
+            function addSuggestionFilter(type) {{
+                const list = document.getElementById('selectedFiltersList');
+                if (type === 'status' && !currentFilters.status) {{
+                    currentFilters.status = 'ACTIVE';
+                }} else if (type === 'name' && !currentFilters.searchTerm) {{
+                    currentFilters.searchTerm = '';
+                }} else if (type === 'account' && !currentFilters.account) {{
+                    currentFilters.account = '';
+                }} else if (type === 'prefix' && !currentFilters.prefix) {{
+                    currentFilters.prefix = '';
+                }}
+                updateSelectedFiltersDisplay();
+            }}
+            
+            function updateFilter(key, value) {{
+                currentFilters[key] = value;
+                updateSelectedFiltersDisplay();
+            }}
+            
+            function removeFilter(key) {{
+                currentFilters[key] = '';
+                if (key === 'searchTerm') document.getElementById('searchInput').value = '';
+                updateSelectedFiltersDisplay();
+            }}
+            
+            function clearAllFilters() {{
+                currentFilters.account = '';
+                currentFilters.prefix = '';
+                currentFilters.status = '';
+                currentFilters.searchTerm = '';
+                document.getElementById('searchInput').value = '';
+                updateSelectedFiltersDisplay();
+            }}
+            
+            function saveFilters() {{
+                saveFilterState();
+                toggleFilterPanel();
+                loadData();
+            }}
+            
+            function applyFilters() {{
+                saveFilterState();
+                toggleFilterPanel();
+                loadData();
+            }}
+            
+            function togglePresetDropdown(event) {{
+                event.stopPropagation();
+                const dropdown = document.getElementById('presetDropdown');
+                dropdown.classList.toggle('active');
+            }}
+            
+            function loadPreset(preset) {{
+                const dropdown = document.getElementById('presetDropdown');
+                dropdown.classList.remove('active');
+                
+                if (preset === 'active') {{
+                    currentFilters.status = 'ACTIVE';
+                }} else if (preset === 'paused') {{
+                    currentFilters.status = 'PAUSED';
+                }} else if (preset === 'all') {{
+                    currentFilters.status = '';
+                }}
+                
+                updateSelectedFiltersDisplay();
+                saveFilterState();
+                loadData();
+            }}
+            
+            function handleViewTypeChange() {{
+                const viewType = document.getElementById('viewTypeFilter').value;
+                currentFilters.campaignType = viewType === 'all' ? '' : viewType;
+                saveFilterState();
+                loadData();
+            }}
+            
+            // Close preset dropdown when clicking outside
+            document.addEventListener('click', function(event) {{
+                const presetBtn = document.getElementById('loadPresetBtn');
+                const dropdown = document.getElementById('presetDropdown');
+                if (presetBtn && dropdown && !presetBtn.contains(event.target) && !dropdown.contains(event.target)) {{
+                    dropdown.classList.remove('active');
+                }}
+            }});
+            
+            // Filter change handler (legacy, for compatibility)
             function handleFilterChange() {{
-                currentFilters.campaignType = document.getElementById('campaignTypeFilter').value;
-                currentFilters.status = document.getElementById('statusFilter').value;
-                currentFilters.account = document.getElementById('accountFilter').value;
-                currentFilters.prefix = document.getElementById('prefixFilter').value;
-                saveFilterState(); // Save to localStorage
+                currentFilters.campaignType = document.getElementById('viewTypeFilter')?.value || '';
+                currentFilters.status = currentFilters.status || '';
+                currentFilters.account = currentFilters.account || '';
+                currentFilters.prefix = currentFilters.prefix || '';
+                saveFilterState();
                 debouncedLoadData();
             }}
             
