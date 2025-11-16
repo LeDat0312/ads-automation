@@ -1,0 +1,18 @@
+# Cài đặt Node.js và npm trên Ubuntu
+# Chạy từng lệnh:
+
+# 1. Cài đặt Node.js 18.x LTS
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# 2. Kiểm tra cài đặt
+node --version
+npm --version
+
+# 3. Nếu có frontend React app riêng, vào thư mục đó và chạy:
+cd components/dashboard
+npm install
+
+# Hoặc nếu dùng yarn:
+# yarn install
+
