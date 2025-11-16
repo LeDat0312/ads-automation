@@ -2659,8 +2659,6 @@ async def dashboard_page(
                 const prefix = currentFilters.prefix || '';
                 const campaignType = currentFilters.campaignType || '';
                 const status = currentFilters.status || '';
-                currentFilters.campaignType = campaignType;
-                currentFilters.status = status;
                 
                 const params = new URLSearchParams({{
                     page: currentPage,
