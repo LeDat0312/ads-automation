@@ -2886,7 +2886,7 @@ async def dashboard_page(
             }}
             
             // Set default date to today
-            window.addEventListener('DOMContentLoaded', () => {{
+            window.addEventListener('DOMContentLoaded', async () => {{
                 const today = new Date();
                 
                 selectedDateRange.start = today;
@@ -2895,7 +2895,35 @@ async def dashboard_page(
                 currentFilters.dateTo = today.toISOString().split('T')[0];
                 document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
                 
-                loadFilters();
+                await loadFilters();
+                
+                // Pull data from Facebook for today when page loads
+                try {{
+                    const token = localStorage.getItem('access_token') || getCookie('access_token');
+                    if (token) {{
+                        const todayStr = today.toISOString().split('T')[0];
+                        console.log('🔄 Pulling data for today:', todayStr);
+                        
+                        const response = await fetch('/dashboard/pull-data?date_from=' + todayStr + '&date_to=' + todayStr, {{
+                            method: 'POST',
+                            headers: {{
+                                'Authorization': 'Bearer ' + token,
+                                'Content-Type': 'application/json'
+                            }}
+                        }});
+                        if (response.ok) {{
+                            const data = await response.json();
+                            console.log('✅ Đã pull dữ liệu từ Facebook:', data.count || 0, 'adsets');
+                        }} else {{
+                            const errorData = await response.json();
+                            console.error('Lỗi khi pull dữ liệu:', errorData.detail || 'Unknown error');
+                        }}
+                    }}
+                }} catch (error) {{
+                    console.error('Lỗi khi pull dữ liệu:', error);
+                }}
+                
+                // Load data after pulling
                 loadData();
                 loadPrefixSummary();
                 updateLastUpdateTime();
