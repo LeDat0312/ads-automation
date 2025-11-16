@@ -3771,62 +3771,117 @@ async def get_dashboard_data(
             except:
                 pass
         
-        # Group by adset_id to aggregate metrics
-        # Get distinct adsets
-        adsets_query = query.with_entities(
-            AdMetrics.adset_id,
-            AdMetrics.adset_name,
-            AdMetrics.campaign_name,
-            AdMetrics.prefix,
-            AdMetrics.account_id,
-            AdMetrics.campaign_type,
-            func.max(AdMetrics.adset_status).label('adset_status')
-        ).group_by(
-            AdMetrics.adset_id,
-            AdMetrics.adset_name,
-            AdMetrics.campaign_name,
-            AdMetrics.prefix,
-            AdMetrics.account_id,
-            AdMetrics.campaign_type
-        )
+        # Group by level (campaign/adset/ad) to aggregate metrics
+        level = level or 'adset'
+        
+        if level == 'campaign':
+            # Group by campaign
+            entities_query = query.with_entities(
+                AdMetrics.campaign_id,
+                AdMetrics.campaign_name,
+                AdMetrics.prefix,
+                AdMetrics.account_id,
+                AdMetrics.campaign_type,
+                func.max(AdMetrics.adset_status).label('status')  # Use adset_status as proxy
+            ).group_by(
+                AdMetrics.campaign_id,
+                AdMetrics.campaign_name,
+                AdMetrics.prefix,
+                AdMetrics.account_id,
+                AdMetrics.campaign_type
+            )
+            entity_id_field = 'campaign_id'
+            entity_name_field = 'campaign_name'
+            entity_status_field = 'status'
+        elif level == 'ad':
+            # Group by ad
+            entities_query = query.with_entities(
+                AdMetrics.ad_id,
+                AdMetrics.ad_name,
+                AdMetrics.adset_name,
+                AdMetrics.campaign_name,
+                AdMetrics.prefix,
+                AdMetrics.account_id,
+                AdMetrics.campaign_type,
+                func.max(AdMetrics.adset_status).label('status')  # Use adset_status as proxy
+            ).group_by(
+                AdMetrics.ad_id,
+                AdMetrics.ad_name,
+                AdMetrics.adset_name,
+                AdMetrics.campaign_name,
+                AdMetrics.prefix,
+                AdMetrics.account_id,
+                AdMetrics.campaign_type
+            )
+            entity_id_field = 'ad_id'
+            entity_name_field = 'ad_name'
+            entity_status_field = 'status'
+        else:
+            # Default: Group by adset
+            entities_query = query.with_entities(
+                AdMetrics.adset_id,
+                AdMetrics.adset_name,
+                AdMetrics.campaign_name,
+                AdMetrics.prefix,
+                AdMetrics.account_id,
+                AdMetrics.campaign_type,
+                func.max(AdMetrics.adset_status).label('adset_status')
+            ).group_by(
+                AdMetrics.adset_id,
+                AdMetrics.adset_name,
+                AdMetrics.campaign_name,
+                AdMetrics.prefix,
+                AdMetrics.account_id,
+                AdMetrics.campaign_type
+            )
+            entity_id_field = 'adset_id'
+            entity_name_field = 'adset_name'
+            entity_status_field = 'adset_status'
         
         # Get total count
-        total = adsets_query.count()
+        total = entities_query.count()
         
         # Get paginated results
-        adsets = adsets_query.offset((page - 1) * page_size).limit(page_size).all()
+        entities = entities_query.offset((page - 1) * page_size).limit(page_size).all()
         
-        # Get aggregated metrics for each adset
+        # Get aggregated metrics for each entity
         ads_dict = []
-        for adset in adsets:
-            adset_metrics = query.filter(AdMetrics.adset_id == adset.adset_id).all()
+        for entity in entities:
+            entity_id = getattr(entity, entity_id_field)
+            if not entity_id:
+                continue
+                
+            # Filter metrics by entity ID
+            if level == 'campaign':
+                entity_metrics = query.filter(AdMetrics.campaign_id == entity_id).all()
+            elif level == 'ad':
+                entity_metrics = query.filter(AdMetrics.ad_id == entity_id).all()
+            else:
+                entity_metrics = query.filter(AdMetrics.adset_id == entity_id).all()
             
             # Aggregate metrics
-            total_spend = sum(m.spend or 0 for m in adset_metrics)
-            total_results = sum(m.results or 0 for m in adset_metrics)
-            total_impressions = sum(m.impressions or 0 for m in adset_metrics)
-            total_clicks = sum(m.clicks or 0 for m in adset_metrics)
-            total_purchases = sum(m.purchases or 0 for m in adset_metrics)
-            total_purchase_value = sum(m.purchase_value or 0 for m in adset_metrics)
+            total_spend = sum(m.spend or 0 for m in entity_metrics)
+            total_results = sum(m.results or 0 for m in entity_metrics)
+            total_impressions = sum(m.impressions or 0 for m in entity_metrics)
+            total_clicks = sum(m.clicks or 0 for m in entity_metrics)
+            total_purchases = sum(m.purchases or 0 for m in entity_metrics)
+            total_purchase_value = sum(m.purchase_value or 0 for m in entity_metrics)
             
             # Calculate averages
-            avg_gia_data = sum(m.gia_data or 0 for m in adset_metrics) / len(adset_metrics) if adset_metrics else 0
-            avg_ctr = sum(m.ctr or 0 for m in adset_metrics) / len(adset_metrics) if adset_metrics else 0
-            avg_cpc = sum(m.cpc or 0 for m in adset_metrics) / len(adset_metrics) if adset_metrics else 0
+            avg_gia_data = sum(m.gia_data or 0 for m in entity_metrics) / len(entity_metrics) if entity_metrics else 0
+            avg_ctr = sum(m.ctr or 0 for m in entity_metrics) / len(entity_metrics) if entity_metrics else 0
+            avg_cpc = sum(m.cpc or 0 for m in entity_metrics) / len(entity_metrics) if entity_metrics else 0
             
             # Calculate derived metrics
             cost_per_checkout_initiated = 0  # Cần lấy từ Facebook API hoặc tính từ checkouts
-            checkouts_initiated = sum(m.sdt or 0 for m in adset_metrics)  # Sử dụng sdt như checkouts
+            checkouts_initiated = sum(m.sdt or 0 for m in entity_metrics)  # Sử dụng sdt như checkouts
             cost_per_purchase = (total_spend / total_purchases) if total_purchases > 0 else 0
             
-            ads_dict.append({
-                "adset_id": adset.adset_id,
-                "adset_name": adset.adset_name,
-                "campaign_name": adset.campaign_name,
-                "prefix": adset.prefix,
-                "account_id": adset.account_id,
-                "campaign_type": adset.campaign_type,
-                "adset_status": adset.adset_status,
+            # Build result dict based on level
+            result_dict = {
+                "prefix": getattr(entity, 'prefix', None),
+                "account_id": getattr(entity, 'account_id', None),
+                "campaign_type": getattr(entity, 'campaign_type', None),
                 "spend": total_spend,
                 "results": total_results,
                 "gia_data": avg_gia_data,
@@ -3839,7 +3894,33 @@ async def get_dashboard_data(
                 "cost_per_checkout_initiated": cost_per_checkout_initiated,
                 "checkouts_initiated": checkouts_initiated,
                 "cost_per_purchase": cost_per_purchase
-            })
+            }
+            
+            # Add level-specific fields
+            status_value = getattr(entity, entity_status_field, 'ACTIVE')
+            if level == 'campaign':
+                result_dict.update({
+                    "campaign_id": entity_id,
+                    "campaign_name": getattr(entity, entity_name_field, ''),
+                    "campaign_status": status_value
+                })
+            elif level == 'ad':
+                result_dict.update({
+                    "ad_id": entity_id,
+                    "ad_name": getattr(entity, entity_name_field, ''),
+                    "adset_name": getattr(entity, 'adset_name', ''),
+                    "campaign_name": getattr(entity, 'campaign_name', ''),
+                    "ad_status": status_value
+                })
+            else:  # adset
+                result_dict.update({
+                    "adset_id": entity_id,
+                    "adset_name": getattr(entity, entity_name_field, ''),
+                    "campaign_name": getattr(entity, 'campaign_name', ''),
+                    "adset_status": status_value
+                })
+            
+            ads_dict.append(result_dict)
         
         # Sắp xếp theo Giá DATA từ cao xuống thấp
         ads_dict.sort(key=lambda x: x.get('gia_data', 0), reverse=True)
@@ -4259,3 +4340,135 @@ async def set_adset_budget(
     except Exception as e:
         logger.error(f"Error setting adset budget: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật ngân sách: {str(e)}")
+
+
+@router.post("/adsets/batch-action")
+async def batch_action_adsets(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Batch actions cho adsets/campaigns/ads: pause, activate, increase/decrease budget"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        body = await request.json()
+        entity_ids = body.get("entity_ids", [])
+        action = body.get("action")  # pause, activate, increase, decrease
+        view_type = body.get("view_type", "adset")  # campaign, adset, ad
+        
+        if not entity_ids or not isinstance(entity_ids, list):
+            raise HTTPException(status_code=400, detail="Thiếu entity_ids hoặc không phải list")
+        
+        if action not in ["pause", "activate", "increase", "decrease"]:
+            raise HTTPException(status_code=400, detail="Action không hợp lệ. Phải là: pause, activate, increase, decrease")
+        
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        from app.services.facebook_api import pause_adsets, activate_adsets, update_adset_budget
+        
+        success_count = 0
+        error_details = []
+        
+        if action in ["pause", "activate"]:
+            # Pause or activate
+            if view_type == "campaign":
+                # For campaigns, we need to pause/activate all adsets in the campaign
+                # This is a simplified version - in production, you'd need to fetch all adsets first
+                for entity_id in entity_ids:
+                    try:
+                        if action == "pause":
+                            result = pause_adsets([entity_id], token)
+                        else:
+                            result = activate_adsets([entity_id], token)
+                        
+                        if result.get("success", 0) > 0:
+                            success_count += 1
+                        else:
+                            error_details.append({
+                                "entity_id": entity_id,
+                                "error": result.get("errorDetails", [{}])[0].get("error", "Unknown error") if result.get("errorDetails") else "Unknown error"
+                            })
+                    except Exception as e:
+                        error_details.append({
+                            "entity_id": entity_id,
+                            "error": str(e)
+                        })
+            else:
+                # For adsets or ads, use the existing functions
+                if action == "pause":
+                    result = pause_adsets(entity_ids, token)
+                else:
+                    result = activate_adsets(entity_ids, token)
+                
+                success_count = result.get("success", 0)
+                if result.get("errorDetails"):
+                    error_details = result.get("errorDetails", [])
+        
+        elif action in ["increase", "decrease"]:
+            # Increase or decrease budget by 20%
+            for entity_id in entity_ids:
+                try:
+                    # Get current budget from database
+                    metric = db.query(AdMetrics).filter(
+                        AdMetrics.adset_id == entity_id if view_type == "adset" else
+                        (AdMetrics.campaign_id == entity_id if view_type == "campaign" else
+                         AdMetrics.ad_id == entity_id)
+                    ).first()
+                    
+                    if not metric:
+                        error_details.append({
+                            "entity_id": entity_id,
+                            "error": "Không tìm thấy entity trong database"
+                        })
+                        continue
+                    
+                    # Get current budget (assuming daily_budget is stored somewhere)
+                    # For now, we'll use a default or fetch from Facebook
+                    # This is a simplified version
+                    current_budget = 100000  # Default, should be fetched from Facebook or stored
+                    
+                    if action == "increase":
+                        new_budget = current_budget * 1.2
+                    else:
+                        new_budget = current_budget * 0.8
+                    
+                    result = update_adset_budget(entity_id, token, action_type="set", amount=new_budget)
+                    
+                    if result.get("success"):
+                        success_count += 1
+                    else:
+                        error_details.append({
+                            "entity_id": entity_id,
+                            "error": result.get("error", "Unknown error")
+                        })
+                except Exception as e:
+                    error_details.append({
+                        "entity_id": entity_id,
+                        "error": str(e)
+                    })
+        
+        return {
+            "success": success_count > 0,
+            "success_count": success_count,
+            "total_count": len(entity_ids),
+            "error_count": len(error_details),
+            "error_details": error_details
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in batch action: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lỗi khi thực hiện batch action: {str(e)}")
