@@ -33,9 +33,14 @@ def get_user_account_prefixes(user_id: int, db: Session, enabled_only: bool = Tr
     user_accounts = query.all()
     account_ids = [acc[0] for acc in user_accounts]
     
-    # Lấy prefixes từ user's prefixes
-    user_prefixes = db.query(Prefix.prefix).filter(Prefix.user_id == user_id).all()
+    # Lấy prefixes từ user's prefixes - chỉ lấy enabled nếu enabled_only=True
+    prefix_query = db.query(Prefix.prefix).filter(Prefix.user_id == user_id)
+    if enabled_only:
+        prefix_query = prefix_query.filter(Prefix.enabled == True)
+    user_prefixes = prefix_query.all()
     prefixes = [pref[0] for pref in user_prefixes]
+    
+    logger.info(f"User {user_id}: Found {len(account_ids)} accounts, {len(prefixes)} prefixes (enabled_only={enabled_only})")
     
     return account_ids, prefixes
 
@@ -1874,15 +1879,22 @@ async def dashboard_page(
                     try {{
                         const token = localStorage.getItem('access_token') || getCookie('access_token');
                         if (token) {{
-                            const response = await fetch('/dashboard/pull-data', {{
+                            const startStr = selectedDateRange.start.toISOString().split('T')[0];
+                            const endStr = selectedDateRange.end.toISOString().split('T')[0];
+                            
+                            const response = await fetch('/dashboard/pull-data?date_from=' + startStr + '&date_to=' + endStr, {{
                                 method: 'POST',
                                 headers: {{
-                                    'Authorization': 'Bearer ' + token
+                                    'Authorization': 'Bearer ' + token,
+                                    'Content-Type': 'application/json'
                                 }}
                             }});
                             if (response.ok) {{
                                 const data = await response.json();
                                 console.log('✅ Đã pull dữ liệu từ Facebook:', data.count || 0, 'adsets');
+                            }} else {{
+                                const errorData = await response.json();
+                                console.error('Lỗi khi pull dữ liệu:', errorData.detail || 'Unknown error');
                             }}
                         }}
                     }} catch (error) {{
@@ -3461,22 +3473,14 @@ async def get_filters(
         raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
     
     try:
-        account_ids, prefixes = get_user_account_prefixes(current_user.id, db)
+        account_ids, prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
         
-        # Get unique accounts from metrics
-        accounts = db.query(AdMetrics.account_id.distinct()).filter(
-            AdMetrics.account_id.in_(account_ids),
-            AdMetrics.account_id.isnot(None)
-        ).all()
-        accounts = [acc[0] for acc in accounts if acc[0]]
+        # Return ALL enabled accounts and prefixes from settings, not just from metrics
+        # This ensures users see all configured accounts/prefixes even if no data exists yet
+        accounts = account_ids if account_ids else []
+        prefixes_list = prefixes if prefixes else []
         
-        # Get unique prefixes from metrics
-        prefixes_from_metrics = db.query(AdMetrics.prefix.distinct()).filter(
-            AdMetrics.account_id.in_(account_ids),
-            AdMetrics.prefix.isnot(None),
-            AdMetrics.prefix.in_(prefixes) if prefixes else True
-        ).all()
-        prefixes_list = [pref[0] for pref in prefixes_from_metrics if pref[0]]
+        logger.info(f"Filters for user {current_user.id}: {len(accounts)} accounts, {len(prefixes_list)} prefixes")
         
         return {
             "accounts": accounts,
@@ -3605,6 +3609,109 @@ async def get_prefix_summary(
     except Exception as e:
         logger.error(f"Error getting prefix summary: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi lấy prefix summary: {str(e)}")
+
+
+@router.post("/pull-data")
+async def pull_facebook_data_endpoint(
+    request: Request,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Pull dữ liệu từ Facebook API và lưu vào database"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not current_user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản đã bị khóa")
+    
+    try:
+        from app.models.user_settings import UserSettings
+        from app.core.security import decrypt_token
+        
+        user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+        if not user_settings or not user_settings.facebook_token_encrypted:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Facebook token")
+        
+        token = decrypt_token(user_settings.facebook_token_encrypted)
+        
+        # Lấy danh sách enabled accounts
+        account_ids, _ = get_user_account_prefixes(current_user.id, db, enabled_only=True)
+        if not account_ids:
+            raise HTTPException(status_code=400, detail="Không có tài khoản quảng cáo nào được bật")
+        
+        # Xử lý date range
+        if date_from and date_to:
+            # Convert date range to time_range format
+            from datetime import datetime as dt
+            try:
+                start_date = dt.fromisoformat(date_from)
+                end_date = dt.fromisoformat(date_to)
+                # Format as YYYY-MM-DD
+                since = start_date.strftime('%Y-%m-%d')
+                until = end_date.strftime('%Y-%m-%d')
+                date_preset = f"time_range:{since}:{until}"
+            except:
+                date_preset = "yesterday"
+        else:
+            date_preset = "yesterday"
+        
+        # Import service
+        from app.services.facebook_api import pull_facebook_data
+        
+        # Pull data
+        logger.info(f"Pulling Facebook data for user {current_user.id}, accounts: {len(account_ids)}, date: {date_preset}")
+        ad_metrics_list = pull_facebook_data(token, account_ids, date_preset)
+        
+        if not ad_metrics_list:
+            return {
+                "success": True,
+                "message": "Không có dữ liệu mới",
+                "count": 0
+            }
+        
+        # Save to database
+        saved_count = 0
+        for metric in ad_metrics_list:
+            try:
+                # Check if record exists
+                existing = db.query(AdMetrics).filter(
+                    AdMetrics.ad_id == metric.get('ad_id'),
+                    AdMetrics.date == metric.get('date')
+                ).first()
+                
+                if existing:
+                    # Update existing record
+                    for key, value in metric.items():
+                        if hasattr(existing, key):
+                            setattr(existing, key, value)
+                else:
+                    # Create new record
+                    ad_metric = AdMetrics(**metric)
+                    db.add(ad_metric)
+                
+                saved_count += 1
+            except Exception as e:
+                logger.error(f"Error saving metric: {e}")
+                continue
+        
+        db.commit()
+        
+        logger.info(f"Saved {saved_count} ad metrics to database")
+        
+        return {
+            "success": True,
+            "message": f"Đã pull và lưu {saved_count} records",
+            "count": saved_count
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error pulling Facebook data: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Lỗi khi pull dữ liệu: {str(e)}")
 
 
 @router.post("/adset/pause")
