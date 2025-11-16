@@ -502,12 +502,17 @@ def pull_facebook_data(
                         f"&access_token={access_token}"
                     )
                     
-                    # Xử lý date_preset
-                    if date_preset == 'yesterday':
+                    # Xử lý date_preset hoặc time_range
+                    import json
+                    from urllib.parse import quote
+                    
+                    if time_range:
+                        # Sử dụng time_range nếu được cung cấp
+                        time_range_json = json.dumps(time_range)
+                        url += f'&time_range={quote(time_range_json)}'
+                    elif date_preset == 'yesterday':
                         # Convert yesterday sang time_range để chính xác hơn (giống Google Script)
                         from datetime import timezone, timedelta
-                        import json
-                        from urllib.parse import quote
                         # Dùng timezone Asia/Ho_Chi_Minh (UTC+7)
                         tz = timezone(timedelta(hours=7))
                         now = datetime.now(tz)
@@ -518,7 +523,7 @@ def pull_facebook_data(
                         until = today.strftime('%Y-%m-%d')
                         time_range_json = json.dumps({"since": since, "until": until})
                         url += f'&time_range={quote(time_range_json)}'
-                    else:
+                    elif date_preset:
                         url += f'&date_preset={date_preset}'
                     
                     # Thêm action_report_time và attribution settings (giống Google Script)

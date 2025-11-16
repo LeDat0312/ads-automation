@@ -3642,6 +3642,7 @@ async def pull_facebook_data_endpoint(
             raise HTTPException(status_code=400, detail="Không có tài khoản quảng cáo nào được bật")
         
         # Xử lý date range
+        time_range = None
         if date_from and date_to:
             # Convert date range to time_range format
             from datetime import datetime as dt
@@ -3651,18 +3652,25 @@ async def pull_facebook_data_endpoint(
                 # Format as YYYY-MM-DD
                 since = start_date.strftime('%Y-%m-%d')
                 until = end_date.strftime('%Y-%m-%d')
-                date_preset = f"time_range:{since}:{until}"
-            except:
+                time_range = {"since": since, "until": until}
+                date_preset = None
+            except Exception as e:
+                logger.warning(f"Error parsing date range: {e}, using yesterday")
                 date_preset = "yesterday"
+                time_range = None
         else:
             date_preset = "yesterday"
+            time_range = None
         
         # Import service
-        from app.services.facebook_api import pull_facebook_data
+        from app.services.facebook_api import pull_facebook_data_with_time_range
         
         # Pull data
-        logger.info(f"Pulling Facebook data for user {current_user.id}, accounts: {len(account_ids)}, date: {date_preset}")
-        ad_metrics_list = pull_facebook_data(token, account_ids, date_preset)
+        logger.info(f"Pulling Facebook data for user {current_user.id}, accounts: {len(account_ids)}, time_range: {time_range}, date_preset: {date_preset}")
+        if time_range:
+            ad_metrics_list = pull_facebook_data_with_time_range(token, account_ids, time_range)
+        else:
+            ad_metrics_list = pull_facebook_data(token, account_ids, date_preset)
         
         if not ad_metrics_list:
             return {
