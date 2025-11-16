@@ -1316,23 +1316,30 @@ async def dashboard_page(
             
             @media (max-width: 768px) {{
                 .header {{
-                    padding: 12px 16px;
-                    flex-direction: column;
-                    gap: 12px;
-                    align-items: flex-start;
+                    padding: 6px 12px;
+                    min-height: 45px;
                 }}
                 
                 .header h1 {{
-                    font-size: 20px;
+                    font-size: 16px;
                 }}
                 
-                .header-actions {{
-                    width: 100%;
-                    justify-content: flex-end;
+                .header-left a {{
+                    padding: 4px 8px;
+                    font-size: 12px;
                 }}
                 
-                .dashboard-layout {{
-                    padding: 100px 16px 40px;
+                .btn-refresh {{
+                    padding: 4px 8px;
+                    font-size: 12px;
+                }}
+                
+                .container, .dashboard-layout {{
+                    padding: 60px 16px 20px;
+                }}
+                
+                .sidebar-filters {{
+                    top: 50px;
                 }}
                 
                 .filters-section {{
@@ -1410,13 +1417,31 @@ async def dashboard_page(
             }}
             
             @media (max-width: 480px) {{
+                .header {{
+                    padding: 4px 8px;
+                    min-height: 40px;
+                }}
+                
                 .header h1 {{
-                    font-size: 18px;
+                    font-size: 14px;
+                }}
+                
+                .header-left a {{
+                    padding: 4px 6px;
+                    font-size: 11px;
                 }}
                 
                 .btn-refresh {{
-                    padding: 8px 12px;
-                    font-size: 13px;
+                    padding: 4px 6px;
+                    font-size: 11px;
+                }}
+                
+                .container, .dashboard-layout {{
+                    padding: 50px 12px 16px;
+                }}
+                
+                .sidebar-filters {{
+                    top: 45px;
                 }}
                 
                 .stat-card .value {{
