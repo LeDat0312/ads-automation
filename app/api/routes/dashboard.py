@@ -280,14 +280,178 @@ async def dashboard_page(
             }}
             
             .container {{
-                max-width: 1400px;
+                max-width: 1800px;
                 width: 100%;
                 margin: 0 auto;
-                padding: 100px 32px 40px;
+                padding: 24px;
                 box-sizing: border-box;
                 position: relative;
                 z-index: 1;
                 animation: fadeIn 0.5s ease-out;
+            }}
+            
+            /* Sticky Filter Bar - GỌN, NHẸ, GIỐNG FACEBOOK ADS MANAGER */
+            .sticky-filter-bar {{
+                position: sticky;
+                top: 70px;
+                z-index: 20;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                border-bottom: 1px solid #e2e8f0;
+                padding: 12px 20px;
+                margin-bottom: 16px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+                display: block !important;
+            }}
+            
+            .filter-bar-row {{
+                display: flex;
+                gap: 12px;
+                align-items: center;
+                margin-bottom: 8px;
+                flex-wrap: wrap;
+            }}
+            
+            .filter-bar-row:last-child {{
+                margin-bottom: 0;
+            }}
+            
+            .search-box-filter {{
+                position: relative;
+                flex: 1;
+                min-width: 250px;
+                max-width: 400px;
+            }}
+            
+            .search-box-filter .search-icon {{
+                position: absolute;
+                left: 10px;
+                top: 50%;
+                transform: translateY(-50%);
+                color: #9ca3af;
+                font-size: 14px;
+            }}
+            
+            .search-box-filter input {{
+                width: 100%;
+                padding: 8px 12px 8px 36px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 13px;
+                transition: all 0.2s ease;
+                background: #f9fafb;
+                height: 36px;
+            }}
+            
+            .search-box-filter input:focus {{
+                background: white;
+                border-color: #667eea;
+                box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+                outline: none;
+            }}
+            
+            .filter-group-inline {{
+                display: flex;
+                flex-direction: column;
+                min-width: 140px;
+            }}
+            
+            .filter-group-inline label {{
+                font-size: 11px;
+                font-weight: 500;
+                color: #6b7280;
+                margin-bottom: 4px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
+            
+            .filter-group-inline select {{
+                padding: 6px 10px;
+                border: 1px solid #d1d5db;
+                border-radius: 4px;
+                font-size: 13px;
+                background: white;
+                transition: all 0.2s ease;
+                height: 32px;
+                cursor: pointer;
+            }}
+            
+            .filter-group-inline select:focus {{
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+            }}
+            
+            .date-picker-btn-inline {{
+                padding: 6px 10px;
+                border: 1px solid #d1d5db;
+                border-radius: 4px;
+                font-size: 13px;
+                background: white;
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                transition: all 0.2s ease;
+                height: 32px;
+                min-width: 180px;
+            }}
+            
+            .date-picker-btn-inline:hover {{
+                border-color: #667eea;
+            }}
+            
+            .quick-filters-inline {{
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+                width: 100%;
+            }}
+            
+            .quick-filter-btn {{
+                padding: 6px 12px;
+                background: white;
+                border: 1px solid #d1d5db;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: 500;
+                color: #374151;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                height: 28px;
+            }}
+            
+            .quick-filter-btn:hover {{
+                border-color: #667eea;
+                color: #667eea;
+                background: #f3f4f6;
+            }}
+            
+            .quick-filter-btn.active {{
+                background: #667eea;
+                border-color: #667eea;
+                color: white;
+            }}
+            
+            @media (max-width: 1024px) {{
+                .sticky-filter-bar {{
+                    position: relative;
+                    top: 0;
+                }}
+                
+                .filter-bar-row {{
+                    flex-direction: column;
+                    align-items: stretch;
+                }}
+                
+                .search-box-filter {{
+                    max-width: 100%;
+                }}
+                
+                .filter-group-inline {{
+                    width: 100%;
+                }}
             }}
             
             .filters-section {{
@@ -843,6 +1007,57 @@ async def dashboard_page(
                 color: #991b1b;
             }}
             
+            /* Toggle Switch cho Adset Status */
+            .toggle-switch {{
+                position: relative;
+                display: inline-block;
+                width: 44px;
+                height: 24px;
+            }}
+            
+            .toggle-switch input {{
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }}
+            
+            .toggle-slider {{
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: #cbd5e1;
+                transition: 0.3s;
+                border-radius: 24px;
+            }}
+            
+            .toggle-slider:before {{
+                position: absolute;
+                content: "";
+                height: 18px;
+                width: 18px;
+                left: 3px;
+                bottom: 3px;
+                background-color: white;
+                transition: 0.3s;
+                border-radius: 50%;
+            }}
+            
+            .toggle-switch input:checked + .toggle-slider {{
+                background-color: #10b981;
+            }}
+            
+            .toggle-switch input:checked + .toggle-slider:before {{
+                transform: translateX(20px);
+            }}
+            
+            .toggle-switch input:disabled + .toggle-slider {{
+                opacity: 0.5;
+                cursor: not-allowed;
+            }}
+            
             .alert-badge {{
                 padding: 4px 8px;
                 border-radius: 6px;
@@ -1369,71 +1584,63 @@ async def dashboard_page(
         </div>
         
         <div class="dashboard-layout">
-            <div class="sidebar-filters mobile-hidden" id="sidebarFilters">
-                <div class="filters-section">
-                    <div class="filters-header">
-                        <h2>🔍 Bộ Lọc</h2>
+            <!-- Sticky Filter Bar - GỌN, NHẸ, GIỐNG FACEBOOK ADS MANAGER -->
+            <div class="sticky-filter-bar" id="stickyFilterBar">
+                <div class="filter-bar-row">
+                    <div class="search-box-filter">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign, ID..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
                     </div>
-                    <div class="filters-grid">
-                        <div class="filter-group">
-                            <label>Account</label>
-                            <select id="accountFilter">
-                                <option value="">Tất cả Accounts</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label>Prefix</label>
-                            <select id="prefixFilter">
-                                <option value="">Tất cả Prefixes</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label>Loại Campaign</label>
-                            <select id="campaignTypeFilter">
-                                <option value="">Tất cả</option>
-                                <option value="ECOMMERCE">E-commerce</option>
-                                <option value="LEAD">Lead Generation</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label>Trạng thái</label>
-                            <select id="statusFilter">
-                                <option value="">Tất cả</option>
-                                <option value="ACTIVE">Active</option>
-                                <option value="PAUSED">Paused</option>
-                            </select>
-                        </div>
-                        <div class="filter-group date-picker-wrapper">
-                            <label>Khoảng thời gian</label>
-                            <div class="date-picker-btn" onclick="openDatePicker()">
-                                <span id="dateRangeText">Chọn khoảng thời gian</span>
-                                <span>📅</span>
-                            </div>
+                    <div class="filter-group-inline">
+                        <label>Account</label>
+                        <select id="accountFilter" onchange="handleFilterChange()">
+                            <option value="">Tất cả</option>
+                        </select>
+                    </div>
+                    <div class="filter-group-inline">
+                        <label>Prefix</label>
+                        <select id="prefixFilter" onchange="handleFilterChange()">
+                            <option value="">Tất cả</option>
+                        </select>
+                    </div>
+                    <div class="filter-group-inline">
+                        <label>Loại Campaign</label>
+                        <select id="campaignTypeFilter" onchange="handleFilterChange()">
+                            <option value="">Tất cả</option>
+                            <option value="ECOMMERCE">E-commerce</option>
+                            <option value="LEAD">Lead Generation</option>
+                        </select>
+                    </div>
+                    <div class="filter-group-inline">
+                        <label>Trạng thái</label>
+                        <select id="statusFilter" onchange="handleFilterChange()">
+                            <option value="">Tất cả</option>
+                            <option value="ACTIVE">Đang hoạt động</option>
+                            <option value="PAUSED">Đã tắt</option>
+                        </select>
+                    </div>
+                    <div class="filter-group-inline date-picker-wrapper">
+                        <label>Khoảng thời gian</label>
+                        <div class="date-picker-btn-inline" onclick="openDatePicker()">
+                            <span id="dateRangeText">Chọn khoảng thời gian</span>
+                            <span>📅</span>
                         </div>
                     </div>
-                    <div class="quick-filters">
+                </div>
+                <div class="filter-bar-row">
+                    <div class="quick-filters-inline">
                         <button class="quick-filter-btn" onclick="applyQuickFilter('today', this)">Hôm nay</button>
                         <button class="quick-filter-btn" onclick="applyQuickFilter('yesterday', this)">Hôm qua</button>
                         <button class="quick-filter-btn" onclick="applyQuickFilter('last7days', this)">7 ngày qua</button>
+                        <button class="quick-filter-btn" onclick="applyQuickFilter('last14days', this)">14 ngày qua</button>
                         <button class="quick-filter-btn" onclick="applyQuickFilter('last30days', this)">30 ngày qua</button>
                         <button class="quick-filter-btn" onclick="applyQuickFilter('thisMonth', this)">Tháng này</button>
-                    </div>
-                    <div class="filter-actions">
-                        <button class="btn-apply" onclick="applyFilters()">Áp dụng</button>
-                        <button class="btn-reset" onclick="resetFilters()">Làm mới</button>
+                        <button class="quick-filter-btn" onclick="applyQuickFilter('lastMonth', this)">Tháng trước</button>
                     </div>
                 </div>
             </div>
             
             <div class="main-content">
-                <button class="mobile-filter-toggle" onclick="toggleMobileFilters()" id="mobileFilterToggle">
-                    🔍 Bộ Lọc
-                </button>
-                
-                <div class="search-box" style="margin-bottom: 24px;">
-                    <span class="search-icon">🔍</span>
-                    <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên adset, campaign..." onkeyup="handleSearch(event)" oninput="handleSearch(event)">
-                </div>
                 
                 <div class="stats-grid" id="statsGrid">
                     <div class="stat-card">
@@ -2042,7 +2249,13 @@ async def dashboard_page(
                 
                 ads.forEach(ad => {{
                     html += '<tr data-adset-id="' + (ad.adset_id || '') + '" data-account-id="' + (ad.account_id || '') + '">';
-                    html += '<td><span class="status-badge status-' + (ad.adset_status || '').toLowerCase() + '">' + (ad.adset_status || '') + '</span></td>';
+                    // Toggle switch cho status
+                    const isActive = (ad.adset_status || '').toUpperCase() === 'ACTIVE';
+                    html += '<td><label class="toggle-switch" title="' + (isActive ? 'Tắt adset' : 'Bật adset') + '">' +
+                        '<input type="checkbox" ' + (isActive ? 'checked' : '') + 
+                        ' onchange="toggleAdsetStatus(\\'' + (ad.adset_id || '') + '\\', this)">' +
+                        '<span class="toggle-slider"></span>' +
+                        '</label></td>';
                     html += '<td>' + (ad.adset_name || '') + '</td>';
                     html += '<td>' + (ad.account_id || '-') + '</td>';
                     html += '<td>' + (ad.prefix || '-') + '</td>';
