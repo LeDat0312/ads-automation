@@ -479,7 +479,8 @@ def pull_facebook_data(
     
     for account_id in ad_account_ids:
         try:
-            logger.info(f"Đang kéo dữ liệu cho tài khoản: {account_id} (Phạm vi: {date_preset})")
+            date_info = f"time_range: {time_range}" if time_range else f"date_preset: {date_preset}"
+            logger.info(f"Đang kéo dữ liệu cho tài khoản: {account_id} ({date_info})")
             
             # Xử lý pagination: Lấy TẤT CẢ pages (không chỉ page đầu tiên)
             next_url = None
