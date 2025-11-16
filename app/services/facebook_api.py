@@ -465,10 +465,12 @@ def pull_facebook_data(
         List of ad metrics dictionaries
     """
     # Fields hợp lệ cho insights
+    # Lưu ý: date_start chỉ có khi có breakdown=day
     fields = [
         'account_name', 'account_id', 'campaign_name', 'campaign_id',
         'adset_id', 'adset_name',
         'ad_id', 'ad_name',
+        'date_start',  # Thêm date_start để lấy ngày chính xác khi có breakdown
         'spend', 'impressions', 'reach', 'frequency', 'clicks', 'ctr', 'cpc',
         'cost_per_initiate_checkout', 'cost_per_purchase',
         'cost_per_action_type', 'actions', 'action_values'
@@ -562,7 +564,7 @@ def pull_facebook_data(
                         logger.warning("   (Có thể do: không có ads chạy trong khoảng thời gian này, hoặc không có quyền truy cập)")
                     break  # Không có dữ liệu, thoát khỏi vòng lặp
                 
-                logger.info(f"   📊 Page {page_count}: Nhận được {len(data)} ads từ API...")
+                logger.info(f"   📊 Page {page_count}: Nhận được {len(data)} ads từ API... (breakdown={use_breakdown})")
                 
                 for item in data:
                     # Parse actions và action_values
