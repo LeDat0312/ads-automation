@@ -2518,17 +2518,15 @@ async def dashboard_page(
                             }}, 500);
                         }}
                         
-                        // Restore campaign type and status
+                        // Restore view type (campaign type)
                         if (savedFilters.campaignType) {{
                             currentFilters.campaignType = savedFilters.campaignType;
-                            const campaignTypeFilter = document.getElementById('campaignTypeFilter');
-                            if (campaignTypeFilter) campaignTypeFilter.value = savedFilters.campaignType;
+                            const viewTypeFilter = document.getElementById('viewTypeFilter');
+                            if (viewTypeFilter) viewTypeFilter.value = savedFilters.campaignType || 'all';
                         }}
                         
                         if (savedFilters.status) {{
                             currentFilters.status = savedFilters.status;
-                            const statusFilter = document.getElementById('statusFilter');
-                            if (statusFilter) statusFilter.value = savedFilters.status;
                         }}
                         
                         // Restore date range
@@ -2539,11 +2537,28 @@ async def dashboard_page(
                             currentFilters.dateTo = savedFilters.dateRange.to;
                             const dateRangeText = document.getElementById('dateRangeText');
                             if (dateRangeText) {{
-                                dateRangeText.textContent = formatDateVN(selectedDateRange.start) + ' - ' + formatDateVN(selectedDateRange.end);
+                                const today = getTodayVN();
+                                const startDate = new Date(selectedDateRange.start);
+                                const endDate = new Date(selectedDateRange.end);
+                                const isToday = startDate.toDateString() === today.toDateString() && endDate.toDateString() === today.toDateString();
+                                if (isToday) {{
+                                    dateRangeText.textContent = 'Today ' + formatDateForAPI(today) + ' - ' + formatDateForAPI(today);
+                                }} else {{
+                                    dateRangeText.textContent = formatDateForAPI(startDate) + ' - ' + formatDateForAPI(endDate);
+                                }}
                             }}
-                        }} else if (savedFilters.datePreset) {{
-                            // Restore quick date preset
-                            selectQuickDate(savedFilters.datePreset);
+                        }} else {{
+                            // Default to today if no date saved
+                            const today = getTodayVN();
+                            selectedDateRange.start = new Date(today);
+                            selectedDateRange.end = new Date(today);
+                            selectedDateRange.end.setHours(23, 59, 59, 999);
+                            currentFilters.dateFrom = formatDateForAPI(today);
+                            currentFilters.dateTo = formatDateForAPI(today);
+                            const dateRangeText = document.getElementById('dateRangeText');
+                            if (dateRangeText) {{
+                                dateRangeText.textContent = 'Today ' + formatDateForAPI(today) + ' - ' + formatDateForAPI(today);
+                            }}
                         }}
                         
                         // Restore search
@@ -2556,7 +2571,16 @@ async def dashboard_page(
                         // Restore view type
                         if (savedFilters.viewType) {{
                             currentFilters.viewType = savedFilters.viewType;
+                            const viewTypeTabs = document.querySelectorAll('.view-type-tab');
+                            viewTypeTabs.forEach(tab => {{
+                                if (tab.getAttribute('data-view') === savedFilters.viewType) {{
+                                    tab.click();
+                                }}
+                            }});
                         }}
+                        
+                        // Update filter badge
+                        updateSelectedFiltersDisplay();
                     }}
                 }} catch (e) {{
                     console.error('Error loading filter state:', e);
@@ -2593,9 +2617,20 @@ async def dashboard_page(
                     currentFilters.dateFrom = startStr;
                     currentFilters.dateTo = endStr;
                     
-                    const startFormatted = formatDateVN(selectedDateRange.start);
-                    const endFormatted = formatDateVN(selectedDateRange.end);
-                    document.getElementById('dateRangeText').textContent = startFormatted + ' - ' + endFormatted;
+                    // Format date text for display
+                    const today = getTodayVN();
+                    const startDate = new Date(selectedDateRange.start);
+                    const endDate = new Date(selectedDateRange.end);
+                    const isToday = startDate.toDateString() === today.toDateString() && endDate.toDateString() === today.toDateString();
+                    
+                    let dateText = '';
+                    if (isToday) {{
+                        dateText = 'Today ' + formatDateForAPI(today) + ' - ' + formatDateForAPI(today);
+                    }} else {{
+                        dateText = formatDateForAPI(startDate) + ' - ' + formatDateForAPI(endDate);
+                    }}
+                    
+                    document.getElementById('dateRangeText').textContent = dateText;
                     
                     saveFilterState();
                     closeDatePicker();
@@ -2620,13 +2655,10 @@ async def dashboard_page(
             
             // Load data
             async function loadData() {{
-                const account = document.getElementById('accountFilter').value;
-                const prefix = document.getElementById('prefixFilter').value;
-                const campaignType = document.getElementById('campaignTypeFilter').value;
-                const status = document.getElementById('statusFilter').value;
-                
-                currentFilters.account = account;
-                currentFilters.prefix = prefix;
+                const account = currentFilters.account || '';
+                const prefix = currentFilters.prefix || '';
+                const campaignType = currentFilters.campaignType || '';
+                const status = currentFilters.status || '';
                 currentFilters.campaignType = campaignType;
                 currentFilters.status = status;
                 
