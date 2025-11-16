@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_, distinct, case
+from sqlalchemy import func, and_, or_, distinct, case, desc
 import pytz
 
 from app.core.database import get_db, AdMetrics
@@ -130,24 +130,51 @@ async def dashboard_page(
                 backdrop-filter: blur(20px);
                 -webkit-backdrop-filter: blur(20px);
                 border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-                padding: 16px 32px;
+                padding: 8px 16px;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
                 z-index: 100;
                 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+                min-height: 50px;
             }}
             
             .header h1 {{
-                font-size: 24px;
+                font-size: 18px;
                 font-weight: 700;
                 color: #1e293b;
+                margin: 0;
             }}
             
             .header-actions {{
                 display: flex;
                 align-items: center;
-                gap: 12px;
+                gap: 8px;
+                flex-shrink: 0;
+            }}
+            
+            .header-left {{
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex: 1;
+                min-width: 0;
+            }}
+            
+            .header-left a {{
+                text-decoration: none;
+                color: #667eea;
+                font-weight: 600;
+                padding: 6px 12px;
+                border-radius: 6px;
+                transition: all 0.3s ease;
+                background: rgba(102, 126, 234, 0.1);
+                font-size: 13px;
+                white-space: nowrap;
+            }}
+            
+            .header-left a:hover {{
+                background: rgba(102, 126, 234, 0.2);
             }}
             
             .search-box {{
@@ -213,17 +240,19 @@ async def dashboard_page(
             }}
             
             .btn-refresh {{
-                padding: 10px 20px;
+                padding: 6px 12px;
                 background: #667eea;
                 border: none;
-                border-radius: 8px;
+                border-radius: 6px;
                 color: white;
                 cursor: pointer;
                 font-weight: 500;
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                gap: 6px;
                 transition: all 0.3s ease;
+                font-size: 13px;
+                white-space: nowrap;
             }}
             
             .btn-refresh:hover {{
@@ -281,7 +310,7 @@ async def dashboard_page(
                 max-width: 1400px;
                 width: 100%;
                 margin: 0 auto;
-                padding: 100px 32px 40px;
+                padding: 70px 32px 40px;
                 box-sizing: border-box;
                 position: relative;
                 z-index: 1;
@@ -294,7 +323,7 @@ async def dashboard_page(
                 max-width: 1400px;
                 width: 100%;
                 margin: 0 auto;
-                padding: 100px 32px 40px;
+                padding: 70px 32px 40px;
                 box-sizing: border-box;
                 position: relative;
                 z-index: 1;
@@ -305,9 +334,9 @@ async def dashboard_page(
                 width: 320px;
                 flex-shrink: 0;
                 position: sticky;
-                top: 80px;
+                top: 60px;
                 height: fit-content;
-                max-height: calc(100vh - 100px);
+                max-height: calc(100vh - 80px);
                 overflow-y: auto;
                 overflow-x: hidden;
             }}
@@ -1403,14 +1432,14 @@ async def dashboard_page(
     </head>
     <body>
         <div class="header">
-            <div style="display: flex; align-items: center; gap: 16px;">
-                <a href="/" style="text-decoration: none; color: #667eea; font-weight: 600; padding: 8px 16px; border-radius: 8px; transition: all 0.3s ease; background: rgba(102, 126, 234, 0.1);" onmouseover="this.style.background='rgba(102, 126, 234, 0.2)'" onmouseout="this.style.background='rgba(102, 126, 234, 0.1)'">← Trang chủ</a>
-                <h1>📊 Dashboard - Tổng Quan Hiệu Suất</h1>
+            <div class="header-left">
+                <a href="/">← Trang chủ</a>
+                <h1>📊 Dashboard</h1>
             </div>
             <div class="header-actions">
-                <div id="lastUpdateTime" style="font-size: 12px; color: #64748b; margin-right: 16px; white-space: nowrap;">Cập nhật lần cuối: --:--:--</div>
+                <div id="lastUpdateTime" style="font-size: 11px; color: #64748b; margin-right: 8px; white-space: nowrap; display: none;">--:--:--</div>
                 <button class="btn-refresh" onclick="refreshData()" id="refreshBtn">
-                    🔄 Làm mới
+                    🔄
                 </button>
             </div>
         </div>
@@ -1803,7 +1832,7 @@ async def dashboard_page(
                 renderCalendars();
             }}
             
-            function applyDateRange() {{
+            async function applyDateRange() {{
                 if (selectedDateRange.start && selectedDateRange.end) {{
                     const startStr = selectedDateRange.start.toISOString().split('T')[0];
                     const endStr = selectedDateRange.end.toISOString().split('T')[0];
@@ -1815,7 +1844,30 @@ async def dashboard_page(
                     document.getElementById('dateRangeText').textContent = startFormatted + ' - ' + endFormatted;
                     
                     closeDatePicker();
-                    loadData();
+                    
+                    // Pull data from Facebook when date range is applied
+                    try {{
+                        const token = localStorage.getItem('access_token') || getCookie('access_token');
+                        if (token) {{
+                            const response = await fetch('/dashboard/pull-data', {{
+                                method: 'POST',
+                                headers: {{
+                                    'Authorization': 'Bearer ' + token
+                                }}
+                            }});
+                            if (response.ok) {{
+                                const data = await response.json();
+                                console.log('✅ Đã pull dữ liệu từ Facebook:', data.count || 0, 'adsets');
+                            }}
+                        }}
+                    }} catch (error) {{
+                        console.error('Lỗi khi pull dữ liệu:', error);
+                    }}
+                    
+                    // Load data after pulling
+                    await loadData();
+                    await loadPrefixSummary();
+                    await loadCharts();
                 }}
             }}
             
@@ -1986,16 +2038,16 @@ async def dashboard_page(
                 
                 // Define columns based on campaign type
                 const columns = campaignType === 'ECOMMERCE' ? [
-                    'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
+                    'Thao tác', 'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
                     '% ADS', 'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
                     'Giá trị chuyển đổi từ lượt mua', 'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)',
-                    'CTR (tất cả)', 'CPC (tất cả)', 'Thao tác'
+                    'CTR (tất cả)', 'CPC (tất cả)'
                 ] : [
-                    'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
+                    'Thao tác', 'Tắt/Bật', 'Tên nhóm quảng cáo', 'Account', 'Prefix', 'Số tiền chi tiêu',
                     'Kết quả', 'Giá DATA', 'Chi phí trên mỗi lượt bắt đầu thanh toán',
                     'Tổng số lượt bắt đầu thanh toán', 'Chi phí trên mỗi lượt mua', 'Tổng số lượt mua',
-                    'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)', 'Thao tác'
+                    'CPM', 'Lượt hiển thị', 'Số lần nhấp (tất cả)', 'CTR (tất cả)', 'CPC (tất cả)'
                 ];
                 
                 // Define sortable columns
@@ -2023,6 +2075,19 @@ async def dashboard_page(
                 
                 ads.forEach(ad => {{
                     html += '<tr data-adset-id="' + (ad.adset_id || '') + '" data-account-id="' + (ad.account_id || '') + '">';
+                    
+                    // Action buttons - moved to first column
+                    const isActive = (ad.adset_status || '').toUpperCase() === 'ACTIVE';
+                    html += '<td class="action-buttons">';
+                    if (isActive) {{
+                        html += '<button class="btn-action btn-pause" onclick="pauseAdset(\\'' + (ad.adset_id || '') + '\\', this)" title="Tắt adset">⏸️</button>';
+                    }} else {{
+                        html += '<button class="btn-action btn-activate" onclick="activateAdset(\\'' + (ad.adset_id || '') + '\\', this)" title="Bật adset">▶️</button>';
+                    }}
+                    html += '<button class="btn-action btn-increase" onclick="increaseBudget(\\'' + (ad.adset_id || '') + '\\', this)" title="Tăng ngân sách 10%">+10%</button>';
+                    html += '<button class="btn-action btn-decrease" onclick="decreaseBudget(\\'' + (ad.adset_id || '') + '\\', this)" title="Giảm ngân sách 10%">-10%</button>';
+                    html += '</td>';
+                    
                     html += '<td><span class="status-badge status-' + (ad.adset_status || '').toLowerCase() + '">' + (ad.adset_status || '') + '</span></td>';
                     html += '<td>' + (ad.adset_name || '') + '</td>';
                     html += '<td>' + (ad.account_id || '-') + '</td>';
@@ -2064,18 +2129,6 @@ async def dashboard_page(
                     html += '<td class="number-cell">' + formatNumber(ad.clicks || 0) + '</td>';
                     html += '<td class="number-cell">' + ((ad.ctr || 0)).toFixed(2) + '%</td>';
                     html += '<td class="number-cell">' + formatNumber(ad.cpc || 0) + '</td>';
-                    
-                    // Action buttons
-                    const isActive = (ad.adset_status || '').toUpperCase() === 'ACTIVE';
-                    html += '<td class="action-buttons">';
-                    if (isActive) {{
-                        html += '<button class="btn-action btn-pause" onclick="pauseAdset(\\'' + (ad.adset_id || '') + '\\', this)" title="Tắt adset">⏸️</button>';
-                    }} else {{
-                        html += '<button class="btn-action btn-activate" onclick="activateAdset(\\'' + (ad.adset_id || '') + '\\', this)" title="Bật adset">▶️</button>';
-                    }}
-                    html += '<button class="btn-action btn-increase" onclick="increaseBudget(\\'' + (ad.adset_id || '') + '\\', this)" title="Tăng ngân sách 10%">+10%</button>';
-                    html += '<button class="btn-action btn-decrease" onclick="decreaseBudget(\\'' + (ad.adset_id || '') + '\\', this)" title="Giảm ngân sách 10%">-10%</button>';
-                    html += '</td>';
                     html += '</tr>';
                 }});
                 
@@ -2795,17 +2848,15 @@ async def dashboard_page(
                 }}
             }}
             
-            // Set default date to last 7 days
+            // Set default date to today
             window.addEventListener('DOMContentLoaded', () => {{
                 const today = new Date();
-                const last7Days = new Date(today);
-                last7Days.setDate(last7Days.getDate() - 6);
                 
-                selectedDateRange.start = last7Days;
+                selectedDateRange.start = today;
                 selectedDateRange.end = today;
-                currentFilters.dateFrom = last7Days.toISOString().split('T')[0];
+                currentFilters.dateFrom = today.toISOString().split('T')[0];
                 currentFilters.dateTo = today.toISOString().split('T')[0];
-                document.getElementById('dateRangeText').textContent = formatDateVN(last7Days) + ' - ' + formatDateVN(today);
+                document.getElementById('dateRangeText').textContent = formatDateVN(today) + ' - ' + formatDateVN(today);
                 
                 loadFilters();
                 loadData();
@@ -3190,7 +3241,6 @@ async def get_dashboard_data(
             AdMetrics.prefix,
             AdMetrics.account_id,
             AdMetrics.campaign_type,
-            func.max(AdMetrics.adset_status).label('adset_status'),
             func.sum(AdMetrics.spend).label('total_spend'),
             func.sum(AdMetrics.results).label('total_results'),
             func.sum(AdMetrics.impressions).label('total_impressions'),
@@ -3216,12 +3266,29 @@ async def get_dashboard_data(
         # Get paginated results
         adsets = adsets_query_optimized.offset((page - 1) * page_size).limit(page_size).all()
         
+        # Get latest status for each adset from the most recent date (not using func.max which gets alphabetically max)
+        adset_ids = [adset.adset_id for adset in adsets]
+        latest_statuses = {}
+        if adset_ids:
+            # Get the most recent status for each adset by querying the latest date record
+            for adset_id in adset_ids:
+                latest_record = db.query(AdMetrics.adset_status).filter(
+                    AdMetrics.adset_id == adset_id
+                ).order_by(desc(AdMetrics.date)).first()
+                if latest_record:
+                    latest_statuses[adset_id] = latest_record[0] or 'UNKNOWN'
+                else:
+                    latest_statuses[adset_id] = 'UNKNOWN'
+        
         # Build ads_dict từ kết quả đã aggregate (không cần query lại)
         ads_dict = []
         for adset in adsets:
             total_spend = float(adset.total_spend or 0)
             total_purchases = float(adset.total_purchases or 0)
             cost_per_purchase = (total_spend / total_purchases) if total_purchases > 0 else 0
+            
+            # Get latest status from the lookup dict
+            adset_status = latest_statuses.get(adset.adset_id, 'UNKNOWN')
             
             ads_dict.append({
                 "adset_id": adset.adset_id,
@@ -3230,7 +3297,7 @@ async def get_dashboard_data(
                 "prefix": adset.prefix or '',
                 "account_id": adset.account_id or '',
                 "campaign_type": adset.campaign_type or '',
-                "adset_status": adset.adset_status or 'UNKNOWN',
+                "adset_status": adset_status,
                 "spend": total_spend,
                 "results": int(adset.total_results or 0),
                 "gia_data": float(adset.avg_gia_data or 0),
