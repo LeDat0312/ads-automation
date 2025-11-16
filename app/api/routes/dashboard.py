@@ -278,20 +278,20 @@ async def dashboard_page(
             }}
             
             .container {{
-                max-width: 1400px;
                 width: 100%;
-                margin: 0 auto;
-                padding: 0 24px;
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
                 position: relative;
                 z-index: 1;
-                padding-top: 80px;
+                padding-top: 56px;
             }}
             
             .dashboard-layout {{
                 display: flex;
                 flex-direction: column;
-                gap: 24px;
+                gap: 0;
+                width: 100%;
             }}
             
             /* Filter Bar - Madgicx Style: Gọn, Nhẹ */
@@ -778,9 +778,10 @@ async def dashboard_page(
             
             .stats-grid {{
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                grid-template-columns: repeat(6, 1fr);
                 gap: 16px;
-                margin-bottom: 0;
+                margin-bottom: 24px;
+                width: 100%;
             }}
             
             .stat-card {{
@@ -797,15 +798,16 @@ async def dashboard_page(
                 border-radius: 8px;
                 overflow: hidden;
                 width: 100%;
+                margin-bottom: 24px;
             }}
             
             .table-header {{
-                padding: 24px 32px;
-                border-bottom: 1px solid #e2e8f0;
+                padding: 16px 20px;
+                border-bottom: 1px solid #e4e6eb;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                background: transparent;
+                background: #ffffff;
             }}
             
             .table-header h2 {{
@@ -1533,15 +1535,11 @@ async def dashboard_page(
             }}
             
             .prefix-summary-section {{
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(20px);
-                -webkit-backdrop-filter: blur(20px);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 24px;
-                padding: 32px;
-                margin-bottom: 32px;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-                animation: fadeIn 0.7s ease-out;
+                background: #ffffff;
+                border: 1px solid #e4e6eb;
+                border-radius: 8px;
+                padding: 24px;
+                margin-bottom: 24px;
             }}
             
             .prefix-tabs {{
@@ -1924,7 +1922,7 @@ async def dashboard_page(
                 </div>
             </div>
             
-            <div class="main-content" style="display: flex; flex-direction: column; gap: 24px;">
+            <div class="main-content" style="display: flex; flex-direction: column; gap: 0; padding: 24px;">
                 
                 <div class="stats-grid" id="statsGrid">
                     <div class="stat-card">
