@@ -454,7 +454,8 @@ def update_adset_budget(
 def pull_facebook_data(
     access_token: str,
     ad_account_ids: List[str],
-    date_preset: str = "yesterday"
+    date_preset: Optional[str] = "yesterday",
+    time_range: Optional[Dict[str, str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Kéo dữ liệu Insights level=ad từ Facebook API
