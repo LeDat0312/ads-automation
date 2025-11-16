@@ -60,10 +60,7 @@ async def dashboard_page(
         if not current_user.is_active:
             return HTMLResponse(content=get_account_locked_message())
         
-        user_menu = get_user_dropdown_menu(current_user)
-        
         # Tạo HTML với date picker giống Facebook và UI đẹp
-        # Sử dụng format string để tránh lỗi với user_menu có chứa {{}}
         html_content = f"""
     <!DOCTYPE html>
     <html lang="vi">
@@ -140,10 +137,39 @@ async def dashboard_page(
                 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             }}
             
+            .header-left {{
+                display: flex;
+                align-items: center;
+                gap: 16px;
+            }}
+            
+            .btn-home {{
+                padding: 8px 16px;
+                background: transparent;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                color: #64748b;
+                cursor: pointer;
+                font-weight: 500;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                transition: all 0.3s ease;
+                text-decoration: none;
+                font-size: 14px;
+            }}
+            
+            .btn-home:hover {{
+                background: #f3f4f6;
+                border-color: #667eea;
+                color: #667eea;
+            }}
+            
             .header h1 {{
                 font-size: 24px;
                 font-weight: 700;
                 color: #1e293b;
+                margin: 0;
             }}
             
             .header-actions {{
@@ -1746,9 +1772,11 @@ async def dashboard_page(
         </style>
     </head>
     <body>
-        """ + user_menu + """
         <div class="header">
-            <h1>📊 Dashboard – Tổng Quan Hiệu Suất</h1>
+            <div class="header-left">
+                <a href="/" class="btn-home">← Trang chủ</a>
+                <h1>📊 Dashboard – Tổng Quan Hiệu Suất</h1>
+            </div>
             <div class="header-actions">
                 <button class="btn-refresh" onclick="refreshData()" id="refreshBtn" title="Làm mới dữ liệu">
                     🔄 Làm mới
@@ -1878,44 +1906,7 @@ async def dashboard_page(
                     </div>
                 </div>
                 
-                <div class="prefix-summary-section" id="prefixSummarySection">
-                    <div class="charts-header">
-                        <h2>📊 Tổng Quan Theo Prefix</h2>
-                        <p>Thống kê chi tiết cho từng prefix (FL, NM, PX, TL...) - Hỗ trợ cả E-commerce và Lead Generation</p>
-                    </div>
-                    <div class="prefix-tabs">
-                        <button class="prefix-tab active" onclick="switchPrefixTab('all', this)">Tất cả</button>
-                        <button class="prefix-tab" onclick="switchPrefixTab('ecommerce', this)">E-commerce</button>
-                        <button class="prefix-tab" onclick="switchPrefixTab('lead', this)">Lead Generation</button>
-                    </div>
-                    <div class="prefix-grid" id="prefixGrid">
-                        <div class="loading">Đang tải dữ liệu prefix...</div>
-                    </div>
-                </div>
-                
-                <div class="charts-section" id="chartsSection">
-                    <div class="charts-header">
-                        <h2>📈 Biểu Đồ Phân Tích</h2>
-                        <p>Tổng quan theo ngày trong khoảng thời gian chọn</p>
-                    </div>
-                    <div class="charts-grid">
-                        <div class="chart-container">
-                            <div style="text-align: center;">
-                                <div style="font-size: 48px; margin-bottom: 12px;">📈</div>
-                                <div>Line Chart: Chi tiêu & Kết quả theo ngày</div>
-                                <div style="font-size: 12px; margin-top: 8px; color: #cbd5e1;">(Sẽ tích hợp Chart.js sau)</div>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <div style="text-align: center;">
-                                <div style="font-size: 48px; margin-bottom: 12px;">📊</div>
-                                <div>Bar Chart: Chi tiêu theo Prefix</div>
-                                <div style="font-size: 12px; margin-top: 8px; color: #cbd5e1;">(Sẽ tích hợp Chart.js sau)</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
+                <!-- Chi Tiết Quảng Cáo - Move lên trước Tổng Quan Theo Prefix -->
                 <div class="table-container">
                     <div class="table-header">
                         <h2>📋 Chi Tiết Quảng Cáo</h2>
@@ -1933,6 +1924,7 @@ async def dashboard_page(
                     <div class="pagination" id="pagination"></div>
                 </div>
                 
+                <!-- Tổng Quan Theo Prefix - Move xuống sau Chi Tiết Quảng Cáo -->
                 <div class="prefix-summary-section" id="prefixSummarySection">
                     <div class="charts-header">
                         <h2>📊 Tổng Quan Theo Prefix</h2>
@@ -1948,6 +1940,7 @@ async def dashboard_page(
                     </div>
                 </div>
                 
+                <!-- Biểu Đồ Phân Tích - Chỉ 1 section -->
                 <div class="charts-section" id="chartsSection">
                     <div class="charts-header">
                         <h2>📈 Biểu Đồ Phân Tích</h2>
