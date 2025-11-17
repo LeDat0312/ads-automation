@@ -16,7 +16,7 @@ from app.models.account_prefix import Account, Prefix, AccountPrefix
 from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
 from app.models.user_settings import UserSettings
-from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
+from app.core.ui_helpers import get_account_locked_message
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,11 @@ def get_user_account_prefixes(user_id: int, db: Session, enabled_only: bool = Tr
     user_accounts = query.all()
     account_ids = [acc[0] for acc in user_accounts]
     
-    # Lấy prefixes từ user's prefixes
-    user_prefixes = db.query(Prefix.prefix).filter(Prefix.user_id == user_id).all()
+    # Lấy prefixes từ user's prefixes (chỉ enabled nếu enabled_only=True)
+    prefix_query = db.query(Prefix.prefix).filter(Prefix.user_id == user_id)
+    if enabled_only:
+        prefix_query = prefix_query.filter(Prefix.enabled == True)
+    user_prefixes = prefix_query.all()
     prefixes = [pref[0] for pref in user_prefixes]
     
     return account_ids, prefixes
@@ -58,9 +61,10 @@ async def get_dashboard_filters(
             Account.enabled == True
         ).all()
         
-        # Lấy prefixes từ settings  
+        # Lấy prefixes từ settings (chỉ enabled)
         user_prefixes = db.query(Prefix).filter(
-            Prefix.user_id == current_user.id
+            Prefix.user_id == current_user.id,
+            Prefix.enabled == True
         ).all()
         
         return JSONResponse({
@@ -107,7 +111,8 @@ async def get_settings_status(
         ).count()
         
         prefixes_count = db.query(Prefix).filter(
-            Prefix.user_id == current_user.id
+            Prefix.user_id == current_user.id,
+            Prefix.enabled == True
         ).count()
         
         return JSONResponse({
@@ -172,8 +177,8 @@ async def dashboard_page(
         }}
         
         .container {{
-            max-width: 1400px;
-            margin: 0 auto;
+            width: 100%;
+            margin: 0;
             padding: 20px;
         }}
         
@@ -382,7 +387,7 @@ async def dashboard_page(
         }}
         
         .refresh-btn-compact.loading .icon {{
-            animation: spin 1s linear infinite;
+            opacity: 0.6;
         }}
         
         /* Filter Panel Modal */
@@ -664,9 +669,27 @@ async def dashboard_page(
         /* Overview Cards */
         .overview-grid {{
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 16px;
             margin-bottom: 30px;
+        }}
+        
+        @media (max-width: 1400px) {{
+            .overview-grid {{
+                grid-template-columns: repeat(3, 1fr);
+            }}
+        }}
+        
+        @media (max-width: 768px) {{
+            .overview-grid {{
+                grid-template-columns: repeat(2, 1fr);
+            }}
+        }}
+        
+        @media (max-width: 480px) {{
+            .overview-grid {{
+                grid-template-columns: 1fr;
+            }}
         }}
         
         .overview-card {{
@@ -789,25 +812,6 @@ async def dashboard_page(
             display: flex;
             align-items: center;
             gap: 12px;
-        }}
-        
-        .search-box {{
-            position: relative;
-            display: flex;
-            align-items: center;
-        }}
-        
-        .search-input {{
-            padding: 8px 12px 8px 36px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            width: 250px;
-        }}
-        
-        .search-icon {{
-            position: absolute;
-            left: 12px;
-            color: #9ca3af;
         }}
         
         .bulk-actions {{
@@ -996,9 +1000,6 @@ async def dashboard_page(
                 gap: 12px;
             }}
             
-            .search-input {{
-                width: 200px;
-            }}
         }}
     </style>
 </head>
@@ -1019,7 +1020,6 @@ async def dashboard_page(
             <div class="header-right">
                 <a href="/settings" class="settings-link">⚙️ Cài Đặt</a>
                 <a href="/" class="back-btn">← Về Trang Chủ</a>
-                {get_user_dropdown_menu(current_user)}
             </div>
         </header>
         
@@ -1178,12 +1178,6 @@ async def dashboard_page(
                         <button class="bulk-btn play" onclick="bulkAction('activate')">▶️ Bật</button>
                         <button class="bulk-btn pause" onclick="bulkAction('pause')">⏸️ Tắt</button>
                     </div>
-                    
-                    <!-- Search -->
-                    <div class="search-box">
-                        <div class="search-icon">🔍</div>
-                        <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm...">
-                    </div>
                 </div>
             </div>
             
@@ -1237,18 +1231,6 @@ async def dashboard_page(
         
         // Setup event listeners
         function setupEventListeners() {{
-            // Search input with debouncing
-            const searchInput = document.getElementById('searchInput');
-            let searchTimeout;
-            searchInput.addEventListener('input', function() {{
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => {{
-                    currentFilters.search = this.value;
-                    saveFilters();
-                    loadData();
-                }}, 500);
-            }});
-            
             // Handle page refresh - restore filters
             window.addEventListener('beforeunload', function() {{
                 saveFilters();
@@ -1308,9 +1290,6 @@ async def dashboard_page(
                 }}
                 if (document.getElementById('statusFilter')) {{
                     document.getElementById('statusFilter').value = currentFilters.status;
-                }}
-                if (document.getElementById('searchInput')) {{
-                    document.getElementById('searchInput').value = currentFilters.search;
                 }}
                 
                 // Restore date range text
