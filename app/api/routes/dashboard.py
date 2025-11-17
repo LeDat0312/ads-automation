@@ -2546,7 +2546,8 @@ async def dashboard_page(
                 }}
                 
                 const data = await response.json();
-                updateTable(data.rows || [], data.total || 0);
+                console.log('📊 Table data received:', data); // Debug log
+                updateTable(data.data || [], data.total || 0);
                 
             }} catch (error) {{
                 console.error('Error loading table data:', error);
@@ -2578,7 +2579,7 @@ async def dashboard_page(
                 view_mode: currentViewMode,
                 level: currentLevel || 'adset',
                 page: currentPage || 1,
-                page_size: pageSize || 50
+                pageSize: pageSize || 50
             }});
             
             // Add filters
@@ -3464,6 +3465,7 @@ async def get_dashboard_details(
         
         # Gọi Facebook API trực tiếp
         logger.info(f"📥 Đang lấy dữ liệu chi tiết từ Facebook API cho {len(user_account_ids)} tài khoản...")
+        logger.info(f"   Filters: view_mode={view_mode}, level={level}, account_id={account_id}, prefix={prefix}, status={status}, date_from={date_from}, date_to={date_to}, search={search}")
         all_data = pull_facebook_data_with_date_range(
             access_token,
             user_account_ids,
@@ -3471,6 +3473,7 @@ async def get_dashboard_details(
             date_to=date_to,
             max_results=10000  # Giới hạn để tránh quá tải
         )
+        logger.info(f"   ✅ Đã lấy được {len(all_data)} rows từ Facebook API")
         
         # Filter by prefix nếu có
         if prefix and all_data:
@@ -3478,10 +3481,12 @@ async def get_dashboard_details(
         
         # Filter by view mode (campaign type)
         # Note: detect_campaign_type_from_objective returns 'LEAD' not 'LEAD_GENERATION'
+        before_view_filter = len(all_data)
         if view_mode == "ecommerce":
             all_data = [row for row in all_data if row.get('campaign_type') == 'ECOMMERCE']
         elif view_mode == "lead":
             all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD']
+        logger.info(f"   📊 Sau filter view_mode ({view_mode}): {len(all_data)}/{before_view_filter} rows")
         
         # Lấy status của adsets từ Facebook API
         adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
@@ -3647,6 +3652,8 @@ async def get_dashboard_details(
         # Apply pagination
         offset = (page - 1) * pageSize
         paginated_rows = rows[offset:offset + pageSize]
+        
+        logger.info(f"   ✅ Trả về {len(paginated_rows)} rows (page {page}/{((total-1)//pageSize)+1}, total: {total})")
         
         return JSONResponse({
             "data": paginated_rows,
