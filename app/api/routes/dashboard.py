@@ -814,6 +814,27 @@ async def dashboard_page(
             gap: 12px;
         }}
         
+        .search-box {{
+            position: relative;
+            display: flex;
+            align-items: center;
+        }}
+        
+        .search-input {{
+            padding: 8px 12px 8px 36px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            width: 320px;
+            font-size: 14px;
+        }}
+        
+        .search-icon {{
+            position: absolute;
+            left: 12px;
+            color: #9ca3af;
+            pointer-events: none;
+        }}
+        
         .bulk-actions {{
             display: flex;
             align-items: center;
@@ -1178,6 +1199,12 @@ async def dashboard_page(
                         <button class="bulk-btn play" onclick="bulkAction('activate')">▶️ Bật</button>
                         <button class="bulk-btn pause" onclick="bulkAction('pause')">⏸️ Tắt</button>
                     </div>
+                    
+                    <!-- Search Box -->
+                    <div class="search-box">
+                        <div class="search-icon">🔍</div>
+                        <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm tên/ID chiến dịch, nhóm quảng cáo, quảng cáo...">
+                    </div>
                 </div>
             </div>
             
@@ -1231,6 +1258,21 @@ async def dashboard_page(
         
         // Setup event listeners
         function setupEventListeners() {{
+            // Search input with debouncing
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {{
+                let searchTimeout;
+                searchInput.addEventListener('input', function() {{
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {{
+                        currentFilters.search = this.value;
+                        currentPage = 1; // Reset to first page when searching
+                        saveFilters();
+                        loadData();
+                    }}, 500);
+                }});
+            }}
+            
             // Handle page refresh - restore filters
             window.addEventListener('beforeunload', function() {{
                 saveFilters();
@@ -1290,6 +1332,9 @@ async def dashboard_page(
                 }}
                 if (document.getElementById('statusFilter')) {{
                     document.getElementById('statusFilter').value = currentFilters.status;
+                }}
+                if (document.getElementById('searchInput')) {{
+                    document.getElementById('searchInput').value = currentFilters.search || '';
                 }}
                 
                 // Restore date range text
@@ -1379,7 +1424,12 @@ async def dashboard_page(
                 
                 if (response.ok) {{
                     settingsData = await response.json();
-                    populateFilterDropdowns();
+                    // Wait a bit to ensure DOM is ready
+                    setTimeout(() => {{
+                        populateFilterDropdowns();
+                    }}, 100);
+                }} else {{
+                    console.error('Failed to load filters:', response.status);
                 }}
             }} catch (error) {{
                 console.error('Error loading filters:', error);
@@ -1388,29 +1438,48 @@ async def dashboard_page(
         
         // Populate filter dropdowns
         function populateFilterDropdowns() {{
-            if (!settingsData) return;
+            if (!settingsData) {{
+                console.warn('settingsData is null, cannot populate dropdowns');
+                return;
+            }}
             
             // Populate account filter
             const accountSelect = document.getElementById('accountFilter');
-            accountSelect.innerHTML = '<option value="">Tất cả tài khoản</option>';
-            settingsData.accounts.forEach(acc => {{
-                const option = document.createElement('option');
-                option.value = acc.id;
-                option.textContent = `${{acc.name}} (${{acc.type}})`;
-                accountSelect.appendChild(option);
-            }});
-            accountSelect.value = currentFilters.account;
+            if (accountSelect) {{
+                accountSelect.innerHTML = '<option value="">Tất cả tài khoản</option>';
+                if (settingsData.accounts && settingsData.accounts.length > 0) {{
+                    settingsData.accounts.forEach(acc => {{
+                        const option = document.createElement('option');
+                        option.value = acc.id;
+                        option.textContent = `${{acc.name || acc.id}} (${{acc.type || 'N/A'}})`;
+                        accountSelect.appendChild(option);
+                    }});
+                }}
+                if (currentFilters.account) {{
+                    accountSelect.value = currentFilters.account;
+                }}
+            }} else {{
+                console.warn('accountFilter element not found');
+            }}
             
             // Populate prefix filter
             const prefixSelect = document.getElementById('prefixFilter');
-            prefixSelect.innerHTML = '<option value="">Tất cả prefix</option>';
-            settingsData.prefixes.forEach(prefix => {{
-                const option = document.createElement('option');
-                option.value = prefix.id;
-                option.textContent = prefix.name;
-                prefixSelect.appendChild(option);
-            }});
-            prefixSelect.value = currentFilters.prefix;
+            if (prefixSelect) {{
+                prefixSelect.innerHTML = '<option value="">Tất cả prefix</option>';
+                if (settingsData.prefixes && settingsData.prefixes.length > 0) {{
+                    settingsData.prefixes.forEach(prefix => {{
+                        const option = document.createElement('option');
+                        option.value = prefix.id;
+                        option.textContent = prefix.name || prefix.id;
+                        prefixSelect.appendChild(option);
+                    }});
+                }}
+                if (currentFilters.prefix) {{
+                    prefixSelect.value = currentFilters.prefix;
+                }}
+            }} else {{
+                console.warn('prefixFilter element not found');
+            }}
         }}
         
         // Switch view mode
@@ -2243,10 +2312,10 @@ async def get_dashboard_data(
             # Default to last 7 days
             start_date = (end_date - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Build query
+        # Build query - AdMetrics uses 'date' field, not 'date_start'/'date_stop'
         query = db.query(AdMetrics).filter(
-            AdMetrics.date_start >= start_date.date(),
-            AdMetrics.date_stop <= end_date.date()
+            func.date(AdMetrics.date) >= start_date.date(),
+            func.date(AdMetrics.date) <= end_date.date()
         )
         
         # Filter by user's accounts and prefixes
@@ -2556,14 +2625,17 @@ async def dashboard_data(
             except ValueError:
                 pass
         
-        # Search filter
+        # Search filter - search by name or ID
         if search:
             search_term = f"%{search}%"
             query = query.filter(
                 or_(
                     AdMetrics.campaign_name.ilike(search_term),
                     AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term)
+                    AdMetrics.ad_name.ilike(search_term),
+                    AdMetrics.campaign_id.ilike(search_term),
+                    AdMetrics.adset_id.ilike(search_term),
+                    AdMetrics.ad_id.ilike(search_term)
                 )
             )
         
@@ -2922,14 +2994,17 @@ async def get_dashboard_details(
         if status:
             query = query.filter(AdMetrics.adset_status == status)
         
-        # Search filter
+        # Search filter - search by name or ID
         if search:
             search_term = f"%{search}%"
             query = query.filter(
                 or_(
                     AdMetrics.campaign_name.ilike(search_term),
                     AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term)
+                    AdMetrics.ad_name.ilike(search_term),
+                    AdMetrics.campaign_id.ilike(search_term),
+                    AdMetrics.adset_id.ilike(search_term),
+                    AdMetrics.ad_id.ilike(search_term)
                 )
             )
         
@@ -3190,14 +3265,17 @@ async def dashboard_data(
             except ValueError:
                 pass
         
-        # Search filter
+        # Search filter - search by name or ID
         if search:
             search_term = f"%{search}%"
             query = query.filter(
                 or_(
                     AdMetrics.campaign_name.ilike(search_term),
                     AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term)
+                    AdMetrics.ad_name.ilike(search_term),
+                    AdMetrics.campaign_id.ilike(search_term),
+                    AdMetrics.adset_id.ilike(search_term),
+                    AdMetrics.ad_id.ilike(search_term)
                 )
             )
         
@@ -3417,14 +3495,17 @@ async def dashboard_data(
             except ValueError:
                 pass
         
-        # Search filter
+        # Search filter - search by name or ID
         if search:
             search_term = f"%{search}%"
             query = query.filter(
                 or_(
                     AdMetrics.campaign_name.ilike(search_term),
                     AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term)
+                    AdMetrics.ad_name.ilike(search_term),
+                    AdMetrics.campaign_id.ilike(search_term),
+                    AdMetrics.adset_id.ilike(search_term),
+                    AdMetrics.ad_id.ilike(search_term)
                 )
             )
         
@@ -3722,14 +3803,17 @@ async def get_dashboard_details(
         if status:
             query = query.filter(AdMetrics.adset_status == status)
         
-        # Search filter
+        # Search filter - search by name or ID
         if search:
             search_term = f"%{search}%"
             query = query.filter(
                 or_(
                     AdMetrics.campaign_name.ilike(search_term),
                     AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term)
+                    AdMetrics.ad_name.ilike(search_term),
+                    AdMetrics.campaign_id.ilike(search_term),
+                    AdMetrics.adset_id.ilike(search_term),
+                    AdMetrics.ad_id.ilike(search_term)
                 )
             )
         
@@ -3990,14 +4074,17 @@ async def dashboard_data(
             except ValueError:
                 pass
         
-        # Search filter
+        # Search filter - search by name or ID
         if search:
             search_term = f"%{search}%"
             query = query.filter(
                 or_(
                     AdMetrics.campaign_name.ilike(search_term),
                     AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term)
+                    AdMetrics.ad_name.ilike(search_term),
+                    AdMetrics.campaign_id.ilike(search_term),
+                    AdMetrics.adset_id.ilike(search_term),
+                    AdMetrics.ad_id.ilike(search_term)
                 )
             )
         
