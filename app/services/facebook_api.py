@@ -575,7 +575,8 @@ def pull_facebook_data(
                         # Hoặc dùng time_range với ngày hôm qua
                         if date_from == today_str and date_to == today_str:
                             # Thử dùng yesterday thay vì today (dữ liệu hôm nay có thể chưa có)
-                            yesterday = today - timedelta(days=1)
+                            today_obj = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                            yesterday = today_obj - timedelta(days=1)
                             since = yesterday.strftime('%Y-%m-%d')
                             until = today_str  # until = today (exclusive)
                             time_range_json = json.dumps({"since": since, "until": today_str})
