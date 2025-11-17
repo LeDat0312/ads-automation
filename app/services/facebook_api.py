@@ -454,7 +454,7 @@ def update_adset_budget(
 def pull_facebook_data(
     access_token: str,
     ad_account_ids: List[str],
-    date_preset: Optional[str] = "yesterday",
+    date_preset: Optional[str] = "today",
     date_from: Optional[str] = None,
     date_to: Optional[str] = None
 ) -> List[Dict[str, Any]]:
