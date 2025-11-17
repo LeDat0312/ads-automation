@@ -1434,7 +1434,7 @@ async def dashboard_page(
         
         <!-- Date Picker Modal - Madgicx Style -->
         <div class="date-picker-overlay" id="datePickerOverlay" onclick="closeDatePicker()"></div>
-        <div class="date-picker-modal" id="datePickerModal">
+        <div class="date-picker-modal" id="datePickerModal" onclick="event.stopPropagation()">
             <div class="date-picker-header">
                 <h3>Chọn khoảng thời gian</h3>
                 <button class="close-btn" onclick="closeDatePicker()">✕</button>
@@ -3254,10 +3254,11 @@ async def get_dashboard_summary(
             all_data = [row for row in all_data if row.get('prefix') == prefix]
         
         # Filter theo view mode (campaign type)
+        # Note: detect_campaign_type returns 'LEAD' not 'LEAD_GENERATION'
         if view_mode == "ecommerce":
             all_data = [row for row in all_data if row.get('campaign_type') == 'ECOMMERCE']
         elif view_mode == "lead":
-            all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD_GENERATION']
+            all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD']
         
         # Lấy status của adsets từ Facebook API
         adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
@@ -3385,10 +3386,11 @@ async def get_dashboard_details(
             all_data = [row for row in all_data if row.get('prefix') == prefix]
         
         # Filter by view mode (campaign type)
+        # Note: detect_campaign_type_from_objective returns 'LEAD' not 'LEAD_GENERATION'
         if view_mode == "ecommerce":
             all_data = [row for row in all_data if row.get('campaign_type') == 'ECOMMERCE']
         elif view_mode == "lead":
-            all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD_GENERATION']
+            all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD']
         
         # Lấy status của adsets từ Facebook API
         adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))

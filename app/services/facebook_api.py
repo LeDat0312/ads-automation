@@ -454,7 +454,9 @@ def update_adset_budget(
 def pull_facebook_data(
     access_token: str,
     ad_account_ids: List[str],
-    date_preset: str = "yesterday"
+    date_preset: Optional[str] = "yesterday",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Kéo dữ liệu Insights level=ad từ Facebook API
@@ -475,6 +477,61 @@ def pull_facebook_data(
     fields_string = ','.join(fields)
     
     all_rows = []
+    
+    # Cache để lưu campaign objectives (tránh gọi API nhiều lần)
+    campaign_objectives_cache = {}
+    
+    def fetch_campaign_objectives_batch(campaign_ids: List[str], access_token: str) -> Dict[str, str]:
+        """Lấy campaign objectives từ campaign objects (batch request)"""
+        if not campaign_ids:
+            return {}
+        
+        objectives_map = {}
+        # Chia thành batches 50 campaigns mỗi batch
+        campaign_batches = chunk_list(campaign_ids, 50)
+        
+        for batch in campaign_batches:
+            try:
+                # Tạo batch request
+                batch_payload = []
+                for campaign_id in batch:
+                    batch_payload.append({
+                        "method": "GET",
+                        "relative_url": f"{FB_API_VERSION}/{campaign_id}?fields=objective"
+                    })
+                
+                import json
+                url = f"{FB_GRAPH_API_BASE}/"
+                form_data = {
+                    'access_token': access_token,
+                    'batch': json.dumps(batch_payload)
+                }
+                
+                response = requests.post(url, data=form_data, timeout=60)
+                response.raise_for_status()
+                
+                json_response = response.json()
+                if isinstance(json_response, list):
+                    for i, item in enumerate(json_response):
+                        if i < len(batch):
+                            campaign_id = batch[i]
+                            if item.get('code') == 200:
+                                try:
+                                    body = item.get('body', '{}')
+                                    if isinstance(body, str):
+                                        body_json = json.loads(body)
+                                    else:
+                                        body_json = body
+                                    objective = body_json.get('objective', '')
+                                    if objective:
+                                        objectives_map[campaign_id] = objective
+                                except Exception:
+                                    pass
+            except Exception as e:
+                logger.warning(f"Lỗi khi lấy campaign objectives batch: {e}")
+                continue
+        
+        return objectives_map
     
     for account_id in ad_account_ids:
         try:
@@ -502,12 +559,30 @@ def pull_facebook_data(
                         f"&access_token={access_token}"
                     )
                     
-                    # Xử lý date_preset
-                    if date_preset == 'yesterday':
+                    # Xử lý date_preset hoặc custom date range
+                    import json
+                    from urllib.parse import quote
+                    
+                    if date_from and date_to:
+                        # Dùng custom date range với time_range
+                        # Facebook API until là EXCLUSIVE, nên phải +1 ngày
+                        from datetime import datetime as dt
+                        try:
+                            date_to_obj = dt.strptime(date_to, '%Y-%m-%d')
+                            date_to_obj = date_to_obj + timedelta(days=1)  # +1 vì until là exclusive
+                            date_to_str = date_to_obj.strftime('%Y-%m-%d')
+                            
+                            time_range_json = json.dumps({"since": date_from, "until": date_to_str})
+                            url += f'&time_range={quote(time_range_json)}'
+                        except ValueError:
+                            # Fallback to date_preset nếu parse lỗi
+                            if date_preset:
+                                url += f'&date_preset={date_preset}'
+                            else:
+                                url += '&date_preset=last_7_days'
+                    elif date_preset == 'yesterday':
                         # Convert yesterday sang time_range để chính xác hơn (giống Google Script)
                         from datetime import timezone, timedelta
-                        import json
-                        from urllib.parse import quote
                         # Dùng timezone Asia/Ho_Chi_Minh (UTC+7)
                         tz = timezone(timedelta(hours=7))
                         now = datetime.now(tz)
@@ -520,7 +595,10 @@ def pull_facebook_data(
                         time_range_json = json.dumps({"since": since, "until": until})
                         url += f'&time_range={quote(time_range_json)}'
                     else:
-                        url += f'&date_preset={date_preset}'
+                        if date_preset:
+                            url += f'&date_preset={date_preset}'
+                        else:
+                            url += '&date_preset=last_7_days'
                     
                     # Thêm action_report_time và attribution settings (giống Google Script)
                     url += (
@@ -552,6 +630,19 @@ def pull_facebook_data(
                     break  # Không có dữ liệu, thoát khỏi vòng lặp
                 
                 logger.info(f"   📊 Page {page_count}: Nhận được {len(data)} ads từ API...")
+                
+                # Collect unique campaign IDs để fetch objectives
+                campaign_ids_to_fetch = []
+                for item in data:
+                    campaign_id = item.get('campaign_id', '')
+                    if campaign_id and campaign_id not in campaign_objectives_cache:
+                        campaign_ids_to_fetch.append(campaign_id)
+                
+                # Fetch campaign objectives nếu có campaigns mới
+                if campaign_ids_to_fetch:
+                    logger.info(f"   🔍 Đang lấy objectives cho {len(campaign_ids_to_fetch)} campaigns...")
+                    new_objectives = fetch_campaign_objectives_batch(campaign_ids_to_fetch, access_token)
+                    campaign_objectives_cache.update(new_objectives)
                 
                 for item in data:
                     # Parse actions và action_values
@@ -703,9 +794,29 @@ def pull_facebook_data(
                     prefix = get_prefix_from_name(campaign_name)
                     
                     # Detect campaign type
-                    campaign_objective = item.get('campaign_objective', '')
-                    from app.services.campaign_detector import detect_campaign_type_from_objective
-                    campaign_type = detect_campaign_type_from_objective(campaign_objective)
+                    # Lấy campaign_objective từ cache (đã fetch từ campaign objects)
+                    campaign_id = item.get('campaign_id', '')
+                    campaign_objective = campaign_objectives_cache.get(campaign_id, '')
+                    from app.services.campaign_detector import (
+                        detect_campaign_type_from_objective,
+                        detect_campaign_type_from_metrics,
+                        detect_campaign_type_hybrid
+                    )
+                    
+                    # Tạo metrics dict để detect
+                    metrics_dict = {
+                        'purchases': purchases,
+                        'gia_tri_chuyen_doi_tu_luot_mua': purchase_value,
+                        'messaging_conversations_started': messages,
+                        'post_comments': comments,
+                        'checkouts_initiated': checkouts
+                    }
+                    
+                    # Dùng hybrid detection (ưu tiên objective, fallback metrics)
+                    campaign_type = detect_campaign_type_hybrid(
+                        objective=campaign_objective,
+                        metrics=metrics_dict
+                    )
                     
                     # Tạo row data
                     row = {
