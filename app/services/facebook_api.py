@@ -4,9 +4,12 @@ Thay thế cho Facebook API.gs từ Google Apps Script
 """
 import time
 import requests
+import asyncio
+import httpx
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +64,39 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str) -> Dict[str, s
             logger.error(f"🚨 Lỗi lấy trạng thái AdSet (batch ids): {e}")
     
     return status_map
+
+
+def fetch_adset_budgets(adset_ids: List[str], access_token: str) -> Dict[str, float]:
+    """
+    Lấy map { adset_id: budget } qua batch (?ids=)
+    Budget = daily_budget hoặc lifetime_budget (tùy loại)
+    """
+    if not adset_ids:
+        return {}
+    
+    budget_map = {}
+    batches = chunk_list(unique_list(adset_ids), 50)
+    
+    for batch in batches:
+        try:
+            ids = ','.join(batch)
+            url = f"{FB_GRAPH_API_BASE}/?ids={ids}&fields=daily_budget,lifetime_budget&access_token={access_token}"
+            
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            
+            json_data = response.json()
+            if json_data and isinstance(json_data, dict):
+                for adset_id, node in json_data.items():
+                    if node:
+                        # Ưu tiên daily_budget, fallback lifetime_budget
+                        budget = float(node.get('daily_budget') or node.get('lifetime_budget') or 0)
+                        if budget > 0:
+                            budget_map[adset_id] = budget
+        except Exception as e:
+            logger.error(f"🚨 Lỗi lấy budget AdSet (batch ids): {e}")
+    
+    return budget_map
 
 
 def pause_adsets(
@@ -481,6 +517,9 @@ def pull_facebook_data(
     # Cache để lưu campaign objectives (tránh gọi API nhiều lần)
     campaign_objectives_cache = {}
     
+    # Cache để lưu adset budgets (tránh gọi API nhiều lần)
+    adset_budgets_cache = {}
+    
     def fetch_campaign_objectives_batch(campaign_ids: List[str], access_token: str) -> Dict[str, str]:
         """Lấy campaign objectives từ campaign objects (batch request)"""
         if not campaign_ids:
@@ -577,17 +616,14 @@ def pull_facebook_data(
                         now = datetime.now(tz_hcm)
                         today_str = now.replace(hour=0, minute=0, second=0, microsecond=0).strftime('%Y-%m-%d')
                         
-                        # Nếu là today, dùng yesterday (vì dữ liệu today có thể chưa có)
-                        # Hoặc dùng time_range với ngày hôm qua
+                        # Nếu là today, dùng time_range với today
                         if date_from == today_str and date_to == today_str:
-                            # Thử dùng yesterday thay vì today (dữ liệu hôm nay có thể chưa có)
-                            today_obj = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                            yesterday = today_obj - timedelta(days=1)
-                            since = yesterday.strftime('%Y-%m-%d')
-                            until = today_str  # until = today (exclusive)
-                            time_range_json = json.dumps({"since": since, "until": today_str})
+                            # Dùng today (theo yêu cầu user)
+                            since = today_str
+                            until = (now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)).strftime('%Y-%m-%d')  # until = tomorrow (exclusive)
+                            time_range_json = json.dumps({"since": since, "until": until})
                             url += f'&time_range={quote(time_range_json)}'
-                            logger.info(f"   ℹ️ Dùng yesterday ({since}) thay vì today vì dữ liệu hôm nay có thể chưa có")
+                            logger.info(f"   ℹ️ Dùng today ({since})")
                         else:
                             # Dùng custom time_range
                             # Facebook API until là EXCLUSIVE, nên phải +1 ngày
@@ -621,32 +657,30 @@ def pull_facebook_data(
                         time_range_json = json.dumps({"since": since, "until": until})
                         url += f'&time_range={quote(time_range_json)}'
                     elif date_preset == 'today':
-                        # Dùng yesterday thay vì today (dữ liệu hôm nay có thể chưa có)
+                        # Dùng today (theo yêu cầu user)
                         from datetime import timezone as tz
                         tz_hcm = tz(timedelta(hours=7))
                         now = datetime.now(tz_hcm)
                         today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                        yesterday = today - timedelta(days=1)
-                        since = yesterday.strftime('%Y-%m-%d')
-                        until = today.strftime('%Y-%m-%d')  # until = today (exclusive)
+                        since = today.strftime('%Y-%m-%d')
+                        until = (today + timedelta(days=1)).strftime('%Y-%m-%d')  # until = tomorrow (exclusive)
                         time_range_json = json.dumps({"since": since, "until": until})
                         url += f'&time_range={quote(time_range_json)}'
-                        logger.info(f"   ℹ️ Dùng yesterday ({since}) thay vì today vì dữ liệu hôm nay có thể chưa có")
+                        logger.info(f"   ℹ️ Dùng today ({since})")
                     else:
                         if date_preset:
                             url += f'&date_preset={date_preset}'
                         else:
-                            # Default: yesterday (vì dữ liệu hôm nay có thể chưa có)
+                            # Default: today (theo yêu cầu user)
                             from datetime import timezone as tz
                             tz_hcm = tz(timedelta(hours=7))
                             now = datetime.now(tz_hcm)
                             today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                            yesterday = today - timedelta(days=1)
-                            since = yesterday.strftime('%Y-%m-%d')
-                            until = today.strftime('%Y-%m-%d')  # until = today (exclusive)
+                            since = today.strftime('%Y-%m-%d')
+                            until = (today + timedelta(days=1)).strftime('%Y-%m-%d')  # until = tomorrow (exclusive)
                             time_range_json = json.dumps({"since": since, "until": until})
                             url += f'&time_range={quote(time_range_json)}'
-                            logger.info(f"   ℹ️ Default: dùng yesterday ({since}) vì dữ liệu hôm nay có thể chưa có")
+                            logger.info(f"   ℹ️ Default: dùng today ({since})")
                     
                     # Thêm action_report_time và attribution settings (giống Google Script)
                     url += (
@@ -703,6 +737,19 @@ def pull_facebook_data(
                     logger.info(f"   🔍 Đang lấy objectives cho {len(campaign_ids_to_fetch)} campaigns...")
                     new_objectives = fetch_campaign_objectives_batch(campaign_ids_to_fetch, access_token)
                     campaign_objectives_cache.update(new_objectives)
+                
+                # Collect unique adset IDs để fetch budgets
+                adset_ids_to_fetch = []
+                for item in data:
+                    adset_id = item.get('adset_id', '')
+                    if adset_id and adset_id not in adset_budgets_cache:
+                        adset_ids_to_fetch.append(adset_id)
+                
+                # Fetch adset budgets nếu có adsets mới
+                if adset_ids_to_fetch:
+                    logger.info(f"   💰 Đang lấy budgets cho {len(adset_ids_to_fetch)} adsets...")
+                    new_budgets = fetch_adset_budgets(adset_ids_to_fetch, access_token)
+                    adset_budgets_cache.update(new_budgets)
                 
                 for item in data:
                     # Parse actions và action_values
@@ -878,13 +925,17 @@ def pull_facebook_data(
                         metrics=metrics_dict
                     )
                     
+                    # Lấy budget từ cache
+                    adset_id = item.get('adset_id', '')
+                    budget = adset_budgets_cache.get(adset_id, 0.0)
+                    
                     # Tạo row data
                     row = {
                         'account_name': item.get('account_name', ''),
                         'account_id': item.get('account_id', ''),
                         'campaign_name': campaign_name,
                         'campaign_id': item.get('campaign_id', ''),
-                        'adset_id': item.get('adset_id', ''),
+                        'adset_id': adset_id,
                         'adset_name': item.get('adset_name', ''),
                         'ad_id': item.get('ad_id', ''),
                         'ad_name': item.get('ad_name', ''),
@@ -893,6 +944,8 @@ def pull_facebook_data(
                         'campaign_objective': campaign_objective,
                         'adset_status': 'ACTIVE',  # Mặc định, sẽ được cập nhật sau
                         'effective_status': '',  # Sẽ được cập nhật sau
+                        'budget': budget,
+                        'daily_budget': budget,  # Alias
                         'spend': spend,
                         'amount_spent': spend,
                         'results': results,
@@ -943,6 +996,49 @@ def pull_facebook_data(
             continue
     
     logger.info(f"✅ Đã lấy {len(all_rows)} ads từ Facebook API")
+    return all_rows
+
+
+async def pull_facebook_data_async(
+    access_token: str,
+    ad_account_ids: List[str],
+    date_preset: Optional[str] = "today",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """
+    Async wrapper cho pull_facebook_data - chạy song song các accounts
+    Sử dụng asyncio.to_thread để chạy sync function trong thread pool
+    """
+    async def fetch_single_account(account_id: str) -> List[Dict[str, Any]]:
+        """Fetch data cho 1 account trong thread pool"""
+        loop = asyncio.get_event_loop()
+        # Chạy sync function trong thread pool
+        result = await loop.run_in_executor(
+            None,
+            pull_facebook_data,
+            access_token,
+            [account_id],  # Chỉ fetch 1 account
+            date_preset,
+            date_from,
+            date_to
+        )
+        return result
+    
+    # Chạy song song tất cả accounts
+    logger.info(f"🚀 Bắt đầu fetch song song {len(ad_account_ids)} accounts...")
+    tasks = [fetch_single_account(acc_id) for acc_id in ad_account_ids]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Combine results
+    all_rows = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            logger.error(f"🚨 Exception khi fetch account {ad_account_ids[i]}: {result}")
+        elif isinstance(result, list):
+            all_rows.extend(result)
+    
+    logger.info(f"✅ Đã lấy {len(all_rows)} ads từ Facebook API (async, {len(ad_account_ids)} accounts)")
     return all_rows
 
 
