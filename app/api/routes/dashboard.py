@@ -158,17 +158,19 @@ async def get_settings_status(
             Prefix.enabled == True
         ).count()
         
+        # Kiểm tra token (field name là facebook_token_encrypted)
+        has_token = bool(user_settings and user_settings.facebook_token_encrypted)
+        
         return JSONResponse({
-            "has_token": bool(user_settings and user_settings.facebook_access_token),
+            "has_token": has_token,
             "accounts_count": accounts_count,
             "prefixes_count": prefixes_count,
             "settings_complete": bool(
-                user_settings and 
-                user_settings.facebook_access_token and 
+                has_token and 
                 accounts_count > 0 and 
                 prefixes_count > 0
             ),
-            "last_updated": user_settings.updated_at.isoformat() if user_settings and user_settings.updated_at else None
+            "last_updated": user_settings.updated_at.isoformat() if user_settings and hasattr(user_settings, 'updated_at') and user_settings.updated_at else None
         })
         
     except Exception as e:
