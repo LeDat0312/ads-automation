@@ -566,9 +566,8 @@ def pull_facebook_data(
                     if date_from and date_to:
                         # Dùng custom date range với time_range
                         # Facebook API until là EXCLUSIVE, nên phải +1 ngày
-                        from datetime import datetime as dt
                         try:
-                            date_to_obj = dt.strptime(date_to, '%Y-%m-%d')
+                            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
                             date_to_obj = date_to_obj + timedelta(days=1)  # +1 vì until là exclusive
                             date_to_str = date_to_obj.strftime('%Y-%m-%d')
                             
@@ -579,13 +578,22 @@ def pull_facebook_data(
                             if date_preset:
                                 url += f'&date_preset={date_preset}'
                             else:
-                                url += '&date_preset=last_7_days'
+                                # Default: today
+                                from datetime import timezone as tz
+                                tz_hcm = tz(timedelta(hours=7))
+                                now = datetime.now(tz_hcm)
+                                today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                                tomorrow = today + timedelta(days=1)
+                                since = today.strftime('%Y-%m-%d')
+                                until = tomorrow.strftime('%Y-%m-%d')
+                                time_range_json = json.dumps({"since": since, "until": until})
+                                url += f'&time_range={quote(time_range_json)}'
                     elif date_preset == 'yesterday':
                         # Convert yesterday sang time_range để chính xác hơn (giống Google Script)
-                        from datetime import timezone, timedelta
+                        from datetime import timezone as tz
                         # Dùng timezone Asia/Ho_Chi_Minh (UTC+7)
-                        tz = timezone(timedelta(hours=7))
-                        now = datetime.now(tz)
+                        tz_hcm = tz(timedelta(hours=7))
+                        now = datetime.now(tz_hcm)
                         today = now.replace(hour=0, minute=0, second=0, microsecond=0)
                         yesterday = today - timedelta(days=1)
                         
@@ -594,11 +602,31 @@ def pull_facebook_data(
                         until = today.strftime('%Y-%m-%d')  # until = today (exclusive, nên lấy hết yesterday)
                         time_range_json = json.dumps({"since": since, "until": until})
                         url += f'&time_range={quote(time_range_json)}'
+                    elif date_preset == 'today':
+                        # Lấy dữ liệu hôm nay
+                        from datetime import timezone as tz
+                        tz_hcm = tz(timedelta(hours=7))
+                        now = datetime.now(tz_hcm)
+                        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                        tomorrow = today + timedelta(days=1)
+                        since = today.strftime('%Y-%m-%d')
+                        until = tomorrow.strftime('%Y-%m-%d')
+                        time_range_json = json.dumps({"since": since, "until": until})
+                        url += f'&time_range={quote(time_range_json)}'
                     else:
                         if date_preset:
                             url += f'&date_preset={date_preset}'
                         else:
-                            url += '&date_preset=last_7_days'
+                            # Default: today (thay vì last_7_days)
+                            from datetime import timezone as tz
+                            tz_hcm = tz(timedelta(hours=7))
+                            now = datetime.now(tz_hcm)
+                            today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                            tomorrow = today + timedelta(days=1)
+                            since = today.strftime('%Y-%m-%d')
+                            until = tomorrow.strftime('%Y-%m-%d')
+                            time_range_json = json.dumps({"since": since, "until": until})
+                            url += f'&time_range={quote(time_range_json)}'
                     
                     # Thêm action_report_time và attribution settings (giống Google Script)
                     url += (

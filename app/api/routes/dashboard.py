@@ -1593,7 +1593,7 @@ async def dashboard_page(
         let currentFilters = {{
             account: '',
             prefix: '',
-            dateRange: 'last7days',
+            dateRange: 'today',
             search: ''
         }};
         let selectedItems = new Set();
@@ -1654,7 +1654,7 @@ async def dashboard_page(
                 currentFilters = {{
                     account: filters.account || '',
                     prefix: filters.prefix || '',
-                    dateRange: filters.dateRange || 'last7days',
+                    dateRange: filters.dateRange || 'today',
                     dateFrom: filters.dateFrom || '',
                     dateTo: filters.dateTo || '',
                     status: filters.status || '',
@@ -1711,7 +1711,7 @@ async def dashboard_page(
                         'last30days': '30 ngày qua'
                     }};
                     if (document.getElementById('dateRangeText')) {{
-                        document.getElementById('dateRangeText').textContent = rangeTexts[currentFilters.dateRange] || '7 ngày qua';
+                        document.getElementById('dateRangeText').textContent = rangeTexts[currentFilters.dateRange] || 'Hôm nay';
                     }}
                 }}
                 
@@ -2396,8 +2396,8 @@ async def dashboard_page(
             currentFilters.account = '';
             currentFilters.prefix = '';
             currentFilters.status = '';
-            currentFilters.dateRange = 'last7days';
-            document.getElementById('dateRangeText').textContent = '7 ngày qua';
+            currentFilters.dateRange = 'today';
+            document.getElementById('dateRangeText').textContent = 'Hôm nay';
             
             updateFilterBadge();
             updateSelectedFilters();
@@ -2417,7 +2417,7 @@ async def dashboard_page(
             if (currentFilters.account) count++;
             if (currentFilters.prefix) count++;
             if (currentFilters.status) count++;
-            if (currentFilters.dateRange && currentFilters.dateRange !== 'last7days') count++;
+            if (currentFilters.dateRange && currentFilters.dateRange !== 'today') count++;
             
             if (count > 0) {{
                 badge.textContent = count;
@@ -2598,7 +2598,7 @@ async def dashboard_page(
         
         // Get date range from filter
         function getDateRange() {{
-            const range = currentFilters.dateRange || 'last7days';
+            const range = currentFilters.dateRange || 'today';
             const today = new Date();
             today.setHours(23, 59, 59, 999);
             
