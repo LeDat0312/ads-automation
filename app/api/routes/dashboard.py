@@ -71,7 +71,7 @@ async def get_dashboard_filters(
             "accounts": [
                 {
                     "id": acc.account_id,
-                    "name": acc.name or acc.account_id,
+                    "name": acc.account_name or acc.account_id,
                     "type": acc.account_type,
                     "enabled": acc.enabled
                 } for acc in user_accounts
@@ -79,8 +79,8 @@ async def get_dashboard_filters(
             "prefixes": [
                 {
                     "id": prefix.prefix,
-                    "name": prefix.prefix,
-                    "description": f"Prefix {prefix.prefix}"
+                    "name": prefix.prefix_name or prefix.prefix,
+                    "description": prefix.description or f"Prefix {prefix.prefix}"
                 } for prefix in user_prefixes
             ]
         })
@@ -1416,6 +1416,7 @@ async def dashboard_page(
         // Load available filters from settings
         async function loadFilters() {{
             try {{
+                console.log('Loading filters from settings...');
                 const response = await fetch('/dashboard/filters', {{
                     headers: {{
                         'Authorization': 'Bearer ' + getAuthToken()
@@ -1424,12 +1425,17 @@ async def dashboard_page(
                 
                 if (response.ok) {{
                     settingsData = await response.json();
-                    // Wait a bit to ensure DOM is ready
-                    setTimeout(() => {{
+                    console.log('Filters loaded:', settingsData);
+                    // Populate immediately if DOM is ready, otherwise wait
+                    if (document.getElementById('accountFilter')) {{
                         populateFilterDropdowns();
-                    }}, 100);
+                    }} else {{
+                        setTimeout(() => {{
+                            populateFilterDropdowns();
+                        }}, 200);
+                    }}
                 }} else {{
-                    console.error('Failed to load filters:', response.status);
+                    console.error('Failed to load filters:', response.status, await response.text());
                 }}
             }} catch (error) {{
                 console.error('Error loading filters:', error);
@@ -1439,9 +1445,12 @@ async def dashboard_page(
         // Populate filter dropdowns
         function populateFilterDropdowns() {{
             if (!settingsData) {{
-                console.warn('settingsData is null, cannot populate dropdowns');
+                console.warn('settingsData is null, cannot populate dropdowns. Loading filters...');
+                loadFilters();
                 return;
             }}
+            
+            console.log('Populating filter dropdowns...', settingsData);
             
             // Populate account filter
             const accountSelect = document.getElementById('accountFilter');
@@ -1451,9 +1460,12 @@ async def dashboard_page(
                     settingsData.accounts.forEach(acc => {{
                         const option = document.createElement('option');
                         option.value = acc.id;
-                        option.textContent = `${{acc.name || acc.id}} (${{acc.type || 'N/A'}})`;
+                        option.textContent = `${{acc.name || acc.id}}` + (acc.type ? ` (${{acc.type}})` : '');
                         accountSelect.appendChild(option);
                     }});
+                    console.log(`Populated ${{settingsData.accounts.length}} accounts`);
+                }} else {{
+                    console.warn('No accounts found in settingsData');
                 }}
                 if (currentFilters.account) {{
                     accountSelect.value = currentFilters.account;
@@ -1473,6 +1485,9 @@ async def dashboard_page(
                         option.textContent = prefix.name || prefix.id;
                         prefixSelect.appendChild(option);
                     }});
+                    console.log(`Populated ${{settingsData.prefixes.length}} prefixes`);
+                }} else {{
+                    console.warn('No prefixes found in settingsData');
                 }}
                 if (currentFilters.prefix) {{
                     prefixSelect.value = currentFilters.prefix;
@@ -1524,8 +1539,17 @@ async def dashboard_page(
         function toggleFilterPanel() {{
             const panel = document.getElementById('filterPanel');
             const overlay = document.getElementById('filterPanelOverlay');
+            const isOpening = !panel.classList.contains('open');
             panel.classList.toggle('open');
             overlay.classList.toggle('open');
+            
+            // If opening panel and filters not loaded yet, load them
+            if (isOpening && !settingsData) {{
+                loadFilters();
+            }} else if (isOpening) {{
+                // Ensure dropdowns are populated when opening panel
+                populateFilterDropdowns();
+            }}
         }}
         
         function closeFilterPanel() {{
