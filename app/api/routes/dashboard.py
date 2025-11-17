@@ -630,7 +630,7 @@ async def dashboard_page(
             background: #5856eb;
         }}
         
-        /* Date Picker Modal */
+        /* Date Picker Modal - Madgicx Style */
         .date-picker-overlay {{
             display: none;
             position: fixed;
@@ -653,55 +653,296 @@ async def dashboard_page(
             left: 50%;
             transform: translate(-50%, -50%);
             width: 90%;
-            max-width: 400px;
+            max-width: 900px;
+            max-height: 85vh;
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
             z-index: 1001;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }}
         
         .date-picker-modal.open {{
-            display: block;
+            display: flex;
         }}
         
         .date-picker-header {{
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 20px 24px;
+            padding: 16px 20px;
             border-bottom: 1px solid #e5e7eb;
+            flex-shrink: 0;
+        }}
+        
+        .date-picker-header h3 {{
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
         }}
         
         .date-picker-content {{
-            padding: 24px;
+            display: flex;
+            flex: 1;
+            overflow: hidden;
         }}
         
-        .date-inputs {{
+        /* Quick Select Sidebar */
+        .date-quick-select {{
+            width: 220px;
+            border-right: 1px solid #e5e7eb;
+            padding: 16px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }}
+        
+        .quick-select-title {{
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        
+        .quick-select-item {{
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #374151;
+            margin-bottom: 4px;
+            transition: all 0.2s ease;
+        }}
+        
+        .quick-select-item:hover {{
+            background: #f3f4f6;
+        }}
+        
+        .quick-select-item.active {{
+            background: #ede9fe;
+            color: #6366f1;
+            font-weight: 500;
+        }}
+        
+        .quick-select-divider {{
+            height: 1px;
+            background: #e5e7eb;
+            margin: 12px 0;
+        }}
+        
+        /* Calendar Section */
+        .date-calendar-section {{
+            flex: 1;
             display: flex;
             flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+        }}
+        
+        .calendar-container {{
+            display: flex;
+            gap: 24px;
+            margin-bottom: 20px;
+        }}
+        
+        .calendar-month {{
+            flex: 1;
+        }}
+        
+        .calendar-header {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }}
+        
+        .calendar-month-title {{
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+        }}
+        
+        .calendar-nav {{
+            display: flex;
+            gap: 8px;
+        }}
+        
+        .calendar-nav-btn {{
+            width: 28px;
+            height: 28px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #374151;
+            transition: all 0.2s ease;
+        }}
+        
+        .calendar-nav-btn:hover {{
+            background: #f9fafb;
+            border-color: #9ca3af;
+        }}
+        
+        .calendar-weekdays {{
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin-bottom: 8px;
+        }}
+        
+        .calendar-weekday {{
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            padding: 8px 4px;
+        }}
+        
+        .calendar-days {{
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }}
+        
+        .calendar-day {{
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #374151;
+            transition: all 0.2s ease;
+            position: relative;
+        }}
+        
+        .calendar-day:hover {{
+            background: #f3f4f6;
+        }}
+        
+        .calendar-day.other-month {{
+            color: #d1d5db;
+        }}
+        
+        .calendar-day.selected {{
+            background: #6366f1;
+            color: white;
+            font-weight: 600;
+        }}
+        
+        .calendar-day.in-range {{
+            background: #ede9fe;
+            color: #6366f1;
+        }}
+        
+        .calendar-day.today {{
+            border: 2px solid #6366f1;
+        }}
+        
+        /* Date Inputs Footer */
+        .date-picker-footer {{
+            padding: 16px 20px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }}
+        
+        .date-inputs-footer {{
+            display: flex;
+            align-items: center;
             gap: 16px;
         }}
         
-        .date-inputs label {{
-            display: block;
-            font-size: 14px;
-            font-weight: 500;
-            margin-bottom: 8px;
-            color: #374151;
+        .date-input-group {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }}
         
-        .date-input {{
-            width: 100%;
-            padding: 8px 12px;
+        .date-input-group label {{
+            font-size: 13px;
+            font-weight: 500;
+            color: #6b7280;
+        }}
+        
+        .date-input-footer {{
+            padding: 6px 10px;
             border: 1px solid #d1d5db;
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 13px;
+            width: 120px;
         }}
         
-        .date-picker-footer {{
-            margin-top: 20px;
+        .date-input-clear {{
+            width: 20px;
+            height: 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            color: #9ca3af;
+            font-size: 16px;
             display: flex;
-            justify-content: flex-end;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }}
+        
+        .date-input-clear:hover {{
+            color: #ef4444;
+        }}
+        
+        .timezone-info {{
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 8px;
+        }}
+        
+        .date-picker-actions {{
+            display: flex;
+            gap: 8px;
+        }}
+        
+        .btn-cancel {{
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }}
+        
+        .btn-cancel:hover {{
+            background: #f9fafb;
+        }}
+        
+        .btn-update {{
+            padding: 8px 16px;
+            border: none;
+            background: #6366f1;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }}
+        
+        .btn-update:hover {{
+            background: #5856eb;
         }}
         
         @keyframes spin {{
@@ -1191,7 +1432,7 @@ async def dashboard_page(
             </div>
         </div>
         
-        <!-- Date Picker Modal -->
+        <!-- Date Picker Modal - Madgicx Style -->
         <div class="date-picker-overlay" id="datePickerOverlay" onclick="closeDatePicker()"></div>
         <div class="date-picker-modal" id="datePickerModal">
             <div class="date-picker-header">
@@ -1199,18 +1440,91 @@ async def dashboard_page(
                 <button class="close-btn" onclick="closeDatePicker()">✕</button>
             </div>
             <div class="date-picker-content">
-                <div class="date-inputs">
-                    <div>
-                        <label>Từ ngày:</label>
-                        <input type="date" id="dateFrom" class="date-input">
-                    </div>
-                    <div>
-                        <label>Đến ngày:</label>
-                        <input type="date" id="dateTo" class="date-input">
+                <!-- Quick Select Sidebar -->
+                <div class="date-quick-select">
+                    <div class="quick-select-title">Đã dùng mới đây</div>
+                    <div class="quick-select-item" data-preset="today" onclick="selectQuickDate('today')">Hôm nay</div>
+                    <div class="quick-select-item" data-preset="yesterday" onclick="selectQuickDate('yesterday')">Hôm qua</div>
+                    <div class="quick-select-item" data-preset="last3days" onclick="selectQuickDate('last3days')">3 ngày qua</div>
+                    <div class="quick-select-item" data-preset="last7days" onclick="selectQuickDate('last7days')">7 ngày qua</div>
+                    <div class="quick-select-item" data-preset="last14days" onclick="selectQuickDate('last14days')">14 ngày qua</div>
+                    <div class="quick-select-item" data-preset="last28days" onclick="selectQuickDate('last28days')">28 ngày qua</div>
+                    <div class="quick-select-item" data-preset="last30days" onclick="selectQuickDate('last30days')">30 ngày qua</div>
+                    <div class="quick-select-divider"></div>
+                    <div class="quick-select-item" data-preset="thisWeek" onclick="selectQuickDate('thisWeek')">Tuần này</div>
+                    <div class="quick-select-item" data-preset="lastWeek" onclick="selectQuickDate('lastWeek')">Tuần trước</div>
+                    <div class="quick-select-item" data-preset="thisMonth" onclick="selectQuickDate('thisMonth')">Tháng này</div>
+                    <div class="quick-select-item" data-preset="lastMonth" onclick="selectQuickDate('lastMonth')">Tháng trước</div>
+                </div>
+                
+                <!-- Calendar Section -->
+                <div class="date-calendar-section">
+                    <div class="calendar-container">
+                        <!-- First Calendar Month -->
+                        <div class="calendar-month" id="calendarMonth1">
+                            <div class="calendar-header">
+                                <span class="calendar-month-title" id="monthTitle1"></span>
+                                <div class="calendar-nav">
+                                    <button class="calendar-nav-btn" onclick="navigateCalendar(-1)">‹</button>
+                                    <button class="calendar-nav-btn" onclick="navigateCalendar(1)">›</button>
+                                </div>
+                            </div>
+                            <div class="calendar-weekdays">
+                                <div class="calendar-weekday">CN</div>
+                                <div class="calendar-weekday">T2</div>
+                                <div class="calendar-weekday">T3</div>
+                                <div class="calendar-weekday">T4</div>
+                                <div class="calendar-weekday">T5</div>
+                                <div class="calendar-weekday">T6</div>
+                                <div class="calendar-weekday">T7</div>
+                            </div>
+                            <div class="calendar-days" id="calendarDays1"></div>
+                        </div>
+                        
+                        <!-- Second Calendar Month -->
+                        <div class="calendar-month" id="calendarMonth2">
+                            <div class="calendar-header">
+                                <span class="calendar-month-title" id="monthTitle2"></span>
+                                <div class="calendar-nav">
+                                    <button class="calendar-nav-btn" onclick="navigateCalendar(-1)">‹</button>
+                                    <button class="calendar-nav-btn" onclick="navigateCalendar(1)">›</button>
+                                </div>
+                            </div>
+                            <div class="calendar-weekdays">
+                                <div class="calendar-weekday">CN</div>
+                                <div class="calendar-weekday">T2</div>
+                                <div class="calendar-weekday">T3</div>
+                                <div class="calendar-weekday">T4</div>
+                                <div class="calendar-weekday">T5</div>
+                                <div class="calendar-weekday">T6</div>
+                                <div class="calendar-weekday">T7</div>
+                            </div>
+                            <div class="calendar-days" id="calendarDays2"></div>
+                        </div>
                     </div>
                 </div>
-                <div class="date-picker-footer">
-                    <button class="btn-apply" onclick="applyDateRange()">Áp dụng</button>
+            </div>
+            
+            <!-- Footer with Date Inputs -->
+            <div class="date-picker-footer">
+                <div>
+                    <div class="date-inputs-footer">
+                        <div class="date-input-group">
+                            <label>Từ:</label>
+                            <input type="text" id="dateFromFooter" class="date-input-footer" readonly>
+                            <button class="date-input-clear" onclick="clearDate('from')" title="Xóa">✕</button>
+                        </div>
+                        <div class="date-input-group">
+                            <label>Đến:</label>
+                            <input type="text" id="dateToFooter" class="date-input-footer" readonly>
+                            <button class="date-input-clear" onclick="clearDate('to')" title="Xóa">✕</button>
+                        </div>
+                    </div>
+                    <div class="timezone-info">Ngày hiển thị theo Giờ TP Hồ Chí Minh</div>
+                </div>
+                <div class="date-picker-actions">
+                    <button class="btn-cancel" onclick="closeDatePicker()">Hủy</button>
+                    <button class="btn-update" onclick="applyDateRange()">Cập nhật</button>
                 </div>
             </div>
         </div>
@@ -1602,10 +1916,37 @@ async def dashboard_page(
             overlay.classList.remove('open');
         }}
         
-        // Date Picker Functions
+        // Date Picker Functions - Madgicx Style
+        let currentCalendarMonth = new Date();
+        let selectedDateFrom = null;
+        let selectedDateTo = null;
+        let isSelectingRange = false;
+        
+        const monthNames = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 
+                           'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
+        const monthNamesShort = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
+        
         function openDatePicker() {{
             const modal = document.getElementById('datePickerModal');
             const overlay = document.getElementById('datePickerOverlay');
+            
+            // Initialize calendar with current date range
+            if (currentFilters.dateFrom && currentFilters.dateTo) {{
+                selectedDateFrom = new Date(currentFilters.dateFrom);
+                selectedDateTo = new Date(currentFilters.dateTo);
+            }} else {{
+                // Default to last 7 days
+                const today = new Date();
+                selectedDateTo = new Date(today);
+                selectedDateFrom = new Date(today);
+                selectedDateFrom.setDate(today.getDate() - 6);
+            }}
+            
+            currentCalendarMonth = new Date(selectedDateFrom);
+            renderCalendars();
+            updateDateInputs();
+            updateQuickSelectActive();
+            
             modal.classList.add('open');
             overlay.classList.add('open');
         }}
@@ -1617,19 +1958,237 @@ async def dashboard_page(
             overlay.classList.remove('open');
         }}
         
-        function applyDateRange() {{
-            const dateFrom = document.getElementById('dateFrom').value;
-            const dateTo = document.getElementById('dateTo').value;
+        function renderCalendars() {{
+            // Render first calendar (current month)
+            const month1 = new Date(currentCalendarMonth);
+            renderCalendar('calendarMonth1', 'monthTitle1', 'calendarDays1', month1);
             
-            if (dateFrom && dateTo) {{
+            // Render second calendar (next month)
+            const month2 = new Date(month1);
+            month2.setMonth(month2.getMonth() + 1);
+            renderCalendar('calendarMonth2', 'monthTitle2', 'calendarDays2', month2);
+        }}
+        
+        function renderCalendar(monthId, titleId, daysId, date) {{
+            const year = date.getFullYear();
+            const month = date.getMonth();
+            
+            // Set month title
+            document.getElementById(titleId).textContent = `${{monthNames[month]}} ${{year}}`;
+            
+            // Get first day of month and number of days
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            const startingDayOfWeek = firstDay.getDay(); // 0 = Sunday
+            
+            // Clear previous days
+            const daysContainer = document.getElementById(daysId);
+            daysContainer.innerHTML = '';
+            
+            // Add empty cells for days before month starts
+            for (let i = 0; i < startingDayOfWeek; i++) {{
+                const emptyDay = document.createElement('div');
+                emptyDay.className = 'calendar-day other-month';
+                daysContainer.appendChild(emptyDay);
+            }}
+            
+            // Add days of month
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            for (let day = 1; day <= daysInMonth; day++) {{
+                const dayDate = new Date(year, month, day);
+                const dayElement = document.createElement('div');
+                dayElement.className = 'calendar-day';
+                dayElement.textContent = day;
+                dayElement.dataset.date = formatDateForAPI(dayDate);
+                
+                // Check if today
+                if (dayDate.getTime() === today.getTime()) {{
+                    dayElement.classList.add('today');
+                }}
+                
+                // Check if selected
+                if (selectedDateFrom && dayDate.getTime() === selectedDateFrom.getTime()) {{
+                    dayElement.classList.add('selected');
+                }}
+                if (selectedDateTo && dayDate.getTime() === selectedDateTo.getTime()) {{
+                    dayElement.classList.add('selected');
+                }}
+                
+                // Check if in range
+                if (selectedDateFrom && selectedDateTo) {{
+                    if (dayDate > selectedDateFrom && dayDate < selectedDateTo) {{
+                        dayElement.classList.add('in-range');
+                    }}
+                }}
+                
+                dayElement.onclick = () => selectDate(dayDate);
+                daysContainer.appendChild(dayElement);
+            }}
+        }}
+        
+        function selectDate(date) {{
+            if (!selectedDateFrom || (selectedDateFrom && selectedDateTo)) {{
+                // Start new selection
+                selectedDateFrom = new Date(date);
+                selectedDateTo = null;
+                isSelectingRange = true;
+            }} else {{
+                // Complete selection
+                if (date < selectedDateFrom) {{
+                    selectedDateTo = new Date(selectedDateFrom);
+                    selectedDateFrom = new Date(date);
+                }} else {{
+                    selectedDateTo = new Date(date);
+                }}
+                isSelectingRange = false;
+            }}
+            
+            renderCalendars();
+            updateDateInputs();
+        }}
+        
+        function navigateCalendar(direction) {{
+            currentCalendarMonth.setMonth(currentCalendarMonth.getMonth() + direction);
+            renderCalendars();
+        }}
+        
+        function selectQuickDate(preset) {{
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Remove active class from all items
+            document.querySelectorAll('.quick-select-item').forEach(item => {{
+                item.classList.remove('active');
+            }});
+            
+            // Add active class to selected item
+            const selectedItem = document.querySelector(`[data-preset="${{preset}}"]`);
+            if (selectedItem) {{
+                selectedItem.classList.add('active');
+            }}
+            
+            switch(preset) {{
+                case 'today':
+                    selectedDateFrom = new Date(today);
+                    selectedDateTo = new Date(today);
+                    break;
+                case 'yesterday':
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    selectedDateFrom = yesterday;
+                    selectedDateTo = yesterday;
+                    break;
+                case 'last3days':
+                    selectedDateTo = new Date(today);
+                    selectedDateFrom = new Date(today);
+                    selectedDateFrom.setDate(today.getDate() - 2);
+                    break;
+                case 'last7days':
+                    selectedDateTo = new Date(today);
+                    selectedDateFrom = new Date(today);
+                    selectedDateFrom.setDate(today.getDate() - 6);
+                    break;
+                case 'last14days':
+                    selectedDateTo = new Date(today);
+                    selectedDateFrom = new Date(today);
+                    selectedDateFrom.setDate(today.getDate() - 13);
+                    break;
+                case 'last28days':
+                    selectedDateTo = new Date(today);
+                    selectedDateFrom = new Date(today);
+                    selectedDateFrom.setDate(today.getDate() - 27);
+                    break;
+                case 'last30days':
+                    selectedDateTo = new Date(today);
+                    selectedDateFrom = new Date(today);
+                    selectedDateFrom.setDate(today.getDate() - 29);
+                    break;
+                case 'thisWeek':
+                    const thisWeekStart = new Date(today);
+                    thisWeekStart.setDate(today.getDate() - today.getDay());
+                    selectedDateFrom = thisWeekStart;
+                    selectedDateTo = new Date(today);
+                    break;
+                case 'lastWeek':
+                    const lastWeekEnd = new Date(today);
+                    lastWeekEnd.setDate(today.getDate() - today.getDay() - 1);
+                    const lastWeekStart = new Date(lastWeekEnd);
+                    lastWeekStart.setDate(lastWeekEnd.getDate() - 6);
+                    selectedDateFrom = lastWeekStart;
+                    selectedDateTo = lastWeekEnd;
+                    break;
+                case 'thisMonth':
+                    selectedDateFrom = new Date(today.getFullYear(), today.getMonth(), 1);
+                    selectedDateTo = new Date(today);
+                    break;
+                case 'lastMonth':
+                    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+                    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    selectedDateFrom = lastMonthStart;
+                    selectedDateTo = lastMonthEnd;
+                    break;
+            }}
+            
+            renderCalendars();
+            updateDateInputs();
+        }}
+        
+        function updateDateInputs() {{
+            if (selectedDateFrom) {{
+                document.getElementById('dateFromFooter').value = formatDateDisplay(selectedDateFrom);
+            }}
+            if (selectedDateTo) {{
+                document.getElementById('dateToFooter').value = formatDateDisplay(selectedDateTo);
+            }}
+        }}
+        
+        function updateQuickSelectActive() {{
+            // Clear all active
+            document.querySelectorAll('.quick-select-item').forEach(item => {{
+                item.classList.remove('active');
+            }});
+            
+            // Check if current selection matches any preset
+            if (selectedDateFrom && selectedDateTo) {{
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const from = new Date(selectedDateFrom);
+                from.setHours(0, 0, 0, 0);
+                const to = new Date(selectedDateTo);
+                to.setHours(0, 0, 0, 0);
+                
+                // Check each preset
+                if (from.getTime() === today.getTime() && to.getTime() === today.getTime()) {{
+                    document.querySelector('[data-preset="today"]')?.classList.add('active');
+                }} else if (to.getTime() === today.getTime() && (to - from) === 6 * 24 * 60 * 60 * 1000) {{
+                    document.querySelector('[data-preset="last7days"]')?.classList.add('active');
+                }}
+                // Add more checks as needed
+            }}
+        }}
+        
+        function clearDate(type) {{
+            if (type === 'from') {{
+                selectedDateFrom = null;
+            }} else {{
+                selectedDateTo = null;
+            }}
+            updateDateInputs();
+            renderCalendars();
+        }}
+        
+        function applyDateRange() {{
+            if (selectedDateFrom && selectedDateTo) {{
                 currentFilters.dateRange = 'custom';
-                currentFilters.dateFrom = dateFrom;
-                currentFilters.dateTo = dateTo;
+                currentFilters.dateFrom = formatDateForAPI(selectedDateFrom);
+                currentFilters.dateTo = formatDateForAPI(selectedDateTo);
                 
                 // Update date range text
-                const fromDate = new Date(dateFrom);
-                const toDate = new Date(dateTo);
-                const dateText = formatDateRangeText(fromDate, toDate);
+                const dateText = formatDateRangeText(selectedDateFrom, selectedDateTo);
                 document.getElementById('dateRangeText').textContent = dateText;
                 
                 saveFilters();
@@ -1664,6 +2223,13 @@ async def dashboard_page(
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const year = date.getFullYear();
             return `${{day}}/${{month}}/${{year}}`;
+        }}
+        
+        function formatDateForAPI(date) {{
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${{year}}-${{month}}-${{day}}`;
         }}
         
         // Load Preset
@@ -2814,195 +3380,156 @@ async def get_dashboard_details(
             max_results=10000  # Giới hạn để tránh quá tải
         )
         
-        # Apply filters
-        if account_id:
-            query = query.filter(AdMetrics.account_id == account_id)
-        
-        if prefix:
-            query = query.filter(AdMetrics.adset_name.like(f"{prefix}%"))
+        # Filter by prefix nếu có
+        if prefix and all_data:
+            all_data = [row for row in all_data if row.get('prefix') == prefix]
         
         # Filter by view mode (campaign type)
         if view_mode == "ecommerce":
-            query = query.filter(AdMetrics.campaign_type == "ECOMMERCE")
+            all_data = [row for row in all_data if row.get('campaign_type') == 'ECOMMERCE']
         elif view_mode == "lead":
-            query = query.filter(AdMetrics.campaign_type == "LEAD_GENERATION")
+            all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD_GENERATION']
+        
+        # Lấy status của adsets từ Facebook API
+        adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
+        if adset_ids:
+            logger.info(f"📊 Đang lấy status cho {len(adset_ids)} adsets...")
+            adset_statuses_map = fetch_adset_statuses(adset_ids, access_token)
+            # Update status trong data
+            for row in all_data:
+                adset_id = row.get('adset_id')
+                if adset_id and adset_id in adset_statuses_map:
+                    row['adset_status'] = adset_statuses_map[adset_id]
+                    row['effective_status'] = adset_statuses_map[adset_id]
         
         # Status filter
-        if status:
-            query = query.filter(AdMetrics.adset_status == status)
+        if status and all_data:
+            all_data = [row for row in all_data if (row.get('adset_status') or 'UNKNOWN').upper() == status.upper()]
         
         # Search filter - search by name or ID
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                or_(
-                    AdMetrics.campaign_name.ilike(search_term),
-                    AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term),
-                    AdMetrics.campaign_id.ilike(search_term),
-                    AdMetrics.adset_id.ilike(search_term),
-                    AdMetrics.ad_id.ilike(search_term)
-                )
-            )
+        if search and all_data:
+            search_lower = search.lower()
+            all_data = [row for row in all_data if (
+                (row.get('campaign_name', '') or '').lower().find(search_lower) >= 0 or
+                (row.get('adset_name', '') or '').lower().find(search_lower) >= 0 or
+                (row.get('ad_name', '') or '').lower().find(search_lower) >= 0 or
+                (row.get('campaign_id', '') or '').lower().find(search_lower) >= 0 or
+                (row.get('adset_id', '') or '').lower().find(search_lower) >= 0 or
+                (row.get('ad_id', '') or '').lower().find(search_lower) >= 0
+            )]
         
-        # Group by level
-        if level == "campaign":
-            # Group by campaign
-            group_by_fields = [
-                AdMetrics.campaign_id,
-                AdMetrics.campaign_name,
-                AdMetrics.account_id,
-                AdMetrics.prefix
-            ]
+        # Group by level và aggregate
+        grouped_data = {}
+        
+        for row in all_data:
+            # Determine entity key based on level
+            if level == "campaign":
+                entity_key = row.get('campaign_id')
+                entity_id = row.get('campaign_id')
+                entity_name = row.get('campaign_name', '')
+            elif level == "adset":
+                entity_key = row.get('adset_id')
+                entity_id = row.get('adset_id')
+                entity_name = row.get('adset_name', '')
+            else:  # ad
+                entity_key = row.get('ad_id')
+                entity_id = row.get('ad_id')
+                entity_name = row.get('ad_name', '')
+            
+            if not entity_key:
+                continue
+            
+            # Initialize group if not exists
+            if entity_key not in grouped_data:
+                grouped_data[entity_key] = {
+                    'id': entity_id,
+                    'name': entity_name,
+                    'account_id': row.get('account_id', ''),
+                    'prefix': row.get('prefix', ''),
+                    'status': (row.get('adset_status') or 'UNKNOWN').upper(),
+                    'spend': 0,
+                    'impressions': 0,
+                    'clicks': 0,
+                    'reach': 0,
+                    'post_comments': 0,
+                    'messaging_conversations_started': 0,
+                    'purchases': 0,
+                    'gia_tri_chuyen_doi_tu_luot_mua': 0,
+                    'checkout_initiated': 0,
+                    'campaign_id': row.get('campaign_id', ''),
+                    'campaign_name': row.get('campaign_name', ''),
+                    'adset_id': row.get('adset_id', ''),
+                    'adset_name': row.get('adset_name', ''),
+                }
             
             # Aggregate metrics
-            query = query.with_entities(
-                AdMetrics.campaign_id,
-                AdMetrics.campaign_name,
-                AdMetrics.account_id,
-                AdMetrics.prefix,
-                func.sum(AdMetrics.spend).label('spend'),
-                func.sum(AdMetrics.results).label('results'),
-                func.sum(AdMetrics.impressions).label('impressions'),
-                func.sum(AdMetrics.clicks).label('clicks'),
-                func.sum(AdMetrics.purchases).label('purchases'),
-                func.sum(AdMetrics.purchase_value).label('purchase_value'),
-                func.sum(AdMetrics.leads).label('leads'),
-                func.avg(AdMetrics.gia_data).label('gia_data'),
-                func.avg(AdMetrics.ctr).label('ctr'),
-                func.avg(AdMetrics.cpc).label('cpc'),
-                func.max(AdMetrics.adset_status).label('status')  # Use max to get status
-            ).group_by(*group_by_fields)
+            group = grouped_data[entity_key]
+            group['spend'] += float(row.get('spend', 0) or 0)
+            group['impressions'] += int(row.get('impressions', 0) or 0)
+            group['clicks'] += int(row.get('clicks', 0) or 0)
+            group['reach'] += int(row.get('reach', 0) or 0)
+            group['post_comments'] += int(row.get('post_comments', 0) or 0)
+            group['messaging_conversations_started'] += int(row.get('messaging_conversations_started', 0) or 0)
+            group['purchases'] += int(row.get('purchases', 0) or 0)
+            group['gia_tri_chuyen_doi_tu_luot_mua'] += float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
+            group['checkout_initiated'] += int(row.get('checkout_initiated', 0) or 0)
             
-        elif level == "adset":
-            # Group by adset
-            group_by_fields = [
-                AdMetrics.adset_id,
-                AdMetrics.adset_name,
-                AdMetrics.campaign_id,
-                AdMetrics.campaign_name,
-                AdMetrics.account_id,
-                AdMetrics.prefix
-            ]
-            
-            query = query.with_entities(
-                AdMetrics.adset_id,
-                AdMetrics.adset_name,
-                AdMetrics.campaign_id,
-                AdMetrics.campaign_name,
-                AdMetrics.account_id,
-                AdMetrics.prefix,
-                func.sum(AdMetrics.spend).label('spend'),
-                func.sum(AdMetrics.results).label('results'),
-                func.sum(AdMetrics.impressions).label('impressions'),
-                func.sum(AdMetrics.clicks).label('clicks'),
-                func.sum(AdMetrics.purchases).label('purchases'),
-                func.sum(AdMetrics.purchase_value).label('purchase_value'),
-                func.sum(AdMetrics.leads).label('leads'),
-                func.avg(AdMetrics.gia_data).label('gia_data'),
-                func.avg(AdMetrics.ctr).label('ctr'),
-                func.avg(AdMetrics.cpc).label('cpc'),
-                AdMetrics.adset_status.label('status')
-            ).group_by(*group_by_fields)
-            
-        else:  # level == "ad"
-            # Individual ads - no grouping needed
-            query = query.with_entities(
-                AdMetrics.ad_id,
-                AdMetrics.ad_name,
-                AdMetrics.adset_id,
-                AdMetrics.adset_name,
-                AdMetrics.campaign_id,
-                AdMetrics.campaign_name,
-                AdMetrics.account_id,
-                AdMetrics.prefix,
-                AdMetrics.spend,
-                AdMetrics.results,
-                AdMetrics.impressions,
-                AdMetrics.clicks,
-                AdMetrics.purchases,
-                AdMetrics.purchase_value,
-                AdMetrics.leads,
-                AdMetrics.gia_data,
-                AdMetrics.ctr,
-                AdMetrics.cpc,
-                AdMetrics.adset_status.label('status')
-            )
+            # Update status if available
+            if row.get('adset_status'):
+                group['status'] = row.get('adset_status').upper()
         
-        # Get total count
-        total = query.count()
-        
-        # Apply pagination
-        offset = (page - 1) * page_size
-        results = query.offset(offset).limit(page_size).all()
-        
-        # Convert to dict format
+        # Convert to list and calculate derived metrics
         rows = []
-        for row in results:
-            if level == "campaign":
-                entity_id = row.campaign_id
-                entity_name = row.campaign_name
-                status = row.status or "UNKNOWN"
-            elif level == "adset":
-                entity_id = row.adset_id
-                entity_name = row.adset_name
-                status = row.status or "UNKNOWN"
-            else:  # ad
-                entity_id = row.ad_id
-                entity_name = row.ad_name
-                status = row.status or "UNKNOWN"
+        for group in grouped_data.values():
+            spend = group['spend']
+            impressions = group['impressions']
+            clicks = group['clicks']
+            reach = group['reach']
+            post_comments = group['post_comments']
+            messages = group['messaging_conversations_started']
+            purchases = group['purchases']
+            purchase_value = group['gia_tri_chuyen_doi_tu_luot_mua']
+            checkout_starts = group['checkout_initiated']
+            
+            # Calculate results (comments + messages)
+            results = post_comments + messages
             
             # Calculate derived metrics
-            spend = float(row.spend or 0)
-            results_count = int(row.results or 0)
-            impressions = int(row.impressions or 0)
-            clicks = int(row.clicks or 0)
-            purchases = int(row.purchases or 0)
-            purchase_value = float(row.purchase_value or 0)
-            leads = int(row.leads or 0)
-            
-            # Calculate metrics
-            gia_data = float(row.gia_data or 0) if row.gia_data else (spend / results_count if results_count > 0 else 0)
+            gia_data = (spend / results) if results > 0 else 0
             cpm = (spend / impressions * 1000) if impressions > 0 else 0
-            ctr = float(row.ctr or 0) if row.ctr else ((clicks / impressions * 100) if impressions > 0 else 0)
-            cpc = float(row.cpc or 0) if row.cpc else ((spend / clicks) if clicks > 0 else 0)
-            
-            # Calculate view-mode specific metrics
-            if view_mode == "ecommerce":
-                ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
-                tlc = (purchases / results_count) if results_count > 0 else 0
-                checkout_starts = 0  # Not available in AdMetrics, would need to add
-            else:  # lead
-                cost_per_checkout_start = 0  # Not available in AdMetrics
-                checkout_starts = 0  # Not available in AdMetrics
+            ctr = (clicks / impressions * 100) if impressions > 0 else 0
+            cpc = (spend / clicks) if clicks > 0 else 0
+            frequency = (impressions / reach) if reach > 0 else 0
             
             row_data = {
-                "id": entity_id,
-                "name": entity_name or "-",
-                "account_id": row.account_id,
-                "prefix": row.prefix or "-",
-                "status": status.upper(),
+                "id": group['id'],
+                "name": group['name'] or "-",
+                "account_id": group['account_id'],
+                "prefix": group['prefix'] or "-",
+                "status": group['status'],
                 "spend": round(spend, 2),
-                "results": results_count,
+                "results": results,
                 "gia_data": round(gia_data, 2),
                 "impressions": impressions,
                 "clicks": clicks,
                 "ctr": round(ctr, 2),
                 "cpc": round(cpc, 2),
                 "cpm": round(cpm, 2),
-                "reach": 0,  # Not available in AdMetrics
-                "frequency": 0,  # Not available in AdMetrics
+                "reach": reach,
+                "frequency": round(frequency, 2),
             }
             
             if level == "adset" or level == "ad":
-                row_data["campaign_id"] = row.campaign_id
-                row_data["campaign_name"] = row.campaign_name if hasattr(row, 'campaign_name') else "-"
+                row_data["campaign_id"] = group['campaign_id']
+                row_data["campaign_name"] = group['campaign_name'] or "-"
             
             if level == "ad":
-                row_data["adset_id"] = row.adset_id
-                row_data["adset_name"] = row.adset_name if hasattr(row, 'adset_name') else "-"
+                row_data["adset_id"] = group['adset_id']
+                row_data["adset_name"] = group['adset_name'] or "-"
             
             if view_mode == "ecommerce":
+                ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
+                tlc = (purchases / results) if results > 0 else 0
                 row_data.update({
                     "ads_percent": round(ads_percent, 2),
                     "tlc": round(tlc, 2),
@@ -3011,20 +3538,28 @@ async def get_dashboard_details(
                     "purchase_value": round(purchase_value, 2)
                 })
             else:  # lead
+                cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
                 row_data.update({
-                    "leads": leads,
-                    "cost_per_checkout_start": cost_per_checkout_start,
+                    "leads": results,
+                    "cost_per_checkout_start": round(cost_per_checkout_start, 2),
                     "checkout_starts": checkout_starts,
                     "purchases": purchases
                 })
             
             rows.append(row_data)
         
+        # Get total count
+        total = len(rows)
+        
+        # Apply pagination
+        offset = (page - 1) * pageSize
+        paginated_rows = rows[offset:offset + pageSize]
+        
         return JSONResponse({
-            "rows": rows,
+            "data": paginated_rows,
             "total": total,
             "page": page,
-            "page_size": page_size
+            "pageSize": pageSize
         })
         
     except Exception as e:
