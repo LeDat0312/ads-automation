@@ -571,9 +571,16 @@ def pull_facebook_data(
                         now = datetime.now(tz_hcm)
                         today_str = now.replace(hour=0, minute=0, second=0, microsecond=0).strftime('%Y-%m-%d')
                         
-                        # Nếu là today, dùng date_preset=today (Facebook API tự xử lý timezone)
+                        # Nếu là today, dùng yesterday (vì dữ liệu today có thể chưa có)
+                        # Hoặc dùng time_range với ngày hôm qua
                         if date_from == today_str and date_to == today_str:
-                            url += '&date_preset=today'
+                            # Thử dùng yesterday thay vì today (dữ liệu hôm nay có thể chưa có)
+                            yesterday = today - timedelta(days=1)
+                            since = yesterday.strftime('%Y-%m-%d')
+                            until = today_str  # until = today (exclusive)
+                            time_range_json = json.dumps({"since": since, "until": today_str})
+                            url += f'&time_range={quote(time_range_json)}'
+                            logger.info(f"   ℹ️ Dùng yesterday ({since}) thay vì today vì dữ liệu hôm nay có thể chưa có")
                         else:
                             # Dùng custom time_range
                             # Facebook API until là EXCLUSIVE, nên phải +1 ngày
@@ -607,14 +614,32 @@ def pull_facebook_data(
                         time_range_json = json.dumps({"since": since, "until": until})
                         url += f'&time_range={quote(time_range_json)}'
                     elif date_preset == 'today':
-                        # Dùng date_preset=today (Facebook API tự xử lý timezone)
-                        url += '&date_preset=today'
+                        # Dùng yesterday thay vì today (dữ liệu hôm nay có thể chưa có)
+                        from datetime import timezone as tz
+                        tz_hcm = tz(timedelta(hours=7))
+                        now = datetime.now(tz_hcm)
+                        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                        yesterday = today - timedelta(days=1)
+                        since = yesterday.strftime('%Y-%m-%d')
+                        until = today.strftime('%Y-%m-%d')  # until = today (exclusive)
+                        time_range_json = json.dumps({"since": since, "until": until})
+                        url += f'&time_range={quote(time_range_json)}'
+                        logger.info(f"   ℹ️ Dùng yesterday ({since}) thay vì today vì dữ liệu hôm nay có thể chưa có")
                     else:
                         if date_preset:
                             url += f'&date_preset={date_preset}'
                         else:
-                            # Default: today
-                            url += '&date_preset=today'
+                            # Default: yesterday (vì dữ liệu hôm nay có thể chưa có)
+                            from datetime import timezone as tz
+                            tz_hcm = tz(timedelta(hours=7))
+                            now = datetime.now(tz_hcm)
+                            today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                            yesterday = today - timedelta(days=1)
+                            since = yesterday.strftime('%Y-%m-%d')
+                            until = today.strftime('%Y-%m-%d')  # until = today (exclusive)
+                            time_range_json = json.dumps({"since": since, "until": until})
+                            url += f'&time_range={quote(time_range_json)}'
+                            logger.info(f"   ℹ️ Default: dùng yesterday ({since}) vì dữ liệu hôm nay có thể chưa có")
                     
                     # Thêm action_report_time và attribution settings (giống Google Script)
                     url += (
@@ -625,17 +650,26 @@ def pull_facebook_data(
                 
                 # Fetch data
                 response = requests.get(url, timeout=60)
-                response.raise_for_status()
                 
-                json_data = response.json()
-                if 'error' in json_data:
-                    error_code = json_data['error'].get('code', 0)
-                    error_msg = json_data['error'].get('message', 'Unknown error')
-                    if error_code in [190, 100]:
-                        raise Exception(f"Lỗi Token hoặc Quyền (Code {error_code}). Chi tiết: {error_msg}")
-                    elif error_code == 200:
-                        raise Exception(f"Mất quyền truy cập TK (Code 200). Chi tiết: {error_msg}")
-                    raise Exception(f"LỖI API: {error_msg}")
+                # Parse error message trước khi raise
+                try:
+                    json_data = response.json()
+                    if 'error' in json_data:
+                        error_code = json_data['error'].get('code', 0)
+                        error_msg = json_data['error'].get('message', 'Unknown error')
+                        error_type = json_data['error'].get('type', '')
+                        error_subcode = json_data['error'].get('error_subcode', '')
+                        logger.error(f"🚨 Facebook API Error: Code={error_code}, Type={error_type}, Subcode={error_subcode}, Message={error_msg}")
+                        logger.error(f"   URL: {url[:200]}...")  # Log một phần URL để debug
+                        if error_code in [190, 100]:
+                            raise Exception(f"Lỗi Token hoặc Quyền (Code {error_code}). Chi tiết: {error_msg}")
+                        elif error_code == 200:
+                            raise Exception(f"Mất quyền truy cập TK (Code 200). Chi tiết: {error_msg}")
+                        raise Exception(f"LỖI API (Code {error_code}): {error_msg}")
+                except ValueError:
+                    # Nếu không parse được JSON, dùng raise_for_status
+                    response.raise_for_status()
+                    json_data = response.json()
                 
                 data = json_data.get('data', [])
                 
