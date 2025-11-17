@@ -2215,6 +2215,11 @@ async def dashboard_page(
 </body>
 </html>
 """
+        return HTMLResponse(content=html_content)
+        
+    except Exception as e:
+        logger.error(f"Error in dashboard page: {e}")
+        return HTMLResponse(content=f"<div>Error: {str(e)}</div>", status_code=500)
 
 
 @router.get("/data")
