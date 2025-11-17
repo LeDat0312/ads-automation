@@ -2597,40 +2597,54 @@ async def dashboard_page(
         }}
         
         // Get date range from filter
+        // Tính toán date dựa trên timezone UTC+7 (Asia/Ho_Chi_Minh) để đồng bộ với server
         function getDateRange() {{
             const range = currentFilters.dateRange || 'today';
-            const today = new Date();
+            
+            // Lấy ngày hôm nay theo timezone UTC+7
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const hcmTime = new Date(utc + (7 * 3600000)); // UTC+7
+            const today = new Date(hcmTime);
             today.setHours(23, 59, 59, 999);
             
             let from, to;
             
             if (range === 'today') {{
-                from = new Date(today);
+                from = new Date(hcmTime);
                 from.setHours(0, 0, 0, 0);
-                to = today;
+                to = new Date(hcmTime);
+                to.setHours(23, 59, 59, 999);
             }} else if (range === 'yesterday') {{
-                from = new Date(today);
+                from = new Date(hcmTime);
                 from.setDate(from.getDate() - 1);
                 from.setHours(0, 0, 0, 0);
-                to = new Date(today);
+                to = new Date(hcmTime);
                 to.setDate(to.getDate() - 1);
                 to.setHours(23, 59, 59, 999);
             }} else if (range === 'last7days') {{
-                from = new Date(today);
+                from = new Date(hcmTime);
                 from.setDate(from.getDate() - 6);
                 from.setHours(0, 0, 0, 0);
-                to = today;
+                to = new Date(hcmTime);
+                to.setHours(23, 59, 59, 999);
             }} else if (range === 'last30days') {{
-                from = new Date(today);
+                from = new Date(hcmTime);
                 from.setDate(from.getDate() - 29);
                 from.setHours(0, 0, 0, 0);
-                to = today;
+                to = new Date(hcmTime);
+                to.setHours(23, 59, 59, 999);
             }} else {{
                 // Custom range - use saved dates or default to today
-                from = currentFilters.dateFrom ? new Date(currentFilters.dateFrom) : new Date(today);
-                from.setHours(0, 0, 0, 0);
-                to = currentFilters.dateTo ? new Date(currentFilters.dateTo) : today;
-                to.setHours(23, 59, 59, 999);
+                if (currentFilters.dateFrom && currentFilters.dateTo) {{
+                    from = new Date(currentFilters.dateFrom + 'T00:00:00+07:00');
+                    to = new Date(currentFilters.dateTo + 'T23:59:59+07:00');
+                }} else {{
+                    from = new Date(hcmTime);
+                    from.setHours(0, 0, 0, 0);
+                    to = new Date(hcmTime);
+                    to.setHours(23, 59, 59, 999);
+                }}
             }}
             
             return {{

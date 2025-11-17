@@ -565,29 +565,33 @@ def pull_facebook_data(
                     
                     if date_from and date_to:
                         # Dùng custom date range với time_range
-                        # Facebook API until là EXCLUSIVE, nên phải +1 ngày
-                        try:
-                            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
-                            date_to_obj = date_to_obj + timedelta(days=1)  # +1 vì until là exclusive
-                            date_to_str = date_to_obj.strftime('%Y-%m-%d')
-                            
-                            time_range_json = json.dumps({"since": date_from, "until": date_to_str})
-                            url += f'&time_range={quote(time_range_json)}'
-                        except ValueError:
-                            # Fallback to date_preset nếu parse lỗi
-                            if date_preset:
-                                url += f'&date_preset={date_preset}'
-                            else:
-                                # Default: today
-                                from datetime import timezone as tz
-                                tz_hcm = tz(timedelta(hours=7))
-                                now = datetime.now(tz_hcm)
-                                today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                                tomorrow = today + timedelta(days=1)
-                                since = today.strftime('%Y-%m-%d')
-                                until = tomorrow.strftime('%Y-%m-%d')
-                                time_range_json = json.dumps({"since": since, "until": until})
-                                url += f'&time_range={quote(time_range_json)}'
+                        # Kiểm tra xem có phải là "today" không (same date)
+                        from datetime import timezone as tz
+                        tz_hcm = tz(timedelta(hours=7))
+                        now = datetime.now(tz_hcm)
+                        today_str = now.replace(hour=0, minute=0, second=0, microsecond=0).strftime('%Y-%m-%d')
+                        
+                        # Nếu là today, dùng date_preset=today (Facebook API tự xử lý timezone)
+                        if date_from == today_str and date_to == today_str:
+                            url += '&date_preset=today'
+                        else:
+                            # Dùng custom time_range
+                            # Facebook API until là EXCLUSIVE, nên phải +1 ngày
+                            try:
+                                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+                                # Kiểm tra không query ngày trong tương lai
+                                if date_to_obj.date() > now.date():
+                                    logger.warning(f"⚠️ Không thể query ngày trong tương lai: {date_to}, dùng today thay thế")
+                                    url += '&date_preset=today'
+                                else:
+                                    date_to_obj = date_to_obj + timedelta(days=1)  # +1 vì until là exclusive
+                                    date_to_str = date_to_obj.strftime('%Y-%m-%d')
+                                    
+                                    time_range_json = json.dumps({"since": date_from, "until": date_to_str})
+                                    url += f'&time_range={quote(time_range_json)}'
+                            except ValueError as e:
+                                logger.warning(f"⚠️ Lỗi parse date: {e}, dùng today thay thế")
+                                url += '&date_preset=today'
                     elif date_preset == 'yesterday':
                         # Convert yesterday sang time_range để chính xác hơn (giống Google Script)
                         from datetime import timezone as tz
@@ -603,30 +607,14 @@ def pull_facebook_data(
                         time_range_json = json.dumps({"since": since, "until": until})
                         url += f'&time_range={quote(time_range_json)}'
                     elif date_preset == 'today':
-                        # Lấy dữ liệu hôm nay
-                        from datetime import timezone as tz
-                        tz_hcm = tz(timedelta(hours=7))
-                        now = datetime.now(tz_hcm)
-                        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                        tomorrow = today + timedelta(days=1)
-                        since = today.strftime('%Y-%m-%d')
-                        until = tomorrow.strftime('%Y-%m-%d')
-                        time_range_json = json.dumps({"since": since, "until": until})
-                        url += f'&time_range={quote(time_range_json)}'
+                        # Dùng date_preset=today (Facebook API tự xử lý timezone)
+                        url += '&date_preset=today'
                     else:
                         if date_preset:
                             url += f'&date_preset={date_preset}'
                         else:
-                            # Default: today (thay vì last_7_days)
-                            from datetime import timezone as tz
-                            tz_hcm = tz(timedelta(hours=7))
-                            now = datetime.now(tz_hcm)
-                            today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                            tomorrow = today + timedelta(days=1)
-                            since = today.strftime('%Y-%m-%d')
-                            until = tomorrow.strftime('%Y-%m-%d')
-                            time_range_json = json.dumps({"since": since, "until": until})
-                            url += f'&time_range={quote(time_range_json)}'
+                            # Default: today
+                            url += '&date_preset=today'
                     
                     # Thêm action_report_time và attribution settings (giống Google Script)
                     url += (
