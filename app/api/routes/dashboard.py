@@ -1952,10 +1952,14 @@ async def dashboard_page(
         }}
         
         function closeDatePicker() {{
-            const modal = document.getElementById('datePickerModal');
-            const overlay = document.getElementById('datePickerOverlay');
-            modal.classList.remove('open');
-            overlay.classList.remove('open');
+            try {{
+                const modal = document.getElementById('datePickerModal');
+                const overlay = document.getElementById('datePickerOverlay');
+                if (modal) modal.classList.remove('open');
+                if (overlay) overlay.classList.remove('open');
+            }} catch (e) {{
+                console.error('Error closing date picker:', e);
+            }}
         }}
         
         function renderCalendars() {{
