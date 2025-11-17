@@ -535,7 +535,13 @@ def pull_facebook_data(
     
     for account_id in ad_account_ids:
         try:
-            logger.info(f"Đang kéo dữ liệu cho tài khoản: {account_id} (Phạm vi: {date_preset})")
+            # Đảm bảo account_id có prefix "act_"
+            if not account_id.startswith("act_"):
+                account_id_formatted = f"act_{account_id}"
+            else:
+                account_id_formatted = account_id
+            
+            logger.info(f"Đang kéo dữ liệu cho tài khoản: {account_id_formatted} (Phạm vi: {date_preset})")
             
             # Xử lý pagination: Lấy TẤT CẢ pages (không chỉ page đầu tiên)
             next_url = None
@@ -552,7 +558,7 @@ def pull_facebook_data(
                     # QUAN TRỌNG: Với date_preset=yesterday, có thể dùng time_range để chính xác hơn
                     # Nhưng để đơn giản, dùng date_preset trực tiếp (Facebook API tự xử lý múi giờ)
                     url = (
-                        f"{FB_GRAPH_API_BASE}/{account_id}/insights"
+                        f"{FB_GRAPH_API_BASE}/{account_id_formatted}/insights"
                         f"?level=ad"
                         f"&fields={fields_string}"
                         f"&limit=1000"
@@ -927,10 +933,10 @@ def pull_facebook_data(
                 logger.info(f"   📄 Page {page_count}: Nhận được {len(data)} ads, có page tiếp theo...")
             # Kết thúc while True loop
             
-            logger.info(f"   ✅ Hoàn tất tài khoản {account_id}: Tổng {page_count} page(s)")
+            logger.info(f"   ✅ Hoàn tất tài khoản {account_id_formatted}: Tổng {page_count} page(s)")
                 
         except Exception as e:
-            logger.error(f"🚨 Lỗi khi lấy dữ liệu từ account {account_id}: {e}")
+            logger.error(f"🚨 Lỗi khi lấy dữ liệu từ account {account_id_formatted}: {e}")
             continue
     
     logger.info(f"✅ Đã lấy {len(all_rows)} ads từ Facebook API")
@@ -953,8 +959,14 @@ def get_daily_breakdown_data(
     
     for account_id in ad_account_ids:
         try:
+            # Đảm bảo account_id có prefix "act_"
+            if not account_id.startswith("act_"):
+                account_id_formatted = f"act_{account_id}"
+            else:
+                account_id_formatted = account_id
+            
             url = (
-                f"{FB_GRAPH_API_BASE}/{account_id}/insights"
+                f"{FB_GRAPH_API_BASE}/{account_id_formatted}/insights"
                 f"?level=adset"
                 f"&fields=adset_id,actions,action_values"
                 f"&date_preset={date_preset}"
