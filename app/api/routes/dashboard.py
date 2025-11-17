@@ -1435,11 +1435,11 @@ async def dashboard_page(
         </div>
         
         <!-- Date Picker Modal - Madgicx Style -->
-        <div class="date-picker-overlay" id="datePickerOverlay" onclick="closeDatePicker()"></div>
+        <div class="date-picker-overlay" id="datePickerOverlay" onclick="if(typeof window.closeDatePicker === 'function') window.closeDatePicker();"></div>
         <div class="date-picker-modal" id="datePickerModal" onclick="event.stopPropagation()">
             <div class="date-picker-header">
                 <h3>Chọn khoảng thời gian</h3>
-                <button class="close-btn" onclick="event.stopPropagation(); closeDatePicker(); return false;">✕</button>
+                <button class="close-btn" onclick="event.stopPropagation(); event.preventDefault(); if(typeof window.closeDatePicker === 'function') window.closeDatePicker(); return false;">✕</button>
             </div>
             <div class="date-picker-content">
                 <!-- Quick Select Sidebar -->
@@ -1525,8 +1525,8 @@ async def dashboard_page(
                     <div class="timezone-info">Ngày hiển thị theo Giờ TP Hồ Chí Minh</div>
                 </div>
                 <div class="date-picker-actions">
-                    <button class="btn-cancel" onclick="event.stopPropagation(); closeDatePicker(); return false;">Hủy</button>
-                    <button class="btn-update" onclick="event.stopPropagation(); applyDateRange(); return false;">Cập nhật</button>
+                    <button class="btn-cancel" onclick="event.stopPropagation(); event.preventDefault(); if(typeof window.closeDatePicker === 'function') window.closeDatePicker(); return false;">Hủy</button>
+                    <button class="btn-update" onclick="event.stopPropagation(); event.preventDefault(); applyDateRange(); return false;">Cập nhật</button>
                 </div>
             </div>
         </div>
@@ -1902,7 +1902,9 @@ async def dashboard_page(
             
             // QUAN TRỌNG: Nếu đang mở filter panel, đóng date picker trước
             if (isOpening) {{
-                closeDatePicker();
+                if (typeof window.closeDatePicker === 'function') {{
+                    window.closeDatePicker();
+                }}
             }}
             
             panel.classList.toggle('open');
@@ -1930,7 +1932,9 @@ async def dashboard_page(
         
         function openFilterPanel() {{
             // QUAN TRỌNG: Đóng date picker trước khi mở filter panel
-            closeDatePicker();
+            if (typeof window.closeDatePicker === 'function') {{
+                window.closeDatePicker();
+            }}
             
             const panel = document.getElementById('filterPanel');
             const overlay = document.getElementById('filterPanelOverlay');
@@ -1961,7 +1965,9 @@ async def dashboard_page(
         
         function openDatePicker() {{
             // QUAN TRỌNG: Đóng filter panel trước khi mở date picker
-            closeFilterPanel();
+            if (typeof closeFilterPanel === 'function') {{
+                closeFilterPanel();
+            }}
             
             const modal = document.getElementById('datePickerModal');
             const overlay = document.getElementById('datePickerOverlay');
@@ -1992,33 +1998,50 @@ async def dashboard_page(
             overlay.classList.add('open');
         }}
         
-        function closeDatePicker() {{
+        // Đảm bảo function closeDatePicker được định nghĩa global
+        window.closeDatePicker = function() {{
+            console.log('closeDatePicker called');
             try {{
                 const modal = document.getElementById('datePickerModal');
                 const overlay = document.getElementById('datePickerOverlay');
+                console.log('Modal:', modal, 'Overlay:', overlay);
                 if (modal) {{
                     modal.classList.remove('open');
+                    console.log('Removed open class from modal');
                 }}
                 if (overlay) {{
                     overlay.classList.remove('open');
+                    console.log('Removed open class from overlay');
                 }}
             }} catch (e) {{
                 console.error('Error closing date picker:', e);
             }}
+        }};
+        
+        // Alias để đảm bảo tương thích
+        function closeDatePicker() {{
+            window.closeDatePicker();
         }}
         
         // Đảm bảo date picker có thể đóng bằng ESC key
-        document.addEventListener('keydown', function(e) {{
-            if (e.key === 'Escape') {{
-                const dateModal = document.getElementById('datePickerModal');
-                const filterPanel = document.getElementById('filterPanel');
-                if (dateModal && dateModal.classList.contains('open')) {{
-                    closeDatePicker();
-                }} else if (filterPanel && filterPanel.classList.contains('open')) {{
-                    closeFilterPanel();
+        // Sử dụng window.addEventListener để đảm bảo event listener được thêm đúng cách
+        if (typeof window !== 'undefined') {{
+            window.addEventListener('keydown', function(e) {{
+                if (e.key === 'Escape') {{
+                    const dateModal = document.getElementById('datePickerModal');
+                    const filterPanel = document.getElementById('filterPanel');
+                    if (dateModal && dateModal.classList.contains('open')) {{
+                        if (typeof window.closeDatePicker === 'function') {{
+                            window.closeDatePicker();
+                        }}
+                    }} else if (filterPanel && filterPanel.classList.contains('open')) {{
+                        if (typeof closeFilterPanel === 'function') {{
+                            closeFilterPanel();
+                        }}
+                    }}
                 }}
-            }}
-        }});
+            }});
+        }}
         
         function renderCalendars() {{
             // Render first calendar (current month)
@@ -2260,7 +2283,9 @@ async def dashboard_page(
                 loadData();
                 
                 // QUAN TRỌNG: Đóng date picker sau khi apply
-                closeDatePicker();
+                if (typeof window.closeDatePicker === 'function') {{
+                    window.closeDatePicker();
+                }}
             }}
         }}
         
