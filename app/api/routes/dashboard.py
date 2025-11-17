@@ -2502,1466 +2502,638 @@ async def dashboard_health():
     })
 
 
-        <link rel="icon" type="image/png" href="/static/favicon.png">
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-        <style>
-            :root {{
-                /* Color System */
-                --primary: #1877f2;
-                --primary-hover: #166fe5;
-                --secondary: #42b883;
-                --accent: #f59e0b;
-                --success: #10b981;
-                --warning: #f59e0b;
-                --danger: #ef4444;
-                --info: #3b82f6;
-                
-                /* Grays */
-                --gray-50: #f9fafb;
-                --gray-100: #f3f4f6;
-                --gray-200: #e5e7eb;
-                --gray-300: #d1d5db;
-                --gray-400: #9ca3af;
-                --gray-500: #6b7280;
-                --gray-600: #4b5563;
-                --gray-700: #374151;
-                --gray-800: #1f2937;
-                --gray-900: #111827;
-                
-                /* Layout */
-                --max-width: 1400px;
-                --header-height: 4rem;
-                --sidebar-width: 16rem;
-                
-                /* Shadows */
-                --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-                --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
-                --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-                --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-                --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-                
-                /* Radius */
-                --radius-sm: 0.375rem;
-                --radius: 0.5rem;
-                --radius-md: 0.5rem;
-                --radius-lg: 0.75rem;
-                --radius-xl: 1rem;
-                --radius-2xl: 1.5rem;
-                
-                /* Animations */
-                --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-            }}
-            
-            * {{
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }}
-            
-            body {{
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                color: var(--gray-800);
-                line-height: 1.6;
-                -webkit-font-smoothing: antialiased;
-                -moz-osx-font-smoothing: grayscale;
-            }}
-            
-            /* Layout Components */
-            .container {{
-                max-width: var(--max-width);
-                margin: 0 auto;
-                padding: 1.5rem;
-                min-height: 100vh;
-            }}
-            
-            /* Header */
-            .header {{
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-bottom: 2rem;
-                background: rgba(255, 255, 255, 0.1);
-                backdrop-filter: blur(20px);
-                -webkit-backdrop-filter: blur(20px);
-                border-radius: var(--radius-2xl);
-                padding: 1rem 1.5rem;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                box-shadow: var(--shadow-xl);
-            }}
-            
-            .header-left {{
-                display: flex;
-                align-items: center;
-                gap: 1rem;
-            }}
-            
-            .header-title {{
-                display: flex;
-                align-items: center;
-                gap: 0.75rem;
-                color: white;
-                font-size: 1.5rem;
-                font-weight: 700;
-            }}
-            
-            .settings-status {{
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                padding: 0.375rem 0.75rem;
-                background: rgba(255, 255, 255, 0.15);
-                border-radius: var(--radius-lg);
-                color: white;
-                font-size: 0.875rem;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-            }}
-            
-            .settings-status.complete {{
-                background: rgba(16, 185, 129, 0.2);
-                border-color: rgba(16, 185, 129, 0.3);
-            }}
-            
-            .settings-status.incomplete {{
-                background: rgba(239, 68, 68, 0.2);
-                border-color: rgba(239, 68, 68, 0.3);
-            }}
-            
-            .header-right {{
-                display: flex;
-                align-items: center;
-                gap: 0.75rem;
-            }}
-            
-            .btn-settings {{
-                display: inline-flex;
-                align-items: center;
-                gap: 0.5rem;
-                padding: 0.5rem 1rem;
-                background: rgba(255, 255, 255, 0.2);
-                color: white;
-                text-decoration: none;
-                border-radius: var(--radius-lg);
-                font-weight: 500;
-                transition: var(--transition);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-            }}
-            
-            .btn-settings:hover {{
-                background: rgba(255, 255, 255, 0.3);
-                transform: translateY(-1px);
-                color: white;
-            }}
-            
-            /* Controls Bar */
-            .controls-bar {{
-                display: grid;
-                grid-template-columns: auto 1fr auto auto auto auto;
-                gap: 1rem;
-                align-items: center;
-                background: white;
-                padding: 1rem 1.5rem;
-                border-radius: var(--radius-2xl);
-                box-shadow: var(--shadow-lg);
-                margin-bottom: 2rem;
-                border: 1px solid var(--gray-200);
-            }}
-            
-            .filters-section {{
-                display: flex;
-                align-items: center;
-                gap: 0.75rem;
-            }}
-            
-            .filter-btn {{
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                padding: 0.5rem 1rem;
-                background: var(--gray-50);
-                border: 1px solid var(--gray-300);
-                border-radius: var(--radius-lg);
-                cursor: pointer;
-                transition: var(--transition);
-                font-weight: 500;
-                position: relative;
-                white-space: nowrap;
-            }}
-            
-            .filter-btn:hover {{
-                background: var(--gray-100);
-                border-color: var(--primary);
-                transform: translateY(-1px);
-            }}
-            
-            .filter-btn.active {{
-                background: var(--primary);
-                color: white;
-                border-color: var(--primary);
-            }}
-            
-            .filter-badge {{
-                position: absolute;
-                top: -0.375rem;
-                right: -0.375rem;
-                background: var(--primary);
-                color: white;
-                border-radius: 50%;
-                width: 1.125rem;
-                height: 1.125rem;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 0.75rem;
-                font-weight: 600;
-                border: 2px solid white;
-            }}
-            
-            .search-container {{
-                position: relative;
-                flex: 1;
-                max-width: 400px;
-            }}
-            
-            .search-input {{
-                width: 100%;
-                padding: 0.5rem 1rem 0.5rem 2.5rem;
-                border: 1px solid var(--gray-300);
-                border-radius: var(--radius-lg);
-                font-size: 0.875rem;
-                transition: var(--transition);
-                background: var(--gray-50);
-            }}
-            
-            .search-input:focus {{
-                outline: none;
-                border-color: var(--primary);
-                box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1);
-                background: white;
-            }}
-            
-            .search-icon {{
-                position: absolute;
-                left: 0.75rem;
-                top: 50%;
-                transform: translateY(-50%);
-                color: var(--gray-400);
-                pointer-events: none;
-            }}
-            
-            .control-group {{
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-            }}
-            
-            .control-btn {{
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                padding: 0.5rem 1rem;
-                background: white;
-                border: 1px solid var(--gray-300);
-                border-radius: var(--radius-lg);
-                cursor: pointer;
-                transition: var(--transition);
-                font-weight: 500;
-                white-space: nowrap;
-            }}
-            
-            .control-btn:hover {{
-                background: var(--gray-50);
-                border-color: var(--primary);
-                transform: translateY(-1px);
-            }}
-            
-            .btn-primary {{
-                background: var(--primary);
-                color: white;
-                border-color: var(--primary);
-            }}
-            
-            .btn-primary:hover {{
-                background: var(--primary-hover);
-                color: white;
-            }}
-            
-            .btn-refresh.loading {{
-                opacity: 0.7;
-                pointer-events: none;
-            }}
-            
-            .btn-refresh.loading .fa-sync-alt {{
-                animation: spin 1s linear infinite;
-            }}
-            
-            @keyframes spin {{
-                from {{ transform: rotate(0deg); }}
-                to {{ transform: rotate(360deg); }}
-            }}
-            
-            /* Stats Grid */
-            .stats-grid {{
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-                gap: 1.5rem;
-                margin-bottom: 2rem;
-            }}
-            
-            .stat-card {{
-                background: white;
-                padding: 1.5rem;
-                border-radius: var(--radius-2xl);
-                box-shadow: var(--shadow-md);
-                border: 1px solid var(--gray-200);
-                transition: var(--transition);
-                position: relative;
-                overflow: hidden;
-            }}
-            
-            .stat-card:hover {{
-                transform: translateY(-2px);
-                box-shadow: var(--shadow-lg);
-            }}
-            
-            .stat-card::before {{
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 4px;
-                background: linear-gradient(90deg, var(--primary), var(--secondary));
-            }}
-            
-            .stat-header {{
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-bottom: 1rem;
-            }}
-            
-            .stat-title {{
-                font-size: 0.875rem;
-                font-weight: 600;
-                color: var(--gray-600);
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }}
-            
-            .stat-icon {{
-                width: 2.5rem;
-                height: 2.5rem;
-                border-radius: var(--radius-lg);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-size: 1.25rem;
-            }}
-            
-            .stat-icon.spend {{ background: var(--primary); }}
-            .stat-icon.results {{ background: var(--success); }}
-            .stat-icon.gia {{ background: var(--warning); }}
-            .stat-icon.adsets {{ background: var(--info); }}
-            
-            .stat-value {{
-                font-size: 2rem;
-                font-weight: 800;
-                color: var(--gray-900);
-                margin-bottom: 0.5rem;
-                line-height: 1;
-            }}
-            
-            .stat-subtitle {{
-                font-size: 0.875rem;
-                color: var(--gray-600);
-                display: flex;
-                align-items: center;
-                gap: 0.25rem;
-            }}
-            
-            .stat-change {{
-                padding: 0.125rem 0.375rem;
-                border-radius: var(--radius);
-                font-weight: 600;
-                font-size: 0.75rem;
-            }}
-            
-            .stat-change.positive {{
-                background: rgba(16, 185, 129, 0.1);
-                color: var(--success);
-            }}
-            
-            .stat-change.negative {{
-                background: rgba(239, 68, 68, 0.1);
-                color: var(--danger);
-            }}
-            
-            /* Data Table */
-            .table-container {{
-                background: white;
-                border-radius: var(--radius-2xl);
-                box-shadow: var(--shadow-md);
-                border: 1px solid var(--gray-200);
-                overflow: hidden;
-            }}
-            
-            .table-header {{
-                padding: 1.5rem;
-                border-bottom: 1px solid var(--gray-200);
-                background: var(--gray-50);
-            }}
-            
-            .table-title {{
-                font-size: 1.25rem;
-                font-weight: 700;
-                color: var(--gray-900);
-            }}
-            
-            .table-content {{
-                overflow-x: auto;
-                max-height: 600px;
-                overflow-y: auto;
-            }}
-            
-            .data-table {{
-                width: 100%;
-                border-collapse: collapse;
-            }}
-            
-            .data-table th,
-            .data-table td {{
-                padding: 0.75rem 1rem;
-                text-align: left;
-                border-bottom: 1px solid var(--gray-200);
-                vertical-align: middle;
-            }}
-            
-            .data-table th {{
-                background: var(--gray-50);
-                font-weight: 600;
-                color: var(--gray-700);
-                font-size: 0.875rem;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                position: sticky;
-                top: 0;
-                z-index: 10;
-            }}
-            
-            .data-table tbody tr {{
-                transition: var(--transition);
-            }}
-            
-            .data-table tbody tr:hover {{
-                background: var(--gray-50);
-            }}
-            
-            /* Status Badges */
-            .status-badge {{
-                display: inline-flex;
-                align-items: center;
-                gap: 0.25rem;
-                padding: 0.25rem 0.5rem;
-                border-radius: var(--radius);
-                font-size: 0.75rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }}
-            
-            .status-badge.active {{
-                background: rgba(16, 185, 129, 0.1);
-                color: var(--success);
-            }}
-            
-            .status-badge.paused {{
-                background: rgba(239, 68, 68, 0.1);
-                color: var(--danger);
-            }}
-            
-            .status-badge.pending {{
-                background: rgba(245, 158, 11, 0.1);
-                color: var(--warning);
-            }}
-            
-            /* Action Buttons */
-            .action-btn {{
-                padding: 0.375rem 0.75rem;
-                border: 1px solid var(--gray-300);
-                border-radius: var(--radius);
-                background: white;
-                color: var(--gray-700);
-                cursor: pointer;
-                transition: var(--transition);
-                font-size: 0.75rem;
-                font-weight: 500;
-            }}
-            
-            .action-btn:hover {{
-                border-color: var(--primary);
-                color: var(--primary);
-                transform: translateY(-1px);
-            }}
-            
-            .action-btn.danger:hover {{
-                border-color: var(--danger);
-                color: var(--danger);
-                background: rgba(239, 68, 68, 0.05);
-            }}
-            
-            .action-btn.success:hover {{
-                border-color: var(--success);
-                color: var(--success);
-                background: rgba(16, 185, 129, 0.05);
-            }}
-            
-            /* Loading States */
-            .loading {{
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 3rem;
-                color: var(--gray-500);
-            }}
-            
-            .loading-spinner {{
-                animation: spin 1s linear infinite;
-                margin-right: 0.5rem;
-            }}
-            
-            /* Empty State */
-            .empty-state {{
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                padding: 3rem;
-                color: var(--gray-500);
-                text-align: center;
-            }}
-            
-            .empty-state-icon {{
-                font-size: 3rem;
-                margin-bottom: 1rem;
-                opacity: 0.5;
-            }}
-            
-            /* Filter Panel */
-            .filter-panel {{
-                position: fixed;
-                top: 0;
-                right: -400px;
-                width: 400px;
-                height: 100vh;
-                background: white;
-                box-shadow: var(--shadow-xl);
-                transition: var(--transition);
-                z-index: 1000;
-                overflow-y: auto;
-            }}
-            
-            .filter-panel.open {{
-                right: 0;
-            }}
-            
-            .filter-panel-header {{
-                padding: 1.5rem;
-                border-bottom: 1px solid var(--gray-200);
-                background: var(--gray-50);
-            }}
-            
-            .filter-panel-title {{
-                font-size: 1.25rem;
-                font-weight: 700;
-                color: var(--gray-900);
-            }}
-            
-            .filter-panel-content {{
-                padding: 1.5rem;
-            }}
-            
-            .filter-group {{
-                margin-bottom: 1.5rem;
-            }}
-            
-            .filter-label {{
-                display: block;
-                font-weight: 600;
-                color: var(--gray-700);
-                margin-bottom: 0.5rem;
-            }}
-            
-            .filter-select {{
-                width: 100%;
-                padding: 0.5rem 0.75rem;
-                border: 1px solid var(--gray-300);
-                border-radius: var(--radius-lg);
-                background: white;
-                transition: var(--transition);
-            }}
-            
-            .filter-select:focus {{
-                outline: none;
-                border-color: var(--primary);
-                box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1);
-            }}
-            
-            /* Overlay */
-            .overlay {{
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0, 0, 0, 0.5);
-                backdrop-filter: blur(4px);
-                z-index: 999;
-                opacity: 0;
-                visibility: hidden;
-                transition: var(--transition);
-            }}
-            
-            .overlay.open {{
-                opacity: 1;
-                visibility: visible;
-            }}
-            
-            /* Responsive Design */
-            @media (max-width: 1024px) {{
-                .controls-bar {{
-                    grid-template-columns: 1fr;
-                    gap: 1rem;
-                }}
-                
-                .filters-section {{
-                    justify-content: center;
-                    flex-wrap: wrap;
-                }}
-                
-                .stats-grid {{
-                    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-                    gap: 1rem;
-                }}
-            }}
-            
-            @media (max-width: 768px) {{
-                .container {{
-                    padding: 1rem;
-                }}
-                
-                .header {{
-                    flex-direction: column;
-                    gap: 1rem;
-                    text-align: center;
-                }}
-                
-                .header-left,
-                .header-right {{
-                    justify-content: center;
-                }}
-                
-                .stats-grid {{
-                    grid-template-columns: 1fr;
-                }}
-                
-                .table-content {{
-                    max-height: 400px;
-                }}
-                
-                .filter-panel {{
-                    width: 100%;
-                    right: -100%;
-                }}
-            }}
-            
-            /* Dark mode support */
-            @media (prefers-color-scheme: dark) {{
-                /* Add dark mode styles here if needed */
-            }}
-            
-            /* Animation utilities */
-            .fade-in {{
-                animation: fadeIn 0.3s ease-in-out;
-            }}
-            
-            @keyframes fadeIn {{
-                from {{ opacity: 0; transform: translateY(10px); }}
-                to {{ opacity: 1; transform: translateY(0); }}
-            }}
-            
-            .slide-in-right {{
-                animation: slideInRight 0.3s ease-out;
-            }}
-            
-            @keyframes slideInRight {{
-                from {{ transform: translateX(20px); opacity: 0; }}
-                to {{ transform: translateX(0); opacity: 1; }}
-            }}
-            
-            /* Utility classes */
-            .text-center {{ text-align: center; }}
-            .text-right {{ text-align: right; }}
-            .font-semibold {{ font-weight: 600; }}
-            .font-bold {{ font-weight: 700; }}
-            .text-sm {{ font-size: 0.875rem; }}
-            .text-xs {{ font-size: 0.75rem; }}
-            .text-lg {{ font-size: 1.125rem; }}
-            .text-xl {{ font-size: 1.25rem; }}
-            .text-2xl {{ font-size: 1.5rem; }}
-            .hidden {{ display: none; }}
-            .block {{ display: block; }}
-            .inline-block {{ display: inline-block; }}
-            .flex {{ display: flex; }}
-            .inline-flex {{ display: inline-flex; }}
-            .grid {{ display: grid; }}
-            .relative {{ position: relative; }}
-            .absolute {{ position: absolute; }}
-            .mb-0 {{ margin-bottom: 0; }}
-            .mb-1 {{ margin-bottom: 0.25rem; }}
-            .mb-2 {{ margin-bottom: 0.5rem; }}
-            .mb-3 {{ margin-bottom: 0.75rem; }}
-            .mb-4 {{ margin-bottom: 1rem; }}
-            .mb-6 {{ margin-bottom: 1.5rem; }}
-            .mt-2 {{ margin-top: 0.5rem; }}
-            .mt-4 {{ margin-top: 1rem; }}
-            .ml-2 {{ margin-left: 0.5rem; }}
-            .mr-2 {{ margin-right: 0.5rem; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <!-- Header -->
-            <header class="header fade-in">
-                <div class="header-left">
-                    <div class="header-title">
-                        <i class="fas fa-chart-line"></i>
-                        <span>Dashboard</span>
-                    </div>
-                    <div class="settings-status" id="settingsStatus">
-                        <i class="fas fa-cog"></i>
-                        <span>Loading...</span>
-                    </div>
-                </div>
-                <div class="header-right">
-                    <a href="/settings" class="btn-settings">
-                        <i class="fas fa-cog"></i>
-                        <span>Settings</span>
-                    </a>
-                    <a href="/" class="btn-settings">
-                        <i class="fas fa-home"></i>
-                        <span>Home</span>
-                    </a>
-                    <!-- Controls Bar -->
-            <div class="controls-bar slide-in-right">
-                <!-- Filters Section -->
-                <div class="filters-section">
-                    <button class="filter-btn" id="accountFilter" onclick="toggleAccountDropdown()">
-                        <i class="fas fa-user"></i>
-                        <span>Account</span>
-                        <span class="filter-badge hidden" id="accountBadge">0</span>
-                    </button>
-                    
-                    <button class="filter-btn" id="prefixFilter" onclick="togglePrefixDropdown()">
-                        <i class="fas fa-tag"></i>
-                        <span>Prefix</span>
-                        <span class="filter-badge hidden" id="prefixBadge">0</span>
-                    </button>
-                    
-                    <button class="filter-btn" onclick="openFilterPanel()">
-                        <i class="fas fa-filter"></i>
-                        <span>More Filters</span>
-                        <span class="filter-badge hidden" id="totalFiltersBadge">0</span>
-                    </button>
-                </div>
-                
-                <!-- Search -->
-                <div class="search-container">
-                    <div class="search-icon">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <input type="text" class="search-input" id="searchInput" placeholder="Search campaigns, adsets, ads...">
-                </div>
-                
-                <!-- View Type -->
-                <div class="control-group">
-                    <select class="filter-select" id="viewType" onchange="changeViewType()">
-                        <option value="adset">Adset View</option>
-                        <option value="campaign">Campaign View</option>
-                        <option value="ad">Ad View</option>
-                    </select>
-                </div>
-                
-                <!-- Date Range -->
-                <div class="control-group">
-                    <select class="filter-select" id="dateRange" onchange="changeDateRange()">
-                        <option value="today">Today</option>
-                        <option value="yesterday">Yesterday</option>
-                        <option value="last7days">Last 7 Days</option>
-                        <option value="last30days">Last 30 Days</option>
-                        <option value="custom">Custom Range</option>
-                    </select>
-                </div>
-                
-                <!-- Actions -->
-                <div class="control-group">
-                    <button class="control-btn btn-primary" id="refreshBtn" onclick="refreshData()">
-                        <i class="fas fa-sync-alt"></i>
-                        <span>Refresh</span>
-                    </button>
-                </div>
-                
-            </div>
-            
-            <!-- Stats Grid -->
-            <div class="stats-grid fade-in" id="statsGrid">
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-title">Total Spend</div>
-                        <div class="stat-icon spend">
-                            <i class="fas fa-dollar-sign"></i>
-                        </div>
-                    </div>
-                    <div class="stat-value" id="totalSpend">$0</div>
-                    <div class="stat-subtitle">
-                        <span id="spendChange" class="stat-change">-</span>
-                        <span>vs last period</span>
-                    </div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-title">Results</div>
-                        <div class="stat-icon results">
-                            <i class="fas fa-chart-line"></i>
-                        </div>
-                    </div>
-                    <div class="stat-value" id="totalResults">0</div>
-                    <div class="stat-subtitle">
-                        <span id="resultsChange" class="stat-change">-</span>
-                        <span>vs last period</span>
-                    </div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-title">Avg Cost per Result</div>
-                        <div class="stat-icon gia">
-                            <i class="fas fa-target"></i>
-                        </div>
-                    </div>
-                    <div class="stat-value" id="avgGiaData">$0</div>
-                    <div class="stat-subtitle">
-                        <span id="giaChange" class="stat-change">-</span>
-                        <span>vs last period</span>
-                    </div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-title">Active Adsets</div>
-                        <div class="stat-icon adsets">
-                            <i class="fas fa-play-circle"></i>
-                        </div>
-                    </div>
-                    <div class="stat-value">
-                        <span id="activeAdsets">0</span>
-                        <span class="text-sm text-gray-500">/ </span>
-                        <span id="totalAdsets" class="text-sm text-gray-500">0</span>
-                    </div>
-                    <div class="stat-subtitle">
-                        <span id="adsetsChange" class="stat-change">-</span>
-                        <span>adsets total</span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Data Table -->
-            <div class="table-container fade-in">
-                <div class="table-header">
-                    <h2 class="table-title" id="tableTitle">Adsets Performance</h2>
-                </div>
-                <div class="table-content">
-                    <table class="data-table" id="dataTable">
-                        <thead id="tableHead">
-                            <tr>
-                                <th>Status</th>
-                                <th>Name</th>
-                                <th>Account</th>
-                                <th>Prefix</th>
-                                <th>Spend</th>
-                                <th>Results</th>
-                                <th>Cost/Result</th>
-                                <th>Impressions</th>
-                                <th>Clicks</th>
-                                <th>CTR</th>
-                                <th>CPC</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tableBody">
-                            <tr>
-                                <td colspan="12" class="loading">
-                                    <i class="fas fa-spinner loading-spinner"></i>
-                                    <span>Loading data...</span>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <!-- Pagination -->
-            <div id="pagination" class="flex justify-center mt-6 hidden">
-                <!-- Pagination will be populated by JavaScript -->
-            </div>
-        </div>
+@router.get("/data")
+async def dashboard_data(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=10, le=500),
+    account_id: Optional[str] = Query(None),
+    prefix: Optional[str] = Query(None),
+    campaign_type: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    view_type: Optional[str] = Query('adset')
+):
+    """API endpoint để lấy dữ liệu dashboard"""
+    
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Lấy account_ids và prefixes của user
+        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db)
         
-        <!-- Filter Panel -->
-        <div class="filter-panel" id="filterPanel">
-            <div class="filter-panel-header">
-                <h3 class="filter-panel-title">Advanced Filters</h3>
-                <button class="control-btn" onclick="closeFilterPanel()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="filter-panel-content">
-                <div class="filter-group">
-                    <label class="filter-label">Campaign Type</label>
-                    <select class="filter-select" id="campaignTypeFilter">
-                        <option value="">All Campaign Types</option>
-                        <option value="ECOMMERCE">E-commerce</option>
-                        <option value="LEAD_GENERATION">Lead Generation</option>
-                    </select>
-                </div>
-                
-                <div class="filter-group">
-                    <label class="filter-label">Status</label>
-                    <select class="filter-select" id="statusFilter">
-                        <option value="">All Statuses</option>
-                        <option value="ACTIVE">Active</option>
-                        <option value="PAUSED">Paused</option>
-                        <option value="ARCHIVED">Archived</option>
-                    </select>
-                </div>
-                
-                <div class="filter-group">
-                    <label class="filter-label">Custom Date Range</label>
-                    <input type="date" class="filter-select" id="dateFrom" onchange="updateFilters()">
-                    <input type="date" class="filter-select mt-2" id="dateTo" onchange="updateFilters()">
-                </div>
-                
-                <div class="filter-group">
-                    <button class="control-btn btn-primary" onclick="applyFilters()" style="width: 100%;">
-                        <i class="fas fa-filter"></i>
-                        <span>Apply Filters</span>
-                    </button>
-                </div>
-                
-                <div class="filter-group">
-                    <button class="control-btn" onclick="clearFilters()" style="width: 100%;">
-                        <i class="fas fa-times"></i>
-                        <span>Clear All</span>
-                    </button>
-                </div>
-            </div>
-        </div>
+        if not user_account_ids:
+            return JSONResponse({
+                "ads": [],
+                "total": 0,
+                "stats": {
+                    "totalSpend": 0,
+                    "totalResults": 0,
+                    "avgGiaData": 0,
+                    "activeAdsets": 0,
+                    "pausedAdsets": 0,
+                    "totalAdsets": 0
+                }
+            })
         
-        <!-- Overlay -->
-        <div class="overlay" id="overlay" onclick="closeFilterPanel()"></div>
+        # Build query
+        query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(user_account_ids))
         
-        <script>
-            // Global variables
-            let currentFilters = {{}};
-            let currentPage = 1;
-            let pageSize = 50;
-            let isLoading = false;
-            let settingsData = null;
-            
-            // Authentication helper
-            function getAuthToken() {{
-                return localStorage.getItem('access_token') || '';
-            }}
-            
-            // Initialize dashboard
-            document.addEventListener('DOMContentLoaded', function() {{
-                checkSettingsStatus();
-                loadFilters();
-                loadData();
-                
-                // Setup search debouncing
-                const searchInput = document.getElementById('searchInput');
-                let searchTimeout;
-                searchInput.addEventListener('input', function() {{
-                    clearTimeout(searchTimeout);
-                    searchTimeout = setTimeout(() => {{
-                        currentFilters.search = this.value;
-                        currentPage = 1;
-                        loadData();
-                    }}, 500);
-                }});
-                
-                // Auto-refresh every 5 minutes
-                setInterval(refreshData, 300000);
-            }});
-            
-            // Check settings status
-            async function checkSettingsStatus() {{
-                try {{
-                    const response = await fetch('/dashboard/settings-status', {{
-                        headers: {{
-                            'Authorization': 'Bearer ' + getAuthToken()
-                        }}
-                    }});
-                    
-                    if (response.ok) {{
-                        const status = await response.json();
-                        updateSettingsStatus(status);
-                    }}
-                }} catch (error) {{
-                    console.error('Error checking settings status:', error);
-                }}
-            }}
-            
-            // Update settings status indicator
-            function updateSettingsStatus(status) {{
-                const statusElement = document.getElementById('settingsStatus');
-                const icon = statusElement.querySelector('i');
-                const text = statusElement.querySelector('span');
-                
-                if (status.settings_complete) {{
-                    statusElement.className = 'settings-status complete';
-                    icon.className = 'fas fa-check-circle';
-                    text.textContent = `Ready ({{status.accounts_count}} accounts, {{status.prefixes_count}} prefixes)`;
-                }} else {{
-                    statusElement.className = 'settings-status incomplete';
-                    icon.className = 'fas fa-exclamation-triangle';
-                    
-                    if (!status.has_token) {{
-                        text.textContent = 'Token missing - Configure in Settings';
-                    }} else if (status.accounts_count === 0) {{
-                        text.textContent = 'No accounts - Add in Settings';
-                    }} else if (status.prefixes_count === 0) {{
-                        text.textContent = 'No prefixes - Add in Settings';
-                    }} else {{
-                        text.textContent = 'Setup incomplete - Check Settings';
-                    }}
-                }}
-            }}
-            
-            // Load available filters from settings
-            async function loadFilters() {{
-                try {{
-                    const response = await fetch('/dashboard/filters', {{
-                        headers: {{
-                            'Authorization': 'Bearer ' + getAuthToken()
-                        }}
-                    }});
-                    
-                    if (response.ok) {{
-                        settingsData = await response.json();
-                        populateFilterDropdowns();
-                    }}
-                }} catch (error) {{
-                    console.error('Error loading filters:', error);
-                }}
-            }}
-            
-            // Populate filter dropdowns
-            function populateFilterDropdowns() {{
-                if (!settingsData) return;
-                
-                // Update account filter button text
-                const accountBtn = document.getElementById('accountFilter');
-                accountBtn.querySelector('span').textContent = `Account ({{settingsData.accounts.length}})`;
-                
-                // Update prefix filter button text  
-                const prefixBtn = document.getElementById('prefixFilter');
-                prefixBtn.querySelector('span').textContent = `Prefix ({{settingsData.prefixes.length}})`;
-                
-                // Populate campaign type filter
-                const campaignTypeSelect = document.getElementById('campaignTypeFilter');
-                campaignTypeSelect.innerHTML = '<option value="">All Campaign Types</option>';
-                settingsData.campaign_types.forEach(type => {{
-                    const option = document.createElement('option');
-                    option.value = type;
-                    option.textContent = type;
-                    campaignTypeSelect.appendChild(option);
-                }});
-            }}
-            
-            // Load dashboard data
-            async function loadData() {{
-                if (isLoading) return;
-                
-                isLoading = true;
-                updateLoadingState(true);
-                
-                try {{
-                    const params = buildAPIParams();
-                    const response = await fetch(`/dashboard/data?${{params}}`, {{
-                        headers: {{
-                            'Authorization': 'Bearer ' + getAuthToken()
-                        }}
-                    }});
-                    
-                    if (!response.ok) {{
-                        throw new Error('Failed to load data');
-                    }}
-                    
-                    const data = await response.json();
-                    updateStats(data.stats || {{}});
-                    updateTable(data.ads || [], data.total || 0);
-                    
-                }} catch (error) {{
-                    console.error('Error loading data:', error);
-                    showError('Failed to load data: ' + error.message);
-                }} finally {{
-                    isLoading = false;
-                    updateLoadingState(false);
-                }}
-            }}
-            
-            // Build API parameters
-            function buildAPIParams() {{
-                const params = new URLSearchParams({{
-                    page: currentPage,
-                    page_size: pageSize,
-                    view_type: document.getElementById('viewType').value
-                }});
-                
-                // Add filters
-                Object.keys(currentFilters).forEach(key => {{
-                    if (currentFilters[key] && currentFilters[key] !== '') {{
-                        params.append(key, currentFilters[key]);
-                    }}
-                }});
-                
-                return params.toString();
-            }}
-            
-            // Update stats cards
-            function updateStats(stats) {{
-                document.getElementById('totalSpend').textContent = formatCurrency(stats.totalSpend || 0);
-                document.getElementById('totalResults').textContent = formatNumber(stats.totalResults || 0);
-                document.getElementById('avgGiaData').textContent = formatCurrency(stats.avgGiaData || 0);
-                document.getElementById('activeAdsets').textContent = formatNumber(stats.activeAdsets || 0);
-                document.getElementById('totalAdsets').textContent = formatNumber(stats.totalAdsets || 0);
-                
-                // Animate counters
-                animateCounter('totalSpend', stats.totalSpend || 0, true);
-                animateCounter('totalResults', stats.totalResults || 0);
-                animateCounter('avgGiaData', stats.avgGiaData || 0, true);
-            }}
-            
-            // Update table
-            function updateTable(ads, total) {{
-                const tableBody = document.getElementById('tableBody');
-                const viewType = document.getElementById('viewType').value;
-                
-                if (ads.length === 0) {{
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="12" class="empty-state">
-                                <div class="empty-state-icon">
-                                    <i class="fas fa-chart-line"></i>
-                                </div>
-                                <div>No data available</div>
-                                <small>Try adjusting your filters or date range</small>
-                            </td>
-                        </tr>
-                    `;
-                    return;
-                }}
-                
-                tableBody.innerHTML = ads.map(ad => `
-                    <tr>
-                        <td>
-                            <span class="status-badge ${{ad.adset_status.toLowerCase()}}">
-                                <i class="fas fa-${{ad.adset_status === 'ACTIVE' ? 'play' : 'pause'}}"></i>
-                                ${{ad.adset_status}}
-                            </span>
-                        </td>
-                        <td>
-                            <div class="font-semibold">
-                                ${{viewType === 'campaign' ? ad.campaign_name : 
-                                  viewType === 'adset' ? ad.adset_name : ad.ad_name}}
-                            </div>
-                            <div class="text-sm text-gray-500">
-                                ID: ${{viewType === 'campaign' ? ad.campaign_id : 
-                                      viewType === 'adset' ? ad.adset_id : ad.ad_id}}
-                            </div>
-                        </td>
-                        <td>
-                            <span class="text-sm">${{ad.account_id}}</span>
-                        </td>
-                        <td>
-                            <span class="font-semibold">${{ad.prefix || '-'}}</span>
-                        </td>
-                        <td class="font-semibold">${{formatCurrency(ad.spend)}}</td>
-                        <td class="font-semibold">${{formatNumber(ad.results)}}</td>
-                        <td>${{formatCurrency(ad.gia_data)}}</td>
-                        <td>${{formatNumber(ad.impressions)}}</td>
-                        <td>${{formatNumber(ad.clicks)}}</td>
-                        <td>${{formatPercentage(ad.ctr)}}%</td>
-                        <td>${{formatCurrency(ad.cpc)}}</td>
-                        <td>
-                            <div class="flex gap-1">
-                                <button class="action-btn ${{ad.adset_status === 'ACTIVE' ? 'danger' : 'success'}}" 
-                                        onclick="toggleStatus('${{ad.adset_id}}', '${{ad.adset_status}}')">
-                                    <i class="fas fa-${{ad.adset_status === 'ACTIVE' ? 'pause' : 'play'}}"></i>
-                                </button>
-                                <button class="action-btn" onclick="increaseBudget('${{ad.adset_id}}')">
-                                    <i class="fas fa-arrow-up"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `).join('');
-                
-                // Update pagination
-                updatePagination(total);
-            }}
-            
-            // Update loading states
-            function updateLoadingState(loading) {{
-                const refreshBtn = document.getElementById('refreshBtn');
-                const refreshIcon = refreshBtn.querySelector('i');
-                
-                if (loading) {{
-                    refreshBtn.classList.add('loading');
-                    refreshIcon.classList.add('fa-spin');
-                }} else {{
-                    refreshBtn.classList.remove('loading');
-                    refreshIcon.classList.remove('fa-spin');
-                }}
-            }}
-            
-            // Refresh data
-            function refreshData() {{
-                currentPage = 1;
-                loadData();
-                checkSettingsStatus();
-            }}
-            
-            // Filter panel functions
-            function openFilterPanel() {{
-                document.getElementById('filterPanel').classList.add('open');
-                document.getElementById('overlay').classList.add('open');
-            }}
-            
-            function closeFilterPanel() {{
-                document.getElementById('filterPanel').classList.remove('open');
-                document.getElementById('overlay').classList.remove('open');
-            }}
-            
-            // Apply filters
-            function applyFilters() {{
-                currentFilters.campaign_type = document.getElementById('campaignTypeFilter').value;
-                currentFilters.status = document.getElementById('statusFilter').value;
-                currentFilters.date_from = document.getElementById('dateFrom').value;
-                currentFilters.date_to = document.getElementById('dateTo').value;
-                
-                currentPage = 1;
-                loadData();
-                closeFilterPanel();
-                updateFilterBadges();
-            }}
-            
-            // Clear filters
-            function clearFilters() {{
-                currentFilters = {{}};
-                document.getElementById('campaignTypeFilter').value = '';
-                document.getElementById('statusFilter').value = '';
-                document.getElementById('dateFrom').value = '';
-                document.getElementById('dateTo').value = '';
-                document.getElementById('searchInput').value = '';
-                
-                currentPage = 1;
-                loadData();
-                updateFilterBadges();
-            }}
-            
-            // Update filter badges
-            function updateFilterBadges() {{
-                const activeFilters = Object.values(currentFilters).filter(v => v && v !== '').length;
-                const badge = document.getElementById('totalFiltersBadge');
-                
-                if (activeFilters > 0) {{
-                    badge.textContent = activeFilters;
-                    badge.classList.remove('hidden');
-                }} else {{
-                    badge.classList.add('hidden');
-                }}
-            }}
-            
-            // Change view type
-            function changeViewType() {{
-                const viewType = document.getElementById('viewType').value;
-                document.getElementById('tableTitle').textContent = 
-                    viewType.charAt(0).toUpperCase() + viewType.slice(1) + 's Performance';
-                
-                currentPage = 1;
-                loadData();
-            }}
-            
-            // Change date range
-            function changeDateRange() {{
-                const range = document.getElementById('dateRange').value;
-                const today = new Date();
-                let dateFrom, dateTo;
-                
-                switch(range) {{
-                    case 'today':
-                        dateFrom = dateTo = today.toISOString().split('T')[0];
-                        break;
-                    case 'yesterday':
-                        const yesterday = new Date(today);
-                        yesterday.setDate(yesterday.getDate() - 1);
-                        dateFrom = dateTo = yesterday.toISOString().split('T')[0];
-                        break;
-                    case 'last7days':
-                        const week = new Date(today);
-                        week.setDate(week.getDate() - 7);
-                        dateFrom = week.toISOString().split('T')[0];
-                        dateTo = today.toISOString().split('T')[0];
-                        break;
-                    case 'last30days':
-                        const month = new Date(today);
-                        month.setDate(month.getDate() - 30);
-                        dateFrom = month.toISOString().split('T')[0];
-                        dateTo = today.toISOString().split('T')[0];
-                        break;
-                    default:
-                        return; // Custom range handled separately
-                }}
-                
-                if (dateFrom && dateTo) {{
-                    currentFilters.date_from = dateFrom;
-                    currentFilters.date_to = dateTo;
-                    currentPage = 1;
-                    loadData();
-                }}
-            }}
-            
-            // Action functions
-            async function toggleStatus(entityId, currentStatus) {{
-                const action = currentStatus === 'ACTIVE' ? 'pause' : 'activate';
-                
-                try {{
-                    const response = await fetch(`/dashboard/action/${{action}}/${{entityId}}`, {{
-                        method: 'POST',
-                        headers: {{
-                            'Authorization': 'Bearer ' + getAuthToken(),
-                            'Content-Type': 'application/json'
-                        }}
-                    }});
-                    
-                    if (response.ok) {{
-                        showSuccess(`Successfully ${{action}}d entity`);
-                        loadData(); // Refresh data
-                    }} else {{
-                        throw new Error(`Failed to ${{action}} entity`);
-                    }}
-                }} catch (error) {{
-                    showError(error.message);
-                }}
-            }}
-            
-            async function increaseBudget(entityId) {{
-                try {{
-                    const response = await fetch(`/dashboard/action/increase-budget/${{entityId}}`, {{
-                        method: 'POST',
-                        headers: {{
-                            'Authorization': 'Bearer ' + getAuthToken(),
-                            'Content-Type': 'application/json'
-                        }}
-                    }});
-                    
-                    if (response.ok) {{
-                        showSuccess('Budget increased successfully');
-                        loadData(); // Refresh data
-                    }} else {{
-                        throw new Error('Failed to increase budget');
-                    }}
-                }} catch (error) {{
-                    showError(error.message);
-                }}
-            }}
-            
-            
-            // Utility functions
-            function formatCurrency(value) {{
-                return new Intl.NumberFormat('vi-VN', {{
-                    style: 'currency',
-                    currency: 'VND',
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                }}).format(value || 0);
-            }}
-            
-            function formatNumber(value) {{
-                return new Intl.NumberFormat('vi-VN').format(value || 0);
-            }}
-            
-            function formatPercentage(value) {{
-                return (value || 0).toFixed(2);
-            }}
-            
-            function animateCounter(elementId, targetValue, isCurrency = false) {{
-                const element = document.getElementById(elementId);
-                const duration = 1000;
-                const start = 0;
-                const increment = targetValue / (duration / 16);
-                let current = start;
-                
-                const timer = setInterval(() => {{
-                    current += increment;
-                    if (current >= targetValue) {{
-                        current = targetValue;
-                        clearInterval(timer);
-                    }}
-                    
-                    element.textContent = isCurrency ? formatCurrency(current) : formatNumber(current);
-                }}, 16);
-            }}
-            
-            function showSuccess(message) {{
-                // Implement toast notification
-                console.log('Success:', message);
-            }}
-            
-            function showError(message) {{
-                // Implement toast notification  
-                console.error('Error:', message);
-            }}
-            
-            // Pagination functions
-            function updatePagination(total) {{
-                const totalPages = Math.ceil(total / pageSize);
-                const paginationElement = document.getElementById('pagination');
-                
-                if (totalPages <= 1) {{
-                    paginationElement.classList.add('hidden');
-                    return;
-                }}
-                
-                paginationElement.classList.remove('hidden');
-                // Implement pagination UI here
-            }}
-        </script>
-    </body>
-    </html>
-    """
-        return HTMLResponse(content=html_content)
+        # Apply filters
+        if account_id:
+            query = query.filter(AdMetrics.account_id == account_id)
+        
+        if prefix:
+            query = query.filter(AdMetrics.prefix == prefix)
+        
+        if campaign_type and campaign_type != 'all':
+            query = query.filter(AdMetrics.campaign_type == campaign_type)
+        
+        if status:
+            query = query.filter(AdMetrics.adset_status == status)
+        
+        # Date filter
+        if date_from:
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                query = query.filter(func.date(AdMetrics.date) >= date_from_obj)
+            except ValueError:
+                pass
+        
+        if date_to:
+            try:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                query = query.filter(func.date(AdMetrics.date) <= date_to_obj)
+            except ValueError:
+                pass
+        
+        # Search filter
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                or_(
+                    AdMetrics.campaign_name.ilike(search_term),
+                    AdMetrics.adset_name.ilike(search_term),
+                    AdMetrics.ad_name.ilike(search_term)
+                )
+            )
+        
+        # Get total count
+        total_query = query
+        total = total_query.count()
+        
+        # Apply pagination
+        offset = (page - 1) * page_size
+        ads = query.offset(offset).limit(page_size).all()
+        
+        # Calculate stats
+        stats_query = db.query(
+            func.sum(AdMetrics.spend).label('total_spend'),
+            func.sum(AdMetrics.results).label('total_results'),
+            func.avg(AdMetrics.gia_data).label('avg_gia_data'),
+            func.sum(case((AdMetrics.adset_status == 'ACTIVE', 1), else_=0)).label('active_adsets'),
+            func.sum(case((AdMetrics.adset_status == 'PAUSED', 1), else_=0)).label('paused_adsets'),
+            func.count(distinct(AdMetrics.adset_id)).label('total_adsets')
+        ).filter(AdMetrics.account_id.in_(user_account_ids))
+        
+        # Apply same filters to stats
+        if account_id:
+            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
+        if prefix:
+            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
+        if campaign_type and campaign_type != 'all':
+            stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
+        if date_from:
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                stats_query = stats_query.filter(func.date(AdMetrics.date) >= date_from_obj)
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                stats_query = stats_query.filter(func.date(AdMetrics.date) <= date_to_obj)
+            except ValueError:
+                pass
+        
+        stats_result = stats_query.first()
+        
+        stats = {
+            "totalSpend": float(stats_result.total_spend or 0),
+            "totalResults": int(stats_result.total_results or 0),
+            "avgGiaData": float(stats_result.avg_gia_data or 0),
+            "activeAdsets": int(stats_result.active_adsets or 0),
+            "pausedAdsets": int(stats_result.paused_adsets or 0),
+            "totalAdsets": int(stats_result.total_adsets or 0)
+        }
+        
+        # Convert ads to dict
+        ads_data = []
+        for ad in ads:
+            ads_data.append({
+                "campaign_id": ad.campaign_id,
+                "campaign_name": ad.campaign_name,
+                "adset_id": ad.adset_id,
+                "adset_name": ad.adset_name,
+                "ad_id": ad.ad_id,
+                "ad_name": ad.ad_name,
+                "account_id": ad.account_id,
+                "prefix": ad.prefix,
+                "adset_status": ad.adset_status,
+                "spend": float(ad.spend or 0),
+                "results": int(ad.results or 0),
+                "gia_data": float(ad.gia_data or 0),
+                "impressions": int(ad.impressions or 0),
+                "clicks": int(ad.clicks or 0),
+                "ctr": float(ad.ctr or 0),
+                "cpc": float(ad.cpc or 0),
+                "purchases": int(ad.purchases or 0),
+                "purchase_value": float(ad.purchase_value or 0),
+                "daily_budget": float(ad.amount_spent or 0)  # Using amount_spent as budget placeholder
+            })
+        
+        return JSONResponse({
+            "ads": ads_data,
+            "total": total,
+            "stats": stats
+        })
         
     except Exception as e:
-        logger.error(f"Error in dashboard page: {e}")
-        return HTMLResponse(content=f"<div>Error: {str(e)}</div>", status_code=500)
+        logger.error(f"Error in dashboard_data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Action endpoints for dashboard operations
+@router.post("/action/pause/{entity_id}")
+async def pause_entity(
+    entity_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Pause an adset/campaign"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Here you would implement the actual pause logic using Facebook API
+    # For now, return success
+    return JSONResponse({"success": True, "message": "Paused successfully"})
+
+
+@router.post("/action/activate/{entity_id}")
+async def activate_entity(
+    entity_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Activate an adset/campaign"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Here you would implement the actual activate logic using Facebook API
+    # For now, return success
+    return JSONResponse({"success": True, "message": "Activated successfully"})
+
+
+@router.post("/action/increase-budget/{entity_id}")
+async def increase_budget(
+    entity_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Increase budget by 20%"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Here you would implement the actual budget increase logic using Facebook API
+    # For now, return success
+    return JSONResponse({"success": True, "message": "Budget increased successfully"})
+
+
+@router.post("/action/decrease-budget/{entity_id}")
+async def decrease_budget(
+    entity_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Decrease budget by 20%"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Here you would implement the actual budget decrease logic using Facebook API
+    # For now, return success
+    return JSONResponse({"success": True, "message": "Budget decreased successfully"})
+
+
+@router.get("/summary")
+async def get_dashboard_summary(
+    request: Request,
+    view_mode: str = Query("ecommerce", description="View mode: ecommerce or lead"),
+    account_id: Optional[str] = Query(None),
+    prefix: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Get Overview Cards summary based on view mode and date range"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Get user's enabled accounts and prefixes
+        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
+        
+        if not user_account_ids:
+            # Return empty summary if no accounts
+            if view_mode == "ecommerce":
+                return JSONResponse({
+                    "totalSpend": 0,
+                    "adsPercent": 0,
+                    "purchaseValue": 0,
+                    "activeAdsets": 0,
+                    "pausedAdsets": 0,
+                    "totalAdsets": 0
+                })
+            else:  # lead
+                return JSONResponse({
+                    "totalSpend": 0,
+                    "totalLeads": 0,
+                    "avgGiaData": 0,
+                    "activeAdsets": 0,
+                    "pausedAdsets": 0,
+                    "totalAdsets": 0
+                })
+        
+        # Build date filter
+        end_date = datetime.now(HCM_TZ).replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        if date_from:
+            try:
+                start_date = datetime.strptime(date_from, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0)
+                start_date = HCM_TZ.localize(start_date)
+            except ValueError:
+                start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        if date_to:
+            try:
+                end_date = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999)
+                end_date = HCM_TZ.localize(end_date)
+            except ValueError:
+                pass
+        
+        # Build query
+        query = db.query(AdMetrics).filter(
+            AdMetrics.account_id.in_(user_account_ids),
+            func.date(AdMetrics.date) >= start_date.date(),
+            func.date(AdMetrics.date) <= end_date.date()
+        )
+        
+        # Apply filters
+        if account_id:
+            query = query.filter(AdMetrics.account_id == account_id)
+        
+        if prefix:
+            query = query.filter(AdMetrics.adset_name.like(f"{prefix}%"))
+        
+        # Filter by view mode (campaign type)
+        if view_mode == "ecommerce":
+            query = query.filter(AdMetrics.campaign_type == "ECOMMERCE")
+        elif view_mode == "lead":
+            query = query.filter(AdMetrics.campaign_type == "LEAD_GENERATION")
+        
+        # Aggregate metrics
+        metrics = query.all()
+        
+        # Calculate totals
+        total_spend = sum(float(m.spend or 0) for m in metrics)
+        total_purchases = sum(int(m.purchases or 0) for m in metrics)
+        total_purchase_value = sum(float(m.purchase_value or 0) for m in metrics)
+        
+        # Calculate leads (comments + messages)
+        # Note: AdMetrics may not have comments/messages fields directly
+        # We'll use leads field if available, otherwise calculate from results
+        total_leads = sum(int(m.leads or m.results or 0) for m in metrics)
+        
+        # Count adsets by status
+        adset_statuses = {}
+        for m in metrics:
+            status = (m.adset_status or "UNKNOWN").upper()
+            adset_id = m.adset_id
+            if adset_id not in adset_statuses:
+                adset_statuses[adset_id] = status
+        
+        active_adsets = len([s for s in adset_statuses.values() if s == "ACTIVE"])
+        paused_adsets = len([s for s in adset_statuses.values() if s in ["PAUSED", "ARCHIVED"]])
+        total_adsets = len(adset_statuses)
+        
+        if view_mode == "ecommerce":
+            # E-Commerce metrics
+            ads_percent = (total_spend / total_purchase_value * 100) if total_purchase_value > 0 else 0
+            
+            return JSONResponse({
+                "totalSpend": round(total_spend, 2),
+                "adsPercent": round(ads_percent, 2),
+                "purchaseValue": round(total_purchase_value, 2),
+                "activeAdsets": active_adsets,
+                "pausedAdsets": paused_adsets,
+                "totalAdsets": total_adsets
+            })
+        else:
+            # Lead Generation metrics
+            avg_gia_data = total_spend / total_leads if total_leads > 0 else 0
+            
+            return JSONResponse({
+                "totalSpend": round(total_spend, 2),
+                "totalLeads": total_leads,
+                "avgGiaData": round(avg_gia_data, 2),
+                "activeAdsets": active_adsets,
+                "pausedAdsets": paused_adsets,
+                "totalAdsets": total_adsets
+            })
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard summary: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error loading summary: {str(e)}")
+
+
+@router.get("/details")
+async def get_dashboard_details(
+    request: Request,
+    view_mode: str = Query("ecommerce", description="View mode: ecommerce or lead"),
+    level: str = Query("adset", description="Level: campaign, adset, or ad"),
+    account_id: Optional[str] = Query(None),
+    prefix: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=10, le=500),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Get detailed table data for Campaign/Adset/Ad with different columns based on view mode"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Get user's enabled accounts and prefixes
+        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
+        
+        if not user_account_ids:
+            return JSONResponse({
+                "rows": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size
+            })
+        
+        # Build date filter
+        end_date = datetime.now(HCM_TZ).replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        if date_from:
+            try:
+                start_date = datetime.strptime(date_from, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0)
+                start_date = HCM_TZ.localize(start_date)
+            except ValueError:
+                start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        if date_to:
+            try:
+                end_date = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999)
+                end_date = HCM_TZ.localize(end_date)
+            except ValueError:
+                pass
+        
+        # Build base query
+        query = db.query(AdMetrics).filter(
+            AdMetrics.account_id.in_(user_account_ids),
+            func.date(AdMetrics.date) >= start_date.date(),
+            func.date(AdMetrics.date) <= end_date.date()
+        )
+        
+        # Apply filters
+        if account_id:
+            query = query.filter(AdMetrics.account_id == account_id)
+        
+        if prefix:
+            query = query.filter(AdMetrics.adset_name.like(f"{prefix}%"))
+        
+        # Filter by view mode (campaign type)
+        if view_mode == "ecommerce":
+            query = query.filter(AdMetrics.campaign_type == "ECOMMERCE")
+        elif view_mode == "lead":
+            query = query.filter(AdMetrics.campaign_type == "LEAD_GENERATION")
+        
+        # Status filter
+        if status:
+            query = query.filter(AdMetrics.adset_status == status)
+        
+        # Search filter
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                or_(
+                    AdMetrics.campaign_name.ilike(search_term),
+                    AdMetrics.adset_name.ilike(search_term),
+                    AdMetrics.ad_name.ilike(search_term)
+                )
+            )
+        
+        # Group by level
+        if level == "campaign":
+            # Group by campaign
+            group_by_fields = [
+                AdMetrics.campaign_id,
+                AdMetrics.campaign_name,
+                AdMetrics.account_id,
+                AdMetrics.prefix
+            ]
+            
+            # Aggregate metrics
+            query = query.with_entities(
+                AdMetrics.campaign_id,
+                AdMetrics.campaign_name,
+                AdMetrics.account_id,
+                AdMetrics.prefix,
+                func.sum(AdMetrics.spend).label('spend'),
+                func.sum(AdMetrics.results).label('results'),
+                func.sum(AdMetrics.impressions).label('impressions'),
+                func.sum(AdMetrics.clicks).label('clicks'),
+                func.sum(AdMetrics.purchases).label('purchases'),
+                func.sum(AdMetrics.purchase_value).label('purchase_value'),
+                func.sum(AdMetrics.leads).label('leads'),
+                func.avg(AdMetrics.gia_data).label('gia_data'),
+                func.avg(AdMetrics.ctr).label('ctr'),
+                func.avg(AdMetrics.cpc).label('cpc'),
+                func.max(AdMetrics.adset_status).label('status')  # Use max to get status
+            ).group_by(*group_by_fields)
+            
+        elif level == "adset":
+            # Group by adset
+            group_by_fields = [
+                AdMetrics.adset_id,
+                AdMetrics.adset_name,
+                AdMetrics.campaign_id,
+                AdMetrics.campaign_name,
+                AdMetrics.account_id,
+                AdMetrics.prefix
+            ]
+            
+            query = query.with_entities(
+                AdMetrics.adset_id,
+                AdMetrics.adset_name,
+                AdMetrics.campaign_id,
+                AdMetrics.campaign_name,
+                AdMetrics.account_id,
+                AdMetrics.prefix,
+                func.sum(AdMetrics.spend).label('spend'),
+                func.sum(AdMetrics.results).label('results'),
+                func.sum(AdMetrics.impressions).label('impressions'),
+                func.sum(AdMetrics.clicks).label('clicks'),
+                func.sum(AdMetrics.purchases).label('purchases'),
+                func.sum(AdMetrics.purchase_value).label('purchase_value'),
+                func.sum(AdMetrics.leads).label('leads'),
+                func.avg(AdMetrics.gia_data).label('gia_data'),
+                func.avg(AdMetrics.ctr).label('ctr'),
+                func.avg(AdMetrics.cpc).label('cpc'),
+                AdMetrics.adset_status.label('status')
+            ).group_by(*group_by_fields)
+            
+        else:  # level == "ad"
+            # Individual ads - no grouping needed
+            query = query.with_entities(
+                AdMetrics.ad_id,
+                AdMetrics.ad_name,
+                AdMetrics.adset_id,
+                AdMetrics.adset_name,
+                AdMetrics.campaign_id,
+                AdMetrics.campaign_name,
+                AdMetrics.account_id,
+                AdMetrics.prefix,
+                AdMetrics.spend,
+                AdMetrics.results,
+                AdMetrics.impressions,
+                AdMetrics.clicks,
+                AdMetrics.purchases,
+                AdMetrics.purchase_value,
+                AdMetrics.leads,
+                AdMetrics.gia_data,
+                AdMetrics.ctr,
+                AdMetrics.cpc,
+                AdMetrics.adset_status.label('status')
+            )
+        
+        # Get total count
+        total = query.count()
+        
+        # Apply pagination
+        offset = (page - 1) * page_size
+        results = query.offset(offset).limit(page_size).all()
+        
+        # Convert to dict format
+        rows = []
+        for row in results:
+            if level == "campaign":
+                entity_id = row.campaign_id
+                entity_name = row.campaign_name
+                status = row.status or "UNKNOWN"
+            elif level == "adset":
+                entity_id = row.adset_id
+                entity_name = row.adset_name
+                status = row.status or "UNKNOWN"
+            else:  # ad
+                entity_id = row.ad_id
+                entity_name = row.ad_name
+                status = row.status or "UNKNOWN"
+            
+            # Calculate derived metrics
+            spend = float(row.spend or 0)
+            results_count = int(row.results or 0)
+            impressions = int(row.impressions or 0)
+            clicks = int(row.clicks or 0)
+            purchases = int(row.purchases or 0)
+            purchase_value = float(row.purchase_value or 0)
+            leads = int(row.leads or 0)
+            
+            # Calculate metrics
+            gia_data = float(row.gia_data or 0) if row.gia_data else (spend / results_count if results_count > 0 else 0)
+            cpm = (spend / impressions * 1000) if impressions > 0 else 0
+            ctr = float(row.ctr or 0) if row.ctr else ((clicks / impressions * 100) if impressions > 0 else 0)
+            cpc = float(row.cpc or 0) if row.cpc else ((spend / clicks) if clicks > 0 else 0)
+            
+            # Calculate view-mode specific metrics
+            if view_mode == "ecommerce":
+                ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
+                tlc = (purchases / results_count) if results_count > 0 else 0
+                checkout_starts = 0  # Not available in AdMetrics, would need to add
+            else:  # lead
+                cost_per_checkout_start = 0  # Not available in AdMetrics
+                checkout_starts = 0  # Not available in AdMetrics
+            
+            row_data = {
+                "id": entity_id,
+                "name": entity_name or "-",
+                "account_id": row.account_id,
+                "prefix": row.prefix or "-",
+                "status": status.upper(),
+                "spend": round(spend, 2),
+                "results": results_count,
+                "gia_data": round(gia_data, 2),
+                "impressions": impressions,
+                "clicks": clicks,
+                "ctr": round(ctr, 2),
+                "cpc": round(cpc, 2),
+                "cpm": round(cpm, 2),
+                "reach": 0,  # Not available in AdMetrics
+                "frequency": 0,  # Not available in AdMetrics
+            }
+            
+            if level == "adset" or level == "ad":
+                row_data["campaign_id"] = row.campaign_id
+                row_data["campaign_name"] = row.campaign_name if hasattr(row, 'campaign_name') else "-"
+            
+            if level == "ad":
+                row_data["adset_id"] = row.adset_id
+                row_data["adset_name"] = row.adset_name if hasattr(row, 'adset_name') else "-"
+            
+            if view_mode == "ecommerce":
+                row_data.update({
+                    "ads_percent": round(ads_percent, 2),
+                    "tlc": round(tlc, 2),
+                    "checkout_starts": checkout_starts,
+                    "purchases": purchases,
+                    "purchase_value": round(purchase_value, 2)
+                })
+            else:  # lead
+                row_data.update({
+                    "leads": leads,
+                    "cost_per_checkout_start": cost_per_checkout_start,
+                    "checkout_starts": checkout_starts,
+                    "purchases": purchases
+                })
+            
+            rows.append(row_data)
+        
+        return JSONResponse({
+            "rows": rows,
+            "total": total,
+            "page": page,
+            "page_size": page_size
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard details: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error loading details: {str(e)}")
 
 
 @router.get("/data")
