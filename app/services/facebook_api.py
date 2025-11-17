@@ -1011,7 +1011,7 @@ def get_daily_breakdown_data(
                 url = paging.get('next', '')
                 
         except Exception as e:
-            logger.error(f"🚨 Lỗi khi lấy daily breakdown từ account {account_id}: {e}")
+            logger.error(f"🚨 Lỗi khi lấy daily breakdown từ account {account_id_formatted}: {e}")
             continue
     
     return result
