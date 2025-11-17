@@ -662,7 +662,6 @@ async def dashboard_page(
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
             z-index: 2001;
             overflow: hidden;
-            display: flex;
             flex-direction: column;
         }}
         
