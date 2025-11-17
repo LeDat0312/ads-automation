@@ -666,8 +666,11 @@ def pull_facebook_data(
                         error_msg = json_data['error'].get('message', 'Unknown error')
                         error_type = json_data['error'].get('type', '')
                         error_subcode = json_data['error'].get('error_subcode', '')
+                        # Log response body để debug
+                        response_body = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else ""
                         logger.error(f"🚨 Facebook API Error: Code={error_code}, Type={error_type}, Subcode={error_subcode}, Message={error_msg}")
                         logger.error(f"   URL: {url[:200]}...")  # Log một phần URL để debug
+                        logger.error(f"   Response body: {response_body[:500]}...")  # Log response body để debug
                         if error_code in [190, 100]:
                             raise Exception(f"Lỗi Token hoặc Quyền (Code {error_code}). Chi tiết: {error_msg}")
                         elif error_code == 200:

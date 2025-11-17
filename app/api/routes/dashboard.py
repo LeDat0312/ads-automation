@@ -17,7 +17,7 @@ from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.core.ui_helpers import get_account_locked_message
-from app.services.facebook_api import pull_facebook_data, fetch_adset_statuses
+from app.services.facebook_api import pull_facebook_data, fetch_adset_statuses, pause_adsets, resume_adsets
 
 logger = logging.getLogger(__name__)
 
@@ -3230,7 +3230,7 @@ async def dashboard_action(
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Perform action on adset (activate/pause)"""
+    """Perform action on campaign/adset/ad (activate/pause)"""
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
@@ -3238,45 +3238,49 @@ async def dashboard_action(
         raise HTTPException(status_code=400, detail="Invalid action")
     
     try:
-        # Verify user has access to this adset
-        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db)
+        # Get user's Facebook access token
+        access_token = get_user_access_token(current_user.id, db)
+        if not access_token:
+            raise HTTPException(status_code=400, detail="Facebook access token not found. Please configure in Settings.")
         
-        # Check if adset belongs to user's accounts
-        adset_query = db.query(AdMetrics).filter(AdMetrics.adset_id == item_id)
+        # Determine item type by checking if it's campaign, adset, or ad
+        # For now, assume it's an adset (most common case)
+        # TODO: Add logic to detect item type (campaign ID vs adset ID vs ad ID format)
         
-        # Filter by user's accounts and prefixes
-        account_prefix_filter = []
-        if user_account_ids:
-            account_prefix_filter.append(AdMetrics.account_id.in_(user_account_ids))
-        if user_prefixes:
-            prefix_conditions = [AdMetrics.adset_name.like(f"{prefix}%") for prefix in user_prefixes]
-            if prefix_conditions:
-                account_prefix_filter.append(or_(*prefix_conditions))
+        # Get user's enabled accounts to verify access
+        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
         
-        if account_prefix_filter:
-            adset_query = adset_query.filter(or_(*account_prefix_filter))
+        # Verify user has access (check in recent data or make API call)
+        # For simplicity, we'll just call the API - if it fails, user doesn't have access
         
-        adset = adset_query.first()
-        if not adset:
-            raise HTTPException(status_code=404, detail="Adset not found or access denied")
+        # Call Facebook API to perform action
+        # For adset/ad: use pause_adsets/resume_adsets
+        # For campaign: need to detect and handle differently (TODO: add campaign pause/resume)
+        if action == "pause":
+            result = pause_adsets([item_id], access_token, delay_ms=0)
+            if result.get("success", 0) > 0:
+                new_status = "PAUSED"
+            else:
+                error_details = result.get('errorDetails', [])
+                error_msg = error_details[0].get('error', 'Unknown error') if error_details else 'Unknown error'
+                raise HTTPException(status_code=400, detail=f"Failed to pause: {error_msg}")
+        else:  # activate
+            result = resume_adsets([item_id], access_token, delay_ms=0)
+            if result.get("success", 0) > 0:
+                new_status = "ACTIVE"
+            else:
+                error_details = result.get('errorDetails', [])
+                error_msg = error_details[0].get('error', 'Unknown error') if error_details else 'Unknown error'
+                raise HTTPException(status_code=400, detail=f"Failed to activate: {error_msg}")
         
-        # Here you would integrate with Facebook API to actually change the adset status
-        # For now, just return success
-        new_status = "ACTIVE" if action == "activate" else "PAUSED"
-        
-        # In real implementation, you would:
-        # 1. Get user's Facebook access token
-        # 2. Make API call to Facebook to update adset status
-        # 3. Update local database if successful
-        
-        logger.info(f"Action {action} performed on adset {item_id} by user {current_user.id}")
+        logger.info(f"Action {action} performed on {item_id} by user {current_user.id} - Status: {new_status}")
         
         return JSONResponse({
             "success": True,
             "action": action,
             "item_id": item_id,
             "new_status": new_status,
-            "message": f"Adset {action}d successfully"
+            "message": f"Item {action}d successfully"
         })
         
     except Exception as e:
@@ -3445,6 +3449,8 @@ async def get_dashboard_details(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    campaign_id: Optional[str] = Query(None, description="Filter by campaign ID (for drill-down)"),
+    adset_id: Optional[str] = Query(None, description="Filter by adset ID (for drill-down)"),
     page: int = Query(1, ge=1),
     pageSize: int = Query(50, ge=10, le=500),
     current_user: Optional[User] = Depends(get_current_user_optional),
@@ -3479,7 +3485,7 @@ async def get_dashboard_details(
         
         # Gọi Facebook API trực tiếp
         logger.info(f"📥 Đang lấy dữ liệu chi tiết từ Facebook API cho {len(user_account_ids)} tài khoản...")
-        logger.info(f"   Filters: view_mode={view_mode}, level={level}, account_id={account_id}, prefix={prefix}, status={status}, date_from={date_from}, date_to={date_to}, search={search}")
+        logger.info(f"   Filters: view_mode={view_mode}, level={level}, account_id={account_id}, prefix={prefix}, status={status}, date_from={date_from}, date_to={date_to}, search={search}, campaign_id={campaign_id}, adset_id={adset_id}")
         all_data = pull_facebook_data_with_date_range(
             access_token,
             user_account_ids,
@@ -3513,6 +3519,15 @@ async def get_dashboard_details(
                 if adset_id and adset_id in adset_statuses_map:
                     row['adset_status'] = adset_statuses_map[adset_id]
                     row['effective_status'] = adset_statuses_map[adset_id]
+        
+        # Drill-down filter: Filter by campaign_id or adset_id
+        if campaign_id and all_data:
+            all_data = [row for row in all_data if row.get('campaign_id') == campaign_id]
+            logger.info(f"   📊 Sau filter campaign_id ({campaign_id}): {len(all_data)} rows")
+        
+        if adset_id and all_data:
+            all_data = [row for row in all_data if row.get('adset_id') == adset_id]
+            logger.info(f"   📊 Sau filter adset_id ({adset_id}): {len(all_data)} rows")
         
         # Status filter
         if status and all_data:
