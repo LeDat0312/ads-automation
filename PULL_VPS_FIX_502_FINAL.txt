@@ -1,0 +1,32 @@
+# Code fix lỗi 502 - Cài đặt pydantic-settings
+
+cd /var/www/ads-automation
+
+# 1. Activate virtual environment
+source venv/bin/activate
+
+# 2. Cài đặt pydantic-settings (package bị thiếu)
+pip install pydantic-settings==2.1.0
+
+# 3. Hoặc cài đặt tất cả dependencies từ requirements.txt
+pip install -r requirements.txt
+
+# 4. Kiểm tra import
+python3 -c "from pydantic_settings import BaseSettings; print('✅ OK')"
+python3 -c "from app.main import app; print('✅ App OK')"
+
+# 5. Restart service
+sudo supervisorctl stop ads-automation
+sleep 2
+sudo supervisorctl start ads-automation
+sleep 5
+
+# 6. Kiểm tra
+sudo supervisorctl status
+sudo ss -tlnp | grep 8000
+curl http://localhost:8000/health
+
+# 7. Xem logs nếu vẫn lỗi
+sudo tail -30 /var/log/ads-automation.log
+
+
