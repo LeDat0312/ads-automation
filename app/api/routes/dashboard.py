@@ -17,6 +17,7 @@ from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.core.ui_helpers import get_account_locked_message
+from app.services.facebook_api import pull_facebook_data, fetch_adset_statuses
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,48 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 # Timezone Hồ Chí Minh
 HCM_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
+
+
+def get_user_access_token(user_id: int, db: Session) -> Optional[str]:
+    """Lấy Facebook access token từ UserSettings (decrypt nếu cần)"""
+    from app.core.security import decrypt_token
+    user_settings = db.query(UserSettings).filter(UserSettings.user_id == user_id).first()
+    if user_settings and user_settings.facebook_token_encrypted:
+        try:
+            token = decrypt_token(user_settings.facebook_token_encrypted)
+            return token
+        except Exception as e:
+            logger.error(f"Error decrypting token for user {user_id}: {e}")
+            return None
+    return None
+
+
+def pull_facebook_data_with_date_range(
+    access_token: str,
+    ad_account_ids: List[str],
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    max_results: int = 5000  # Giới hạn số lượng để tránh quá tải
+) -> List[Dict[str, Any]]:
+    """
+    Gọi Facebook API với custom date range
+    Wrapper cho pull_facebook_data với hỗ trợ date_from/date_to
+    """
+    # Gọi pull_facebook_data với date_from/date_to
+    all_data = pull_facebook_data(
+        access_token, 
+        ad_account_ids, 
+        date_preset=None,  # Không dùng preset nếu có custom range
+        date_from=date_from,
+        date_to=date_to
+    )
+    
+    # Giới hạn số lượng để tránh quá tải
+    if len(all_data) > max_results:
+        logger.warning(f"Giới hạn kết quả từ {len(all_data)} xuống {max_results} để tránh quá tải")
+        all_data = all_data[:max_results]
+    
+    return all_data
 
 
 def get_user_account_prefixes(user_id: int, db: Session, enabled_only: bool = True) -> tuple[List[str], List[str]]:
@@ -2579,236 +2622,6 @@ async def dashboard_health():
     })
 
 
-@router.get("/data")
-async def dashboard_data(
-    request: Request,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=10, le=500),
-    account_id: Optional[str] = Query(None),
-    prefix: Optional[str] = Query(None),
-    campaign_type: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    search: Optional[str] = Query(None),
-    view_type: Optional[str] = Query('adset')
-):
-    """API endpoint để lấy dữ liệu dashboard"""
-    
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    try:
-        # Lấy account_ids và prefixes của user
-        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db)
-        
-        if not user_account_ids:
-            return JSONResponse({
-                "ads": [],
-                "total": 0,
-                "stats": {
-                    "totalSpend": 0,
-                    "totalResults": 0,
-                    "avgGiaData": 0,
-                    "activeAdsets": 0,
-                    "pausedAdsets": 0,
-                    "totalAdsets": 0
-                }
-            })
-        
-        # Build query
-        query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(user_account_ids))
-        
-        # Apply filters
-        if account_id:
-            query = query.filter(AdMetrics.account_id == account_id)
-        
-        if prefix:
-            query = query.filter(AdMetrics.prefix == prefix)
-        
-        if campaign_type and campaign_type != 'all':
-            query = query.filter(AdMetrics.campaign_type == campaign_type)
-        
-        if status:
-            query = query.filter(AdMetrics.adset_status == status)
-        
-        # Date filter
-        if date_from:
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-                query = query.filter(func.date(AdMetrics.date) >= date_from_obj)
-            except ValueError:
-                pass
-        
-        if date_to:
-            try:
-                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                query = query.filter(func.date(AdMetrics.date) <= date_to_obj)
-            except ValueError:
-                pass
-        
-        # Search filter - search by name or ID
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                or_(
-                    AdMetrics.campaign_name.ilike(search_term),
-                    AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term),
-                    AdMetrics.campaign_id.ilike(search_term),
-                    AdMetrics.adset_id.ilike(search_term),
-                    AdMetrics.ad_id.ilike(search_term)
-                )
-            )
-        
-        # Get total count
-        total_query = query
-        total = total_query.count()
-        
-        # Apply pagination
-        offset = (page - 1) * page_size
-        ads = query.offset(offset).limit(page_size).all()
-        
-        # Calculate stats
-        stats_query = db.query(
-            func.sum(AdMetrics.spend).label('total_spend'),
-            func.sum(AdMetrics.results).label('total_results'),
-            func.avg(AdMetrics.gia_data).label('avg_gia_data'),
-            func.sum(case((AdMetrics.adset_status == 'ACTIVE', 1), else_=0)).label('active_adsets'),
-            func.sum(case((AdMetrics.adset_status == 'PAUSED', 1), else_=0)).label('paused_adsets'),
-            func.count(distinct(AdMetrics.adset_id)).label('total_adsets')
-        ).filter(AdMetrics.account_id.in_(user_account_ids))
-        
-        # Apply same filters to stats
-        if account_id:
-            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
-        if prefix:
-            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
-        if campaign_type and campaign_type != 'all':
-            stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
-        if date_from:
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-                stats_query = stats_query.filter(func.date(AdMetrics.date) >= date_from_obj)
-            except ValueError:
-                pass
-        if date_to:
-            try:
-                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                stats_query = stats_query.filter(func.date(AdMetrics.date) <= date_to_obj)
-            except ValueError:
-                pass
-        
-        stats_result = stats_query.first()
-        
-        stats = {
-            "totalSpend": float(stats_result.total_spend or 0),
-            "totalResults": int(stats_result.total_results or 0),
-            "avgGiaData": float(stats_result.avg_gia_data or 0),
-            "activeAdsets": int(stats_result.active_adsets or 0),
-            "pausedAdsets": int(stats_result.paused_adsets or 0),
-            "totalAdsets": int(stats_result.total_adsets or 0)
-        }
-        
-        # Convert ads to dict
-        ads_data = []
-        for ad in ads:
-            ads_data.append({
-                "campaign_id": ad.campaign_id,
-                "campaign_name": ad.campaign_name,
-                "adset_id": ad.adset_id,
-                "adset_name": ad.adset_name,
-                "ad_id": ad.ad_id,
-                "ad_name": ad.ad_name,
-                "account_id": ad.account_id,
-                "prefix": ad.prefix,
-                "adset_status": ad.adset_status,
-                "spend": float(ad.spend or 0),
-                "results": int(ad.results or 0),
-                "gia_data": float(ad.gia_data or 0),
-                "impressions": int(ad.impressions or 0),
-                "clicks": int(ad.clicks or 0),
-                "ctr": float(ad.ctr or 0),
-                "cpc": float(ad.cpc or 0),
-                "purchases": int(ad.purchases or 0),
-                "purchase_value": float(ad.purchase_value or 0),
-                "daily_budget": float(ad.amount_spent or 0)  # Using amount_spent as budget placeholder
-            })
-        
-        return JSONResponse({
-            "ads": ads_data,
-            "total": total,
-            "stats": stats
-        })
-        
-    except Exception as e:
-        logger.error(f"Error in dashboard_data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Action endpoints for dashboard operations
-@router.post("/action/pause/{entity_id}")
-async def pause_entity(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Pause an adset/campaign"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual pause logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Paused successfully"})
-
-
-@router.post("/action/activate/{entity_id}")
-async def activate_entity(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Activate an adset/campaign"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual activate logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Activated successfully"})
-
-
-@router.post("/action/increase-budget/{entity_id}")
-async def increase_budget(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Increase budget by 20%"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual budget increase logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Budget increased successfully"})
-
-
-@router.post("/action/decrease-budget/{entity_id}")
-async def decrease_budget(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Decrease budget by 20%"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual budget decrease logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Budget decreased successfully"})
-
-
 @router.get("/summary")
 async def get_dashboard_summary(
     request: Request,
@@ -2820,7 +2633,7 @@ async def get_dashboard_summary(
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Get Overview Cards summary based on view mode and date range"""
+    """Get Overview Cards summary - Gọi trực tiếp từ Facebook API"""
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
@@ -2849,65 +2662,68 @@ async def get_dashboard_summary(
                     "totalAdsets": 0
                 })
         
-        # Build date filter
-        end_date = datetime.now(HCM_TZ).replace(hour=23, minute=59, second=59, microsecond=999999)
+        # Get access token
+        access_token = get_user_access_token(current_user.id, db)
+        if not access_token:
+            raise HTTPException(status_code=400, detail="Facebook access token not found. Please configure in Settings.")
         
-        if date_from:
-            try:
-                start_date = datetime.strptime(date_from, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0)
-                start_date = HCM_TZ.localize(start_date)
-            except ValueError:
-                start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Filter accounts nếu có account_id filter
+        if account_id:
+            if account_id not in user_account_ids:
+                raise HTTPException(status_code=403, detail="Access denied to this account")
+            user_account_ids = [account_id]
         
-        if date_to:
-            try:
-                end_date = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999)
-                end_date = HCM_TZ.localize(end_date)
-            except ValueError:
-                pass
-        
-        # Build query
-        query = db.query(AdMetrics).filter(
-            AdMetrics.account_id.in_(user_account_ids),
-            func.date(AdMetrics.date) >= start_date.date(),
-            func.date(AdMetrics.date) <= end_date.date()
+        # Gọi Facebook API trực tiếp
+        logger.info(f"📥 Đang lấy dữ liệu từ Facebook API cho {len(user_account_ids)} tài khoản...")
+        all_data = pull_facebook_data_with_date_range(
+            access_token,
+            user_account_ids,
+            date_from=date_from,
+            date_to=date_to,
+            max_results=5000  # Giới hạn để tránh quá tải
         )
         
-        # Apply filters
-        if account_id:
-            query = query.filter(AdMetrics.account_id == account_id)
+        # Filter theo prefix nếu có
+        if prefix and all_data:
+            all_data = [row for row in all_data if row.get('prefix') == prefix]
         
-        if prefix:
-            query = query.filter(AdMetrics.adset_name.like(f"{prefix}%"))
-        
-        # Filter by view mode (campaign type)
+        # Filter theo view mode (campaign type)
         if view_mode == "ecommerce":
-            query = query.filter(AdMetrics.campaign_type == "ECOMMERCE")
+            all_data = [row for row in all_data if row.get('campaign_type') == 'ECOMMERCE']
         elif view_mode == "lead":
-            query = query.filter(AdMetrics.campaign_type == "LEAD_GENERATION")
+            all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD_GENERATION']
+        
+        # Lấy status của adsets từ Facebook API
+        adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
+        if adset_ids:
+            logger.info(f"📊 Đang lấy status cho {len(adset_ids)} adsets...")
+            adset_statuses_map = fetch_adset_statuses(adset_ids, access_token)
+            # Update status trong data
+            for row in all_data:
+                adset_id = row.get('adset_id')
+                if adset_id and adset_id in adset_statuses_map:
+                    row['adset_status'] = adset_statuses_map[adset_id]
+                    row['effective_status'] = adset_statuses_map[adset_id]
         
         # Aggregate metrics
-        metrics = query.all()
-        
-        # Calculate totals
-        total_spend = sum(float(m.spend or 0) for m in metrics)
-        total_purchases = sum(int(m.purchases or 0) for m in metrics)
-        total_purchase_value = sum(float(m.purchase_value or 0) for m in metrics)
+        total_spend = sum(float(row.get('spend', 0) or 0) for row in all_data)
+        total_purchases = sum(int(row.get('purchases', 0) or 0) for row in all_data)
+        total_purchase_value = sum(float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0) for row in all_data)
         
         # Calculate leads (comments + messages)
-        # Note: AdMetrics may not have comments/messages fields directly
-        # We'll use leads field if available, otherwise calculate from results
-        total_leads = sum(int(m.leads or m.results or 0) for m in metrics)
+        total_leads = sum(
+            int(row.get('post_comments', 0) or 0) + int(row.get('messaging_conversations_started', 0) or 0)
+            for row in all_data
+        )
         
-        # Count adsets by status
+        # Count unique adsets by status
         adset_statuses = {}
-        for m in metrics:
-            status = (m.adset_status or "UNKNOWN").upper()
-            adset_id = m.adset_id
-            if adset_id not in adset_statuses:
-                adset_statuses[adset_id] = status
+        for row in all_data:
+            adset_id = row.get('adset_id')
+            if adset_id:
+                status = (row.get('adset_status') or 'UNKNOWN').upper()
+                if adset_id not in adset_statuses:
+                    adset_statuses[adset_id] = status
         
         active_adsets = len([s for s in adset_statuses.values() if s == "ACTIVE"])
         paused_adsets = len([s for s in adset_statuses.values() if s in ["PAUSED", "ARCHIVED"]])
@@ -2938,6 +2754,8 @@ async def get_dashboard_summary(
                 "totalAdsets": total_adsets
             })
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting dashboard summary: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error loading summary: {str(e)}")
@@ -2955,11 +2773,11 @@ async def get_dashboard_details(
     date_to: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=10, le=500),
+    pageSize: int = Query(50, ge=10, le=500),
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Get detailed table data for Campaign/Adset/Ad with different columns based on view mode"""
+    """Get detailed table data for Campaign/Adset/Ad - Gọi trực tiếp từ Facebook API"""
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
@@ -2969,36 +2787,31 @@ async def get_dashboard_details(
         
         if not user_account_ids:
             return JSONResponse({
-                "rows": [],
+                "data": [],
                 "total": 0,
                 "page": page,
-                "page_size": page_size
+                "pageSize": pageSize
             })
         
-        # Build date filter
-        end_date = datetime.now(HCM_TZ).replace(hour=23, minute=59, second=59, microsecond=999999)
+        # Get access token
+        access_token = get_user_access_token(current_user.id, db)
+        if not access_token:
+            raise HTTPException(status_code=400, detail="Facebook access token not found. Please configure in Settings.")
         
-        if date_from:
-            try:
-                start_date = datetime.strptime(date_from, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0)
-                start_date = HCM_TZ.localize(start_date)
-            except ValueError:
-                start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Filter accounts nếu có account_id filter
+        if account_id:
+            if account_id not in user_account_ids:
+                raise HTTPException(status_code=403, detail="Access denied to this account")
+            user_account_ids = [account_id]
         
-        if date_to:
-            try:
-                end_date = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999)
-                end_date = HCM_TZ.localize(end_date)
-            except ValueError:
-                pass
-        
-        # Build base query
-        query = db.query(AdMetrics).filter(
-            AdMetrics.account_id.in_(user_account_ids),
-            func.date(AdMetrics.date) >= start_date.date(),
-            func.date(AdMetrics.date) <= end_date.date()
+        # Gọi Facebook API trực tiếp
+        logger.info(f"📥 Đang lấy dữ liệu chi tiết từ Facebook API cho {len(user_account_ids)} tài khoản...")
+        all_data = pull_facebook_data_with_date_range(
+            access_token,
+            user_account_ids,
+            date_from=date_from,
+            date_to=date_to,
+            max_results=10000  # Giới hạn để tránh quá tải
         )
         
         # Apply filters
@@ -3217,1176 +3030,3 @@ async def get_dashboard_details(
     except Exception as e:
         logger.error(f"Error getting dashboard details: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error loading details: {str(e)}")
-
-
-@router.get("/data")
-async def dashboard_data(
-    request: Request,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=10, le=500),
-    account_id: Optional[str] = Query(None),
-    prefix: Optional[str] = Query(None),
-    campaign_type: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    search: Optional[str] = Query(None),
-    view_type: Optional[str] = Query('adset')
-):
-    """API endpoint để lấy dữ liệu dashboard"""
-    
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    try:
-        # Lấy account_ids và prefixes của user
-        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db)
-        
-        if not user_account_ids:
-            return JSONResponse({
-                "ads": [],
-                "total": 0,
-                "stats": {
-                    "totalSpend": 0,
-                    "totalResults": 0,
-                    "avgGiaData": 0,
-                    "activeAdsets": 0,
-                    "pausedAdsets": 0,
-                    "totalAdsets": 0
-                }
-            })
-        
-        # Build query
-        query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(user_account_ids))
-        
-        # Apply filters
-        if account_id:
-            query = query.filter(AdMetrics.account_id == account_id)
-        
-        if prefix:
-            query = query.filter(AdMetrics.prefix == prefix)
-        
-        if campaign_type and campaign_type != 'all':
-            query = query.filter(AdMetrics.campaign_type == campaign_type)
-        
-        if status:
-            query = query.filter(AdMetrics.adset_status == status)
-        
-        # Date filter
-        if date_from:
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-                query = query.filter(func.date(AdMetrics.date) >= date_from_obj)
-            except ValueError:
-                pass
-        
-        if date_to:
-            try:
-                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                query = query.filter(func.date(AdMetrics.date) <= date_to_obj)
-            except ValueError:
-                pass
-        
-        # Search filter - search by name or ID
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                or_(
-                    AdMetrics.campaign_name.ilike(search_term),
-                    AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term),
-                    AdMetrics.campaign_id.ilike(search_term),
-                    AdMetrics.adset_id.ilike(search_term),
-                    AdMetrics.ad_id.ilike(search_term)
-                )
-            )
-        
-        # Get total count
-        total_query = query
-        total = total_query.count()
-        
-        # Apply pagination
-        offset = (page - 1) * page_size
-        ads = query.offset(offset).limit(page_size).all()
-        
-        # Calculate stats
-        stats_query = db.query(
-            func.sum(AdMetrics.spend).label('total_spend'),
-            func.sum(AdMetrics.results).label('total_results'),
-            func.avg(AdMetrics.gia_data).label('avg_gia_data'),
-            func.sum(case((AdMetrics.adset_status == 'ACTIVE', 1), else_=0)).label('active_adsets'),
-            func.sum(case((AdMetrics.adset_status == 'PAUSED', 1), else_=0)).label('paused_adsets'),
-            func.count(distinct(AdMetrics.adset_id)).label('total_adsets')
-        ).filter(AdMetrics.account_id.in_(user_account_ids))
-        
-        # Apply same filters to stats
-        if account_id:
-            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
-        if prefix:
-            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
-        if campaign_type and campaign_type != 'all':
-            stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
-        if date_from:
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-                stats_query = stats_query.filter(func.date(AdMetrics.date) >= date_from_obj)
-            except ValueError:
-                pass
-        if date_to:
-            try:
-                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                stats_query = stats_query.filter(func.date(AdMetrics.date) <= date_to_obj)
-            except ValueError:
-                pass
-        
-        stats_result = stats_query.first()
-        
-        stats = {
-            "totalSpend": float(stats_result.total_spend or 0),
-            "totalResults": int(stats_result.total_results or 0),
-            "avgGiaData": float(stats_result.avg_gia_data or 0),
-            "activeAdsets": int(stats_result.active_adsets or 0),
-            "pausedAdsets": int(stats_result.paused_adsets or 0),
-            "totalAdsets": int(stats_result.total_adsets or 0)
-        }
-        
-        # Convert ads to dict
-        ads_data = []
-        for ad in ads:
-            ads_data.append({
-                "campaign_id": ad.campaign_id,
-                "campaign_name": ad.campaign_name,
-                "adset_id": ad.adset_id,
-                "adset_name": ad.adset_name,
-                "ad_id": ad.ad_id,
-                "ad_name": ad.ad_name,
-                "account_id": ad.account_id,
-                "prefix": ad.prefix,
-                "adset_status": ad.adset_status,
-                "spend": float(ad.spend or 0),
-                "results": int(ad.results or 0),
-                "gia_data": float(ad.gia_data or 0),
-                "impressions": int(ad.impressions or 0),
-                "clicks": int(ad.clicks or 0),
-                "ctr": float(ad.ctr or 0),
-                "cpc": float(ad.cpc or 0),
-                "purchases": int(ad.purchases or 0),
-                "purchase_value": float(ad.purchase_value or 0),
-                "daily_budget": float(ad.amount_spent or 0)  # Using amount_spent as budget placeholder
-            })
-        
-        return JSONResponse({
-            "ads": ads_data,
-            "total": total,
-            "stats": stats
-        })
-        
-    except Exception as e:
-        logger.error(f"Error in dashboard_data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Action endpoints for dashboard operations
-@router.post("/action/pause/{entity_id}")
-async def pause_entity(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Pause an adset/campaign"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual pause logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Paused successfully"})
-
-
-@router.post("/action/activate/{entity_id}")
-async def activate_entity(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Activate an adset/campaign"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual activate logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Activated successfully"})
-
-
-@router.post("/action/increase-budget/{entity_id}")
-async def increase_budget(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Increase budget by 20%"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual budget increase logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Budget increased successfully"})
-
-
-@router.post("/action/decrease-budget/{entity_id}")
-async def decrease_budget(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Decrease budget by 20%"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual budget decrease logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Budget decreased successfully"})
-
-
-@router.get("/data")
-async def dashboard_data(
-    request: Request,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=10, le=500),
-    account_id: Optional[str] = Query(None),
-    prefix: Optional[str] = Query(None),
-    campaign_type: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    search: Optional[str] = Query(None),
-    view_type: Optional[str] = Query('adset')
-):
-    """API endpoint để lấy dữ liệu dashboard"""
-    
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    try:
-        # Lấy account_ids và prefixes của user
-        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db)
-        
-        if not user_account_ids:
-            return JSONResponse({
-                "ads": [],
-                "total": 0,
-                "stats": {
-                    "totalSpend": 0,
-                    "totalResults": 0,
-                    "avgGiaData": 0,
-                    "activeAdsets": 0,
-                    "pausedAdsets": 0,
-                    "totalAdsets": 0
-                }
-            })
-        
-        # Build query
-        query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(user_account_ids))
-        
-        # Apply filters
-        if account_id:
-            query = query.filter(AdMetrics.account_id == account_id)
-        
-        if prefix:
-            query = query.filter(AdMetrics.prefix == prefix)
-        
-        if campaign_type and campaign_type != 'all':
-            query = query.filter(AdMetrics.campaign_type == campaign_type)
-        
-        if status:
-            query = query.filter(AdMetrics.adset_status == status)
-        
-        # Date filter
-        if date_from:
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-                query = query.filter(func.date(AdMetrics.date) >= date_from_obj)
-            except ValueError:
-                pass
-        
-        if date_to:
-            try:
-                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                query = query.filter(func.date(AdMetrics.date) <= date_to_obj)
-            except ValueError:
-                pass
-        
-        # Search filter - search by name or ID
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                or_(
-                    AdMetrics.campaign_name.ilike(search_term),
-                    AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term),
-                    AdMetrics.campaign_id.ilike(search_term),
-                    AdMetrics.adset_id.ilike(search_term),
-                    AdMetrics.ad_id.ilike(search_term)
-                )
-            )
-        
-        # Get total count
-        total_query = query
-        total = total_query.count()
-        
-        # Apply pagination
-        offset = (page - 1) * page_size
-        ads = query.offset(offset).limit(page_size).all()
-        
-        # Calculate stats
-        stats_query = db.query(
-            func.sum(AdMetrics.spend).label('total_spend'),
-            func.sum(AdMetrics.results).label('total_results'),
-            func.avg(AdMetrics.gia_data).label('avg_gia_data'),
-            func.sum(case((AdMetrics.adset_status == 'ACTIVE', 1), else_=0)).label('active_adsets'),
-            func.sum(case((AdMetrics.adset_status == 'PAUSED', 1), else_=0)).label('paused_adsets'),
-            func.count(distinct(AdMetrics.adset_id)).label('total_adsets')
-        ).filter(AdMetrics.account_id.in_(user_account_ids))
-        
-        # Apply same filters to stats
-        if account_id:
-            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
-        if prefix:
-            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
-        if campaign_type and campaign_type != 'all':
-            stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
-        if date_from:
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-                stats_query = stats_query.filter(func.date(AdMetrics.date) >= date_from_obj)
-            except ValueError:
-                pass
-        if date_to:
-            try:
-                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                stats_query = stats_query.filter(func.date(AdMetrics.date) <= date_to_obj)
-            except ValueError:
-                pass
-        
-        stats_result = stats_query.first()
-        
-        stats = {
-            "totalSpend": float(stats_result.total_spend or 0),
-            "totalResults": int(stats_result.total_results or 0),
-            "avgGiaData": float(stats_result.avg_gia_data or 0),
-            "activeAdsets": int(stats_result.active_adsets or 0),
-            "pausedAdsets": int(stats_result.paused_adsets or 0),
-            "totalAdsets": int(stats_result.total_adsets or 0)
-        }
-        
-        # Convert ads to dict
-        ads_data = []
-        for ad in ads:
-            ads_data.append({
-                "campaign_id": ad.campaign_id,
-                "campaign_name": ad.campaign_name,
-                "adset_id": ad.adset_id,
-                "adset_name": ad.adset_name,
-                "ad_id": ad.ad_id,
-                "ad_name": ad.ad_name,
-                "account_id": ad.account_id,
-                "prefix": ad.prefix,
-                "adset_status": ad.adset_status,
-                "spend": float(ad.spend or 0),
-                "results": int(ad.results or 0),
-                "gia_data": float(ad.gia_data or 0),
-                "impressions": int(ad.impressions or 0),
-                "clicks": int(ad.clicks or 0),
-                "ctr": float(ad.ctr or 0),
-                "cpc": float(ad.cpc or 0),
-                "purchases": int(ad.purchases or 0),
-                "purchase_value": float(ad.purchase_value or 0),
-                "daily_budget": float(ad.amount_spent or 0)  # Using amount_spent as budget placeholder
-            })
-        
-        return JSONResponse({
-            "ads": ads_data,
-            "total": total,
-            "stats": stats
-        })
-        
-    except Exception as e:
-        logger.error(f"Error in dashboard_data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/summary")
-async def get_dashboard_summary(
-    request: Request,
-    view_mode: str = Query("ecommerce", description="View mode: ecommerce or lead"),
-    account_id: Optional[str] = Query(None),
-    prefix: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Get Overview Cards summary based on view mode and date range"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    try:
-        # Get user's enabled accounts and prefixes
-        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
-        
-        if not user_account_ids:
-            # Return empty summary if no accounts
-            if view_mode == "ecommerce":
-                return JSONResponse({
-                    "totalSpend": 0,
-                    "adsPercent": 0,
-                    "purchaseValue": 0,
-                    "activeAdsets": 0,
-                    "pausedAdsets": 0,
-                    "totalAdsets": 0
-                })
-            else:  # lead
-                return JSONResponse({
-                    "totalSpend": 0,
-                    "totalLeads": 0,
-                    "avgGiaData": 0,
-                    "activeAdsets": 0,
-                    "pausedAdsets": 0,
-                    "totalAdsets": 0
-                })
-        
-        # Build date filter
-        end_date = datetime.now(HCM_TZ).replace(hour=23, minute=59, second=59, microsecond=999999)
-        
-        if date_from:
-            try:
-                start_date = datetime.strptime(date_from, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0)
-                start_date = HCM_TZ.localize(start_date)
-            except ValueError:
-                start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        if date_to:
-            try:
-                end_date = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999)
-                end_date = HCM_TZ.localize(end_date)
-            except ValueError:
-                pass
-        
-        # Build query
-        query = db.query(AdMetrics).filter(
-            AdMetrics.account_id.in_(user_account_ids),
-            func.date(AdMetrics.date) >= start_date.date(),
-            func.date(AdMetrics.date) <= end_date.date()
-        )
-        
-        # Apply filters
-        if account_id:
-            query = query.filter(AdMetrics.account_id == account_id)
-        
-        if prefix:
-            query = query.filter(AdMetrics.adset_name.like(f"{prefix}%"))
-        
-        # Filter by view mode (campaign type)
-        if view_mode == "ecommerce":
-            query = query.filter(AdMetrics.campaign_type == "ECOMMERCE")
-        elif view_mode == "lead":
-            query = query.filter(AdMetrics.campaign_type == "LEAD_GENERATION")
-        
-        # Aggregate metrics
-        metrics = query.all()
-        
-        # Calculate totals
-        total_spend = sum(float(m.spend or 0) for m in metrics)
-        total_purchases = sum(int(m.purchases or 0) for m in metrics)
-        total_purchase_value = sum(float(m.purchase_value or 0) for m in metrics)
-        
-        # Calculate leads (comments + messages)
-        # Note: AdMetrics may not have comments/messages fields directly
-        # We'll use leads field if available, otherwise calculate from results
-        total_leads = sum(int(m.leads or m.results or 0) for m in metrics)
-        
-        # Count adsets by status
-        adset_statuses = {}
-        for m in metrics:
-            status = (m.adset_status or "UNKNOWN").upper()
-            adset_id = m.adset_id
-            if adset_id not in adset_statuses:
-                adset_statuses[adset_id] = status
-        
-        active_adsets = len([s for s in adset_statuses.values() if s == "ACTIVE"])
-        paused_adsets = len([s for s in adset_statuses.values() if s in ["PAUSED", "ARCHIVED"]])
-        total_adsets = len(adset_statuses)
-        
-        if view_mode == "ecommerce":
-            # E-Commerce metrics
-            ads_percent = (total_spend / total_purchase_value * 100) if total_purchase_value > 0 else 0
-            
-            return JSONResponse({
-                "totalSpend": round(total_spend, 2),
-                "adsPercent": round(ads_percent, 2),
-                "purchaseValue": round(total_purchase_value, 2),
-                "activeAdsets": active_adsets,
-                "pausedAdsets": paused_adsets,
-                "totalAdsets": total_adsets
-            })
-        else:
-            # Lead Generation metrics
-            avg_gia_data = total_spend / total_leads if total_leads > 0 else 0
-            
-            return JSONResponse({
-                "totalSpend": round(total_spend, 2),
-                "totalLeads": total_leads,
-                "avgGiaData": round(avg_gia_data, 2),
-                "activeAdsets": active_adsets,
-                "pausedAdsets": paused_adsets,
-                "totalAdsets": total_adsets
-            })
-        
-    except Exception as e:
-        logger.error(f"Error getting dashboard summary: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error loading summary: {str(e)}")
-
-
-@router.get("/details")
-async def get_dashboard_details(
-    request: Request,
-    view_mode: str = Query("ecommerce", description="View mode: ecommerce or lead"),
-    level: str = Query("adset", description="Level: campaign, adset, or ad"),
-    account_id: Optional[str] = Query(None),
-    prefix: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    search: Optional[str] = Query(None),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=10, le=500),
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Get detailed table data for Campaign/Adset/Ad with different columns based on view mode"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    try:
-        # Get user's enabled accounts and prefixes
-        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
-        
-        if not user_account_ids:
-            return JSONResponse({
-                "rows": [],
-                "total": 0,
-                "page": page,
-                "page_size": page_size
-            })
-        
-        # Build date filter
-        end_date = datetime.now(HCM_TZ).replace(hour=23, minute=59, second=59, microsecond=999999)
-        
-        if date_from:
-            try:
-                start_date = datetime.strptime(date_from, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0)
-                start_date = HCM_TZ.localize(start_date)
-            except ValueError:
-                start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        if date_to:
-            try:
-                end_date = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999)
-                end_date = HCM_TZ.localize(end_date)
-            except ValueError:
-                pass
-        
-        # Build base query
-        query = db.query(AdMetrics).filter(
-            AdMetrics.account_id.in_(user_account_ids),
-            func.date(AdMetrics.date) >= start_date.date(),
-            func.date(AdMetrics.date) <= end_date.date()
-        )
-        
-        # Apply filters
-        if account_id:
-            query = query.filter(AdMetrics.account_id == account_id)
-        
-        if prefix:
-            query = query.filter(AdMetrics.adset_name.like(f"{prefix}%"))
-        
-        # Filter by view mode (campaign type)
-        if view_mode == "ecommerce":
-            query = query.filter(AdMetrics.campaign_type == "ECOMMERCE")
-        elif view_mode == "lead":
-            query = query.filter(AdMetrics.campaign_type == "LEAD_GENERATION")
-        
-        # Status filter
-        if status:
-            query = query.filter(AdMetrics.adset_status == status)
-        
-        # Search filter - search by name or ID
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                or_(
-                    AdMetrics.campaign_name.ilike(search_term),
-                    AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term),
-                    AdMetrics.campaign_id.ilike(search_term),
-                    AdMetrics.adset_id.ilike(search_term),
-                    AdMetrics.ad_id.ilike(search_term)
-                )
-            )
-        
-        # Group by level
-        if level == "campaign":
-            # Group by campaign
-            group_by_fields = [
-                AdMetrics.campaign_id,
-                AdMetrics.campaign_name,
-                AdMetrics.account_id,
-                AdMetrics.prefix
-            ]
-            
-            # Aggregate metrics
-            query = query.with_entities(
-                AdMetrics.campaign_id,
-                AdMetrics.campaign_name,
-                AdMetrics.account_id,
-                AdMetrics.prefix,
-                func.sum(AdMetrics.spend).label('spend'),
-                func.sum(AdMetrics.results).label('results'),
-                func.sum(AdMetrics.impressions).label('impressions'),
-                func.sum(AdMetrics.clicks).label('clicks'),
-                func.sum(AdMetrics.purchases).label('purchases'),
-                func.sum(AdMetrics.purchase_value).label('purchase_value'),
-                func.sum(AdMetrics.leads).label('leads'),
-                func.avg(AdMetrics.gia_data).label('gia_data'),
-                func.avg(AdMetrics.ctr).label('ctr'),
-                func.avg(AdMetrics.cpc).label('cpc'),
-                func.max(AdMetrics.adset_status).label('status')  # Use max to get status
-            ).group_by(*group_by_fields)
-            
-        elif level == "adset":
-            # Group by adset
-            group_by_fields = [
-                AdMetrics.adset_id,
-                AdMetrics.adset_name,
-                AdMetrics.campaign_id,
-                AdMetrics.campaign_name,
-                AdMetrics.account_id,
-                AdMetrics.prefix
-            ]
-            
-            query = query.with_entities(
-                AdMetrics.adset_id,
-                AdMetrics.adset_name,
-                AdMetrics.campaign_id,
-                AdMetrics.campaign_name,
-                AdMetrics.account_id,
-                AdMetrics.prefix,
-                func.sum(AdMetrics.spend).label('spend'),
-                func.sum(AdMetrics.results).label('results'),
-                func.sum(AdMetrics.impressions).label('impressions'),
-                func.sum(AdMetrics.clicks).label('clicks'),
-                func.sum(AdMetrics.purchases).label('purchases'),
-                func.sum(AdMetrics.purchase_value).label('purchase_value'),
-                func.sum(AdMetrics.leads).label('leads'),
-                func.avg(AdMetrics.gia_data).label('gia_data'),
-                func.avg(AdMetrics.ctr).label('ctr'),
-                func.avg(AdMetrics.cpc).label('cpc'),
-                AdMetrics.adset_status.label('status')
-            ).group_by(*group_by_fields)
-            
-        else:  # level == "ad"
-            # Individual ads - no grouping needed
-            query = query.with_entities(
-                AdMetrics.ad_id,
-                AdMetrics.ad_name,
-                AdMetrics.adset_id,
-                AdMetrics.adset_name,
-                AdMetrics.campaign_id,
-                AdMetrics.campaign_name,
-                AdMetrics.account_id,
-                AdMetrics.prefix,
-                AdMetrics.spend,
-                AdMetrics.results,
-                AdMetrics.impressions,
-                AdMetrics.clicks,
-                AdMetrics.purchases,
-                AdMetrics.purchase_value,
-                AdMetrics.leads,
-                AdMetrics.gia_data,
-                AdMetrics.ctr,
-                AdMetrics.cpc,
-                AdMetrics.adset_status.label('status')
-            )
-        
-        # Get total count
-        total = query.count()
-        
-        # Apply pagination
-        offset = (page - 1) * page_size
-        results = query.offset(offset).limit(page_size).all()
-        
-        # Convert to dict format
-        rows = []
-        for row in results:
-            if level == "campaign":
-                entity_id = row.campaign_id
-                entity_name = row.campaign_name
-                status = row.status or "UNKNOWN"
-            elif level == "adset":
-                entity_id = row.adset_id
-                entity_name = row.adset_name
-                status = row.status or "UNKNOWN"
-            else:  # ad
-                entity_id = row.ad_id
-                entity_name = row.ad_name
-                status = row.status or "UNKNOWN"
-            
-            # Calculate derived metrics
-            spend = float(row.spend or 0)
-            results_count = int(row.results or 0)
-            impressions = int(row.impressions or 0)
-            clicks = int(row.clicks or 0)
-            purchases = int(row.purchases or 0)
-            purchase_value = float(row.purchase_value or 0)
-            leads = int(row.leads or 0)
-            
-            # Calculate metrics
-            gia_data = float(row.gia_data or 0) if row.gia_data else (spend / results_count if results_count > 0 else 0)
-            cpm = (spend / impressions * 1000) if impressions > 0 else 0
-            ctr = float(row.ctr or 0) if row.ctr else ((clicks / impressions * 100) if impressions > 0 else 0)
-            cpc = float(row.cpc or 0) if row.cpc else ((spend / clicks) if clicks > 0 else 0)
-            
-            # Calculate view-mode specific metrics
-            if view_mode == "ecommerce":
-                ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
-                tlc = (purchases / results_count) if results_count > 0 else 0
-                checkout_starts = 0  # Not available in AdMetrics, would need to add
-            else:  # lead
-                cost_per_checkout_start = 0  # Not available in AdMetrics
-                checkout_starts = 0  # Not available in AdMetrics
-            
-            row_data = {
-                "id": entity_id,
-                "name": entity_name or "-",
-                "account_id": row.account_id,
-                "prefix": row.prefix or "-",
-                "status": status.upper(),
-                "spend": round(spend, 2),
-                "results": results_count,
-                "gia_data": round(gia_data, 2),
-                "impressions": impressions,
-                "clicks": clicks,
-                "ctr": round(ctr, 2),
-                "cpc": round(cpc, 2),
-                "cpm": round(cpm, 2),
-                "reach": 0,  # Not available in AdMetrics
-                "frequency": 0,  # Not available in AdMetrics
-            }
-            
-            if level == "adset" or level == "ad":
-                row_data["campaign_id"] = row.campaign_id
-                row_data["campaign_name"] = row.campaign_name if hasattr(row, 'campaign_name') else "-"
-            
-            if level == "ad":
-                row_data["adset_id"] = row.adset_id
-                row_data["adset_name"] = row.adset_name if hasattr(row, 'adset_name') else "-"
-            
-            if view_mode == "ecommerce":
-                row_data.update({
-                    "ads_percent": round(ads_percent, 2),
-                    "tlc": round(tlc, 2),
-                    "checkout_starts": checkout_starts,
-                    "purchases": purchases,
-                    "purchase_value": round(purchase_value, 2)
-                })
-            else:  # lead
-                row_data.update({
-                    "leads": leads,
-                    "cost_per_checkout_start": cost_per_checkout_start,
-                    "checkout_starts": checkout_starts,
-                    "purchases": purchases
-                })
-            
-            rows.append(row_data)
-        
-        return JSONResponse({
-            "rows": rows,
-            "total": total,
-            "page": page,
-            "page_size": page_size
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting dashboard details: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error loading details: {str(e)}")
-
-
-@router.get("/data")
-async def dashboard_data(
-    request: Request,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=10, le=500),
-    account_id: Optional[str] = Query(None),
-    prefix: Optional[str] = Query(None),
-    campaign_type: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    search: Optional[str] = Query(None),
-    view_type: Optional[str] = Query('adset')
-):
-    """API endpoint để lấy dữ liệu dashboard"""
-    
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    try:
-        # Lấy account_ids và prefixes của user
-        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db)
-        
-        if not user_account_ids:
-            return JSONResponse({
-                "ads": [],
-                "total": 0,
-                "stats": {
-                    "totalSpend": 0,
-                    "totalResults": 0,
-                    "avgGiaData": 0,
-                    "activeAdsets": 0,
-                    "pausedAdsets": 0,
-                    "totalAdsets": 0
-                }
-            })
-        
-        # Build query
-        query = db.query(AdMetrics).filter(AdMetrics.account_id.in_(user_account_ids))
-        
-        # Apply filters
-        if account_id:
-            query = query.filter(AdMetrics.account_id == account_id)
-        
-        if prefix:
-            query = query.filter(AdMetrics.prefix == prefix)
-        
-        if campaign_type and campaign_type != 'all':
-            query = query.filter(AdMetrics.campaign_type == campaign_type)
-        
-        if status:
-            query = query.filter(AdMetrics.adset_status == status)
-        
-        # Date filter
-        if date_from:
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-                query = query.filter(func.date(AdMetrics.date) >= date_from_obj)
-            except ValueError:
-                pass
-        
-        if date_to:
-            try:
-                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                query = query.filter(func.date(AdMetrics.date) <= date_to_obj)
-            except ValueError:
-                pass
-        
-        # Search filter - search by name or ID
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                or_(
-                    AdMetrics.campaign_name.ilike(search_term),
-                    AdMetrics.adset_name.ilike(search_term),
-                    AdMetrics.ad_name.ilike(search_term),
-                    AdMetrics.campaign_id.ilike(search_term),
-                    AdMetrics.adset_id.ilike(search_term),
-                    AdMetrics.ad_id.ilike(search_term)
-                )
-            )
-        
-        # Get total count
-        total_query = query
-        total = total_query.count()
-        
-        # Apply pagination
-        offset = (page - 1) * page_size
-        ads = query.offset(offset).limit(page_size).all()
-        
-        # Calculate stats
-        stats_query = db.query(
-            func.sum(AdMetrics.spend).label('total_spend'),
-            func.sum(AdMetrics.results).label('total_results'),
-            func.avg(AdMetrics.gia_data).label('avg_gia_data'),
-            func.sum(case((AdMetrics.adset_status == 'ACTIVE', 1), else_=0)).label('active_adsets'),
-            func.sum(case((AdMetrics.adset_status == 'PAUSED', 1), else_=0)).label('paused_adsets'),
-            func.count(distinct(AdMetrics.adset_id)).label('total_adsets')
-        ).filter(AdMetrics.account_id.in_(user_account_ids))
-        
-        # Apply same filters to stats
-        if account_id:
-            stats_query = stats_query.filter(AdMetrics.account_id == account_id)
-        if prefix:
-            stats_query = stats_query.filter(AdMetrics.prefix == prefix)
-        if campaign_type and campaign_type != 'all':
-            stats_query = stats_query.filter(AdMetrics.campaign_type == campaign_type)
-        if date_from:
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-                stats_query = stats_query.filter(func.date(AdMetrics.date) >= date_from_obj)
-            except ValueError:
-                pass
-        if date_to:
-            try:
-                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                stats_query = stats_query.filter(func.date(AdMetrics.date) <= date_to_obj)
-            except ValueError:
-                pass
-        
-        stats_result = stats_query.first()
-        
-        stats = {
-            "totalSpend": float(stats_result.total_spend or 0),
-            "totalResults": int(stats_result.total_results or 0),
-            "avgGiaData": float(stats_result.avg_gia_data or 0),
-            "activeAdsets": int(stats_result.active_adsets or 0),
-            "pausedAdsets": int(stats_result.paused_adsets or 0),
-            "totalAdsets": int(stats_result.total_adsets or 0)
-        }
-        
-        # Convert ads to dict
-        ads_data = []
-        for ad in ads:
-            ads_data.append({
-                "campaign_id": ad.campaign_id,
-                "campaign_name": ad.campaign_name,
-                "adset_id": ad.adset_id,
-                "adset_name": ad.adset_name,
-                "ad_id": ad.ad_id,
-                "ad_name": ad.ad_name,
-                "account_id": ad.account_id,
-                "prefix": ad.prefix,
-                "adset_status": ad.adset_status,
-                "spend": float(ad.spend or 0),
-                "results": int(ad.results or 0),
-                "gia_data": float(ad.gia_data or 0),
-                "impressions": int(ad.impressions or 0),
-                "clicks": int(ad.clicks or 0),
-                "ctr": float(ad.ctr or 0),
-                "cpc": float(ad.cpc or 0),
-                "purchases": int(ad.purchases or 0),
-                "purchase_value": float(ad.purchase_value or 0),
-                "daily_budget": float(ad.amount_spent or 0)  # Using amount_spent as budget placeholder
-            })
-        
-        return JSONResponse({
-            "ads": ads_data,
-            "total": total,
-            "stats": stats
-        })
-        
-    except Exception as e:
-        logger.error(f"Error in dashboard_data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Action endpoints for dashboard operations
-@router.post("/action/pause/{entity_id}")
-async def pause_entity(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Pause an adset/campaign"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual pause logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Paused successfully"})
-
-
-@router.post("/action/activate/{entity_id}")
-async def activate_entity(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Activate an adset/campaign"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual activate logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Activated successfully"})
-
-
-@router.post("/action/increase-budget/{entity_id}")
-async def increase_budget(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Increase budget by 20%"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual budget increase logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Budget increased successfully"})
-
-
-@router.post("/action/decrease-budget/{entity_id}")
-async def decrease_budget(
-    entity_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Decrease budget by 20%"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    # Here you would implement the actual budget decrease logic using Facebook API
-    # For now, return success
-    return JSONResponse({"success": True, "message": "Budget decreased successfully"})
-
-
-@router.get("/summary")
-async def get_dashboard_summary(
-    request: Request,
-    view_mode: str = Query("ecommerce", description="View mode: ecommerce or lead"),
-    account_id: Optional[str] = Query(None),
-    prefix: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    """Get Overview Cards summary based on view mode and date range"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    try:
-        # Get user's enabled accounts and prefixes
-        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
-        
-        if not user_account_ids:
-            # Return empty summary if no accounts
-            if view_mode == "ecommerce":
-                return JSONResponse({
-                    "totalSpend": 0,
-                    "adsPercent": 0,
-                    "purchaseValue": 0,
-                    "activeAdsets": 0,
-                    "pausedAdsets": 0,
-                    "totalAdsets": 0
-                })
-            else:  # lead
-                return JSONResponse({
-                    "totalSpend": 0,
-                    "totalLeads": 0,
-                    "avgGiaData": 0,
-                    "activeAdsets": 0,
-                    "pausedAdsets": 0,
-                    "totalAdsets": 0
-                })
-        
-        # Build date filter
-        end_date = datetime.now(HCM_TZ).replace(hour=23, minute=59, second=59, microsecond=999999)
-        
-        if date_from:
-            try:
-                start_date = datetime.strptime(date_from, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0)
-                start_date = HCM_TZ.localize(start_date)
-            except ValueError:
-                start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        if date_to:
-            try:
-                end_date = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999)
-                end_date = HCM_TZ.localize(end_date)
-            except ValueError:
-                pass
-        
-        # Build query
-        query = db.query(AdMetrics).filter(
-            AdMetrics.account_id.in_(user_account_ids),
-            func.date(AdMetrics.date) >= start_date.date(),
-            func.date(AdMetrics.date) <= end_date.date()
-        )
-        
-        # Apply filters
-        if account_id:
-            query = query.filter(AdMetrics.account_id == account_id)
-        
-        if prefix:
-            query = query.filter(AdMetrics.adset_name.like(f"{prefix}%"))
-        
-        # Filter by view mode (campaign type)
-        if view_mode == "ecommerce":
-            query = query.filter(AdMetrics.campaign_type == "ECOMMERCE")
-        elif view_mode == "lead":
-            query = query.filter(AdMetrics.campaign_type == "LEAD_GENERATION")
-        
-        # Aggregate metrics
-        metrics = query.all()
-        
-        # Calculate totals
-        total_spend = sum(float(m.spend or 0) for m in metrics)
-        total_purchases = sum(int(m.purchases or 0) for m in metrics)
-        total_purchase_value = sum(float(m.purchase_value or 0) for m in metrics)
-        
-        # Calculate leads (comments + messages)
-        # Note: AdMetrics may not have comments/messages fields directly
-        # We'll use leads field if available, otherwise calculate from results
-        total_leads = sum(int(m.leads or m.results or 0) for m in metrics)
-        
-        # Count adsets by status
-        adset_statuses = {}
-        for m in metrics:
-            status = (m.adset_status or "UNKNOWN").upper()
-            adset_id = m.adset_id
-            if adset_id not in adset_statuses:
-                adset_statuses[adset_id] = status
-        
-        active_adsets = len([s for s in adset_statuses.values() if s == "ACTIVE"])
-        paused_adsets = len([s for s in adset_statuses.values() if s in ["PAUSED", "ARCHIVED"]])
-        total_adsets = len(adset_statuses)
-        
-        if view_mode == "ecommerce":
-            # E-Commerce metrics
-            ads_percent = (total_spend / total_purchase_value * 100) if total_purchase_value > 0 else 0
-            
-            return JSONResponse({
-                "totalSpend": round(total_spend, 2),
-                "adsPercent": round(ads_percent, 2),
-                "purchaseValue": round(total_purchase_value, 2),
-                "activeAdsets": active_adsets,
-                "pausedAdsets": paused_adsets,
-                "totalAdsets": total_adsets
-            })
-        else:
-            # Lead Generation metrics
-            avg_gia_data = total_spend / total_leads if total_leads > 0 else 0
-            
-            return JSONResponse({
-                "totalSpend": round(total_spend, 2),
-                "totalLeads": total_leads,
-                "avgGiaData": round(avg_gia_data, 2),
-                "activeAdsets": active_adsets,
-                "pausedAdsets": paused_adsets,
-                "totalAdsets": total_adsets
-            })
-        
-    except Exception as e:
-        logger.error(f"Error getting dashboard summary: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error loading summary: {str(e)}")
