@@ -1641,73 +1641,14 @@ async def dashboard_page(
     </body>
     </html>
     """
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-bottom: 1rem;
-            }}
-            
-            .stat-label {{
-                font-size: 0.875rem;
-                font-weight: 600;
-                color: var(--gray-600);
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-            }}
-            
-            .stat-icon {{
-                font-size: 1.5rem;
-                opacity: 0.8;
-            }}
-            
-            .stat-value {{
-                font-size: 2rem;
-                font-weight: 800;
-                color: var(--gray-900);
-                margin-bottom: 0.5rem;
-                transition: all 0.3s ease;
-            }}
-            
-            .stat-change {{
-                font-size: 0.75rem;
-                color: var(--gray-500);
-            }}
-            
-            /* Data Table */
-            .table-container {{
-                background: var(--white);
-                border-radius: var(--radius-xl);
-                box-shadow: var(--shadow-lg);
-                border: 1px solid var(--gray-200);
-                overflow: hidden;
-                margin-bottom: 2rem;
-            }}
-            
-            .table-header {{
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 1.5rem 2rem;
-                border-bottom: 1px solid var(--gray-200);
-                background: var(--gray-50);
-            }}
-            
-            .table-title {{
-                display: flex;
-                align-items: center;
-                gap: 1rem;
-            }}
-            
-            .table-title h2 {{
-                font-size: 1.25rem;
-                font-weight: 700;
-                color: var(--gray-900);
-            }}
-            
-            .view-tabs {{
-                display: flex;
-                gap: 0.25rem;
-                background: var(--white);
+        return HTMLResponse(content=html_content)
+        
+    except Exception as e:
+        logger.error(f"Error in dashboard page: {e}")
+        return HTMLResponse(content=f"<div>Error: {str(e)}</div>", status_code=500)
+
+
+@router.get("/data")
                 padding: 0.25rem;
                 border-radius: var(--radius-md);
                 border: 1px solid var(--gray-200);
