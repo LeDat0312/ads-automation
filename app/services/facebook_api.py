@@ -44,9 +44,44 @@ def unique_list(arr: List) -> List:
     return result
 
 
+# Status normalization constants
+ACTIVE_STATUSES = {
+    "ACTIVE", "IN_PROCESS", "WITH_ISSUES",
+    "PREAPPROVED", "PENDING_REVIEW"
+}
+
+PAUSED_STATUSES = {
+    "PAUSED", "ADSET_PAUSED", "CAMPAIGN_PAUSED"
+}
+
+DELETED_STATUSES = {"DELETED", "ARCHIVED"}
+
+
+def normalize_status(effective_status: str) -> str:
+    """
+    Chuẩn hóa effective_status từ Facebook thành 3 trạng thái chính:
+    ACTIVE, PAUSED, DELETED
+    """
+    if not effective_status:
+        return "UNKNOWN"
+    
+    status_upper = effective_status.upper()
+    
+    if status_upper in ACTIVE_STATUSES:
+        return "ACTIVE"
+    if status_upper in PAUSED_STATUSES:
+        return "PAUSED"
+    if status_upper in DELETED_STATUSES:
+        return "DELETED"
+    
+    # Fallback
+    return "OTHER"
+
+
 def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: bool = True) -> Dict[str, str]:
     """
-    Lấy map { adset_id: effective_status } qua batch (?ids=)
+    Lấy map { adset_id: normalized_status } qua batch (?ids=)
+    Trả về status đã được normalize: ACTIVE, PAUSED, DELETED, OTHER
     Thay thế cho hàm fetchAdsetStatuses() từ Facebook API.gs
     Có cache global để tránh fetch lại nhiều lần
     """
@@ -85,7 +120,7 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
     for batch in batches:
         try:
             ids = ','.join(batch)
-            url = f"{FB_GRAPH_API_BASE}/?ids={ids}&fields=effective_status&access_token={access_token}"
+            url = f"{FB_GRAPH_API_BASE}/?ids={ids}&fields=effective_status,status&access_token={access_token}"
             
             response = requests.get(url, timeout=30)
             response.raise_for_status()
@@ -93,8 +128,13 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
             json_data = response.json()
             if json_data and isinstance(json_data, dict):
                 for adset_id, node in json_data.items():
-                    if node and node.get('effective_status'):
-                        status_map[adset_id] = node['effective_status']
+                    if node:
+                        # Lấy effective_status (ưu tiên) hoặc status
+                        raw_status = node.get('effective_status') or node.get('status')
+                        if raw_status:
+                            # Normalize status
+                            normalized = normalize_status(raw_status)
+                            status_map[adset_id] = normalized
         except Exception as e:
             logger.error(f"🚨 Lỗi lấy trạng thái AdSet (batch ids): {e}")
     
