@@ -3472,7 +3472,12 @@ async def get_dashboard_data(
             data['spend'] += float(metric.spend or 0)
             data['impressions'] += int(metric.impressions or 0)
             data['clicks'] += int(metric.clicks or 0)
-            data['reach'] += int(metric.reach or 0)
+            # Handle reach safely - may not exist in AdMetrics model
+            if hasattr(metric, 'reach'):
+                data['reach'] += int(metric.reach or 0)
+            else:
+                # If reach doesn't exist, set to 0 or use impressions as fallback
+                data['reach'] = data.get('reach', 0)
             
             # Add action metrics
             if hasattr(metric, 'post_engagements'):
@@ -3497,8 +3502,9 @@ async def get_dashboard_data(
         # Calculate derived metrics for each adset
         processed_ads = []
         for data in adset_data.values():
-            # Basic calculations
-            data['frequency'] = data['impressions'] / data['reach'] if data['reach'] > 0 else 0
+            # Basic calculations - handle reach safely
+            reach = data.get('reach', 0) or 0
+            data['frequency'] = data['impressions'] / reach if reach > 0 else 0
             data['ctr'] = (data['clicks'] / data['impressions'] * 100) if data['impressions'] > 0 else 0
             data['cpc'] = data['spend'] / data['clicks'] if data['clicks'] > 0 else 0
             data['cpm'] = data['spend'] / data['impressions'] * 1000 if data['impressions'] > 0 else 0
