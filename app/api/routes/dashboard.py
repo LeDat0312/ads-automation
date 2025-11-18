@@ -1835,6 +1835,7 @@ async def dashboard_page(
             account: '',
             prefix: '',
             dateRange: 'today',
+            status: 'ACTIVE',  // QUAN TRỌNG: Mặc định ACTIVE để chỉ hiện ads đang hoạt động
             search: ''
         }};
         let selectedItems = new Set();
@@ -1898,7 +1899,7 @@ async def dashboard_page(
                     dateRange: filters.dateRange || 'today',
                     dateFrom: filters.dateFrom || '',
                     dateTo: filters.dateTo || '',
-                    status: filters.status || '',
+                    status: filters.status || 'ACTIVE',  // QUAN TRỌNG: Default ACTIVE
                     search: filters.search || ''
                 }};
                 
@@ -3307,20 +3308,20 @@ async def dashboard_page(
                 <div class="budget-quick-actions">
                     <div class="budget-quick-group">
                         <span class="budget-quick-label">Giảm:</span>
-                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="applyBudgetPercent(-30, ${{currentBudget}})">-30%</button>
-                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="applyBudgetPercent(-20, ${{currentBudget}})">-20%</button>
-                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="applyBudgetPercent(-10, ${{currentBudget}})">-10%</button>
+                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="event.stopPropagation(); applyBudgetPercent(-10, ${{currentBudget}})">-10%</button>
+                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="event.stopPropagation(); applyBudgetPercent(-20, ${{currentBudget}})">-20%</button>
+                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="event.stopPropagation(); applyBudgetPercent(-30, ${{currentBudget}})">-30%</button>
                     </div>
                     <div class="budget-quick-group">
                         <span class="budget-quick-label">Tăng:</span>
-                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="applyBudgetPercent(10, ${{currentBudget}})">+10%</button>
-                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="applyBudgetPercent(20, ${{currentBudget}})">+20%</button>
-                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="applyBudgetPercent(30, ${{currentBudget}})">+30%</button>
+                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="event.stopPropagation(); applyBudgetPercent(10, ${{currentBudget}})">+10%</button>
+                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="event.stopPropagation(); applyBudgetPercent(20, ${{currentBudget}})">+20%</button>
+                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="event.stopPropagation(); applyBudgetPercent(30, ${{currentBudget}})">+30%</button>
                     </div>
                 </div>
                 <div class="budget-actions">
-                    <button class="budget-btn budget-btn-cancel" onclick="cancelBudgetEditor()">Hủy</button>
-                    <button class="budget-btn budget-btn-save" onclick="saveBudget('${{id}}', '${{budgetLevel}}', '${{level}}')">Lưu</button>
+                    <button class="budget-btn budget-btn-cancel" onclick="event.stopPropagation(); cancelBudgetEditor(); return false;">Hủy</button>
+                    <button class="budget-btn budget-btn-save" onclick="event.stopPropagation(); saveBudget('${{id}}', '${{budgetLevel}}', '${{level}}'); return false;">Lưu</button>
                 </div>
             `;
             
@@ -3351,6 +3352,7 @@ async def dashboard_page(
                 currentBudgetEditor.popover.remove();
                 currentBudgetEditor = null;
             }}
+            return false;
         }}
         
         function cancelBudgetEditor() {{
@@ -3362,6 +3364,7 @@ async def dashboard_page(
                 }}
                 closeBudgetEditor();
             }}
+            return false;
         }}
         
         function applyBudgetPercent(percent, originalBudget) {{
