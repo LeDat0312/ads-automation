@@ -3319,7 +3319,7 @@ async def dashboard_page(
                     </div>
                 </div>
                 <div class="budget-actions">
-                    <button class="budget-btn budget-btn-cancel" onclick="closeBudgetEditor()">Hủy</button>
+                    <button class="budget-btn budget-btn-cancel" onclick="cancelBudgetEditor()">Hủy</button>
                     <button class="budget-btn budget-btn-save" onclick="saveBudget('${{id}}', '${{budgetLevel}}', '${{level}}')">Lưu</button>
                 </div>
             `;
@@ -3333,7 +3333,8 @@ async def dashboard_page(
                 budgetLevel: budgetLevel,
                 level: level,
                 cell: targetCell,
-                popover: popover
+                popover: popover,
+                originalBudget: currentBudget  // Lưu giá trị gốc để reset khi Hủy
             }};
             
             // Focus input
@@ -3341,26 +3342,25 @@ async def dashboard_page(
                 document.getElementById('budgetInput').focus();
             }}, 100);
             
-            // Click outside để đóng
-            setTimeout(() => {{
-                document.addEventListener('click', closeBudgetEditorOnOutsideClick);
-            }}, 100);
-        }}
-        
-        function closeBudgetEditorOnOutsideClick(event) {{
-            if (currentBudgetEditor && currentBudgetEditor.popover) {{
-                if (!currentBudgetEditor.popover.contains(event.target) && 
-                    !currentBudgetEditor.cell.contains(event.target)) {{
-                    closeBudgetEditor();
-                }}
-            }}
+            // KHÔNG tự đóng khi click outside - chỉ đóng khi bấm Hủy hoặc Lưu
+            // (Đã remove closeBudgetEditorOnOutsideClick để tránh reset khi click ra ngoài)
         }}
         
         function closeBudgetEditor() {{
             if (currentBudgetEditor && currentBudgetEditor.popover) {{
                 currentBudgetEditor.popover.remove();
                 currentBudgetEditor = null;
-                document.removeEventListener('click', closeBudgetEditorOnOutsideClick);
+            }}
+        }}
+        
+        function cancelBudgetEditor() {{
+            // Reset về giá trị ban đầu và đóng popup
+            if (currentBudgetEditor) {{
+                const input = document.getElementById('budgetInput');
+                if (input && currentBudgetEditor.originalBudget !== undefined) {{
+                    input.value = currentBudgetEditor.originalBudget;
+                }}
+                closeBudgetEditor();
             }}
         }}
         
@@ -3723,26 +3723,37 @@ async def get_dashboard_data(
         else:
             logger.info(f"   🔎 Không filter theo adset_id (original_adset_id={original_adset_id}, should_filter={should_filter_adset})")
         
-        # ===== DEFAULT FILTER: ACTIVE + impressions > 0 nếu không có status filter =====
-        # Nếu user KHÔNG gửi filter status nào => dùng default ACTIVE + impressions>0
-        if not status or status.upper() not in ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']:
-            # Default: chỉ lấy ACTIVE và có impressions > 0
-            before_default_filter = len(all_data)
-            all_data = [
-                row for row in all_data
-                if (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper() == 'ACTIVE'
-                and int(row.get('impressions', 0) or 0) > 0
-            ]
-            logger.info(f"   📊 Sau default filter (ACTIVE + impressions>0): {len(all_data)}/{before_default_filter} rows")
+        # ===== FILTER STATUS + IMPRESSIONS =====
+        # Normalize status filter: nếu không có hoặc không hợp lệ => default ACTIVE
+        status_filter = None
+        if status and status.upper() in ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']:
+            status_filter = status.upper()
+            # Map ARCHIVED -> DELETED
+            if status_filter == 'ARCHIVED':
+                status_filter = 'DELETED'
         else:
-            # Nếu user có chọn status → dùng đúng lựa chọn đó
-            status_upper = status.upper()
-            before_status_filter = len(all_data)
-            all_data = [
-                row for row in all_data
-                if (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper() == status_upper
-            ]
-            logger.info(f"   📊 Sau filter status ({status_upper}): {len(all_data)}/{before_status_filter} rows")
+            # Default: ACTIVE
+            status_filter = 'ACTIVE'
+        
+        # Filter theo status và impressions
+        before_status_filter = len(all_data)
+        filtered_data = []
+        for row in all_data:
+            # Lấy normalized status (đã được normalize từ fetch_adset_statuses)
+            row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
+            
+            # Kiểm tra status match
+            status_match = row_status == status_filter
+            
+            # Kiểm tra impressions > 0 (mặc định luôn áp dụng)
+            impressions = int(row.get('impressions', 0) or 0)
+            has_impressions = impressions > 0
+            
+            if status_match and has_impressions:
+                filtered_data.append(row)
+        
+        all_data = filtered_data
+        logger.info(f"   📊 Sau filter status ({status_filter}) + impressions>0: {len(all_data)}/{before_status_filter} rows")
         
         # Search filter
         if search and all_data:
