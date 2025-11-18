@@ -1314,6 +1314,148 @@ async def dashboard_page(
             font-weight: bold;
         }}
         
+        /* Budget Editor Popover */
+        .budget-cell {{
+            position: relative;
+            cursor: pointer;
+        }}
+        
+        .budget-cell.editable:hover {{
+            background: #f0f9ff;
+            border-radius: 4px;
+        }}
+        
+        .budget-cell.locked {{
+            cursor: not-allowed;
+            opacity: 0.6;
+        }}
+        
+        .budget-editor-popover {{
+            position: absolute;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            padding: 16px;
+            z-index: 1000;
+            min-width: 280px;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+        }}
+        
+        .budget-editor-popover::before {{
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 20px;
+            width: 12px;
+            height: 12px;
+            background: white;
+            border-left: 1px solid #d1d5db;
+            border-top: 1px solid #d1d5db;
+            transform: rotate(45deg);
+        }}
+        
+        .budget-editor-title {{
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: #1f2937;
+        }}
+        
+        .budget-input-group {{
+            margin-bottom: 12px;
+        }}
+        
+        .budget-input-label {{
+            display: block;
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 6px;
+        }}
+        
+        .budget-input-wrapper {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        
+        .budget-input {{
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }}
+        
+        .budget-currency {{
+            font-size: 14px;
+            color: #6b7280;
+        }}
+        
+        .budget-quick-actions {{
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }}
+        
+        .budget-quick-btn {{
+            flex: 1;
+            padding: 6px 12px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }}
+        
+        .budget-quick-btn:hover {{
+            background: #f3f4f6;
+            border-color: #9ca3af;
+        }}
+        
+        .budget-actions {{
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }}
+        
+        .budget-btn {{
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }}
+        
+        .budget-btn-cancel {{
+            background: #f3f4f6;
+            color: #374151;
+        }}
+        
+        .budget-btn-cancel:hover {{
+            background: #e5e7eb;
+        }}
+        
+        .budget-btn-save {{
+            background: #6366f1;
+            color: white;
+        }}
+        
+        .budget-btn-save:hover {{
+            background: #5856eb;
+        }}
+        
+        .budget-btn-save:disabled {{
+            opacity: 0.5;
+            cursor: not-allowed;
+        }}
+        
         /* Utility classes */
         .text-right {{ text-align: right; }}
         .text-center {{ text-align: center; }}
@@ -2542,113 +2684,67 @@ async def dashboard_page(
             saveFilters();
         }}
         
-        // Refresh data
+        // Refresh data - force refresh from Facebook API
         function refreshData() {{
             const refreshBtn = document.getElementById('refreshBtn');
             refreshBtn.classList.add('loading');
             
-            loadData().finally(() => {{
+            loadData(true).finally(() => {{
                 refreshBtn.classList.remove('loading');
             }});
         }}
         
-        // Load dashboard data
-        async function loadData() {{
+        // Load dashboard data - Unified endpoint
+        async function loadData(forceRefresh = false) {{
             if (isLoading) return;
             
             isLoading = true;
             
             try {{
-                // Load overview cards from /dashboard/summary
-                await loadOverviewCards();
+                // Gọi unified endpoint /dashboard/data
+                const params = buildDataParams(forceRefresh);
+                const response = await fetch(`/dashboard/data?${{params}}`, {{
+                    headers: {{
+                        'Authorization': 'Bearer ' + getAuthToken()
+                    }}
+                }});
                 
-                // Load table data from /dashboard/details
-                await loadTableData();
+                if (!response.ok) {{
+                    throw new Error('Failed to load dashboard data');
+                }}
+                
+                const result = await response.json();
+                console.log('📊 Dashboard data received:', result); // Debug log
+                
+                // Update overview cards từ summary
+                updateOverviewCards(result.summary || {{}});
+                
+                // Update table từ details
+                const details = result.details || {{}};
+                updateTable(details.rows || [], details.pagination?.total_rows || 0);
                 
             }} catch (error) {{
                 console.error('Error loading data:', error);
                 showError('Lỗi tải dữ liệu: ' + error.message);
+                updateOverviewCards({{}});
+                updateTable([], 0);
             }} finally {{
                 isLoading = false;
             }}
         }}
         
-        // Load overview cards
-        async function loadOverviewCards() {{
-            try {{
-                const params = buildSummaryParams();
-                const response = await fetch(`/dashboard/summary?${{params}}`, {{
-                    headers: {{
-                        'Authorization': 'Bearer ' + getAuthToken()
-                    }}
-                }});
-                
-                if (!response.ok) {{
-                    throw new Error('Failed to load overview');
-                }}
-                
-                const overview = await response.json();
-                updateOverviewCards(overview);
-                
-            }} catch (error) {{
-                console.error('Error loading overview:', error);
-                updateOverviewCards({{}});
-            }}
-        }}
-        
-        // Load table data
-        async function loadTableData() {{
-            try {{
-                const params = buildDetailsParams();
-                const response = await fetch(`/dashboard/details?${{params}}`, {{
-                    headers: {{
-                        'Authorization': 'Bearer ' + getAuthToken()
-                    }}
-                }});
-                
-                if (!response.ok) {{
-                    throw new Error('Failed to load table data');
-                }}
-                
-                const data = await response.json();
-                console.log('📊 Table data received:', data); // Debug log
-                updateTable(data.data || [], data.total || 0);
-                
-            }} catch (error) {{
-                console.error('Error loading table data:', error);
-                updateTable([], 0);
-            }}
-        }}
-        
-        // Build API parameters for summary
-        function buildSummaryParams() {{
-            const params = new URLSearchParams({{
-                view_mode: currentViewMode
-            }});
-            
-            // Add filters
-            if (currentFilters.account) params.append('account_id', currentFilters.account);
-            if (currentFilters.prefix) params.append('prefix', currentFilters.prefix);
-            
-            // Date range
-            const dateRange = getDateRange();
-            if (dateRange.from) params.append('date_from', dateRange.from);
-            if (dateRange.to) params.append('date_to', dateRange.to);
-            
-            return params.toString();
-        }}
-        
-        // Build API parameters for details
-        function buildDetailsParams() {{
+        // Build API parameters for unified /dashboard/data endpoint
+        function buildDataParams(forceRefresh = false) {{
             const params = new URLSearchParams({{
                 view_mode: currentViewMode,
                 level: currentLevel || 'adset',
                 page: currentPage || 1,
-                pageSize: pageSize || 50
+                pageSize: pageSize || 50,
+                force_refresh: forceRefresh ? '1' : '0'
             }});
             
             // Add filters
-            if (currentFilters.account) params.append('account_id', currentFilters.account);
+            if (currentFilters.account) params.append('account_ids', currentFilters.account);
             if (currentFilters.prefix) params.append('prefix', currentFilters.prefix);
             if (currentFilters.status) params.append('status', currentFilters.status);
             if (currentFilters.search) params.append('search', currentFilters.search);
@@ -2882,8 +2978,17 @@ async def dashboard_page(
             
             tableBody.innerHTML = rows.map(row => {{
                 const isSelected = selectedItems.has(row.id);
-                const status = (row.status || 'UNKNOWN').toUpperCase();
+                const status = (row.status || row.delivery || 'UNKNOWN').toUpperCase();
                 const statusClass = status === 'ACTIVE' ? 'active' : (status === 'PAUSED' ? 'paused' : 'error');
+                const canEdit = canEditBudget(row, currentLevel || 'adset');
+                const budgetDisplay = canEdit 
+                    ? formatCurrency(row.budget || 0)
+                    : (row.budget_level === 'CAMPAIGN' 
+                        ? (currentLevel === 'campaign' ? 'Theo ngân sách nhóm' : 'Ngân sách chiến dịch')
+                        : (currentLevel === 'campaign' ? 'Ngân sách chiến dịch' : 'Theo ngân sách nhóm'));
+                const budgetTitle = canEdit 
+                    ? 'Click để chỉnh sửa ngân sách'
+                    : `Ngân sách đang ở cấp ${{row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}}. Chỉnh ở tab ${{row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}}`;
                 
                 if (currentViewMode === 'ecommerce') {{
                     return `
@@ -2895,13 +3000,17 @@ async def dashboard_page(
                                 <div class="text-gray" style="font-size: 12px;">ID: ${{row.id}}</div>
                             </td>
                             <td><span class="status-dot ${{statusClass}}"></span></td>
-                            <td class="text-right">${{formatCurrency(0)}}</td>
+                            <td class="text-right budget-cell ${{canEdit ? 'editable' : 'locked'}}" 
+                                ${{canEdit ? `onclick="openBudgetEditor('${{row.id}}', '${{row.budget_level || 'ADSET'}}', ${{row.budget || 0}}, '${{currentLevel || 'adset'}}')"` : ''}}
+                                title="${{budgetTitle}}">
+                                ${{budgetDisplay}}
+                            </td>
                             <td class="text-right font-semibold">${{formatCurrency(row.spend || 0)}}</td>
-                            <td class="text-right">${{formatPercentage(row.ads_percent || 0)}}%</td>
+                            <td class="text-right">${{formatPercentage(adsPercent)}}%</td>
                             <td class="text-right">${{formatNumber(row.results || 0)}}</td>
-                            <td class="text-right">${{formatCurrency(row.gia_data || 0)}}</td>
+                            <td class="text-right">${{formatCurrency(row.data_cost || row.gia_data || 0)}}</td>
                             <td class="text-right">${{formatPercentage(row.tlc || 0)}}%</td>
-                            <td class="text-right">${{formatNumber(row.checkout_starts || 0)}}</td>
+                            <td class="text-right">${{formatNumber(row.initiated_checkout || row.checkout_starts || 0)}}</td>
                             <td class="text-right">${{formatNumber(row.purchases || 0)}}</td>
                             <td class="text-right">${{formatCurrency(row.purchase_value || 0)}}</td>
                             <td class="text-right">${{formatCurrency(row.cpm || 0)}}</td>
@@ -2923,12 +3032,16 @@ async def dashboard_page(
                                 <div class="text-gray" style="font-size: 12px;">ID: ${{row.id}}</div>
                             </td>
                             <td><span class="status-dot ${{statusClass}}"></span></td>
-                            <td class="text-right">${{formatCurrency(0)}}</td>
+                            <td class="text-right budget-cell ${{canEdit ? 'editable' : 'locked'}}" 
+                                ${{canEdit ? `onclick="openBudgetEditor('${{row.id}}', '${{row.budget_level || 'ADSET'}}', ${{row.budget || 0}}, '${{currentLevel || 'adset'}}')"` : ''}}
+                                title="${{budgetTitle}}">
+                                ${{budgetDisplay}}
+                            </td>
                             <td class="text-right font-semibold">${{formatCurrency(row.spend || 0)}}</td>
                             <td class="text-right">${{formatNumber(row.results || 0)}}</td>
-                            <td class="text-right">${{formatCurrency(row.gia_data || 0)}}</td>
-                            <td class="text-right">${{formatCurrency(row.cost_per_checkout_start || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.checkout_starts || 0)}}</td>
+                            <td class="text-right">${{formatCurrency(row.data_cost || row.gia_data || 0)}}</td>
+                            <td class="text-right">${{formatCurrency(row.cost_per_checkout_initiated || row.cost_per_checkout_start || 0)}}</td>
+                            <td class="text-right">${{formatNumber(row.initiated_checkout || row.checkout_starts || 0)}}</td>
                             <td class="text-right">${{formatNumber(row.purchases || 0)}}</td>
                             <td class="text-right">${{formatCurrency(row.cpm || 0)}}</td>
                             <td class="text-right">${{formatNumber(row.impressions || 0)}}</td>
@@ -3062,6 +3175,172 @@ async def dashboard_page(
         function showError(message) {{
             console.error('Error:', message);
             alert(message);
+        }}
+        
+        // Budget Editor Functions
+        let currentBudgetEditor = null;
+        
+        function canEditBudget(row, level) {{
+            // Kiểm tra xem có thể edit budget không dựa trên level và budget_level
+            if (!row.budget_level) return false;
+            
+            if (level === 'campaign') {{
+                // Tab Chiến dịch: chỉ cho edit nếu budget_level === 'CAMPAIGN'
+                return row.budget_level === 'CAMPAIGN';
+            }} else if (level === 'adset') {{
+                // Tab Nhóm quảng cáo: chỉ cho edit nếu budget_level === 'ADSET'
+                return row.budget_level === 'ADSET';
+            }}
+            return false;
+        }}
+        
+        function openBudgetEditor(id, budgetLevel, currentBudget, level) {{
+            // Đóng editor cũ nếu có
+            if (currentBudgetEditor) {{
+                closeBudgetEditor();
+            }}
+            
+            // Tìm cell
+            const cells = document.querySelectorAll('.budget-cell');
+            let targetCell = null;
+            for (let cell of cells) {{
+                if (cell.getAttribute('onclick')?.includes(id)) {{
+                    targetCell = cell;
+                    break;
+                }}
+            }}
+            
+            if (!targetCell) return;
+            
+            // Tạo popover
+            const popover = document.createElement('div');
+            popover.className = 'budget-editor-popover';
+            popover.id = 'budgetEditorPopover';
+            popover.innerHTML = `
+                <div class="budget-editor-title">Chỉnh sửa Ngân sách</div>
+                <div class="budget-input-group">
+                    <label class="budget-input-label">Ngân sách mới (VND/ngày)</label>
+                    <div class="budget-input-wrapper">
+                        <input type="number" class="budget-input" id="budgetInput" value="${{currentBudget}}" min="0" step="1000">
+                        <span class="budget-currency">VND</span>
+                    </div>
+                </div>
+                <div class="budget-quick-actions">
+                    <button class="budget-quick-btn" onclick="applyBudgetPercent(10)">+10%</button>
+                    <button class="budget-quick-btn" onclick="applyBudgetPercent(20)">+20%</button>
+                    <button class="budget-quick-btn" onclick="applyBudgetPercent(30)">+30%</button>
+                </div>
+                <div class="budget-actions">
+                    <button class="budget-btn budget-btn-cancel" onclick="closeBudgetEditor()">Hủy</button>
+                    <button class="budget-btn budget-btn-save" onclick="saveBudget('${{id}}', '${{budgetLevel}}', '${{level}}')">Lưu</button>
+                </div>
+            `;
+            
+            // Append vào cell
+            targetCell.style.position = 'relative';
+            targetCell.appendChild(popover);
+            
+            currentBudgetEditor = {{
+                id: id,
+                budgetLevel: budgetLevel,
+                level: level,
+                cell: targetCell,
+                popover: popover
+            }};
+            
+            // Focus input
+            setTimeout(() => {{
+                document.getElementById('budgetInput').focus();
+            }}, 100);
+            
+            // Click outside để đóng
+            setTimeout(() => {{
+                document.addEventListener('click', closeBudgetEditorOnOutsideClick);
+            }}, 100);
+        }}
+        
+        function closeBudgetEditorOnOutsideClick(event) {{
+            if (currentBudgetEditor && currentBudgetEditor.popover) {{
+                if (!currentBudgetEditor.popover.contains(event.target) && 
+                    !currentBudgetEditor.cell.contains(event.target)) {{
+                    closeBudgetEditor();
+                }}
+            }}
+        }}
+        
+        function closeBudgetEditor() {{
+            if (currentBudgetEditor && currentBudgetEditor.popover) {{
+                currentBudgetEditor.popover.remove();
+                currentBudgetEditor = null;
+                document.removeEventListener('click', closeBudgetEditorOnOutsideClick);
+            }}
+        }}
+        
+        function applyBudgetPercent(percent) {{
+            const input = document.getElementById('budgetInput');
+            if (!input || !currentBudgetEditor) return;
+            
+            const currentValue = parseFloat(input.value) || 0;
+            const newValue = Math.round(currentValue * (1 + percent / 100));
+            input.value = newValue;
+        }}
+        
+        async function saveBudget(id, budgetLevel, level) {{
+            const input = document.getElementById('budgetInput');
+            if (!input || !currentBudgetEditor) return;
+            
+            const newBudget = parseFloat(input.value);
+            if (isNaN(newBudget) || newBudget < 0) {{
+                showError('Ngân sách không hợp lệ');
+                return;
+            }}
+            
+            try {{
+                const saveBtn = document.querySelector('.budget-btn-save');
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Đang lưu...';
+                
+                const response = await fetch('/dashboard/budget/update', {{
+                    method: 'POST',
+                    headers: {{
+                        'Authorization': 'Bearer ' + getAuthToken(),
+                        'Content-Type': 'application/json'
+                    }},
+                    body: JSON.stringify({{
+                        level: budgetLevel,
+                        view_mode: currentViewMode,
+                        operations: [{{
+                            id: id,
+                            budget_level: budgetLevel,
+                            new_budget: newBudget,
+                            reason: 'manual_update'
+                        }}]
+                    }})
+                }});
+                
+                if (!response.ok) {{
+                    throw new Error('Failed to update budget');
+                }}
+                
+                const result = await response.json();
+                if (result.success) {{
+                    showSuccess('Đã cập nhật ngân sách thành công');
+                    closeBudgetEditor();
+                    // Reload data với force refresh
+                    loadData(true);
+                }} else {{
+                    const errorMsg = result.results?.[0]?.error || 'Lỗi không xác định';
+                    throw new Error(errorMsg);
+                }}
+                
+            }} catch (error) {{
+                showError('Lỗi cập nhật ngân sách: ' + error.message);
+                const saveBtn = document.querySelector('.budget-btn-save');
+                if (saveBtn) {{
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Lưu';
+                }}
+            }}
         }}
     </script>
 </body>
@@ -3361,6 +3640,358 @@ async def dashboard_health():
         "service": "dashboard",
         "timestamp": datetime.now(HCM_TZ).isoformat()
     })
+
+
+@router.get("/data")
+async def get_dashboard_data(
+    request: Request,
+    view_mode: str = Query("ecommerce", description="View mode: ecommerce or lead"),
+    level: str = Query("adset", description="Level: campaign, adset, or ad"),
+    account_ids: Optional[str] = Query(None, description="Comma-separated account IDs (optional)"),
+    prefix: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    campaign_id: Optional[str] = Query(None, description="Filter by campaign ID (for drill-down)"),
+    adset_id: Optional[str] = Query(None, description="Filter by adset ID (for drill-down) - CHỈ dùng khi user click vào 1 adset cụ thể"),
+    page: int = Query(1, ge=1),
+    pageSize: int = Query(50, ge=10, le=500),
+    force_refresh: int = Query(0, ge=0, le=1, description="0=use cache, 1=force refresh from Facebook API"),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Unified endpoint: Get both summary cards and detailed table data
+    - force_refresh=0: Use cache (fast, default)
+    - force_refresh=1: Force refresh from Facebook API (realtime)
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Get user's enabled accounts and prefixes
+        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
+        
+        if not user_account_ids:
+            # Return empty response
+            empty_summary = {
+                "totalSpend": 0,
+                "totalLeads": 0 if view_mode == "lead" else None,
+                "avgGiaData": 0 if view_mode == "lead" else None,
+                "adsPercent": 0 if view_mode == "ecommerce" else None,
+                "purchaseValue": 0 if view_mode == "ecommerce" else None,
+                "activeAdsets": 0,
+                "pausedAdsets": 0,
+                "totalAdsets": 0
+            }
+            return JSONResponse({
+                "summary": empty_summary,
+                "details": {
+                    "level": level,
+                    "rows": [],
+                    "pagination": {
+                        "page": page,
+                        "page_size": pageSize,
+                        "total_rows": 0,
+                        "total_pages": 0
+                    }
+                }
+            })
+        
+        # Filter accounts nếu có account_ids filter
+        if account_ids:
+            requested_ids = [aid.strip() for aid in account_ids.split(',') if aid.strip()]
+            # Validate all requested IDs are in user's accounts
+            for aid in requested_ids:
+                if aid not in user_account_ids:
+                    raise HTTPException(status_code=403, detail=f"Access denied to account {aid}")
+            user_account_ids = requested_ids
+        
+        # Get access token
+        access_token = get_user_access_token(current_user.id, db)
+        if not access_token:
+            raise HTTPException(status_code=400, detail="Facebook access token not found. Please configure in Settings.")
+        
+        # Gọi Facebook API (với force_refresh control)
+        use_cache = (force_refresh == 0)
+        logger.info(f"📥 Đang lấy dữ liệu từ Facebook API cho {len(user_account_ids)} tài khoản... (force_refresh={force_refresh}, use_cache={use_cache})")
+        logger.info(f"   Filters: view_mode={view_mode}, level={level}, account_ids={account_ids}, prefix={prefix}, status={status}, date_from={date_from}, date_to={date_to}, search={search}, campaign_id={campaign_id}, adset_id={adset_id}")
+        
+        all_data = await pull_facebook_data_with_date_range_async(
+            access_token,
+            user_account_ids,
+            date_from=date_from,
+            date_to=date_to,
+            max_results=10000,
+            use_cache=use_cache
+        )
+        logger.info(f"   ✅ Đã lấy được {len(all_data)} rows từ Facebook API")
+        
+        # Filter by prefix nếu có
+        if prefix and all_data:
+            all_data = [row for row in all_data if row.get('prefix') == prefix]
+        
+        # Filter by view mode (campaign type)
+        before_view_filter = len(all_data)
+        if view_mode == "ecommerce":
+            all_data = [row for row in all_data if row.get('campaign_type') == 'ECOMMERCE']
+        elif view_mode == "lead":
+            all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD']
+        logger.info(f"   📊 Sau filter view_mode ({view_mode}): {len(all_data)}/{before_view_filter} rows")
+        
+        # Lấy status của adsets từ Facebook API
+        adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
+        if adset_ids:
+            logger.info(f"📊 Đang lấy status cho {len(adset_ids)} adsets...")
+            adset_statuses_map = fetch_adset_statuses(adset_ids, access_token, use_cache=use_cache)
+            # Update status trong data
+            for row in all_data:
+                adset_id = row.get('adset_id')
+                if adset_id and adset_id in adset_statuses_map:
+                    row['adset_status'] = adset_statuses_map[adset_id]
+                    row['effective_status'] = adset_statuses_map[adset_id]
+        
+        # ===== BUILD SUMMARY (dùng tất cả data trước khi filter level) =====
+        all_data_for_summary = all_data.copy()  # Copy để dùng cho summary
+        
+        # Aggregate metrics for summary
+        total_spend = sum(float(row.get('spend', 0) or 0) for row in all_data_for_summary)
+        total_purchases = sum(int(row.get('purchases', 0) or 0) for row in all_data_for_summary)
+        total_purchase_value = sum(float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0) for row in all_data_for_summary)
+        total_leads = sum(
+            int(row.get('post_comments', 0) or 0) + int(row.get('messaging_conversations_started', 0) or 0)
+            for row in all_data_for_summary
+        )
+        
+        # Count unique adsets by status
+        adset_statuses = {}
+        for row in all_data_for_summary:
+            adset_id = row.get('adset_id')
+            if adset_id:
+                status = (row.get('adset_status') or 'UNKNOWN').upper()
+                if adset_id not in adset_statuses:
+                    adset_statuses[adset_id] = status
+        
+        active_adsets = len([s for s in adset_statuses.values() if s == "ACTIVE"])
+        paused_adsets = len([s for s in adset_statuses.values() if s in ["PAUSED", "ARCHIVED"]])
+        total_adsets = len(adset_statuses)
+        
+        # Build summary response
+        if view_mode == "ecommerce":
+            ads_percent = (total_spend / total_purchase_value * 100) if total_purchase_value > 0 else 0
+            summary = {
+                "totalSpend": round(total_spend, 2),
+                "adsPercent": round(ads_percent, 2),
+                "purchaseValue": round(total_purchase_value, 2),
+                "activeAdsets": active_adsets,
+                "pausedAdsets": paused_adsets,
+                "totalAdsets": total_adsets
+            }
+        else:  # lead
+            avg_gia_data = total_spend / total_leads if total_leads > 0 else 0
+            summary = {
+                "totalSpend": round(total_spend, 2),
+                "totalLeads": total_leads,
+                "avgGiaData": round(avg_gia_data, 2),
+                "activeAdsets": active_adsets,
+                "pausedAdsets": paused_adsets,
+                "totalAdsets": total_adsets
+            }
+        
+        # ===== BUILD DETAILS (filter và group theo level) =====
+        # QUAN TRỌNG: TUYỆT ĐỐI không filter adset_id nếu không có param rõ ràng
+        # Chỉ filter khi user thực sự click vào 1 adset cụ thể
+        if campaign_id and campaign_id != "None" and all_data:
+            all_data = [row for row in all_data if row.get('campaign_id') == campaign_id]
+            logger.info(f"   📊 Sau filter campaign_id ({campaign_id}): {len(all_data)} rows")
+        
+        # FIX: Chỉ filter adset_id nếu param thực sự được truyền và không phải None/"None"
+        if adset_id and adset_id != "None" and adset_id.strip():
+            all_data = [row for row in all_data if row.get('adset_id') == adset_id]
+            logger.info(f"   📊 Sau filter adset_id ({adset_id}): {len(all_data)} rows")
+        else:
+            logger.info(f"   🔎 Không filter theo adset_id (adset_id={adset_id})")
+        
+        # Status filter
+        if status and all_data:
+            all_data = [row for row in all_data if (row.get('adset_status') or 'UNKNOWN').upper() == status.upper()]
+        
+        # Search filter
+        if search and all_data:
+            search_lower = search.lower()
+            all_data = [row for row in all_data if (
+                (row.get('campaign_name', '') or '').lower().find(search_lower) >= 0 or
+                (row.get('adset_name', '') or '').lower().find(search_lower) >= 0 or
+                (row.get('ad_name', '') or '').lower().find(search_lower) >= 0 or
+                (row.get('campaign_id', '') or '').lower().find(search_lower) >= 0 or
+                (row.get('adset_id', '') or '').lower().find(search_lower) >= 0 or
+                (row.get('ad_id', '') or '').lower().find(search_lower) >= 0
+            )]
+        
+        # Group by level và aggregate (giống logic cũ)
+        grouped_data = {}
+        for row in all_data:
+            # Determine entity key based on level
+            if level == "campaign":
+                entity_key = row.get('campaign_id')
+                entity_id = row.get('campaign_id')
+                entity_name = row.get('campaign_name', '')
+            elif level == "adset":
+                entity_key = row.get('adset_id')
+                entity_id = row.get('adset_id')
+                entity_name = row.get('adset_name', '')
+            else:  # ad
+                entity_key = row.get('ad_id')
+                entity_id = row.get('ad_id')
+                entity_name = row.get('ad_name', '')
+            
+            if not entity_key:
+                continue
+            
+            # Initialize group if not exists
+            if entity_key not in grouped_data:
+                grouped_data[entity_key] = {
+                    'id': entity_id,
+                    'name': entity_name,
+                    'account_id': row.get('account_id', ''),
+                    'prefix': row.get('prefix', ''),
+                    'status': (row.get('adset_status') or 'UNKNOWN').upper(),
+                    'delivery': (row.get('adset_status') or 'UNKNOWN').upper(),  # Alias for status
+                    'budget': row.get('budget', 0.0) or 0.0,  # Budget từ cache
+                    'budget_level': row.get('budget_level', 'ADSET'),  # Đã được xác định từ campaign info
+                    'currency': 'VND',  # Default, có thể lấy từ account
+                    'spend': 0,
+                    'impressions': 0,
+                    'clicks': 0,
+                    'reach': 0,
+                    'post_comments': 0,
+                    'messaging_conversations_started': 0,
+                    'purchases': 0,
+                    'gia_tri_chuyen_doi_tu_luot_mua': 0,
+                    'checkout_initiated': 0,
+                    'campaign_id': row.get('campaign_id', ''),
+                    'campaign_name': row.get('campaign_name', ''),
+                    'adset_id': row.get('adset_id', ''),
+                    'adset_name': row.get('adset_name', ''),
+                }
+            
+            # Aggregate metrics
+            group = grouped_data[entity_key]
+            group['spend'] += float(row.get('spend', 0) or 0)
+            group['impressions'] += int(row.get('impressions', 0) or 0)
+            group['clicks'] += int(row.get('clicks', 0) or 0)
+            group['reach'] += int(row.get('reach', 0) or 0)
+            group['post_comments'] += int(row.get('post_comments', 0) or 0)
+            group['messaging_conversations_started'] += int(row.get('messaging_conversations_started', 0) or 0)
+            group['purchases'] += int(row.get('purchases', 0) or 0)
+            group['gia_tri_chuyen_doi_tu_luot_mua'] += float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
+            group['checkout_initiated'] += int(row.get('checkout_initiated', 0) or 0)
+            
+            # Update status if available
+            if row.get('adset_status'):
+                group['status'] = row.get('adset_status').upper()
+                group['delivery'] = group['status']
+        
+        # Convert to list and calculate derived metrics
+        rows = []
+        for group in grouped_data.values():
+            spend = group['spend']
+            impressions = group['impressions']
+            clicks = group['clicks']
+            reach = group['reach']
+            post_comments = group['post_comments']
+            messages = group['messaging_conversations_started']
+            purchases = group['purchases']
+            purchase_value = group['gia_tri_chuyen_doi_tu_luot_mua']
+            checkout_starts = group['checkout_initiated']
+            budget = group['budget']
+            budget_level = group['budget_level']
+            
+            # Calculate results (comments + messages)
+            results = post_comments + messages
+            
+            # Calculate derived metrics
+            gia_data = (spend / results) if results > 0 else 0
+            cpm = (spend / impressions * 1000) if impressions > 0 else 0
+            ctr = (clicks / impressions * 100) if impressions > 0 else 0
+            cpc = (spend / clicks) if clicks > 0 else 0
+            frequency = (impressions / reach) if reach > 0 else 0
+            
+            row_data = {
+                "account_id": group['account_id'],
+                "campaign_id": group['campaign_id'],
+                "campaign_name": group['campaign_name'] or "-",
+                "adset_id": group['adset_id'],
+                "adset_name": group['adset_name'] or "-",
+                "id": group['id'],
+                "name": group['name'] or "-",
+                "delivery": group['delivery'],
+                "budget": round(budget, 2),
+                "budget_level": budget_level,
+                "currency": group['currency'],
+                "spend": round(spend, 2),
+                "results": results,
+                "total_leads": results,  # Alias
+                "impressions": impressions,
+                "clicks": clicks,
+                "ctr": round(ctr, 2),
+                "cpc": round(cpc, 2),
+                "cpm": round(cpm, 2),
+                "reach": reach,
+                "frequency": round(frequency, 2),
+                "view_mode": view_mode
+            }
+            
+            if view_mode == "ecommerce":
+                ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
+                tlc = (purchases / results) if results > 0 else 0
+                row_data.update({
+                    "%ads": round(ads_percent, 2),
+                    "data_cost": round(gia_data, 2),
+                    "tlc": round(tlc, 2),
+                    "initiated_checkout": checkout_starts,
+                    "purchases": purchases,
+                    "purchase_value": round(purchase_value, 2)
+                })
+            else:  # lead
+                cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
+                row_data.update({
+                    "data_cost": round(gia_data, 2),
+                    "cost_per_checkout_initiated": round(cost_per_checkout_start, 2),
+                    "initiated_checkout": checkout_starts,
+                    "purchases": purchases
+                })
+            
+            rows.append(row_data)
+        
+        # Pagination
+        total_rows = len(rows)
+        total_pages = ((total_rows - 1) // pageSize) + 1 if total_rows > 0 else 0
+        offset = (page - 1) * pageSize
+        paginated_rows = rows[offset:offset + pageSize]
+        
+        logger.info(f"   ✅ Trả về {len(paginated_rows)} rows (page {page}/{total_pages}, total: {total_rows})")
+        
+        return JSONResponse({
+            "summary": summary,
+            "details": {
+                "level": level,
+                "rows": paginated_rows,
+                "pagination": {
+                    "page": page,
+                    "page_size": pageSize,
+                    "total_rows": total_rows,
+                    "total_pages": total_pages
+                }
+            }
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting dashboard data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error loading data: {str(e)}")
 
 
 @router.get("/summary")

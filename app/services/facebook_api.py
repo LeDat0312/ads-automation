@@ -435,6 +435,78 @@ def resume_adsets(
     }
 
 
+def update_campaign_budget(
+    campaign_id: str,
+    access_token: str,
+    new_budget: float
+) -> Dict[str, Any]:
+    """
+    Update campaign budget (daily_budget)
+    """
+    try:
+        # Lấy budget hiện tại
+        url = f"{FB_GRAPH_API_BASE}/{campaign_id}"
+        params = {
+            'fields': 'daily_budget,lifetime_budget',
+            'access_token': access_token
+        }
+        
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        
+        campaign_data = response.json()
+        
+        if 'error' in campaign_data:
+            return {
+                "success": False,
+                "campaign_id": campaign_id,
+                "error": campaign_data['error'].get('message', 'Unknown error')
+            }
+        
+        old_budget = float(campaign_data.get('daily_budget') or campaign_data.get('lifetime_budget') or 0)
+        budget_type = 'daily_budget' if campaign_data.get('daily_budget') else 'lifetime_budget'
+        
+        # Update budget
+        update_url = f"{FB_GRAPH_API_BASE}/{campaign_id}"
+        update_params = {
+            'access_token': access_token
+        }
+        update_data = {
+            budget_type: round(new_budget * 100) / 100  # Round to 2 decimals
+        }
+        
+        update_response = requests.post(update_url, params=update_params, data=update_data, timeout=30)
+        update_response.raise_for_status()
+        
+        update_result = update_response.json()
+        if 'error' in update_result:
+            return {
+                "success": False,
+                "campaign_id": campaign_id,
+                "old_budget": old_budget,
+                "new_budget": new_budget,
+                "error": update_result['error'].get('message', 'Unknown error')
+            }
+        
+        logger.info(f"✅ Đã cập nhật budget campaign {campaign_id}: {old_budget} → {new_budget}")
+        
+        return {
+            "success": True,
+            "campaign_id": campaign_id,
+            "old_budget": old_budget,
+            "new_budget": new_budget,
+            "budget_type": budget_type
+        }
+        
+    except Exception as e:
+        logger.error(f"🚨 Lỗi cập nhật budget campaign {campaign_id}: {e}")
+        return {
+            "success": False,
+            "campaign_id": campaign_id,
+            "error": str(e)
+        }
+
+
 def update_adset_budget(
     adset_id: str,
     access_token: str,
@@ -624,6 +696,9 @@ def pull_facebook_data(
     else:
         adset_budgets_cache = {}
     
+    # Cache để lưu campaign budgets và budget_level (local trong function)
+    campaign_budgets_cache = {}
+    
     def fetch_campaign_objectives_batch(campaign_ids: List[str], access_token: str) -> Dict[str, str]:
         """Lấy campaign objectives từ campaign objects (batch request)"""
         if not campaign_ids:
@@ -675,6 +750,68 @@ def pull_facebook_data(
                 continue
         
         return objectives_map
+    
+    def fetch_campaign_budgets_batch(campaign_ids: List[str], access_token: str) -> Dict[str, Dict[str, Any]]:
+        """
+        Lấy campaign budgets và CBO status từ campaign objects (batch request)
+        Returns: {campaign_id: {'daily_budget': float, 'lifetime_budget': float, 'budget_level': 'CAMPAIGN'|'ADSET'}}
+        """
+        if not campaign_ids:
+            return {}
+        
+        campaigns_info = {}
+        campaign_batches = chunk_list(campaign_ids, 50)
+        
+        for batch in campaign_batches:
+            try:
+                batch_payload = []
+                for campaign_id in batch:
+                    batch_payload.append({
+                        "method": "GET",
+                        "relative_url": f"{FB_API_VERSION}/{campaign_id}?fields=daily_budget,lifetime_budget"
+                    })
+                
+                import json
+                url = f"{FB_GRAPH_API_BASE}/"
+                form_data = {
+                    'access_token': access_token,
+                    'batch': json.dumps(batch_payload)
+                }
+                
+                response = requests.post(url, data=form_data, timeout=60)
+                response.raise_for_status()
+                
+                json_response = response.json()
+                if isinstance(json_response, list):
+                    for i, item in enumerate(json_response):
+                        if i < len(batch):
+                            campaign_id = batch[i]
+                            if item.get('code') == 200:
+                                try:
+                                    body = item.get('body', '{}')
+                                    if isinstance(body, str):
+                                        body_json = json.loads(body)
+                                    else:
+                                        body_json = body
+                                    
+                                    daily_budget = float(body_json.get('daily_budget', 0) or 0)
+                                    lifetime_budget = float(body_json.get('lifetime_budget', 0) or 0)
+                                    
+                                    # Nếu campaign có daily_budget hoặc lifetime_budget → budget_level = CAMPAIGN
+                                    budget_level = 'CAMPAIGN' if (daily_budget > 0 or lifetime_budget > 0) else 'ADSET'
+                                    
+                                    campaigns_info[campaign_id] = {
+                                        'daily_budget': daily_budget,
+                                        'lifetime_budget': lifetime_budget,
+                                        'budget_level': budget_level
+                                    }
+                                except Exception as e:
+                                    logger.warning(f"Lỗi parse campaign budget cho {campaign_id}: {e}")
+            except Exception as e:
+                logger.warning(f"Lỗi khi lấy campaign budgets batch: {e}")
+                continue
+        
+        return campaigns_info
     
     for account_id in ad_account_ids:
         try:
@@ -836,7 +973,7 @@ def pull_facebook_data(
                     if campaign_id and campaign_id not in campaign_objectives_cache:
                         campaign_ids_to_fetch.append(campaign_id)
                 
-                # Fetch campaign objectives nếu có campaigns mới
+                # Fetch campaign objectives và budgets nếu có campaigns mới
                 if campaign_ids_to_fetch:
                     logger.info(f"   🔍 Đang lấy objectives cho {len(campaign_ids_to_fetch)} campaigns...")
                     new_objectives = fetch_campaign_objectives_batch(campaign_ids_to_fetch, access_token)
@@ -846,6 +983,11 @@ def pull_facebook_data(
                         _objectives_cache[access_token] = {}
                     _objectives_cache[access_token].update(new_objectives)
                     _cache_timestamps[cache_key_obj] = datetime.now()
+                    
+                    # Fetch campaign budgets để xác định budget_level
+                    logger.info(f"   💰 Đang lấy campaign budgets cho {len(campaign_ids_to_fetch)} campaigns...")
+                    new_campaign_budgets = fetch_campaign_budgets_batch(campaign_ids_to_fetch, access_token)
+                    campaign_budgets_cache.update(new_campaign_budgets)
                 
                 # Collect unique adset IDs để fetch budgets
                 adset_ids_to_fetch = []
@@ -1034,16 +1176,26 @@ def pull_facebook_data(
                         metrics=metrics_dict
                     )
                     
-                    # Lấy budget từ cache
+                    # Lấy budget và xác định budget_level
+                    campaign_id = item.get('campaign_id', '')
                     adset_id = item.get('adset_id', '')
-                    budget = adset_budgets_cache.get(adset_id, 0.0)
+                    
+                    # Xác định budget_level từ campaign info
+                    campaign_info = campaign_budgets_cache.get(campaign_id, {})
+                    budget_level = campaign_info.get('budget_level', 'ADSET')  # Default: ADSET
+                    
+                    # Lấy budget: nếu campaign có budget → dùng campaign budget, nếu không → dùng adset budget
+                    if budget_level == 'CAMPAIGN':
+                        budget = campaign_info.get('daily_budget', 0.0) or campaign_info.get('lifetime_budget', 0.0) or 0.0
+                    else:
+                        budget = adset_budgets_cache.get(adset_id, 0.0)
                     
                     # Tạo row data
                     row = {
                         'account_name': item.get('account_name', ''),
                         'account_id': item.get('account_id', ''),
                         'campaign_name': campaign_name,
-                        'campaign_id': item.get('campaign_id', ''),
+                        'campaign_id': campaign_id,
                         'adset_id': adset_id,
                         'adset_name': item.get('adset_name', ''),
                         'ad_id': item.get('ad_id', ''),
@@ -1055,6 +1207,7 @@ def pull_facebook_data(
                         'effective_status': '',  # Sẽ được cập nhật sau
                         'budget': budget,
                         'daily_budget': budget,  # Alias
+                        'budget_level': budget_level,  # CAMPAIGN hoặc ADSET
                         'spend': spend,
                         'amount_spent': spend,
                         'results': results,
