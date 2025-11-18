@@ -4536,68 +4536,6 @@ async def get_dashboard_data(
                     f"ran_today={ran_today} | is_active_now={is_active_now}"
                 )
         
-        # ===== BUILD SUMMARY (dùng data có impressions>0 HOẶC spend>0) =====
-        # Filter data cho summary: Lấy rows có impressions > 0 hoặc spend > 0
-        all_data_for_summary = [
-            row for row in all_data 
-            if int(row.get('impressions', 0) or 0) > 0 or float(row.get('spend', 0) or 0) > 0
-        ]
-        logger.info(f"   📊 Summary sẽ tổng kết {len(all_data_for_summary)} rows (impressions>0 or spend>0)")
-        
-        # Aggregate metrics for summary
-        total_spend = sum(float(row.get('spend', 0) or 0) for row in all_data_for_summary)
-        total_purchases = sum(int(row.get('purchases', 0) or 0) for row in all_data_for_summary)
-        total_purchase_value = sum(float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0) for row in all_data_for_summary)
-        
-        # Metrics cho Lead Generation:
-        # - Tổng DATA = bình luận bài viết + người liên hệ nhắn tin mới
-        # - Tổng Lead = tổng số lượt bắt đầu thanh toán
-        total_data = sum(
-            int(row.get('post_comments', 0) or 0) + int(row.get('messaging_conversations_started', 0) or 0)
-            for row in all_data_for_summary
-        )
-        total_lead = sum(int(row.get('onsite_conversion_post_save', 0) or 0) for row in all_data_for_summary)
-        
-        # Count unique adsets by status - từ data có impressions>0
-        adset_statuses = {}
-        for row in all_data_for_summary:
-            row_adset_id = row.get('adset_id')
-            if row_adset_id:
-                # Ưu tiên effective_status (từ API), sau đó mới dùng adset_status
-                row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
-                if row_adset_id not in adset_statuses:
-                    adset_statuses[row_adset_id] = row_status
-        
-        active_adsets = len([s for s in adset_statuses.values() if s == "ACTIVE"])
-        paused_adsets = len([s for s in adset_statuses.values() if s in ["PAUSED", "ARCHIVED"]])
-        total_adsets = len(adset_statuses)
-        
-        # Build summary response
-        if view_mode == "ecommerce":
-            ads_percent = (total_spend / total_purchase_value * 100) if total_purchase_value > 0 else 0
-            summary = {
-                "totalSpend": round(total_spend, 2),
-                "adsPercent": round(ads_percent, 2),
-                "purchaseValue": round(total_purchase_value, 2),
-                "activeAdsets": active_adsets,
-                "pausedAdsets": paused_adsets,
-                "totalAdsets": total_adsets
-            }
-        else:  # lead
-            # Tổng DATA = bình luận + nhắn tin
-            # Giá Data TB = chi phí / tổng DATA
-            # Tổng Lead = lượt bắt đầu thanh toán
-            avg_gia_data = total_spend / total_data if total_data > 0 else 0
-            summary = {
-                "totalSpend": round(total_spend, 2),
-                "totalData": total_data,  # Tổng DATA (comments + messages)
-                "avgGiaData": round(avg_gia_data, 2),  # Giá Data TB
-                "totalLead": total_lead,  # Tổng Lead (checkout started)
-                "activeAdsets": active_adsets,
-                "pausedAdsets": paused_adsets,
-                "totalAdsets": total_adsets
-            }
-        
         # ===== BUILD DETAILS (filter và group theo level) =====
         # QUAN TRỌNG: TUYỆT ĐỐI không filter adset_id nếu không có param rõ ràng
         # Chỉ filter khi user thực sự click vào 1 adset cụ thể
@@ -4691,6 +4629,68 @@ async def get_dashboard_data(
                 (row.get('adset_id', '') or '').lower().find(search_lower) >= 0 or
                 (row.get('ad_id', '') or '').lower().find(search_lower) >= 0
             )]
+        
+        # ===== BUILD SUMMARY SAU TẤT CẢ FILTER (để khớp với bảng) =====
+        logger.info(f"   📊 Tính summary từ {len(all_data)} rows sau tất cả filter (prefix/view_mode/status/search/campaign/adset)")
+        
+        # Aggregate metrics for summary
+        total_spend = sum(float(row.get('spend', 0) or 0) for row in all_data)
+        total_purchases = sum(int(row.get('purchases', 0) or 0) for row in all_data)
+        total_purchase_value = sum(float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0) for row in all_data)
+        
+        # Metrics cho Lead Generation:
+        # - Tổng DATA = bình luận bài viết + người liên hệ nhắn tin mới
+        # - Tổng Lead = tổng số lượt bắt đầu thanh toán
+        total_data = sum(
+            int(row.get('post_comments', 0) or 0) + int(row.get('messaging_conversations_started', 0) or 0)
+            for row in all_data
+        )
+        total_lead = sum(int(row.get('onsite_conversion_post_save', 0) or 0) for row in all_data)
+        
+        # Count unique adsets by status - từ data đã filter
+        adset_statuses = {}
+        for row in all_data:
+            row_adset_id = row.get('adset_id')
+            if row_adset_id:
+                # Ưu tiên effective_status (từ API), sau đó mới dùng adset_status
+                row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
+                if row_adset_id not in adset_statuses:
+                    adset_statuses[row_adset_id] = row_status
+        
+        active_adsets = len([s for s in adset_statuses.values() if s == "ACTIVE"])
+        paused_adsets = len([s for s in adset_statuses.values() if s in ["PAUSED", "ARCHIVED"]])
+        total_adsets = len(adset_statuses)
+        
+        logger.info(
+            f"   📊 SUMMARY_FINAL | total_adsets={total_adsets}, active={active_adsets}, "
+            f"paused={paused_adsets}, spend={total_spend:.2f}, data={total_data}, lead={total_lead}"
+        )
+        
+        # Build summary response
+        if view_mode == "ecommerce":
+            ads_percent = (total_spend / total_purchase_value * 100) if total_purchase_value > 0 else 0
+            summary = {
+                "totalSpend": round(total_spend, 2),
+                "adsPercent": round(ads_percent, 2),
+                "purchaseValue": round(total_purchase_value, 2),
+                "activeAdsets": active_adsets,
+                "pausedAdsets": paused_adsets,
+                "totalAdsets": total_adsets
+            }
+        else:  # lead
+            # Tổng DATA = bình luận + nhắn tin
+            # Giá Data TB = chi phí / tổng DATA
+            # Tổng Lead = lượt bắt đầu thanh toán
+            avg_gia_data = total_spend / total_data if total_data > 0 else 0
+            summary = {
+                "totalSpend": round(total_spend, 2),
+                "totalData": total_data,  # Tổng DATA (comments + messages)
+                "avgGiaData": round(avg_gia_data, 2),  # Giá Data TB
+                "totalLead": total_lead,  # Tổng Lead (checkout started)
+                "activeAdsets": active_adsets,
+                "pausedAdsets": paused_adsets,
+                "totalAdsets": total_adsets
+            }
         
         # Group by level và aggregate (giống logic cũ)
         grouped_data = {}
