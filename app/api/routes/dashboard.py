@@ -3542,10 +3542,10 @@ async def get_dashboard_data(
             adset_statuses_map = fetch_adset_statuses(adset_ids, access_token, use_cache=use_cache)
             # Update status trong data
             for row in all_data:
-                adset_id = row.get('adset_id')
-                if adset_id and adset_id in adset_statuses_map:
-                    row['adset_status'] = adset_statuses_map[adset_id]
-                    row['effective_status'] = adset_statuses_map[adset_id]
+                row_adset_id = row.get('adset_id')  # Dùng tên biến khác để tránh conflict với param adset_id
+                if row_adset_id and row_adset_id in adset_statuses_map:
+                    row['adset_status'] = adset_statuses_map[row_adset_id]
+                    row['effective_status'] = adset_statuses_map[row_adset_id]
         
         # ===== BUILD SUMMARY (dùng tất cả data trước khi filter level) =====
         all_data_for_summary = all_data.copy()  # Copy để dùng cho summary
@@ -3562,12 +3562,12 @@ async def get_dashboard_data(
         # Count unique adsets by status - dùng effective_status (đã được update từ API)
         adset_statuses = {}
         for row in all_data_for_summary:
-            adset_id = row.get('adset_id')
-            if adset_id:
+            row_adset_id = row.get('adset_id')  # Dùng tên biến khác để tránh conflict với param adset_id
+            if row_adset_id:
                 # Ưu tiên effective_status (từ API), sau đó mới dùng adset_status
                 status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
-                if adset_id not in adset_statuses:
-                    adset_statuses[adset_id] = status
+                if row_adset_id not in adset_statuses:
+                    adset_statuses[row_adset_id] = status
         
         active_adsets = len([s for s in adset_statuses.values() if s == "ACTIVE"])
         paused_adsets = len([s for s in adset_statuses.values() if s in ["PAUSED", "ARCHIVED"]])
@@ -3603,21 +3603,29 @@ async def get_dashboard_data(
             logger.info(f"   📊 Sau filter campaign_id ({campaign_id}): {len(all_data)} rows")
         
         # FIX: Chỉ filter adset_id nếu param thực sự được truyền và không phải None/"None"
+        # QUAN TRỌNG: Lưu giá trị ban đầu để tránh bị thay đổi
+        original_adset_id = adset_id
+        logger.info(f"   🔍 DEBUG - adset_id ban đầu: {original_adset_id}, type: {type(original_adset_id)}")
+        
         # Kiểm tra kỹ: adset_id phải là string không rỗng và không phải "None"
         should_filter_adset = False
-        if adset_id:
+        filter_adset_id_value = None
+        
+        if original_adset_id:
             # Kiểm tra nếu là string và không rỗng sau khi strip
-            if isinstance(adset_id, str):
-                adset_id_clean = adset_id.strip()
+            if isinstance(original_adset_id, str):
+                adset_id_clean = original_adset_id.strip()
                 if adset_id_clean and adset_id_clean.lower() != "none":
                     should_filter_adset = True
-                    adset_id = adset_id_clean
+                    filter_adset_id_value = adset_id_clean
         
-        if should_filter_adset:
-            all_data = [row for row in all_data if row.get('adset_id') == adset_id]
-            logger.info(f"   📊 Sau filter adset_id ({adset_id}): {len(all_data)} rows")
+        logger.info(f"   🔍 DEBUG - should_filter_adset: {should_filter_adset}, filter_adset_id_value: {filter_adset_id_value}")
+        
+        if should_filter_adset and filter_adset_id_value:
+            all_data = [row for row in all_data if row.get('adset_id') == filter_adset_id_value]
+            logger.info(f"   📊 Sau filter adset_id ({filter_adset_id_value}): {len(all_data)} rows")
         else:
-            logger.info(f"   🔎 Không filter theo adset_id (adset_id={adset_id}, should_filter={should_filter_adset})")
+            logger.info(f"   🔎 Không filter theo adset_id (original_adset_id={original_adset_id}, should_filter={should_filter_adset})")
         
         # Status filter
         if status and all_data:
