@@ -164,6 +164,166 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
     return status_map
 
 
+def fetch_ad_statuses(ad_ids: List[str], access_token: str, use_cache: bool = True) -> Dict[str, str]:
+    """
+    Lấy map { ad_id: normalized_status } qua batch (?ids=)
+    Trả về status đã được normalize: ACTIVE, PAUSED, DELETED, OTHER
+    Có cache global để tránh fetch lại nhiều lần
+    """
+    if not ad_ids:
+        return {}
+    
+    # Check cache
+    cache_key = f"ad_status_{access_token[:20]}"
+    if use_cache:
+        now = datetime.now()
+        cached_timestamp = _cache_timestamps.get(cache_key)
+        if cached_timestamp:
+            age_seconds = (now - cached_timestamp).total_seconds()
+            if age_seconds < CACHE_TTL_STATUS:
+                # Lấy từ cache những ad_ids có sẵn
+                cached_statuses = _status_cache.get(f"ads_{access_token}", {})
+                result = {ad_id: cached_statuses.get(ad_id) for ad_id in ad_ids if ad_id in cached_statuses and cached_statuses.get(ad_id)}
+                if len(result) == len(ad_ids):
+                    logger.info(f"✅ Cache hit cho ad statuses ({len(ad_ids)} ads)")
+                    return result
+                # Nếu thiếu một số, chỉ fetch những cái thiếu
+                missing_ids = [ad_id for ad_id in ad_ids if ad_id not in cached_statuses or not cached_statuses.get(ad_id)]
+                if missing_ids:
+                    logger.info(f"⏰ Cache partial hit, fetch thêm {len(missing_ids)} ad statuses...")
+                    ad_ids = missing_ids
+            else:
+                # Cache expired
+                logger.info(f"⏰ Cache expired cho ad statuses, fetch lại...")
+                _status_cache.pop(f"ads_{access_token}", None)
+                _cache_timestamps.pop(cache_key, None)
+    
+    # Fetch từ API
+    status_map = {}
+    batches = chunk_list(unique_list(ad_ids), 50)
+    
+    for batch in batches:
+        try:
+            ids = ','.join(batch)
+            url = f"{FB_GRAPH_API_BASE}/?ids={ids}&fields=effective_status,status&access_token={access_token}"
+            
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            
+            json_data = response.json()
+            logger.debug(f"   🔍 DEBUG - Facebook response for ad statuses: {json_data}")
+            if json_data and isinstance(json_data, dict):
+                for ad_id, node in json_data.items():
+                    if node:
+                        effective_status = node.get('effective_status')
+                        ad_status = node.get('status')
+                        
+                        if effective_status:
+                            normalized = normalize_status(effective_status)
+                            status_map[ad_id] = normalized
+                            logger.debug(f"   🔍 Ad {ad_id}: effective={effective_status}, status={ad_status} → {normalized}")
+                        else:
+                            if ad_status:
+                                normalized = normalize_status(ad_status)
+                                status_map[ad_id] = normalized
+                                logger.debug(f"   🔍 Ad {ad_id}: status={ad_status} → {normalized}")
+                            else:
+                                status_map[ad_id] = 'UNKNOWN'
+                                logger.warning(f"   ⚠️ No status found for ad {ad_id}")
+        except Exception as e:
+            logger.error(f"🚨 Lỗi lấy trạng thái Ad (batch ids): {e}")
+    
+    # Update cache
+    if use_cache and status_map:
+        cache_ads_key = f"ads_{access_token}"
+        if cache_ads_key not in _status_cache:
+            _status_cache[cache_ads_key] = {}
+        _status_cache[cache_ads_key].update(status_map)
+        _cache_timestamps[cache_key] = datetime.now()
+    
+    return status_map
+
+
+def fetch_campaign_statuses(campaign_ids: List[str], access_token: str, use_cache: bool = True) -> Dict[str, str]:
+    """
+    Lấy map { campaign_id: normalized_status } qua batch (?ids=)
+    Trả về status đã được normalize: ACTIVE, PAUSED, DELETED, OTHER
+    Có cache global để tránh fetch lại nhiều lần
+    """
+    if not campaign_ids:
+        return {}
+    
+    # Check cache
+    cache_key = f"campaign_status_{access_token[:20]}"
+    if use_cache:
+        now = datetime.now()
+        cached_timestamp = _cache_timestamps.get(cache_key)
+        if cached_timestamp:
+            age_seconds = (now - cached_timestamp).total_seconds()
+            if age_seconds < CACHE_TTL_STATUS:
+                # Lấy từ cache những campaign_ids có sẵn
+                cached_statuses = _status_cache.get(f"campaigns_{access_token}", {})
+                result = {cid: cached_statuses.get(cid) for cid in campaign_ids if cid in cached_statuses and cached_statuses.get(cid)}
+                if len(result) == len(campaign_ids):
+                    logger.info(f"✅ Cache hit cho campaign statuses ({len(campaign_ids)} campaigns)")
+                    return result
+                # Nếu thiếu một số, chỉ fetch những cái thiếu
+                missing_ids = [cid for cid in campaign_ids if cid not in cached_statuses or not cached_statuses.get(cid)]
+                if missing_ids:
+                    logger.info(f"⏰ Cache partial hit, fetch thêm {len(missing_ids)} campaign statuses...")
+                    campaign_ids = missing_ids
+            else:
+                # Cache expired
+                logger.info(f"⏰ Cache expired cho campaign statuses, fetch lại...")
+                _status_cache.pop(f"campaigns_{access_token}", None)
+                _cache_timestamps.pop(cache_key, None)
+    
+    # Fetch từ API
+    status_map = {}
+    batches = chunk_list(unique_list(campaign_ids), 50)
+    
+    for batch in batches:
+        try:
+            ids = ','.join(batch)
+            url = f"{FB_GRAPH_API_BASE}/?ids={ids}&fields=effective_status,status&access_token={access_token}"
+            
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            
+            json_data = response.json()
+            logger.debug(f"   🔍 DEBUG - Facebook response for campaign statuses: {json_data}")
+            if json_data and isinstance(json_data, dict):
+                for campaign_id, node in json_data.items():
+                    if node:
+                        effective_status = node.get('effective_status')
+                        campaign_status = node.get('status')
+                        
+                        if effective_status:
+                            normalized = normalize_status(effective_status)
+                            status_map[campaign_id] = normalized
+                            logger.debug(f"   🔍 Campaign {campaign_id}: effective={effective_status}, status={campaign_status} → {normalized}")
+                        else:
+                            if campaign_status:
+                                normalized = normalize_status(campaign_status)
+                                status_map[campaign_id] = normalized
+                                logger.debug(f"   🔍 Campaign {campaign_id}: status={campaign_status} → {normalized}")
+                            else:
+                                status_map[campaign_id] = 'UNKNOWN'
+                                logger.warning(f"   ⚠️ No status found for campaign {campaign_id}")
+        except Exception as e:
+            logger.error(f"🚨 Lỗi lấy trạng thái Campaign (batch ids): {e}")
+    
+    # Update cache
+    if use_cache and status_map:
+        cache_campaigns_key = f"campaigns_{access_token}"
+        if cache_campaigns_key not in _status_cache:
+            _status_cache[cache_campaigns_key] = {}
+        _status_cache[cache_campaigns_key].update(status_map)
+        _cache_timestamps[cache_key] = datetime.now()
+    
+    return status_map
+
+
 def fetch_adset_budgets(adset_ids: List[str], access_token: str, use_cache: bool = True) -> Dict[str, float]:
     """
     Lấy map { adset_id: budget } qua batch (?ids=)

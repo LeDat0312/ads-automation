@@ -18,7 +18,7 @@ from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.core.ui_helpers import get_account_locked_message
-from app.services.facebook_api import pull_facebook_data, fetch_adset_statuses, pause_adsets, resume_adsets, update_adset_budget, update_campaign_budget
+from app.services.facebook_api import pull_facebook_data, fetch_adset_statuses, fetch_ad_statuses, fetch_campaign_statuses, pause_adsets, resume_adsets, update_adset_budget, update_campaign_budget
 from pydantic import BaseModel
 from typing import Literal
 
@@ -4473,19 +4473,57 @@ async def get_dashboard_data(
             all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD']
         logger.info(f"   📊 Sau filter view_mode ({view_mode}): {len(all_data)}/{before_view_filter} rows")
         
-        # Lấy status của adsets từ Facebook API
+        # ===== Lấy status từ CẢ 3 CẤP: Campaign, Adset, Ad =====
+        # Theo logic: Chỉ khi cả 3 đều ACTIVE → status = ACTIVE
+        # Nếu 1 trong 3 PAUSED → status = PAUSED
+        
+        # 1. Lấy unique IDs
+        campaign_ids = list(set([row.get('campaign_id') for row in all_data if row.get('campaign_id')]))
         adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
+        ad_ids = list(set([row.get('ad_id') for row in all_data if row.get('ad_id')]))
+        
+        # 2. Fetch statuses từ Facebook API
+        campaign_statuses_map = {}
+        adset_statuses_map = {}
+        ad_statuses_map = {}
+        
+        if campaign_ids:
+            logger.info(f"📊 Đang lấy status cho {len(campaign_ids)} campaigns...")
+            campaign_statuses_map = fetch_campaign_statuses(campaign_ids, access_token, use_cache=use_cache)
+            logger.info(f"   🔍 DEBUG - Campaign statuses: {campaign_statuses_map}")
+        
         if adset_ids:
             logger.info(f"📊 Đang lấy status cho {len(adset_ids)} adsets...")
             adset_statuses_map = fetch_adset_statuses(adset_ids, access_token, use_cache=use_cache)
-            logger.info(f"   🔍 DEBUG - Adset statuses từ API: {adset_statuses_map}")
-            # Update status trong data
-            for row in all_data:
-                row_adset_id = row.get('adset_id')  # Dùng tên biến khác để tránh conflict với param adset_id
-                if row_adset_id and row_adset_id in adset_statuses_map:
-                    row['adset_status'] = adset_statuses_map[row_adset_id]
-                    row['effective_status'] = adset_statuses_map[row_adset_id]
-                    logger.debug(f"   📝 Updated status for adset {row_adset_id}: {adset_statuses_map[row_adset_id]}")
+            logger.info(f"   🔍 DEBUG - Adset statuses: {adset_statuses_map}")
+        
+        if ad_ids:
+            logger.info(f"📊 Đang lấy status cho {len(ad_ids)} ads...")
+            ad_statuses_map = fetch_ad_statuses(ad_ids, access_token, use_cache=use_cache)
+            logger.info(f"   🔍 DEBUG - Ad statuses: {ad_statuses_map}")
+        
+        # 3. Kết hợp status từ 3 cấp vào từng row
+        # Logic: campaign=ACTIVE AND adset=ACTIVE AND ad=ACTIVE → ACTIVE
+        # Ngược lại → PAUSED
+        for row in all_data:
+            campaign_status = campaign_statuses_map.get(row.get('campaign_id'), 'UNKNOWN')
+            adset_status = adset_statuses_map.get(row.get('adset_id'), 'UNKNOWN')
+            ad_status = ad_statuses_map.get(row.get('ad_id'), 'UNKNOWN')
+            
+            # Chỉ khi CẢ 3 đều ACTIVE → final status = ACTIVE
+            if campaign_status == 'ACTIVE' and adset_status == 'ACTIVE' and ad_status == 'ACTIVE':
+                final_status = 'ACTIVE'
+            else:
+                # Nếu 1 trong 3 PAUSED hoặc không phải ACTIVE → PAUSED
+                final_status = 'PAUSED'
+            
+            # Lưu vào row để dùng sau này
+            row['campaign_status'] = campaign_status
+            row['adset_status'] = adset_status
+            row['ad_status'] = ad_status
+            row['effective_status'] = final_status  # Status kết hợp từ 3 cấp
+            
+            logger.debug(f"   📝 Row {row.get('ad_id')}: campaign={campaign_status}, adset={adset_status}, ad={ad_status} → {final_status}")
         
         # ===== BUILD SUMMARY (dùng data có impressions>0, KHÔNG phụ thuộc status) =====
         # Filter data cho summary: CHỈ lấy rows có impressions > 0
