@@ -130,17 +130,26 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
             if json_data and isinstance(json_data, dict):
                 for adset_id, node in json_data.items():
                     if node:
-                        # Lấy effective_status (ưu tiên) hoặc status
-                        raw_status = node.get('effective_status') or node.get('status')
-                        if raw_status:
-                            # Normalize status
-                            normalized = normalize_status(raw_status)
-                            status_map[adset_id] = normalized
-                            logger.info(f"   🔍 Adset {adset_id}: raw={raw_status} → normalized={normalized}")
+                        # QUAN TRỌNG: Ưu tiên status (trạng thái adset) hơn effective_status
+                        # Vì effective_status='CAMPAIGN_PAUSED' có nghĩa adset đang ACTIVE nhưng campaign bị pause
+                        # User muốn xem adsets đang ACTIVE (có thể bật lại campaign bất kỳ lúc nào)
+                        adset_status = node.get('status')
+                        effective_status = node.get('effective_status')
+                        
+                        # Nếu adset status là ACTIVE → coi như ACTIVE (bất kể campaign)
+                        if adset_status and adset_status.upper() == 'ACTIVE':
+                            status_map[adset_id] = 'ACTIVE'
+                            logger.info(f"   🔍 Adset {adset_id}: status={adset_status}, effective={effective_status} → ACTIVE (adset enabled)")
                         else:
-                            # Nếu không có status, mặc định là UNKNOWN
-                            status_map[adset_id] = 'UNKNOWN'
-                            logger.warning(f"   ⚠️ No status found for adset {adset_id}")
+                            # Nếu adset bị pause/deleted, dùng effective_status hoặc status
+                            raw_status = effective_status or adset_status
+                            if raw_status:
+                                normalized = normalize_status(raw_status)
+                                status_map[adset_id] = normalized
+                                logger.info(f"   🔍 Adset {adset_id}: status={adset_status}, effective={effective_status} → {normalized}")
+                            else:
+                                status_map[adset_id] = 'UNKNOWN'
+                                logger.warning(f"   ⚠️ No status found for adset {adset_id}")
         except Exception as e:
             logger.error(f"🚨 Lỗi lấy trạng thái AdSet (batch ids): {e}")
     
