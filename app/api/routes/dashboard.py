@@ -2756,6 +2756,10 @@ async def dashboard_page(
             if (dateRange.from) params.append('date_from', dateRange.from);
             if (dateRange.to) params.append('date_to', dateRange.to);
             
+            // QUAN TRỌNG: KHÔNG thêm campaign_id hoặc adset_id vào params trừ khi user thực sự click drill-down
+            // Clear any existing drill-down filters khi chuyển tab hoặc reload
+            // (Không thêm vào đây để tránh filter không mong muốn)
+            
             return params.toString();
         }}
         
@@ -3309,11 +3313,9 @@ async def dashboard_page(
                         'Content-Type': 'application/json'
                     }},
                     body: JSON.stringify({{
-                        level: budgetLevel,
-                        view_mode: currentViewMode,
                         operations: [{{
+                            level: budgetLevel,  // FIX: Dùng "level" thay vì "budget_level"
                             id: id,
-                            budget_level: budgetLevel,
                             new_budget: newBudget,
                             reason: 'manual_update'
                         }}]
@@ -3506,6 +3508,8 @@ async def get_dashboard_data(
         use_cache = (force_refresh == 0)
         logger.info(f"📥 Đang lấy dữ liệu từ Facebook API cho {len(user_account_ids)} tài khoản... (force_refresh={force_refresh}, use_cache={use_cache})")
         logger.info(f"   Filters: view_mode={view_mode}, level={level}, account_ids={account_ids}, prefix={prefix}, status={status}, date_from={date_from}, date_to={date_to}, search={search}, campaign_id={campaign_id}, adset_id={adset_id}")
+        # DEBUG: Log raw query params để kiểm tra
+        logger.info(f"   🔍 DEBUG - Raw query params adset_id: {request.query_params.get('adset_id', 'NOT_IN_URL')}, type: {type(adset_id)}")
         
         all_data = await pull_facebook_data_with_date_range_async(
             access_token,
@@ -3597,11 +3601,21 @@ async def get_dashboard_data(
             logger.info(f"   📊 Sau filter campaign_id ({campaign_id}): {len(all_data)} rows")
         
         # FIX: Chỉ filter adset_id nếu param thực sự được truyền và không phải None/"None"
-        if adset_id and adset_id != "None" and adset_id.strip():
+        # Kiểm tra kỹ: adset_id phải là string không rỗng và không phải "None"
+        should_filter_adset = False
+        if adset_id:
+            # Kiểm tra nếu là string và không rỗng sau khi strip
+            if isinstance(adset_id, str):
+                adset_id_clean = adset_id.strip()
+                if adset_id_clean and adset_id_clean.lower() != "none":
+                    should_filter_adset = True
+                    adset_id = adset_id_clean
+        
+        if should_filter_adset:
             all_data = [row for row in all_data if row.get('adset_id') == adset_id]
             logger.info(f"   📊 Sau filter adset_id ({adset_id}): {len(all_data)} rows")
         else:
-            logger.info(f"   🔎 Không filter theo adset_id (adset_id={adset_id})")
+            logger.info(f"   🔎 Không filter theo adset_id (adset_id={adset_id}, should_filter={should_filter_adset})")
         
         # Status filter
         if status and all_data:
@@ -3795,7 +3809,7 @@ class BudgetOperation(BaseModel):
 
 class BudgetUpdateRequest(BaseModel):
     operations: List[BudgetOperation]
-    view_mode: Optional[str] = "ecommerce"  # Để validate
+    view_mode: Optional[str] = None  # Optional, không bắt buộc
 
 
 @router.post("/budget/update")
