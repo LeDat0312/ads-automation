@@ -4522,10 +4522,13 @@ async def get_dashboard_data(
                     f"is_switch_on={row['is_switch_on_now']}"
                 )
         
-        # ===== BUILD SUMMARY (dùng data có impressions>0, KHÔNG phụ thuộc status) =====
-        # Filter data cho summary: CHỈ lấy rows có impressions > 0
-        all_data_for_summary = [row for row in all_data if int(row.get('impressions', 0) or 0) > 0]
-        logger.info(f"   📊 Summary sẽ tổng kết {len(all_data_for_summary)} rows (impressions>0)")
+        # ===== BUILD SUMMARY (dùng data có impressions>0 HOẶC spend>0) =====
+        # Filter data cho summary: Lấy rows có impressions > 0 hoặc spend > 0
+        all_data_for_summary = [
+            row for row in all_data 
+            if int(row.get('impressions', 0) or 0) > 0 or float(row.get('spend', 0) or 0) > 0
+        ]
+        logger.info(f"   📊 Summary sẽ tổng kết {len(all_data_for_summary)} rows (impressions>0 or spend>0)")
         
         # Aggregate metrics for summary
         total_spend = sum(float(row.get('spend', 0) or 0) for row in all_data_for_summary)
@@ -4629,33 +4632,42 @@ async def get_dashboard_data(
             status_upper = status.upper().strip()
             if status_upper == 'ACTIVE':
                 status_filter = 'ACTIVE'
-                logger.info(f"   🔍 DEBUG - Filter mode: ACTIVE (has_impressions_today AND is_switch_on_now)")
+                logger.info(f"   🔍 DEBUG - Filter mode: ACTIVE (chỉ is_switch_on_now - nút gạt đang bật)")
             elif status_upper == 'RAN_TODAY':
                 status_filter = 'RAN_TODAY'
                 logger.info(f"   🔍 DEBUG - Filter mode: RAN_TODAY (chỉ has_impressions_today)")
+            elif status_upper == 'ACTIVE_AND_RAN_TODAY':
+                status_filter = 'ACTIVE_AND_RAN_TODAY'
+                logger.info(f"   🔍 DEBUG - Filter mode: ACTIVE_AND_RAN_TODAY (bật & đã chạy)")
             else:
                 logger.info(f"   🔍 DEBUG - Status param không hợp lệ: {status_upper}, bỏ qua")
         else:
-            logger.info(f"   🔍 DEBUG - Không có status param, mặc định lấy TẤT CẢ đã chạy hôm nay")
+            logger.info(f"   🔍 DEBUG - Không có status param, lấy TẤT CẢ")
         
         # Apply filter
         before_filter = len(all_data)
         filtered_data = []
         
         for row in all_data:
-            # Mặc định: CHỈ lấy adsets đã chạy hôm nay (có impressions > 0)
-            if not row.get('has_impressions_today'):
-                continue
-            
-            # Nếu filter ACTIVE: phải thỏa thêm điều kiện is_switch_on_now
+            # Filter theo mode
             if status_filter == 'ACTIVE':
+                # CHỈ lấy adsets có nút gạt đang bật (không quan tâm có chạy hay chưa)
                 if not row.get('is_switch_on_now'):
                     continue
+            elif status_filter == 'RAN_TODAY':
+                # CHỈ lấy adsets đã chạy hôm nay
+                if not row.get('has_impressions_today'):
+                    continue
+            elif status_filter == 'ACTIVE_AND_RAN_TODAY':
+                # Lấy adsets vừa bật vừa đã chạy
+                if not (row.get('is_switch_on_now') and row.get('has_impressions_today')):
+                    continue
+            # else: không filter, lấy tất cả
             
             # Pass filter
             filtered_data.append(row)
         
-        logger.info(f"   📊 Sau filter: {len(filtered_data)}/{before_filter} rows (filter={status_filter or 'RAN_TODAY (default)'})")
+        logger.info(f"   📊 Sau filter: {len(filtered_data)}/{before_filter} rows (filter={status_filter or 'NONE (all data)'})")
         all_data = filtered_data
         
         # Search filter

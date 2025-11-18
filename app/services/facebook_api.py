@@ -119,6 +119,9 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
     status_map = {}
     batches = chunk_list(unique_list(adset_ids), 50)
     
+    # DEBUG: Target adset FL-13.11-B9
+    TARGET_ADSET_ID = "120237687958500742"
+    
     for batch in batches:
         try:
             ids = ','.join(batch)
@@ -127,11 +130,21 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
             fields = "id,configured_status,effective_status,status,campaign{id,configured_status,effective_status}"
             url = f"{FB_GRAPH_API_BASE}/?ids={ids}&fields={fields}&access_token={access_token}"
             
+            logger.warning(f"   🔍 DEBUG_STATUS_API_CALL | adset_ids_sample={batch[:3]} | use_cache={use_cache}")
+            
             response = requests.get(url, timeout=30)
             response.raise_for_status()
             
             json_data = response.json()
-            logger.debug(f"   🔍 DEBUG - Facebook response for adset statuses: {json_data}")
+            
+            # DEBUG: Log raw response cho vài adsets đầu
+            for idx, (aid, node) in enumerate(list(json_data.items())[:3]):
+                logger.warning(
+                    f"   🔍 DEBUG_STATUS_RAW[{idx}] | id={aid} | "
+                    f"conf={node.get('configured_status')} | eff={node.get('effective_status')} | "
+                    f"status={node.get('status')} | campaign={node.get('campaign')}"
+                )
+            
             if json_data and isinstance(json_data, dict):
                 for adset_id, node in json_data.items():
                     if node:
@@ -151,6 +164,12 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
                             'campaign_configured_status': campaign_configured,
                             'campaign_effective_status': campaign_effective,
                         }
+                        
+                        # DEBUG: Log chi tiết cho FL-13.11-B9
+                        if adset_id == TARGET_ADSET_ID:
+                            logger.warning(
+                                f"   ⚠️ DEBUG_FL_B9_STATUS | raw_status_info={status_map[adset_id]}"
+                            )
                         
                         logger.debug(
                             f"   🔍 Adset {adset_id}: "
