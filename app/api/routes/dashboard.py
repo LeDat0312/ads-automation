@@ -1398,13 +1398,27 @@ async def dashboard_page(
         
         .budget-quick-actions {{
             display: flex;
+            flex-direction: column;
             gap: 8px;
             margin-bottom: 12px;
         }}
         
+        .budget-quick-group {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+        
+        .budget-quick-label {{
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 500;
+            min-width: 40px;
+        }}
+        
         .budget-quick-btn {{
             flex: 1;
-            padding: 6px 12px;
+            padding: 6px 10px;
             border: 1px solid #d1d5db;
             background: white;
             border-radius: 6px;
@@ -1412,6 +1426,24 @@ async def dashboard_page(
             font-size: 12px;
             font-weight: 500;
             transition: all 0.2s;
+        }}
+        
+        .budget-quick-btn-increase {{
+            color: #059669;
+        }}
+        
+        .budget-quick-btn-increase:hover {{
+            background: #d1fae5;
+            border-color: #059669;
+        }}
+        
+        .budget-quick-btn-decrease {{
+            color: #dc2626;
+        }}
+        
+        .budget-quick-btn-decrease:hover {{
+            background: #fee2e2;
+            border-color: #dc2626;
         }}
         
         .budget-quick-btn:hover {{
@@ -2748,7 +2780,8 @@ async def dashboard_page(
             // Add filters
             if (currentFilters.account) params.append('account_ids', currentFilters.account);
             if (currentFilters.prefix) params.append('prefix', currentFilters.prefix);
-            if (currentFilters.status) params.append('status', currentFilters.status);
+            // QUAN TRỌNG: Chỉ gửi status filter nếu user thực sự chọn (không gửi mặc định để backend dùng default ACTIVE + impressions>0)
+            if (currentFilters.status && currentFilters.status !== '') params.append('status', currentFilters.status);
             if (currentFilters.search) params.append('search', currentFilters.search);
             
             // Date range
@@ -3095,22 +3128,60 @@ async def dashboard_page(
         
         // Action functions
         async function toggleStatus(id, currentStatus) {{
-            const action = currentStatus === 'ACTIVE' ? 'pause' : 'activate';
+            const newStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
             
             try {{
-                const response = await fetch(`/dashboard/action/${{action}}/${{id}}`, {{
+                // Xác định level dựa trên currentLevel
+                const level = (currentLevel || 'adset').toUpperCase();
+                
+                const response = await fetch('/dashboard/status/update', {{
                     method: 'POST',
                     headers: {{
                         'Authorization': 'Bearer ' + getAuthToken(),
                         'Content-Type': 'application/json'
-                    }}
+                    }},
+                    body: JSON.stringify({{
+                        level: level,
+                        items: [{{
+                            id: id,
+                            new_status: newStatus
+                        }}]
+                    }})
                 }});
                 
-                if (response.ok) {{
-                    showSuccess(`Đã ${{action === 'pause' ? 'tắt' : 'bật'}} thành công`);
-                    loadData(); // Refresh data
+                if (!response.ok) {{
+                    const errorData = await response.json().catch(() => ({{}}));
+                    throw new Error(errorData.detail || `Failed to update status`);
+                }}
+                
+                const result = await response.json();
+                if (result.success) {{
+                    showSuccess(`Đã ${{newStatus === 'PAUSED' ? 'tắt' : 'bật'}} thành công`);
+                    
+                    // Update UI ngay lập tức (realtime feel)
+                    const rows = Array.from(document.querySelectorAll('tbody tr'));
+                    rows.forEach(row => {{
+                        const rowId = row.querySelector('[onclick*="toggleStatus"]')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+                        if (rowId === id) {{
+                            // Update toggle button
+                            const toggleBtn = row.querySelector('.toggle-btn');
+                            if (toggleBtn) {{
+                                toggleBtn.classList.remove('active', 'paused');
+                                toggleBtn.classList.add(newStatus === 'ACTIVE' ? 'active' : 'paused');
+                            }}
+                            // Update status dot
+                            const statusDot = row.querySelector('.status-dot');
+                            if (statusDot) {{
+                                statusDot.classList.remove('active', 'paused');
+                                statusDot.classList.add(newStatus === 'ACTIVE' ? 'active' : 'paused');
+                            }}
+                        }}
+                    }});
+                    
+                    // Reload data ở background để sync (không block UI)
+                    setTimeout(() => loadData(true), 1000);
                 }} else {{
-                    throw new Error(`Failed to ${{action}} item`);
+                    throw new Error(result.message || 'Failed to update status');
                 }}
             }} catch (error) {{
                 showError('Lỗi: ' + error.message);
@@ -3234,9 +3305,18 @@ async def dashboard_page(
                     </div>
                 </div>
                 <div class="budget-quick-actions">
-                    <button class="budget-quick-btn" onclick="applyBudgetPercent(10)">+10%</button>
-                    <button class="budget-quick-btn" onclick="applyBudgetPercent(20)">+20%</button>
-                    <button class="budget-quick-btn" onclick="applyBudgetPercent(30)">+30%</button>
+                    <div class="budget-quick-group">
+                        <span class="budget-quick-label">Giảm:</span>
+                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="applyBudgetPercent(-30, ${{currentBudget}})">-30%</button>
+                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="applyBudgetPercent(-20, ${{currentBudget}})">-20%</button>
+                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="applyBudgetPercent(-10, ${{currentBudget}})">-10%</button>
+                    </div>
+                    <div class="budget-quick-group">
+                        <span class="budget-quick-label">Tăng:</span>
+                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="applyBudgetPercent(10, ${{currentBudget}})">+10%</button>
+                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="applyBudgetPercent(20, ${{currentBudget}})">+20%</button>
+                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="applyBudgetPercent(30, ${{currentBudget}})">+30%</button>
+                    </div>
                 </div>
                 <div class="budget-actions">
                     <button class="budget-btn budget-btn-cancel" onclick="closeBudgetEditor()">Hủy</button>
@@ -3284,12 +3364,13 @@ async def dashboard_page(
             }}
         }}
         
-        function applyBudgetPercent(percent) {{
+        function applyBudgetPercent(percent, originalBudget) {{
             const input = document.getElementById('budgetInput');
             if (!input || !currentBudgetEditor) return;
             
-            const currentValue = parseFloat(input.value) || 0;
-            const newValue = Math.round(currentValue * (1 + percent / 100));
+            // Dùng originalBudget (từ row gốc) chứ không dùng giá trị hiện tại trong input
+            const baseBudget = parseFloat(originalBudget) || 0;
+            const newValue = Math.round(baseBudget * (1 + percent / 100));
             input.value = newValue;
         }}
         
@@ -3331,11 +3412,26 @@ async def dashboard_page(
                 const result = await response.json();
                 if (result.success) {{
                     showSuccess('Đã cập nhật ngân sách thành công');
+                    
+                    // Update UI ngay lập tức (realtime feel)
+                    const rows = Array.from(document.querySelectorAll('tbody tr'));
+                    rows.forEach(row => {{
+                        const rowId = row.querySelector('[onclick*="openBudgetEditor"]')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+                        if (rowId === id) {{
+                            // Update budget cell
+                            const budgetCell = row.querySelector('.budget-cell');
+                            if (budgetCell) {{
+                                budgetCell.textContent = formatCurrency(newBudget);
+                            }}
+                        }}
+                    }});
+                    
                     closeBudgetEditor();
-                    // Reload data với force refresh
-                    loadData(true);
+                    
+                    // Reload data ở background để sync (không block UI)
+                    setTimeout(() => loadData(true), 1000);
                 }} else {{
-                    const errorMsg = result.results?.[0]?.error || 'Lỗi không xác định';
+                    const errorMsg = result.results?.[0]?.error || result.errors?.[0]?.error || 'Lỗi không xác định';
                     throw new Error(errorMsg);
                 }}
                 
@@ -3627,9 +3723,26 @@ async def get_dashboard_data(
         else:
             logger.info(f"   🔎 Không filter theo adset_id (original_adset_id={original_adset_id}, should_filter={should_filter_adset})")
         
-        # Status filter
-        if status and all_data:
-            all_data = [row for row in all_data if (row.get('adset_status') or 'UNKNOWN').upper() == status.upper()]
+        # ===== DEFAULT FILTER: ACTIVE + impressions > 0 nếu không có status filter =====
+        # Nếu user KHÔNG gửi filter status nào => dùng default ACTIVE + impressions>0
+        if not status or status.upper() not in ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']:
+            # Default: chỉ lấy ACTIVE và có impressions > 0
+            before_default_filter = len(all_data)
+            all_data = [
+                row for row in all_data
+                if (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper() == 'ACTIVE'
+                and int(row.get('impressions', 0) or 0) > 0
+            ]
+            logger.info(f"   📊 Sau default filter (ACTIVE + impressions>0): {len(all_data)}/{before_default_filter} rows")
+        else:
+            # Nếu user có chọn status → dùng đúng lựa chọn đó
+            status_upper = status.upper()
+            before_status_filter = len(all_data)
+            all_data = [
+                row for row in all_data
+                if (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper() == status_upper
+            ]
+            logger.info(f"   📊 Sau filter status ({status_upper}): {len(all_data)}/{before_status_filter} rows")
         
         # Search filter
         if search and all_data:
@@ -3810,6 +3923,16 @@ async def get_dashboard_data(
         raise HTTPException(status_code=500, detail=f"Error loading data: {str(e)}")
 
 
+# Pydantic models for status update
+class StatusUpdateItem(BaseModel):
+    id: str
+    new_status: Literal["ACTIVE", "PAUSED", "DELETED"]
+
+class StatusUpdateRequest(BaseModel):
+    level: Literal["CAMPAIGN", "ADSET", "AD"]
+    items: List[StatusUpdateItem]
+
+
 # Pydantic models for budget update
 class BudgetOperation(BaseModel):
     level: Literal["CAMPAIGN", "ADSET"]
@@ -3820,6 +3943,102 @@ class BudgetOperation(BaseModel):
 class BudgetUpdateRequest(BaseModel):
     operations: List[BudgetOperation]
     view_mode: Optional[str] = None  # Optional, không bắt buộc
+
+
+@router.post("/status/update")
+async def update_status_endpoint(
+    request: Request,
+    payload: StatusUpdateRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Update status for campaigns, adsets, or ads
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Get access token
+        access_token = get_user_access_token(current_user.id, db)
+        if not access_token:
+            raise HTTPException(status_code=400, detail="Facebook access token not found. Please configure in Settings.")
+        
+        results = []
+        errors = []
+        
+        for item in payload.items:
+            try:
+                if payload.level == "ADSET" or payload.level == "AD":
+                    # Use pause_adsets/resume_adsets for adsets and ads
+                    if item.new_status == "PAUSED":
+                        result = pause_adsets([item.id], access_token, delay_ms=0)
+                    elif item.new_status == "ACTIVE":
+                        result = resume_adsets([item.id], access_token, delay_ms=0)
+                    else:
+                        errors.append({
+                            "id": item.id,
+                            "error": f"Unsupported status for ADSET/AD: {item.new_status}"
+                        })
+                        continue
+                    
+                    if result.get("success", 0) > 0:
+                        results.append({
+                            "id": item.id,
+                            "new_status": item.new_status
+                        })
+                        # Clear status cache cho item này
+                        from app.services.facebook_api import _status_cache, _cache_timestamps
+                        if access_token in _status_cache:
+                            _status_cache[access_token].pop(item.id, None)
+                        # Clear cache timestamp để force refresh
+                        cache_key = f"status_{access_token[:20]}"
+                        _cache_timestamps.pop(cache_key, None)
+                    else:
+                        error_details = result.get('errorDetails', [])
+                        error_msg = error_details[0].get('error', 'Unknown error') if error_details else 'Unknown error'
+                        errors.append({
+                            "id": item.id,
+                            "error": error_msg
+                        })
+                        
+                elif payload.level == "CAMPAIGN":
+                    # TODO: Implement campaign pause/resume
+                    errors.append({
+                        "id": item.id,
+                        "error": "Campaign status update not yet implemented"
+                    })
+                    continue
+                else:
+                    errors.append({
+                        "id": item.id,
+                        "error": f"Invalid level: {payload.level}"
+                    })
+                    continue
+                    
+            except Exception as e:
+                logger.error(f"Error updating status for {payload.level} {item.id}: {e}", exc_info=True)
+                errors.append({
+                    "id": item.id,
+                    "error": str(e)
+                })
+        
+        if errors and not results:
+            # All failed
+            raise HTTPException(status_code=400, detail=f"All operations failed: {errors}")
+        
+        return JSONResponse({
+            "success": True,
+            "results": results,
+            "errors": errors if errors else None,
+            "message": f"Updated {len(results)} status(es) successfully"
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in status update endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error updating status: {str(e)}")
 
 
 @router.post("/budget/update")
@@ -3880,6 +4099,13 @@ async def update_budget_endpoint(
                         "new_budget": result.get("new_budget"),
                         "budget_type": result.get("budget_type")
                     })
+                    # Clear budget cache cho item này
+                    from app.services.facebook_api import _budgets_cache, _cache_timestamps
+                    if access_token in _budgets_cache:
+                        _budgets_cache[access_token].pop(op.id, None)
+                    # Clear cache timestamp để force refresh
+                    cache_key = f"budgets_{access_token[:20]}"
+                    _cache_timestamps.pop(cache_key, None)
                 else:
                     errors.append({
                         "id": op.id,
