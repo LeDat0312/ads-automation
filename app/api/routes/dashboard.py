@@ -2244,6 +2244,28 @@ async def dashboard_page(
                     </tbody>
                 </table>
             </div>
+            
+            <!-- Pagination Controls -->
+            <div id="paginationControls" style="display: none; margin-top: 16px; padding: 16px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+                <div style="color: #6b7280; font-size: 14px;" id="paginationInfo">
+                    Hiển thị <span id="showingFrom">0</span>-<span id="showingTo">0</span> trong tổng số <span id="totalRows">0</span> kết quả
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="prevPageBtn" onclick="changePage(currentPage - 1)" 
+                            style="padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 6px; background: white; color: #374151; cursor: pointer; font-size: 14px; transition: all 0.2s;"
+                            onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">
+                        ← Trước
+                    </button>
+                    <div style="color: #374151; font-size: 14px; padding: 0 12px;">
+                        Trang <span id="currentPageNum">1</span> / <span id="totalPagesNum">1</span>
+                    </div>
+                    <button id="nextPageBtn" onclick="changePage(currentPage + 1)"
+                            style="padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 6px; background: white; color: #374151; cursor: pointer; font-size: 14px; transition: all 0.2s;"
+                            onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">
+                        Sau →
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -2257,7 +2279,7 @@ async def dashboard_page(
             account: '',
             prefix: '',
             dateRange: 'today',
-            status: 'ACTIVE',  // QUAN TRỌNG: Mặc định ACTIVE để chỉ hiện ads đang hoạt động
+            status: '',  // Không default - để lấy tất cả (chỉ filter impressions>0)
             search: ''
         }};
         let selectedItems = new Set();
@@ -3179,13 +3201,14 @@ async def dashboard_page(
                 
                 // Update table từ details
                 const details = result.details || {{}};
-                updateTable(details.rows || [], details.pagination?.total_rows || 0);
+                const pagination = details.pagination || {{}};
+                updateTable(details.rows || [], pagination.total_rows || 0, pagination);
                 
             }} catch (error) {{
                 console.error('Error loading data:', error);
                 showError('Lỗi tải dữ liệu: ' + error.message);
                 updateOverviewCards({{}});
-                updateTable([], 0);
+                updateTable([], 0, {{page: 1, page_size: 50, total_rows: 0, total_pages: 0}});
             }} finally {{
                 isLoading = false;
             }}
@@ -3398,9 +3421,14 @@ async def dashboard_page(
         }}
         
         // Update data table
-        function updateTable(rows, total) {{
+        function updateTable(rows, total, paginationData) {{
             const tableHead = document.getElementById('tableHead');
             const tableBody = document.getElementById('tableBody');
+            
+            // Update pagination UI
+            if (paginationData) {{
+                renderPagination(paginationData);
+            }}
             
             // Define headers based on view mode
             let headers;
@@ -3548,6 +3576,68 @@ async def dashboard_page(
             }} else {{
                 bulkActions.classList.remove('visible');
             }}
+        }}
+        
+        // Pagination functions
+        function renderPagination(pagination) {{
+            const paginationControls = document.getElementById('paginationControls');
+            const prevBtn = document.getElementById('prevPageBtn');
+            const nextBtn = document.getElementById('nextPageBtn');
+            const currentPageNum = document.getElementById('currentPageNum');
+            const totalPagesNum = document.getElementById('totalPagesNum');
+            const showingFrom = document.getElementById('showingFrom');
+            const showingTo = document.getElementById('showingTo');
+            const totalRowsEl = document.getElementById('totalRows');
+            
+            const page = pagination.page || 1;
+            const pageSize = pagination.page_size || 50;
+            const totalRows = pagination.total_rows || 0;
+            const totalPages = pagination.total_pages || 1;
+            
+            // Hiển thị pagination controls nếu có dữ liệu
+            if (totalRows > 0) {{
+                paginationControls.style.display = 'flex';
+                
+                // Update text
+                const from = (page - 1) * pageSize + 1;
+                const to = Math.min(page * pageSize, totalRows);
+                showingFrom.textContent = from;
+                showingTo.textContent = to;
+                totalRowsEl.textContent = totalRows;
+                currentPageNum.textContent = page;
+                totalPagesNum.textContent = totalPages;
+                
+                // Enable/disable buttons
+                prevBtn.disabled = page <= 1;
+                nextBtn.disabled = page >= totalPages;
+                
+                // Update button styles
+                if (prevBtn.disabled) {{
+                    prevBtn.style.opacity = '0.5';
+                    prevBtn.style.cursor = 'not-allowed';
+                }} else {{
+                    prevBtn.style.opacity = '1';
+                    prevBtn.style.cursor = 'pointer';
+                }}
+                
+                if (nextBtn.disabled) {{
+                    nextBtn.style.opacity = '0.5';
+                    nextBtn.style.cursor = 'not-allowed';
+                }} else {{
+                    nextBtn.style.opacity = '1';
+                    nextBtn.style.cursor = 'pointer';
+                }}
+            }} else {{
+                paginationControls.style.display = 'none';
+            }}
+        }}
+        
+        function changePage(newPage) {{
+            // Validate newPage
+            if (newPage < 1) return;
+            
+            currentPage = newPage;
+            loadData();
         }}
         
         // Action functions
