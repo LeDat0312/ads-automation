@@ -9,6 +9,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, distinct, case
+from dataclasses import dataclass
 import pytz
 
 from app.core.database import get_db, AdMetrics
