@@ -18,7 +18,7 @@ from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.core.ui_helpers import get_account_locked_message
-from app.services.facebook_api import pull_facebook_data, fetch_adset_statuses, fetch_ad_statuses, fetch_campaign_statuses, pause_adsets, resume_adsets, update_adset_budget, update_campaign_budget
+from app.services.facebook_api import pull_facebook_data, fetch_adset_statuses, pause_adsets, resume_adsets, update_adset_budget, update_campaign_budget
 from pydantic import BaseModel
 from typing import Literal
 
@@ -4473,57 +4473,37 @@ async def get_dashboard_data(
             all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD']
         logger.info(f"   📊 Sau filter view_mode ({view_mode}): {len(all_data)}/{before_view_filter} rows")
         
-        # ===== Lấy status từ CẢ 3 CẤP: Campaign, Adset, Ad =====
-        # Theo logic: Chỉ khi cả 3 đều ACTIVE → status = ACTIVE
-        # Nếu 1 trong 3 PAUSED → status = PAUSED
+        # ===== Lấy adset effective_status từ Facebook API =====
+        # Facebook đã tính sẵn effective_status cho adset (bao gồm cả campaign/ad status)
+        # ACTIVE = đang phân phối thực sự
+        # PAUSED, CAMPAIGN_PAUSED, ADSET_PAUSED... = không phân phối
         
-        # 1. Lấy unique IDs
-        campaign_ids = list(set([row.get('campaign_id') for row in all_data if row.get('campaign_id')]))
         adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
-        ad_ids = list(set([row.get('ad_id') for row in all_data if row.get('ad_id')]))
-        
-        # 2. Fetch statuses từ Facebook API
-        campaign_statuses_map = {}
         adset_statuses_map = {}
-        ad_statuses_map = {}
-        
-        if campaign_ids:
-            logger.info(f"📊 Đang lấy status cho {len(campaign_ids)} campaigns...")
-            campaign_statuses_map = fetch_campaign_statuses(campaign_ids, access_token, use_cache=use_cache)
-            logger.info(f"   🔍 DEBUG - Campaign statuses: {campaign_statuses_map}")
         
         if adset_ids:
             logger.info(f"📊 Đang lấy status cho {len(adset_ids)} adsets...")
             adset_statuses_map = fetch_adset_statuses(adset_ids, access_token, use_cache=use_cache)
             logger.info(f"   🔍 DEBUG - Adset statuses: {adset_statuses_map}")
         
-        if ad_ids:
-            logger.info(f"📊 Đang lấy status cho {len(ad_ids)} ads...")
-            ad_statuses_map = fetch_ad_statuses(ad_ids, access_token, use_cache=use_cache)
-            logger.info(f"   🔍 DEBUG - Ad statuses: {ad_statuses_map}")
-        
-        # 3. Kết hợp status từ 3 cấp vào từng row
-        # Logic: campaign=ACTIVE AND adset=ACTIVE AND ad=ACTIVE → ACTIVE
-        # Ngược lại → PAUSED
+        # Update adset status vào từng row
         for row in all_data:
-            campaign_status = campaign_statuses_map.get(row.get('campaign_id'), 'UNKNOWN')
-            adset_status = adset_statuses_map.get(row.get('adset_id'), 'UNKNOWN')
-            ad_status = ad_statuses_map.get(row.get('ad_id'), 'UNKNOWN')
-            
-            # Chỉ khi CẢ 3 đều ACTIVE → final status = ACTIVE
-            if campaign_status == 'ACTIVE' and adset_status == 'ACTIVE' and ad_status == 'ACTIVE':
-                final_status = 'ACTIVE'
+            adset_id = row.get('adset_id')
+            if adset_id and adset_id in adset_statuses_map:
+                row['adset_effective_status'] = adset_statuses_map[adset_id]
+                row['effective_status'] = adset_statuses_map[adset_id]  # Alias
             else:
-                # Nếu 1 trong 3 PAUSED hoặc không phải ACTIVE → PAUSED
-                final_status = 'PAUSED'
+                row['adset_effective_status'] = 'UNKNOWN'
+                row['effective_status'] = 'UNKNOWN'
             
-            # Lưu vào row để dùng sau này
-            row['campaign_status'] = campaign_status
-            row['adset_status'] = adset_status
-            row['ad_status'] = ad_status
-            row['effective_status'] = final_status  # Status kết hợp từ 3 cấp
+            # Tính 2 flags quan trọng:
+            # 1. has_impressions_today: Adset ĐÃ CHẠY hôm nay (có impressions > 0)
+            # 2. is_active_now: Adset ĐANG HOẠT ĐỘNG hiện tại (effective_status = ACTIVE)
+            impressions = int(row.get('impressions', 0) or 0)
+            row['has_impressions_today'] = impressions > 0
+            row['is_active_now'] = (row['adset_effective_status'] == 'ACTIVE')
             
-            logger.debug(f"   📝 Row {row.get('ad_id')}: campaign={campaign_status}, adset={adset_status}, ad={ad_status} → {final_status}")
+            logger.debug(f"   📝 Adset {adset_id}: effective_status={row['adset_effective_status']}, impressions={impressions}, has_impressions_today={row['has_impressions_today']}, is_active_now={row['is_active_now']}")
         
         # ===== BUILD SUMMARY (dùng data có impressions>0, KHÔNG phụ thuộc status) =====
         # Filter data cho summary: CHỈ lấy rows có impressions > 0
@@ -4616,56 +4596,49 @@ async def get_dashboard_data(
         else:
             logger.info(f"   🔎 Không filter theo adset_id (original_adset_id={original_adset_id}, should_filter={should_filter_adset})")
         
-        # ===== FILTER IMPRESSIONS + STATUS (optional) =====
-        # CHỈ filter impressions>0, KHÔNG default status=ACTIVE
-        # Chỉ filter status khi có param status rõ ràng
+        # ===== FILTER theo 2 flags: has_impressions_today và is_active_now =====
         logger.info(f"   🔍 DEBUG - status param = {status}, type = {type(status)}")
         
+        # Đếm stats trước khi filter
+        total_adsets = len(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
+        ran_today_count = len(set([row.get('adset_id') for row in all_data if row.get('has_impressions_today')]))
+        active_now_count = len(set([row.get('adset_id') for row in all_data if row.get('has_impressions_today') and row.get('is_active_now')]))
+        
+        logger.info(f"   📊 Stats TRƯỚC filter: total={total_adsets} adsets, ran_today={ran_today_count}, active_now={active_now_count}")
+        
+        # Xác định filter mode
         status_filter = None
         if status and isinstance(status, str) and status.strip():
             status_upper = status.upper().strip()
-            if status_upper in ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']:
-                status_filter = status_upper
-                # Map ARCHIVED -> DELETED
-                if status_filter == 'ARCHIVED':
-                    status_filter = 'DELETED'
-                logger.info(f"   🔍 DEBUG - Sẽ filter theo status: {status_filter}")
+            if status_upper == 'ACTIVE':
+                status_filter = 'ACTIVE'
+                logger.info(f"   🔍 DEBUG - Filter mode: ACTIVE (has_impressions_today AND is_active_now)")
+            elif status_upper == 'RAN_TODAY':
+                status_filter = 'RAN_TODAY'
+                logger.info(f"   🔍 DEBUG - Filter mode: RAN_TODAY (chỉ has_impressions_today)")
             else:
                 logger.info(f"   🔍 DEBUG - Status param không hợp lệ: {status_upper}, bỏ qua")
         else:
-            logger.info(f"   🔍 DEBUG - Không có status param, lấy TẤT CẢ status")
+            logger.info(f"   🔍 DEBUG - Không có status param, mặc định lấy TẤT CẢ đã chạy hôm nay")
         
-        # Filter chỉ theo impressions>0 (và status nếu có)
+        # Apply filter
         before_filter = len(all_data)
         filtered_data = []
-        status_count = {}
         
         for row in all_data:
-            # Lấy normalized status
-            row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
-            
-            # Đếm status để debug
-            status_count[row_status] = status_count.get(row_status, 0) + 1
-            
-            # Kiểm tra impressions > 0 (BẮT BUỘC)
-            impressions = int(row.get('impressions', 0) or 0)
-            if impressions == 0:
+            # Mặc định: CHỈ lấy adsets đã chạy hôm nay (có impressions > 0)
+            if not row.get('has_impressions_today'):
                 continue
             
-            # Kiểm tra status match (NẾU CÓ status_filter)
-            if status_filter is not None:
-                if row_status != status_filter:
+            # Nếu filter ACTIVE: phải thỏa thêm điều kiện is_active_now
+            if status_filter == 'ACTIVE':
+                if not row.get('is_active_now'):
                     continue
             
-            # Pass cả 2 điều kiện
+            # Pass filter
             filtered_data.append(row)
         
-        logger.info(f"   🔍 DEBUG - Status distribution (tất cả): {status_count}")
-        if status_filter:
-            logger.info(f"   📊 Sau filter impressions>0 + status={status_filter}: {len(filtered_data)}/{before_filter} rows")
-        else:
-            logger.info(f"   📊 Sau filter impressions>0 (TẤT CẢ status): {len(filtered_data)}/{before_filter} rows")
-        
+        logger.info(f"   📊 Sau filter: {len(filtered_data)}/{before_filter} rows (filter={status_filter or 'RAN_TODAY (default)'})")
         all_data = filtered_data
         
         # Search filter
