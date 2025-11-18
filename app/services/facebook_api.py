@@ -1230,6 +1230,10 @@ def pull_facebook_data(
                         metrics=metrics_dict
                     )
                     
+                    # Log campaign type detection để debug
+                    campaign_name = item.get('campaign_name', '')
+                    logger.debug(f"Campaign '{campaign_name}' - Objective: '{campaign_objective}' → Type: {campaign_type}")
+                    
                     # Lấy budget và xác định budget_level
                     campaign_id = item.get('campaign_id', '')
                     adset_id = item.get('adset_id', '')

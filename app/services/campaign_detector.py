@@ -28,8 +28,7 @@ def detect_campaign_type_from_objective(objective: str) -> str:
         'PURCHASE',
         'STORE_TRAFFIC',
         'PRODUCT_CATALOG_SALES',
-        'OUTCOME_SALES',
-        'OUTCOME_LEADS'  # Có thể là lead nhưng cũng có thể là purchase
+        'OUTCOME_SALES'
     ]
     
     # Lead objectives
@@ -40,7 +39,8 @@ def detect_campaign_type_from_objective(objective: str) -> str:
         'ENGAGEMENT',
         'POST_ENGAGEMENT',
         'EVENT_RESPONSES',
-        'LOCAL_AWARENESS'
+        'LOCAL_AWARENESS',
+        'OUTCOME_LEADS'  # Facebook's new lead generation objective
     ]
     
     if objective_upper in ecommerce_objectives:
@@ -61,23 +61,32 @@ def detect_campaign_type_from_metrics(metrics: Dict[str, Any]) -> str:
     """
     # E-commerce metrics
     purchases = int(metrics.get('purchases', 0) or 0)
-    purchase_value = float(metrics.get('purchase_value', 0) or 0)
-    revenue = float(metrics.get('revenue', 0) or 0)
-    roas = float(metrics.get('roas', 0) or 0)
+    purchase_value = float(metrics.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
+    checkouts = int(metrics.get('checkouts_initiated', 0) or 0)
     
     # Lead metrics
     leads = int(metrics.get('leads', 0) or 0)
-    phone_calls = int(metrics.get('phone_calls', 0) or 0)
+    post_save = int(metrics.get('onsite_conversion_post_save', 0) or 0)  # Bắt đầu TT cho Lead
     messages = int(metrics.get('messaging_conversations_started', 0) or 0)
     comments = int(metrics.get('post_comments', 0) or 0)
     
+    # Tính tổng engagement (lead indicators)
+    total_engagement = messages + comments + post_save
+    
     # Nếu có purchase hoặc purchase_value → E-commerce
-    if purchases > 0 or purchase_value > 0 or revenue > 0:
+    if purchases > 0 or purchase_value > 0:
+        logger.debug(f"E-commerce detected: purchases={purchases}, value={purchase_value}")
         return 'ECOMMERCE'
     
-    # Nếu có leads, phone calls, hoặc messages → Lead
-    if leads > 0 or phone_calls > 0 or messages > 0 or comments > 0:
+    # Nếu có engagement nhưng KHÔNG có purchase → Lead
+    if total_engagement > 0:
+        logger.debug(f"Lead detected: messages={messages}, comments={comments}, post_save={post_save}")
         return 'LEAD'
+    
+    # Nếu có checkouts nhưng không có purchase → E-commerce (funnel chưa hoàn thành)
+    if checkouts > 0:
+        logger.debug(f"E-commerce detected from checkouts: {checkouts}")
+        return 'ECOMMERCE'
     
     return 'UNKNOWN'
 
@@ -97,15 +106,20 @@ def detect_campaign_type_hybrid(
     if objective:
         type_from_objective = detect_campaign_type_from_objective(objective)
         if type_from_objective != 'UNKNOWN':
+            logger.debug(f"Detected from objective '{objective}': {type_from_objective}")
             return type_from_objective
     
     # Nếu objective không rõ, dùng metrics
     if metrics:
         type_from_metrics = detect_campaign_type_from_metrics(metrics)
         if type_from_metrics != 'UNKNOWN':
+            logger.debug(f"Detected from metrics: {type_from_metrics}")
             return type_from_metrics
     
-    return 'UNKNOWN'
+    # Mặc định: Nếu không detect được, coi như ECOMMERCE
+    # Vì đa số campaigns không có objective rõ ràng là e-commerce
+    logger.debug(f"Could not detect type from objective='{objective}' or metrics, defaulting to ECOMMERCE")
+    return 'ECOMMERCE'
 
 
 def get_campaign_type_for_account_prefix(

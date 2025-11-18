@@ -2557,6 +2557,9 @@ async def dashboard_page(
             document.getElementById('tableTitle').textContent = title;
             document.getElementById('tableIcon').textContent = icon;
             
+            // QUAN TRỌNG: Reload filters để lấy accounts/prefixes theo view_mode mới
+            loadFilters();
+            
             // Save and reload data
             saveFilters();
             loadData();
