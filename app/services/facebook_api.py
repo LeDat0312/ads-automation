@@ -92,6 +92,8 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
     
     # Check cache
     cache_key = f"status_{access_token[:20]}"  # Dùng 20 ký tự đầu của token làm key
+    cached_result: Dict[str, Dict[str, str]] = {}
+    
     if use_cache:
         now = datetime.now()
         cached_timestamp = _cache_timestamps.get(cache_key)
@@ -100,14 +102,21 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
             if age_seconds < CACHE_TTL_STATUS:
                 # Lấy từ cache những adset_ids có sẵn
                 cached_statuses = _status_cache.get(access_token, {})
-                result = {adset_id: cached_statuses.get(adset_id) for adset_id in adset_ids if adset_id in cached_statuses and cached_statuses.get(adset_id)}
-                if len(result) == len(adset_ids):
+                cached_result = {
+                    adset_id: cached_statuses[adset_id]
+                    for adset_id in adset_ids
+                    if adset_id in cached_statuses and cached_statuses.get(adset_id)
+                }
+                if len(cached_result) == len(adset_ids):
                     logger.info(f"✅ Cache hit cho statuses ({len(adset_ids)} adsets)")
-                    return result
+                    return cached_result
                 # Nếu thiếu một số, chỉ fetch những cái thiếu
-                missing_ids = [adset_id for adset_id in adset_ids if adset_id not in cached_statuses or not cached_statuses.get(adset_id)]
+                missing_ids = [
+                    adset_id for adset_id in adset_ids
+                    if adset_id not in cached_statuses or not cached_statuses.get(adset_id)
+                ]
                 if missing_ids:
-                    logger.info(f"⏰ Cache partial hit, fetch thêm {len(missing_ids)} statuses...")
+                    logger.info(f"⏰ Cache partial hit: {len(cached_result)} cached, fetch thêm {len(missing_ids)} statuses...")
                     adset_ids = missing_ids
             else:
                 # Cache expired, clear và fetch lại
@@ -179,6 +188,9 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
         except Exception as e:
             logger.error(f"🚨 Lỗi lấy trạng thái AdSet (batch ids): {e}")
     
+    # Merge cached + newly fetched
+    final_result = {**cached_result, **status_map}
+    
     # Update cache
     if use_cache and status_map:
         if access_token not in _status_cache:
@@ -186,7 +198,8 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
         _status_cache[access_token].update(status_map)
         _cache_timestamps[cache_key] = datetime.now()
     
-    return status_map
+    logger.info(f"   📦 Returning statuses: {len(cached_result)} from cache + {len(status_map)} fetched = {len(final_result)} total")
+    return final_result
 
 
 def fetch_ad_statuses(ad_ids: List[str], access_token: str, use_cache: bool = True) -> Dict[str, str]:
