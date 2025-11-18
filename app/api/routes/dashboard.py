@@ -3012,7 +3012,7 @@ async def dashboard_page(
                                 ${{budgetDisplay}}
                             </td>
                             <td class="text-right font-semibold">${{formatCurrency(row.spend || 0)}}</td>
-                            <td class="text-right">${{formatPercentage(adsPercent)}}%</td>
+                            <td class="text-right">${{formatPercentage(row['%ads'] || row.ads_percent || 0)}}%</td>
                             <td class="text-right">${{formatNumber(row.results || 0)}}</td>
                             <td class="text-right">${{formatCurrency(row.data_cost || row.gia_data || 0)}}</td>
                             <td class="text-right">${{formatPercentage(row.tlc || 0)}}%</td>
@@ -3169,7 +3169,9 @@ async def dashboard_page(
         }}
         
         function formatPercentage(value) {{
-            return (value || 0).toFixed(2);
+            // Convert to number first to avoid .toFixed() error
+            const numValue = parseFloat(value) || 0;
+            return numValue.toFixed(2);
         }}
         
         function showSuccess(message) {{
@@ -4134,9 +4136,20 @@ async def get_dashboard_details(
             all_data = [row for row in all_data if row.get('campaign_id') == campaign_id]
             logger.info(f"   📊 Sau filter campaign_id ({campaign_id}): {len(all_data)} rows")
         
-        if adset_id and adset_id != "None" and all_data:
+        # FIX: Chỉ filter adset_id nếu param thực sự được truyền và không phải None/"None"
+        should_filter_adset = False
+        if adset_id:
+            if isinstance(adset_id, str):
+                adset_id_clean = adset_id.strip()
+                if adset_id_clean and adset_id_clean.lower() != "none":
+                    should_filter_adset = True
+                    adset_id = adset_id_clean
+        
+        if should_filter_adset and all_data:
             all_data = [row for row in all_data if row.get('adset_id') == adset_id]
             logger.info(f"   📊 Sau filter adset_id ({adset_id}): {len(all_data)} rows")
+        else:
+            logger.info(f"   🔎 Không filter theo adset_id (adset_id={adset_id}, should_filter={should_filter_adset})")
         
         # Status filter
         if status and all_data:
