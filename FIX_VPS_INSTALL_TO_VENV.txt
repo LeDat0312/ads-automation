@@ -1,0 +1,31 @@
+Venv đã tồn tại tại /home/adsuser/ads-automation/venv/
+
+Cài đặt pydantic-settings vào đúng venv này:
+
+```bash
+cd ~/ads-automation
+
+# Cách 1: Kích hoạt venv rồi cài
+source /home/adsuser/ads-automation/venv/bin/activate
+pip install pydantic-settings==2.1.0
+pip install -r requirements.txt  # Đảm bảo tất cả dependencies đều có
+deactivate
+
+# Cách 2: Dùng trực tiếp pip của venv (không cần activate)
+/home/adsuser/ads-automation/venv/bin/pip install pydantic-settings==2.1.0
+/home/adsuser/ads-automation/venv/bin/pip install -r requirements.txt
+
+# Kiểm tra xem đã cài đúng chưa
+/home/adsuser/ads-automation/venv/bin/python3 -c "import pydantic_settings; print('✅ OK')"
+
+# Restart service
+sudo supervisorctl restart ads-automation
+sleep 5
+sudo supervisorctl status
+
+# Kiểm tra logs
+sudo tail -f /var/log/ads-automation.log
+```
+
+
+

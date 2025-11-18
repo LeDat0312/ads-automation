@@ -4478,12 +4478,14 @@ async def get_dashboard_data(
         if adset_ids:
             logger.info(f"📊 Đang lấy status cho {len(adset_ids)} adsets...")
             adset_statuses_map = fetch_adset_statuses(adset_ids, access_token, use_cache=use_cache)
+            logger.info(f"   🔍 DEBUG - Adset statuses từ API: {adset_statuses_map}")
             # Update status trong data
             for row in all_data:
                 row_adset_id = row.get('adset_id')  # Dùng tên biến khác để tránh conflict với param adset_id
                 if row_adset_id and row_adset_id in adset_statuses_map:
                     row['adset_status'] = adset_statuses_map[row_adset_id]
                     row['effective_status'] = adset_statuses_map[row_adset_id]
+                    logger.debug(f"   📝 Updated status for adset {row_adset_id}: {adset_statuses_map[row_adset_id]}")
         
         # ===== BUILD SUMMARY (dùng data có impressions>0, KHÔNG phụ thuộc status) =====
         # Filter data cho summary: CHỈ lấy rows có impressions > 0

@@ -126,6 +126,7 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
             response.raise_for_status()
             
             json_data = response.json()
+            logger.info(f"   🔍 DEBUG - Facebook response for adset statuses: {json_data}")
             if json_data and isinstance(json_data, dict):
                 for adset_id, node in json_data.items():
                     if node:
@@ -135,7 +136,7 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
                             # Normalize status
                             normalized = normalize_status(raw_status)
                             status_map[adset_id] = normalized
-                            logger.debug(f"   🔍 Normalized status for {adset_id}: {raw_status} -> {normalized}")
+                            logger.info(f"   🔍 Adset {adset_id}: raw={raw_status} → normalized={normalized}")
                         else:
                             # Nếu không có status, mặc định là UNKNOWN
                             status_map[adset_id] = 'UNKNOWN'

@@ -1,0 +1,33 @@
+Chạy các lệnh sau trên VPS để cài đặt pydantic-settings:
+
+```bash
+cd ~/ads-automation
+
+# Kích hoạt virtual environment
+source /var/www/ads-automation/venv/bin/activate
+
+# Cài đặt pydantic-settings
+pip install pydantic-settings==2.1.0
+
+# Kiểm tra xem đã cài đặt thành công chưa
+python3 -c "import pydantic_settings; print('✅ pydantic-settings đã được cài đặt thành công')"
+
+# Kiểm tra syntax Python
+python3 -m py_compile app/api/routes/dashboard.py
+
+# Restart service
+sudo supervisorctl restart ads-automation
+sleep 3
+sudo supervisorctl status
+```
+
+Hoặc chạy script tự động:
+
+```bash
+cd ~/ads-automation
+chmod +x FIX_VPS_PYDANTIC_SETTINGS.sh
+bash FIX_VPS_PYDANTIC_SETTINGS.sh
+```
+
+
+

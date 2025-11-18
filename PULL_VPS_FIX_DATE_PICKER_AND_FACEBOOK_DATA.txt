@@ -1,0 +1,8 @@
+cd ~/ads-automation
+git pull origin main
+python3 -m py_compile app/api/routes/dashboard.py
+python3 -m py_compile app/services/facebook_api.py
+sudo supervisorctl restart ads-automation
+sleep 3
+sudo supervisorctl status
+

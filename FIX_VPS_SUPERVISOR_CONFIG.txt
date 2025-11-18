@@ -1,0 +1,42 @@
+Vấn đề: Supervisor config đang trỏ đến /var/www/ads-automation/venv nhưng venv thực tế ở /home/adsuser/ads-automation/venv/
+
+Sửa supervisor config:
+
+```bash
+# 1. Kiểm tra config hiện tại
+sudo cat /etc/supervisor/conf.d/ads-automation.conf
+
+# 2. Sửa config để trỏ đến đúng venv
+sudo nano /etc/supervisor/conf.d/ads-automation.conf
+
+# Thay đổi:
+# command=/var/www/ads-automation/venv/bin/uvicorn ...
+# Thành:
+# command=/home/adsuser/ads-automation/venv/bin/uvicorn ...
+
+# Và:
+# directory=/var/www/ads-automation
+# Thành:
+# directory=/home/adsuser/ads-automation
+
+# 3. Hoặc dùng sed để sửa tự động:
+sudo sed -i 's|/var/www/ads-automation|/home/adsuser/ads-automation|g' /etc/supervisor/conf.d/ads-automation.conf
+
+# 4. Kiểm tra lại config
+sudo cat /etc/supervisor/conf.d/ads-automation.conf
+
+# 5. Reload supervisor config
+sudo supervisorctl reread
+sudo supervisorctl update
+
+# 6. Restart service
+sudo supervisorctl restart ads-automation
+sleep 5
+sudo supervisorctl status
+
+# 7. Kiểm tra logs
+sudo tail -f /var/log/ads-automation.log
+```
+
+
+
