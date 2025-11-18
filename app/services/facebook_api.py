@@ -510,7 +510,8 @@ def update_campaign_budget(
 def update_adset_budget(
     adset_id: str,
     access_token: str,
-    action_type: str = "increase",  # "increase", "decrease", "set"
+    new_budget: Optional[float] = None,  # New budget value (absolute) - ưu tiên
+    action_type: str = "increase",  # "increase", "decrease", "set" - chỉ dùng nếu new_budget=None
     amount: Optional[float] = None,  # Amount to increase/decrease, or absolute value if action_type="set"
     percent: Optional[float] = None  # Percentage to increase/decrease (e.g., 10 for 10%)
 ) -> Dict[str, Any]:
@@ -552,7 +553,10 @@ def update_adset_budget(
         budget_type = 'daily_budget' if adset_data.get('daily_budget') else 'lifetime_budget'
         
         # Tính toán budget mới
-        if percent is not None:
+        # Nếu có new_budget (absolute value), dùng trực tiếp
+        if new_budget is not None:
+            new_budget = float(new_budget)
+        elif percent is not None:
             # Tính theo phần trăm
             if action_type == "increase":
                 new_budget = current_budget * (1 + percent / 100)
