@@ -154,22 +154,65 @@ def get_user_account_prefixes(user_id: int, db: Session, enabled_only: bool = Tr
     return account_ids, prefixes
 
 
+def get_user_account_prefixes_filtered_by_view_mode(
+    user_id: int, db: Session, view_mode: str, enabled_only: bool = True
+) -> tuple[List[str], List[str]]:
+    """
+    Lấy danh sách account_ids và prefixes của user - LỌC theo view_mode
+    - view_mode='ecommerce': Chỉ lấy accounts có account_type='E-COMMERCE'
+    - view_mode='lead': Chỉ lấy accounts có account_type='LEAD_GENERATION'
+    - Các view_mode khác: Lấy tất cả
+    """
+    query = db.query(Account.account_id).filter(Account.user_id == user_id)
+    if enabled_only:
+        query = query.filter(Account.enabled == True)
+    
+    # FILTER theo view_mode
+    if view_mode == "ecommerce":
+        query = query.filter(Account.account_type == "E-COMMERCE")
+    elif view_mode == "lead":
+        query = query.filter(Account.account_type == "LEAD_GENERATION")
+    # Nếu view_mode không hợp lệ hoặc rỗng, lấy tất cả accounts
+    
+    user_accounts = query.all()
+    account_ids = [acc[0] for acc in user_accounts]
+    
+    # Lấy prefixes từ user's prefixes (chỉ enabled nếu enabled_only=True)
+    prefix_query = db.query(Prefix.prefix).filter(Prefix.user_id == user_id)
+    if enabled_only:
+        prefix_query = prefix_query.filter(Prefix.enabled == True)
+    user_prefixes = prefix_query.all()
+    prefixes = [pref[0] for pref in user_prefixes]
+    
+    return account_ids, prefixes
+
+
 @router.get("/filters")
 async def get_dashboard_filters(
     request: Request,
+    view_mode: Optional[str] = Query(None, description="Filter accounts by view mode: ecommerce or lead"),
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Lấy filters cho dashboard từ settings của user"""
+    """Lấy filters cho dashboard từ settings của user - CHỈ accounts thuộc view_mode được chọn"""
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
     try:
-        # Lấy accounts từ settings (chỉ enabled)
-        user_accounts = db.query(Account).filter(
+        # Lấy accounts từ settings (chỉ enabled) - FILTER theo view_mode
+        query = db.query(Account).filter(
             Account.user_id == current_user.id,
             Account.enabled == True
-        ).all()
+        )
+        
+        # Filter theo view_mode: chỉ lấy accounts thuộc loại tương ứng
+        if view_mode == "ecommerce":
+            query = query.filter(Account.account_type == "E-COMMERCE")
+        elif view_mode == "lead":
+            query = query.filter(Account.account_type == "LEAD_GENERATION")
+        # Nếu không có view_mode hoặc không hợp lệ, trả về tất cả (fallback)
+        
+        user_accounts = query.all()
         
         # Lấy prefixes từ settings (chỉ enabled)
         user_prefixes = db.query(Prefix).filter(
@@ -1211,6 +1254,259 @@ async def dashboard_page(
         
         .bulk-btn.play {{ color: #22c55e; border-color: #22c55e; }}
         .bulk-btn.pause {{ color: #ef4444; border-color: #ef4444; }}
+        .bulk-btn.budget-increase {{ color: #10b981; border-color: #10b981; }}
+        .bulk-btn.budget-decrease {{ color: #f59e0b; border-color: #f59e0b; }}
+        
+        /* Bulk Budget Modal Styles */
+        .modal-overlay {{
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9998;
+            backdrop-filter: blur(4px);
+        }}
+        
+        .modal-overlay.active {{
+            display: block;
+        }}
+        
+        .modal-container {{
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            z-index: 9999;
+            width: 500px;
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow: hidden;
+        }}
+        
+        .modal-container.active {{
+            display: block;
+        }}
+        
+        .modal-header {{
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        
+        .modal-header h3 {{
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #111827;
+        }}
+        
+        .modal-body {{
+            padding: 24px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }}
+        
+        .modal-footer {{
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }}
+        
+        .budget-mode-selector {{
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }}
+        
+        .budget-mode-btn {{
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }}
+        
+        .budget-mode-btn:hover {{
+            border-color: #6366f1;
+            background: #eef2ff;
+        }}
+        
+        .budget-mode-btn.active {{
+            border-color: #6366f1;
+            background: #6366f1;
+            color: white;
+        }}
+        
+        .budget-section {{
+            margin-bottom: 20px;
+        }}
+        
+        .section-description {{
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }}
+        
+        .percent-buttons-grid {{
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+        }}
+        
+        .percent-btn {{
+            padding: 14px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }}
+        
+        .percent-btn.decrease {{
+            color: #f59e0b;
+        }}
+        
+        .percent-btn.increase {{
+            color: #10b981;
+        }}
+        
+        .percent-btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }}
+        
+        .percent-btn.selected {{
+            border-width: 3px;
+        }}
+        
+        .percent-btn.decrease.selected {{
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }}
+        
+        .percent-btn.increase.selected {{
+            border-color: #10b981;
+            background: #ecfdf5;
+        }}
+        
+        .selected-percent {{
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f9fafb;
+            color: #6b7280;
+            font-size: 14px;
+            font-weight: 500;
+        }}
+        
+        .manual-input-group {{
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }}
+        
+        .manual-budget-input {{
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.2s;
+        }}
+        
+        .manual-budget-input:focus {{
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }}
+        
+        .currency-label {{
+            font-size: 14px;
+            font-weight: 600;
+            color: #6b7280;
+        }}
+        
+        .manual-hint {{
+            padding: 12px;
+            background: #fef3c7;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #92400e;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }}
+        
+        .selection-summary {{
+            margin-top: 20px;
+            padding: 12px 16px;
+            background: #eef2ff;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            color: #4f46e5;
+        }}
+        
+        .btn-cancel-modal {{
+            padding: 10px 20px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: white;
+            color: #374151;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }}
+        
+        .btn-cancel-modal:hover {{
+            background: #f9fafb;
+        }}
+        
+        .btn-apply-modal {{
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }}
+        
+        .btn-apply-modal:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }}
+        
+        .btn-apply-modal:disabled {{
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }}
         
         /* Table Styles */
         .data-table {{
@@ -1771,6 +2067,59 @@ async def dashboard_page(
             </div>
         </div>
         
+        <!-- Bulk Budget Modal - Madgicx Style -->
+        <div class="modal-overlay" id="bulkBudgetModalOverlay" onclick="closeBulkBudgetModal()"></div>
+        <div class="modal-container" id="bulkBudgetModal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="bulkBudgetModalTitle">Điều chỉnh Ngân sách</h3>
+                <button class="close-btn" onclick="closeBulkBudgetModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="budget-mode-selector">
+                    <button class="budget-mode-btn active" data-mode="percent" onclick="setBudgetMode('percent')">
+                        📊 Phần trăm (%)
+                    </button>
+                    <button class="budget-mode-btn" data-mode="manual" onclick="setBudgetMode('manual')">
+                        ✏️ Nhập thủ công
+                    </button>
+                </div>
+                
+                <div id="budgetPercentSection" class="budget-section">
+                    <p class="section-description">Chọn phần trăm tăng/giảm ngân sách:</p>
+                    <div class="percent-buttons-grid">
+                        <button class="percent-btn decrease" onclick="selectPercent(-10)">-10%</button>
+                        <button class="percent-btn decrease" onclick="selectPercent(-20)">-20%</button>
+                        <button class="percent-btn decrease" onclick="selectPercent(-30)">-30%</button>
+                        <button class="percent-btn increase" onclick="selectPercent(10)">+10%</button>
+                        <button class="percent-btn increase" onclick="selectPercent(20)">+20%</button>
+                        <button class="percent-btn increase" onclick="selectPercent(30)">+30%</button>
+                    </div>
+                    <div class="selected-percent" id="selectedPercentDisplay">
+                        Chưa chọn phần trăm
+                    </div>
+                </div>
+                
+                <div id="budgetManualSection" class="budget-section" style="display: none;">
+                    <p class="section-description">Nhập ngân sách mới (ngân sách gốc sẽ được giữ nguyên khi tính toán % sau này):</p>
+                    <div class="manual-input-group">
+                        <input type="number" id="manualBudgetInput" class="manual-budget-input" placeholder="Nhập ngân sách mới (VND)" min="1000" step="1000">
+                        <span class="currency-label">VND</span>
+                    </div>
+                    <div class="manual-hint">
+                        ⚠️ Lưu ý: Tất cả các mục đã chọn sẽ được đặt cùng ngân sách này
+                    </div>
+                </div>
+                
+                <div class="selection-summary">
+                    <span id="bulkBudgetSelectionCount">0 mục đã chọn</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel-modal" onclick="closeBulkBudgetModal()">Hủy</button>
+                <button class="btn-apply-modal" id="bulkBudgetApplyBtn" onclick="applyBulkBudget()">Áp dụng</button>
+            </div>
+        </div>
+        
         <!-- Overview Cards -->
         <div class="overview-grid" id="overviewGrid">
             <!-- Cards sẽ được tạo bởi JavaScript -->
@@ -1797,6 +2146,8 @@ async def dashboard_page(
                         <span id="selectedCount">0 đã chọn</span>
                         <button class="bulk-btn play" onclick="bulkAction('activate')">▶️ Bật</button>
                         <button class="bulk-btn pause" onclick="bulkAction('pause')">⏸️ Tắt</button>
+                        <button class="bulk-btn budget-increase" onclick="showBulkBudgetModal('increase')" title="Tăng ngân sách các mục đã chọn">📈 Tăng NS</button>
+                        <button class="bulk-btn budget-decrease" onclick="showBulkBudgetModal('decrease')" title="Giảm ngân sách các mục đã chọn">📉 Giảm NS</button>
                     </div>
                     
                     <!-- Search Box -->
@@ -1835,6 +2186,7 @@ async def dashboard_page(
             account: '',
             prefix: '',
             dateRange: 'today',
+            status: 'ACTIVE',  // QUAN TRỌNG: Mặc định ACTIVE để chỉ hiện ads đang hoạt động
             search: ''
         }};
         let selectedItems = new Set();
@@ -1898,7 +2250,7 @@ async def dashboard_page(
                     dateRange: filters.dateRange || 'today',
                     dateFrom: filters.dateFrom || '',
                     dateTo: filters.dateTo || '',
-                    status: filters.status || '',
+                    status: 'ACTIVE',  // FORCE ACTIVE - KHÔNG restore từ localStorage
                     search: filters.search || ''
                 }};
                 
@@ -2016,7 +2368,8 @@ async def dashboard_page(
         async function loadFilters() {{
             try {{
                 console.log('Loading filters from settings...');
-                const response = await fetch('/dashboard/filters', {{
+                // GỬI view_mode để chỉ lấy accounts thuộc view mode hiện tại
+                const response = await fetch(`/dashboard/filters?view_mode=${{currentViewMode}}`, {{
                     headers: {{
                         'Authorization': 'Bearer ' + getAuthToken()
                     }}
@@ -2930,20 +3283,29 @@ async def dashboard_page(
                     
                     <div class="overview-card">
                         <div class="card-header">
-                            <div class="card-title">Tổng Lead</div>
-                            <div class="card-icon leads">📋</div>
+                            <div class="card-title">Tổng DATA</div>
+                            <div class="card-icon leads">💬</div>
                         </div>
-                        <div class="card-value" id="totalLeads">${{formatNumber(overview.totalLeads || 0)}}</div>
-                        <div class="card-subtitle">Bình luận + Tin nhắn</div>
+                        <div class="card-value" id="totalData">${{formatNumber(overview.totalData || 0)}}</div>
+                        <div class="card-subtitle">Bình luận + Nhắn tin</div>
                     </div>
                     
                     <div class="overview-card">
                         <div class="card-header">
                             <div class="card-title">Giá Data TB</div>
-                            <div class="card-icon gia">🎯</div>
+                            <div class="card-icon gia">💵</div>
                         </div>
                         <div class="card-value" id="avgGiaData">${{formatCurrency(overview.avgGiaData || 0)}}</div>
-                        <div class="card-subtitle">Chi phí trên mỗi lượt bắt đầu thanh toán</div>
+                        <div class="card-subtitle">Chi phí / DATA</div>
+                    </div>
+                    
+                    <div class="overview-card">
+                        <div class="card-header">
+                            <div class="card-title">Tổng Lead</div>
+                            <div class="card-icon leads">🎯</div>
+                        </div>
+                        <div class="card-value" id="totalLead">${{formatNumber(overview.totalLead || 0)}}</div>
+                        <div class="card-subtitle">Bắt đầu thanh toán</div>
                     </div>
                     
                     <div class="overview-card">
@@ -3220,6 +3582,206 @@ async def dashboard_page(
             }}
         }}
         
+        // Bulk Budget Modal - State management
+        let bulkBudgetMode = 'percent'; // 'percent' or 'manual'
+        let selectedPercent = null;
+        let bulkBudgetType = 'increase'; // 'increase' or 'decrease'
+        
+        function showBulkBudgetModal(type) {{
+            if (selectedItems.size === 0) {{
+                showError('Vui lòng chọn ít nhất 1 mục');
+                return;
+            }}
+            
+            bulkBudgetType = type;
+            selectedPercent = null;
+            bulkBudgetMode = 'percent';
+            
+            // Update modal title and count
+            const title = type === 'increase' ? '📈 Tăng Ngân sách' : '📉 Giảm Ngân sách';
+            document.getElementById('bulkBudgetModalTitle').textContent = title;
+            document.getElementById('bulkBudgetSelectionCount').textContent = `${{selectedItems.size}} mục đã chọn`;
+            
+            // Reset UI
+            document.querySelectorAll('.budget-mode-btn').forEach(btn => {{
+                btn.classList.toggle('active', btn.dataset.mode === 'percent');
+            }});
+            document.getElementById('budgetPercentSection').style.display = 'block';
+            document.getElementById('budgetManualSection').style.display = 'none';
+            document.querySelectorAll('.percent-btn').forEach(btn => btn.classList.remove('selected'));
+            document.getElementById('selectedPercentDisplay').textContent = 'Chưa chọn phần trăm';
+            document.getElementById('manualBudgetInput').value = '';
+            
+            // Show modal
+            document.getElementById('bulkBudgetModalOverlay').classList.add('active');
+            document.getElementById('bulkBudgetModal').classList.add('active');
+        }}
+        
+        function closeBulkBudgetModal() {{
+            document.getElementById('bulkBudgetModalOverlay').classList.remove('active');
+            document.getElementById('bulkBudgetModal').classList.remove('active');
+        }}
+        
+        function setBudgetMode(mode) {{
+            bulkBudgetMode = mode;
+            document.querySelectorAll('.budget-mode-btn').forEach(btn => {{
+                btn.classList.toggle('active', btn.dataset.mode === mode);
+            }});
+            
+            if (mode === 'percent') {{
+                document.getElementById('budgetPercentSection').style.display = 'block';
+                document.getElementById('budgetManualSection').style.display = 'none';
+            }} else {{
+                document.getElementById('budgetPercentSection').style.display = 'none';
+                document.getElementById('budgetManualSection').style.display = 'block';
+            }}
+        }}
+        
+        function selectPercent(percent) {{
+            selectedPercent = percent;
+            
+            // Update UI
+            document.querySelectorAll('.percent-btn').forEach(btn => {{
+                btn.classList.remove('selected');
+            }});
+            
+            const clickedBtn = event.target;
+            clickedBtn.classList.add('selected');
+            
+            const action = percent > 0 ? 'Tăng' : 'Giảm';
+            const absPercent = Math.abs(percent);
+            document.getElementById('selectedPercentDisplay').textContent = `${{action}} ${{absPercent}}% đã chọn`;
+            document.getElementById('selectedPercentDisplay').style.color = percent > 0 ? '#10b981' : '#f59e0b';
+            document.getElementById('selectedPercentDisplay').style.fontWeight = '600';
+        }}
+        
+        async function applyBulkBudget() {{
+            if (selectedItems.size === 0) {{
+                showError('Không có mục nào được chọn');
+                return;
+            }}
+            
+            const items = Array.from(selectedItems);
+            let operations = [];
+            
+            if (bulkBudgetMode === 'percent') {{
+                if (selectedPercent === null) {{
+                    showError('Vui lòng chọn phần trăm');
+                    return;
+                }}
+                
+                // Get current budgets from table
+                const rows = Array.from(document.querySelectorAll('tbody tr'));
+                for (let item_id of items) {{
+                    let currentBudget = null;
+                    let budgetLevel = null;
+                    
+                    for (let row of rows) {{
+                        const toggleBtn = row.querySelector('[onclick*="toggleStatus"]');
+                        if (toggleBtn && toggleBtn.getAttribute('onclick').includes(item_id)) {{
+                            const budgetCell = row.querySelector('.budget-cell');
+                            if (budgetCell) {{
+                                const budgetText = budgetCell.textContent.replace(/[^0-9.]/g, '');
+                                currentBudget = parseFloat(budgetText);
+                            }}
+                            budgetLevel = currentLevel.toUpperCase();
+                            break;
+                        }}
+                    }}
+                    
+                    if (currentBudget && currentBudget > 0) {{
+                        const newBudget = Math.round(currentBudget * (1 + selectedPercent / 100));
+                        operations.push({{
+                            level: budgetLevel,
+                            id: item_id,
+                            new_budget: newBudget,
+                            original_budget: currentBudget  // Lưu ngân sách gốc để tính % sau này
+                        }});
+                    }}
+                }}
+                
+                const action = selectedPercent > 0 ? 'tăng' : 'giảm';
+                const absPercent = Math.abs(selectedPercent);
+                if (!confirm(`Bạn có chắc muốn ${{action}} ngân sách ${{absPercent}}% cho ${{items.length}} mục đã chọn?`)) {{
+                    return;
+                }}
+                
+            }} else {{ // manual mode
+                const manualBudget = parseFloat(document.getElementById('manualBudgetInput').value);
+                if (isNaN(manualBudget) || manualBudget < 1000) {{
+                    showError('Vui lòng nhập ngân sách hợp lệ (tối thiểu 1,000 VND)');
+                    return;
+                }}
+                
+                // Get current budgets for storing original values
+                const rows = Array.from(document.querySelectorAll('tbody tr'));
+                for (let item_id of items) {{
+                    let currentBudget = null;
+                    let budgetLevel = null;
+                    
+                    for (let row of rows) {{
+                        const toggleBtn = row.querySelector('[onclick*="toggleStatus"]');
+                        if (toggleBtn && toggleBtn.getAttribute('onclick').includes(item_id)) {{
+                            const budgetCell = row.querySelector('.budget-cell');
+                            if (budgetCell) {{
+                                const budgetText = budgetCell.textContent.replace(/[^0-9.]/g, '');
+                                currentBudget = parseFloat(budgetText);
+                            }}
+                            budgetLevel = currentLevel.toUpperCase();
+                            break;
+                        }}
+                    }}
+                    
+                    operations.push({{
+                        level: budgetLevel,
+                        id: item_id,
+                        new_budget: manualBudget,
+                        original_budget: currentBudget || manualBudget  // Lưu ngân sách gốc
+                    }});
+                }}
+                
+                if (!confirm(`Bạn có chắc muốn đặt ngân sách ${{formatCurrency(manualBudget)}} cho ${{items.length}} mục đã chọn?`)) {{
+                    return;
+                }}
+            }}
+            
+            if (operations.length === 0) {{
+                showError('Không tìm thấy ngân sách hợp lệ cho các mục đã chọn');
+                return;
+            }}
+            
+            try {{
+                const response = await fetch('/dashboard/budget/update', {{
+                    method: 'POST',
+                    headers: {{
+                        'Authorization': 'Bearer ' + getAuthToken(),
+                        'Content-Type': 'application/json'
+                    }},
+                    body: JSON.stringify({{ operations }})
+                }});
+                
+                if (!response.ok) {{
+                    throw new Error('Failed to update budgets');
+                }}
+                
+                const result = await response.json();
+                if (result.success) {{
+                    const action = bulkBudgetMode === 'percent' ? 
+                        (selectedPercent > 0 ? 'tăng' : 'giảm') : 'cập nhật';
+                    showSuccess(`Đã ${{action}} ngân sách cho ${{result.results.length}} mục thành công`);
+                    
+                    closeBulkBudgetModal();
+                    selectedItems.clear();
+                    setTimeout(() => loadData(true), 1000);
+                }} else {{
+                    const errorMsg = result.errors?.[0]?.error || 'Lỗi không xác định';
+                    throw new Error(errorMsg);
+                }}
+            }} catch (error) {{
+                showError('Lỗi cập nhật ngân sách: ' + error.message);
+            }}
+        }}
+        
         // Utility functions
         function formatCurrency(value) {{
             if (!value) return '0đ';
@@ -3307,20 +3869,20 @@ async def dashboard_page(
                 <div class="budget-quick-actions">
                     <div class="budget-quick-group">
                         <span class="budget-quick-label">Giảm:</span>
-                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="applyBudgetPercent(-30, ${{currentBudget}})">-30%</button>
-                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="applyBudgetPercent(-20, ${{currentBudget}})">-20%</button>
-                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="applyBudgetPercent(-10, ${{currentBudget}})">-10%</button>
+                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="event.stopPropagation(); applyBudgetPercent(-10, ${{currentBudget}})">-10%</button>
+                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="event.stopPropagation(); applyBudgetPercent(-20, ${{currentBudget}})">-20%</button>
+                        <button class="budget-quick-btn budget-quick-btn-decrease" onclick="event.stopPropagation(); applyBudgetPercent(-30, ${{currentBudget}})">-30%</button>
                     </div>
                     <div class="budget-quick-group">
                         <span class="budget-quick-label">Tăng:</span>
-                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="applyBudgetPercent(10, ${{currentBudget}})">+10%</button>
-                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="applyBudgetPercent(20, ${{currentBudget}})">+20%</button>
-                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="applyBudgetPercent(30, ${{currentBudget}})">+30%</button>
+                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="event.stopPropagation(); applyBudgetPercent(10, ${{currentBudget}})">+10%</button>
+                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="event.stopPropagation(); applyBudgetPercent(20, ${{currentBudget}})">+20%</button>
+                        <button class="budget-quick-btn budget-quick-btn-increase" onclick="event.stopPropagation(); applyBudgetPercent(30, ${{currentBudget}})">+30%</button>
                     </div>
                 </div>
                 <div class="budget-actions">
-                    <button class="budget-btn budget-btn-cancel" onclick="cancelBudgetEditor()">Hủy</button>
-                    <button class="budget-btn budget-btn-save" onclick="saveBudget('${{id}}', '${{budgetLevel}}', '${{level}}')">Lưu</button>
+                    <button class="budget-btn budget-btn-cancel" onclick="event.stopPropagation(); cancelBudgetEditor(); return false;">Hủy</button>
+                    <button class="budget-btn budget-btn-save" onclick="event.stopPropagation(); saveBudget('${{id}}', '${{budgetLevel}}', '${{level}}'); return false;">Lưu</button>
                 </div>
             `;
             
@@ -3351,6 +3913,7 @@ async def dashboard_page(
                 currentBudgetEditor.popover.remove();
                 currentBudgetEditor = null;
             }}
+            return false;
         }}
         
         function cancelBudgetEditor() {{
@@ -3362,6 +3925,7 @@ async def dashboard_page(
                 }}
                 closeBudgetEditor();
             }}
+            return false;
         }}
         
         function applyBudgetPercent(percent, originalBudget) {{
@@ -3559,8 +4123,10 @@ async def get_dashboard_data(
         raise HTTPException(status_code=401, detail="Authentication required")
     
     try:
-        # Get user's enabled accounts and prefixes
-        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
+        # Get user's enabled accounts and prefixes - FILTER theo view_mode
+        user_account_ids, user_prefixes = get_user_account_prefixes_filtered_by_view_mode(
+            current_user.id, db, view_mode, enabled_only=True
+        )
         
         if not user_account_ids:
             # Return empty response
@@ -3608,6 +4174,7 @@ async def get_dashboard_data(
         logger.info(f"   Filters: view_mode={view_mode}, level={level}, account_ids={account_ids}, prefix={prefix}, status={status}, date_from={date_from}, date_to={date_to}, search={search}, campaign_id={campaign_id}, adset_id={adset_id}")
         # DEBUG: Log raw query params để kiểm tra
         logger.info(f"   🔍 DEBUG - Raw query params adset_id: {request.query_params.get('adset_id', 'NOT_IN_URL')}, type: {type(adset_id)}")
+        logger.info(f"   🔍 DEBUG - Raw query params status: {request.query_params.get('status', 'NOT_IN_URL')}, status param value: {status}, type: {type(status)}")
         
         all_data = await pull_facebook_data_with_date_range_async(
             access_token,
@@ -3650,10 +4217,15 @@ async def get_dashboard_data(
         total_spend = sum(float(row.get('spend', 0) or 0) for row in all_data_for_summary)
         total_purchases = sum(int(row.get('purchases', 0) or 0) for row in all_data_for_summary)
         total_purchase_value = sum(float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0) for row in all_data_for_summary)
-        total_leads = sum(
+        
+        # Metrics cho Lead Generation:
+        # - Tổng DATA = bình luận bài viết + người liên hệ nhắn tin mới
+        # - Tổng Lead = tổng số lượt bắt đầu thanh toán
+        total_data = sum(
             int(row.get('post_comments', 0) or 0) + int(row.get('messaging_conversations_started', 0) or 0)
             for row in all_data_for_summary
         )
+        total_lead = sum(int(row.get('onsite_conversion_post_save', 0) or 0) for row in all_data_for_summary)
         
         # Count unique adsets by status - dùng effective_status (đã được update từ API)
         adset_statuses = {}
@@ -3681,11 +4253,15 @@ async def get_dashboard_data(
                 "totalAdsets": total_adsets
             }
         else:  # lead
-            avg_gia_data = total_spend / total_leads if total_leads > 0 else 0
+            # Tổng DATA = bình luận + nhắn tin
+            # Giá Data TB = chi phí / tổng DATA
+            # Tổng Lead = lượt bắt đầu thanh toán
+            avg_gia_data = total_spend / total_data if total_data > 0 else 0
             summary = {
                 "totalSpend": round(total_spend, 2),
-                "totalLeads": total_leads,
-                "avgGiaData": round(avg_gia_data, 2),
+                "totalData": total_data,  # Tổng DATA (comments + messages)
+                "avgGiaData": round(avg_gia_data, 2),  # Giá Data TB
+                "totalLead": total_lead,  # Tổng Lead (checkout started)
                 "activeAdsets": active_adsets,
                 "pausedAdsets": paused_adsets,
                 "totalAdsets": total_adsets
@@ -3725,22 +4301,34 @@ async def get_dashboard_data(
         
         # ===== FILTER STATUS + IMPRESSIONS =====
         # Normalize status filter: nếu không có hoặc không hợp lệ => default ACTIVE
+        logger.info(f"   🔍 DEBUG - Before normalize: status param = {status}, type = {type(status)}")
         status_filter = None
-        if status and status.upper() in ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']:
-            status_filter = status.upper()
-            # Map ARCHIVED -> DELETED
-            if status_filter == 'ARCHIVED':
-                status_filter = 'DELETED'
+        if status and isinstance(status, str) and status.strip():
+            status_upper = status.upper().strip()
+            if status_upper in ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']:
+                status_filter = status_upper
+                # Map ARCHIVED -> DELETED
+                if status_filter == 'ARCHIVED':
+                    status_filter = 'DELETED'
+                logger.info(f"   🔍 DEBUG - Status filter từ param: {status_filter}")
+            else:
+                logger.info(f"   🔍 DEBUG - Status param không hợp lệ: {status_upper}, dùng default ACTIVE")
+                status_filter = 'ACTIVE'
         else:
-            # Default: ACTIVE
+            # Default: ACTIVE khi không có status filter
             status_filter = 'ACTIVE'
+            logger.info(f"   🔍 DEBUG - Không có status param, dùng default: {status_filter}")
         
         # Filter theo status và impressions
         before_status_filter = len(all_data)
         filtered_data = []
+        status_count = {}
         for row in all_data:
             # Lấy normalized status (đã được normalize từ fetch_adset_statuses)
             row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
+            
+            # Đếm status để debug
+            status_count[row_status] = status_count.get(row_status, 0) + 1
             
             # Kiểm tra status match
             status_match = row_status == status_filter
@@ -3752,6 +4340,8 @@ async def get_dashboard_data(
             if status_match and has_impressions:
                 filtered_data.append(row)
         
+        logger.info(f"   🔍 DEBUG - Status distribution: {status_count}")
+        logger.info(f"   🔍 DEBUG - Filtering với status_filter={status_filter}, impressions>0")
         all_data = filtered_data
         logger.info(f"   📊 Sau filter status ({status_filter}) + impressions>0: {len(all_data)}/{before_status_filter} rows")
         

@@ -135,6 +135,11 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
                             # Normalize status
                             normalized = normalize_status(raw_status)
                             status_map[adset_id] = normalized
+                            logger.debug(f"   🔍 Normalized status for {adset_id}: {raw_status} -> {normalized}")
+                        else:
+                            # Nếu không có status, mặc định là UNKNOWN
+                            status_map[adset_id] = 'UNKNOWN'
+                            logger.warning(f"   ⚠️ No status found for adset {adset_id}")
         except Exception as e:
             logger.error(f"🚨 Lỗi lấy trạng thái AdSet (batch ids): {e}")
     
