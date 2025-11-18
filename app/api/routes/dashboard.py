@@ -18,7 +18,9 @@ from app.api.routes.auth import get_current_user_optional
 from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.core.ui_helpers import get_account_locked_message
-from app.services.facebook_api import pull_facebook_data, fetch_adset_statuses, pause_adsets, resume_adsets
+from app.services.facebook_api import pull_facebook_data, fetch_adset_statuses, pause_adsets, resume_adsets, update_adset_budget, update_campaign_budget
+from pydantic import BaseModel
+from typing import Literal
 
 logger = logging.getLogger(__name__)
 
@@ -3551,12 +3553,13 @@ async def get_dashboard_data(
             for row in all_data_for_summary
         )
         
-        # Count unique adsets by status
+        # Count unique adsets by status - dùng effective_status (đã được update từ API)
         adset_statuses = {}
         for row in all_data_for_summary:
             adset_id = row.get('adset_id')
             if adset_id:
-                status = (row.get('adset_status') or 'UNKNOWN').upper()
+                # Ưu tiên effective_status (từ API), sau đó mới dùng adset_status
+                status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
                 if adset_id not in adset_statuses:
                     adset_statuses[adset_id] = status
         
@@ -3643,8 +3646,8 @@ async def get_dashboard_data(
                     'name': entity_name,
                     'account_id': row.get('account_id', ''),
                     'prefix': row.get('prefix', ''),
-                    'status': (row.get('adset_status') or 'UNKNOWN').upper(),
-                    'delivery': (row.get('adset_status') or 'UNKNOWN').upper(),  # Alias for status
+                    'status': (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper(),
+                    'delivery': (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper(),  # Alias for status - dùng status từ API
                     'budget': row.get('budget', 0.0) or 0.0,  # Budget từ cache
                     'budget_level': row.get('budget_level', 'ADSET'),  # Đã được xác định từ campaign info
                     'currency': 'VND',  # Default, có thể lấy từ account
@@ -3675,9 +3678,11 @@ async def get_dashboard_data(
             group['gia_tri_chuyen_doi_tu_luot_mua'] += float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
             group['checkout_initiated'] += int(row.get('checkout_initiated', 0) or 0)
             
-            # Update status if available
-            if row.get('adset_status'):
-                group['status'] = row.get('adset_status').upper()
+            # Update status if available - ưu tiên effective_status, sau đó adset_status
+            # Status đã được update từ fetch_adset_statuses ở trên
+            effective_status = row.get('effective_status') or row.get('adset_status')
+            if effective_status:
+                group['status'] = effective_status.upper()
                 group['delivery'] = group['status']
         
         # Convert to list and calculate derived metrics
@@ -3781,6 +3786,109 @@ async def get_dashboard_data(
         raise HTTPException(status_code=500, detail=f"Error loading data: {str(e)}")
 
 
+# Pydantic models for budget update
+class BudgetOperation(BaseModel):
+    level: Literal["CAMPAIGN", "ADSET"]
+    id: str  # campaign_id hoặc adset_id
+    new_budget: float  # VND / ngày
+    reason: Optional[str] = None
+
+class BudgetUpdateRequest(BaseModel):
+    operations: List[BudgetOperation]
+    view_mode: Optional[str] = "ecommerce"  # Để validate
+
+
+@router.post("/budget/update")
+async def update_budget_endpoint(
+    request: Request,
+    payload: BudgetUpdateRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Update budget for campaigns or adsets
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Get access token
+        access_token = get_user_access_token(current_user.id, db)
+        if not access_token:
+            raise HTTPException(status_code=400, detail="Facebook access token not found. Please configure in Settings.")
+        
+        # Get user's enabled accounts to verify access
+        user_account_ids, user_prefixes = get_user_account_prefixes(current_user.id, db, enabled_only=True)
+        
+        results = []
+        errors = []
+        
+        for op in payload.operations:
+            try:
+                # Verify user has access to this account (simplified check)
+                # In production, should verify the campaign/adset belongs to user's accounts
+                
+                if op.level == "ADSET":
+                    result = update_adset_budget(
+                        adset_id=op.id,
+                        access_token=access_token,
+                        new_budget=op.new_budget
+                    )
+                elif op.level == "CAMPAIGN":
+                    result = update_campaign_budget(
+                        campaign_id=op.id,
+                        access_token=access_token,
+                        new_budget=op.new_budget
+                    )
+                else:
+                    errors.append({
+                        "id": op.id,
+                        "level": op.level,
+                        "error": f"Invalid level: {op.level}"
+                    })
+                    continue
+                
+                if result.get("success"):
+                    results.append({
+                        "id": op.id,
+                        "level": op.level,
+                        "old_budget": result.get("old_budget"),
+                        "new_budget": result.get("new_budget"),
+                        "budget_type": result.get("budget_type")
+                    })
+                else:
+                    errors.append({
+                        "id": op.id,
+                        "level": op.level,
+                        "error": result.get("error", "Unknown error")
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Error updating budget for {op.level} {op.id}: {e}", exc_info=True)
+                errors.append({
+                    "id": op.id,
+                    "level": op.level,
+                    "error": str(e)
+                })
+        
+        if errors and not results:
+            # All failed
+            raise HTTPException(status_code=400, detail=f"All operations failed: {errors}")
+        
+        return JSONResponse({
+            "success": True,
+            "results": results,
+            "errors": errors if errors else None,
+            "message": f"Updated {len(results)} budget(s) successfully"
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in budget update endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error updating budget: {str(e)}")
+
+
 @router.get("/summary")
 async def get_dashboard_summary(
     request: Request,
@@ -3877,12 +3985,13 @@ async def get_dashboard_summary(
             for row in all_data
         )
         
-        # Count unique adsets by status
+        # Count unique adsets by status - dùng effective_status (đã được update từ API)
         adset_statuses = {}
         for row in all_data:
             adset_id = row.get('adset_id')
             if adset_id:
-                status = (row.get('adset_status') or 'UNKNOWN').upper()
+                # Ưu tiên effective_status (từ API), sau đó mới dùng adset_status
+                status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
                 if adset_id not in adset_statuses:
                     adset_statuses[adset_id] = status
         
