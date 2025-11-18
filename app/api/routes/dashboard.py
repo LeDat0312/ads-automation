@@ -187,6 +187,39 @@ def get_user_account_prefixes_filtered_by_view_mode(
     return account_ids, prefixes
 
 
+def get_user_account_prefixes_filtered_by_view_mode(
+    user_id: int, db: Session, view_mode: str, enabled_only: bool = True
+) -> tuple[List[str], List[str]]:
+    """
+    Lấy danh sách account_ids và prefixes của user - LỌC theo view_mode
+    - view_mode='ecommerce': Chỉ lấy accounts có account_type='E-COMMERCE'
+    - view_mode='lead': Chỉ lấy accounts có account_type='LEAD_GENERATION'
+    - Các view_mode khác: Lấy tất cả
+    """
+    query = db.query(Account.account_id).filter(Account.user_id == user_id)
+    if enabled_only:
+        query = query.filter(Account.enabled == True)
+    
+    # FILTER theo view_mode
+    if view_mode == "ecommerce":
+        query = query.filter(Account.account_type == "E-COMMERCE")
+    elif view_mode == "lead":
+        query = query.filter(Account.account_type == "LEAD_GENERATION")
+    # Nếu view_mode không hợp lệ hoặc rỗng, lấy tất cả accounts
+    
+    user_accounts = query.all()
+    account_ids = [acc[0] for acc in user_accounts]
+    
+    # Lấy prefixes từ user's prefixes (chỉ enabled nếu enabled_only=True)
+    prefix_query = db.query(Prefix.prefix).filter(Prefix.user_id == user_id)
+    if enabled_only:
+        prefix_query = prefix_query.filter(Prefix.enabled == True)
+    user_prefixes = prefix_query.all()
+    prefixes = [pref[0] for pref in user_prefixes]
+    
+    return account_ids, prefixes
+
+
 @router.get("/filters")
 async def get_dashboard_filters(
     request: Request,
@@ -1254,8 +1287,7 @@ async def dashboard_page(
         
         .bulk-btn.play {{ color: #22c55e; border-color: #22c55e; }}
         .bulk-btn.pause {{ color: #ef4444; border-color: #ef4444; }}
-        .bulk-btn.budget-increase {{ color: #10b981; border-color: #10b981; }}
-        .bulk-btn.budget-decrease {{ color: #f59e0b; border-color: #f59e0b; }}
+        .bulk-btn.budget-adjust {{ color: #6366f1; border-color: #6366f1; }}
         
         /* Bulk Budget Modal Styles */
         .modal-overlay {{
@@ -2085,7 +2117,7 @@ async def dashboard_page(
                 </div>
                 
                 <div id="budgetPercentSection" class="budget-section">
-                    <p class="section-description">Chọn phần trăm tăng/giảm ngân sách:</p>
+                    <p class="section-description">Chọn phần trăm tăng/giảm ngân sách (tự động phát hiện tăng hay giảm):</p>
                     <div class="percent-buttons-grid">
                         <button class="percent-btn decrease" onclick="selectPercent(-10)">-10%</button>
                         <button class="percent-btn decrease" onclick="selectPercent(-20)">-20%</button>
@@ -2100,7 +2132,7 @@ async def dashboard_page(
                 </div>
                 
                 <div id="budgetManualSection" class="budget-section" style="display: none;">
-                    <p class="section-description">Nhập ngân sách mới (ngân sách gốc sẽ được giữ nguyên khi tính toán % sau này):</p>
+                    <p class="section-description">Nhập ngân sách mới (hệ thống tự động xác định tăng/giảm so với ngân sách gốc):</p>
                     <div class="manual-input-group">
                         <input type="number" id="manualBudgetInput" class="manual-budget-input" placeholder="Nhập ngân sách mới (VND)" min="1000" step="1000">
                         <span class="currency-label">VND</span>
@@ -2146,8 +2178,7 @@ async def dashboard_page(
                         <span id="selectedCount">0 đã chọn</span>
                         <button class="bulk-btn play" onclick="bulkAction('activate')">▶️ Bật</button>
                         <button class="bulk-btn pause" onclick="bulkAction('pause')">⏸️ Tắt</button>
-                        <button class="bulk-btn budget-increase" onclick="showBulkBudgetModal('increase')" title="Tăng ngân sách các mục đã chọn">📈 Tăng NS</button>
-                        <button class="bulk-btn budget-decrease" onclick="showBulkBudgetModal('decrease')" title="Giảm ngân sách các mục đã chọn">📉 Giảm NS</button>
+                        <button class="bulk-btn budget-adjust" onclick="showBulkBudgetModal()" title="Điều chỉnh ngân sách các mục đã chọn">💰 Điều Chỉnh NS</button>
                     </div>
                     
                     <!-- Search Box -->
@@ -3292,15 +3323,6 @@ async def dashboard_page(
                     
                     <div class="overview-card">
                         <div class="card-header">
-                            <div class="card-title">Giá Data TB</div>
-                            <div class="card-icon gia">💵</div>
-                        </div>
-                        <div class="card-value" id="avgGiaData">${{formatCurrency(overview.avgGiaData || 0)}}</div>
-                        <div class="card-subtitle">Chi phí / DATA</div>
-                    </div>
-                    
-                    <div class="overview-card">
-                        <div class="card-header">
                             <div class="card-title">Tổng Lead</div>
                             <div class="card-icon leads">🎯</div>
                         </div>
@@ -3585,21 +3607,18 @@ async def dashboard_page(
         // Bulk Budget Modal - State management
         let bulkBudgetMode = 'percent'; // 'percent' or 'manual'
         let selectedPercent = null;
-        let bulkBudgetType = 'increase'; // 'increase' or 'decrease'
         
-        function showBulkBudgetModal(type) {{
+        function showBulkBudgetModal() {{
             if (selectedItems.size === 0) {{
                 showError('Vui lòng chọn ít nhất 1 mục');
                 return;
             }}
             
-            bulkBudgetType = type;
             selectedPercent = null;
             bulkBudgetMode = 'percent';
             
             // Update modal title and count
-            const title = type === 'increase' ? '📈 Tăng Ngân sách' : '📉 Giảm Ngân sách';
-            document.getElementById('bulkBudgetModalTitle').textContent = title;
+            document.getElementById('bulkBudgetModalTitle').textContent = '💰 Điều Chỉnh Ngân sách';
             document.getElementById('bulkBudgetSelectionCount').textContent = `${{selectedItems.size}} mục đã chọn`;
             
             // Reset UI
@@ -3862,7 +3881,10 @@ async def dashboard_page(
                 <div class="budget-input-group">
                     <label class="budget-input-label">Ngân sách mới (VND/ngày)</label>
                     <div class="budget-input-wrapper">
-                        <input type="number" class="budget-input" id="budgetInput" value="${{currentBudget}}" min="0" step="1000">
+                        <input type="number" class="budget-input" id="budgetInput" value="${{currentBudget}}" min="0" step="1000" 
+                               onclick="event.stopPropagation();" 
+                               onfocus="this.removeAttribute('readonly');" 
+                               onmousedown="event.stopPropagation();">
                         <span class="budget-currency">VND</span>
                     </div>
                 </div>
