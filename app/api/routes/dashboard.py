@@ -187,39 +187,6 @@ def get_user_account_prefixes_filtered_by_view_mode(
     return account_ids, prefixes
 
 
-def get_user_account_prefixes_filtered_by_view_mode(
-    user_id: int, db: Session, view_mode: str, enabled_only: bool = True
-) -> tuple[List[str], List[str]]:
-    """
-    Lấy danh sách account_ids và prefixes của user - LỌC theo view_mode
-    - view_mode='ecommerce': Chỉ lấy accounts có account_type='E-COMMERCE'
-    - view_mode='lead': Chỉ lấy accounts có account_type='LEAD_GENERATION'
-    - Các view_mode khác: Lấy tất cả
-    """
-    query = db.query(Account.account_id).filter(Account.user_id == user_id)
-    if enabled_only:
-        query = query.filter(Account.enabled == True)
-    
-    # FILTER theo view_mode
-    if view_mode == "ecommerce":
-        query = query.filter(Account.account_type == "E-COMMERCE")
-    elif view_mode == "lead":
-        query = query.filter(Account.account_type == "LEAD_GENERATION")
-    # Nếu view_mode không hợp lệ hoặc rỗng, lấy tất cả accounts
-    
-    user_accounts = query.all()
-    account_ids = [acc[0] for acc in user_accounts]
-    
-    # Lấy prefixes từ user's prefixes (chỉ enabled nếu enabled_only=True)
-    prefix_query = db.query(Prefix.prefix).filter(Prefix.user_id == user_id)
-    if enabled_only:
-        prefix_query = prefix_query.filter(Prefix.enabled == True)
-    user_prefixes = prefix_query.all()
-    prefixes = [pref[0] for pref in user_prefixes]
-    
-    return account_ids, prefixes
-
-
 @router.get("/filters")
 async def get_dashboard_filters(
     request: Request,
@@ -1708,6 +1675,17 @@ async def dashboard_page(
             font-weight: bold;
         }}
         
+        /* Budget Editor Overlay (backdrop) */
+        .budget-editor-overlay {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 999;
+        }}
+        
         /* Budget Editor Popover */
         .budget-cell {{
             position: relative;
@@ -1725,30 +1703,21 @@ async def dashboard_page(
         }}
         
         .budget-editor-popover {{
-            position: absolute;
+            position: fixed;
             background: white;
             border: 1px solid #d1d5db;
             border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
             padding: 16px;
             z-index: 1000;
             min-width: 280px;
-            top: 100%;
-            left: 0;
-            margin-top: 4px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }}
         
         .budget-editor-popover::before {{
-            content: '';
-            position: absolute;
-            top: -6px;
-            left: 20px;
-            width: 12px;
-            height: 12px;
-            background: white;
-            border-left: 1px solid #d1d5db;
-            border-top: 1px solid #d1d5db;
-            transform: rotate(45deg);
+            display: none;  /* Ẩn arrow vì popup đã center */
         }}
         
         .budget-editor-title {{
@@ -4010,7 +3979,7 @@ async def dashboard_page(
                 closeBudgetEditor();
             }}
             
-            // Tìm cell
+            // Tìm cell (chỉ để lưu reference, không cần append vào cell nữa)
             const cells = document.querySelectorAll('.budget-cell');
             let targetCell = null;
             for (let cell of cells) {{
@@ -4021,6 +3990,14 @@ async def dashboard_page(
             }}
             
             if (!targetCell) return;
+            
+            // Tạo overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'budget-editor-overlay';
+            overlay.id = 'budgetEditorOverlay';
+            overlay.onclick = function() {{
+                closeBudgetEditor();
+            }};
             
             // Tạo popover
             const popover = document.createElement('div');
@@ -4058,9 +4035,9 @@ async def dashboard_page(
                 </div>
             `;
             
-            // Append vào cell
-            targetCell.style.position = 'relative';
-            targetCell.appendChild(popover);
+            // Append overlay và popover vào body (center màn hình)
+            document.body.appendChild(overlay);
+            document.body.appendChild(popover);
             
             currentBudgetEditor = {{
                 id: id,
@@ -4068,6 +4045,7 @@ async def dashboard_page(
                 level: level,
                 cell: targetCell,
                 popover: popover,
+                overlay: overlay,
                 originalBudget: currentBudget  // Lưu giá trị gốc để reset khi Hủy
             }};
             
@@ -4075,14 +4053,16 @@ async def dashboard_page(
             setTimeout(() => {{
                 document.getElementById('budgetInput').focus();
             }}, 100);
-            
-            // KHÔNG tự đóng khi click outside - chỉ đóng khi bấm Hủy hoặc Lưu
-            // (Đã remove closeBudgetEditorOnOutsideClick để tránh reset khi click ra ngoài)
         }}
         
         function closeBudgetEditor() {{
-            if (currentBudgetEditor && currentBudgetEditor.popover) {{
-                currentBudgetEditor.popover.remove();
+            if (currentBudgetEditor) {{
+                if (currentBudgetEditor.popover) {{
+                    currentBudgetEditor.popover.remove();
+                }}
+                if (currentBudgetEditor.overlay) {{
+                    currentBudgetEditor.overlay.remove();
+                }}
                 currentBudgetEditor = null;
             }}
             return false;
@@ -4382,8 +4362,10 @@ async def get_dashboard_data(
                     row['adset_status'] = adset_statuses_map[row_adset_id]
                     row['effective_status'] = adset_statuses_map[row_adset_id]
         
-        # ===== BUILD SUMMARY (dùng tất cả data trước khi filter level) =====
-        all_data_for_summary = all_data.copy()  # Copy để dùng cho summary
+        # ===== BUILD SUMMARY (dùng data có impressions>0, KHÔNG phụ thuộc status) =====
+        # Filter data cho summary: CHỈ lấy rows có impressions > 0
+        all_data_for_summary = [row for row in all_data if int(row.get('impressions', 0) or 0) > 0]
+        logger.info(f"   📊 Summary sẽ tổng kết {len(all_data_for_summary)} rows (impressions>0)")
         
         # Aggregate metrics for summary
         total_spend = sum(float(row.get('spend', 0) or 0) for row in all_data_for_summary)
@@ -4399,10 +4381,10 @@ async def get_dashboard_data(
         )
         total_lead = sum(int(row.get('onsite_conversion_post_save', 0) or 0) for row in all_data_for_summary)
         
-        # Count unique adsets by status - dùng effective_status (đã được update từ API)
+        # Count unique adsets by status - từ data có impressions>0
         adset_statuses = {}
         for row in all_data_for_summary:
-            row_adset_id = row.get('adset_id')  # Dùng tên biến khác để tránh conflict với param adset_id
+            row_adset_id = row.get('adset_id')
             if row_adset_id:
                 # Ưu tiên effective_status (từ API), sau đó mới dùng adset_status
                 row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
@@ -4471,9 +4453,11 @@ async def get_dashboard_data(
         else:
             logger.info(f"   🔎 Không filter theo adset_id (original_adset_id={original_adset_id}, should_filter={should_filter_adset})")
         
-        # ===== FILTER STATUS + IMPRESSIONS =====
-        # Normalize status filter: nếu không có hoặc không hợp lệ => default ACTIVE
-        logger.info(f"   🔍 DEBUG - Before normalize: status param = {status}, type = {type(status)}")
+        # ===== FILTER IMPRESSIONS + STATUS (optional) =====
+        # CHỈ filter impressions>0, KHÔNG default status=ACTIVE
+        # Chỉ filter status khi có param status rõ ràng
+        logger.info(f"   🔍 DEBUG - status param = {status}, type = {type(status)}")
+        
         status_filter = None
         if status and isinstance(status, str) and status.strip():
             status_upper = status.upper().strip()
@@ -4482,40 +4466,44 @@ async def get_dashboard_data(
                 # Map ARCHIVED -> DELETED
                 if status_filter == 'ARCHIVED':
                     status_filter = 'DELETED'
-                logger.info(f"   🔍 DEBUG - Status filter từ param: {status_filter}")
+                logger.info(f"   🔍 DEBUG - Sẽ filter theo status: {status_filter}")
             else:
-                logger.info(f"   🔍 DEBUG - Status param không hợp lệ: {status_upper}, dùng default ACTIVE")
-                status_filter = 'ACTIVE'
+                logger.info(f"   🔍 DEBUG - Status param không hợp lệ: {status_upper}, bỏ qua")
         else:
-            # Default: ACTIVE khi không có status filter
-            status_filter = 'ACTIVE'
-            logger.info(f"   🔍 DEBUG - Không có status param, dùng default: {status_filter}")
+            logger.info(f"   🔍 DEBUG - Không có status param, lấy TẤT CẢ status")
         
-        # Filter theo status và impressions
-        before_status_filter = len(all_data)
+        # Filter chỉ theo impressions>0 (và status nếu có)
+        before_filter = len(all_data)
         filtered_data = []
         status_count = {}
+        
         for row in all_data:
-            # Lấy normalized status (đã được normalize từ fetch_adset_statuses)
+            # Lấy normalized status
             row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
             
             # Đếm status để debug
             status_count[row_status] = status_count.get(row_status, 0) + 1
             
-            # Kiểm tra status match
-            status_match = row_status == status_filter
-            
-            # Kiểm tra impressions > 0 (mặc định luôn áp dụng)
+            # Kiểm tra impressions > 0 (BẮT BUỘC)
             impressions = int(row.get('impressions', 0) or 0)
-            has_impressions = impressions > 0
+            if impressions == 0:
+                continue
             
-            if status_match and has_impressions:
-                filtered_data.append(row)
+            # Kiểm tra status match (NẾU CÓ status_filter)
+            if status_filter is not None:
+                if row_status != status_filter:
+                    continue
+            
+            # Pass cả 2 điều kiện
+            filtered_data.append(row)
         
-        logger.info(f"   🔍 DEBUG - Status distribution: {status_count}")
-        logger.info(f"   🔍 DEBUG - Filtering với status_filter={status_filter}, impressions>0")
+        logger.info(f"   🔍 DEBUG - Status distribution (tất cả): {status_count}")
+        if status_filter:
+            logger.info(f"   📊 Sau filter impressions>0 + status={status_filter}: {len(filtered_data)}/{before_filter} rows")
+        else:
+            logger.info(f"   📊 Sau filter impressions>0 (TẤT CẢ status): {len(filtered_data)}/{before_filter} rows")
+        
         all_data = filtered_data
-        logger.info(f"   📊 Sau filter status ({status_filter}) + impressions>0: {len(all_data)}/{before_status_filter} rows")
         
         # Search filter
         if search and all_data:
@@ -4647,12 +4635,13 @@ async def get_dashboard_data(
             
             if view_mode == "ecommerce":
                 ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
-                tlc = (purchases / results) if results > 0 else 0
+                # TLC = % chuyển đổi từ data -> mua hàng (nhân 100 để ra %)
+                tlc = (purchases / results * 100) if results > 0 else 0
                 row_data.update({
                     "%ads": round(ads_percent, 2),
                     "data_cost": round(gia_data, 2),
-                    "tlc": round(tlc, 2),
-                    "initiated_checkout": checkout_starts,
+                    "tlc": round(tlc, 2),  # Đã là % (0-100)
+                    "initiated_checkout": checkout_starts,  # Bắt đầu TT
                     "purchases": purchases,
                     "purchase_value": round(purchase_value, 2)
                 })
@@ -4661,7 +4650,7 @@ async def get_dashboard_data(
                 row_data.update({
                     "data_cost": round(gia_data, 2),
                     "cost_per_checkout_initiated": round(cost_per_checkout_start, 2),
-                    "initiated_checkout": checkout_starts,
+                    "initiated_checkout": checkout_starts,  # Bắt đầu TT (onsite_conversion_post_save)
                     "purchases": purchases
                 })
             

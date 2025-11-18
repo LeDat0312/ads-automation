@@ -1119,12 +1119,15 @@ def pull_facebook_data(
                                 'messaging_conversation_started',
                                 'messaging_conversation_started_1d_click',
                                 'messaging_conversation_started_7d_click']
+                    # Thêm: onsite_conversion.post_save (Bắt đầu TT cho Lead Gen)
+                    bases_post_save = ['onsite_conversion.post_save', 'post_save']
                     
                     # Lấy giá trị từ các variants
                     initiate_checkout = pick_first_variant(act_map, bases_ic)
                     purchases = pick_first_variant(act_map, bases_pur)
                     post_comments = pick_first_variant(act_map, bases_cmt)
                     msg_started = pick_first_variant(act_map, bases_msg)
+                    post_save = pick_first_variant(act_map, bases_post_save)  # Bắt đầu TT
                     
                     # Fallback THÔNG MINH: Nếu không tìm thấy, tìm trong act_map với tất cả variants
                     # (giống Google Script dòng 754-819)
@@ -1162,6 +1165,7 @@ def pull_facebook_data(
                     messages = int(msg_started)
                     results = comments + messages
                     checkouts = int(initiate_checkout)
+                    post_saves = int(post_save)  # Bắt đầu TT (onsite_conversion.post_save)
                     
                     # Tính giá DATA
                     gia_data = (spend / results) if results > 0 else 0
@@ -1216,7 +1220,8 @@ def pull_facebook_data(
                         'gia_tri_chuyen_doi_tu_luot_mua': purchase_value,
                         'messaging_conversations_started': messages,
                         'post_comments': comments,
-                        'checkouts_initiated': checkouts
+                        'checkouts_initiated': checkouts,
+                        'onsite_conversion_post_save': post_saves  # Bắt đầu TT
                     }
                     
                     # Dùng hybrid detection (ưu tiên objective, fallback metrics)
@@ -1283,6 +1288,7 @@ def pull_facebook_data(
                         'cost_per_messaging_conversation': (spend / messages) if messages > 0 else 0,
                         'post_comments': comments,
                         'messaging_conversations_started': messages,
+                        'onsite_conversion_post_save': post_saves,  # Bắt đầu TT (Lead Gen)
                         'date': datetime.now(),
                         'date_preset': date_preset,
                     }
