@@ -1380,4 +1380,3 @@ def get_daily_breakdown_data(
             continue
     
     return result
-
