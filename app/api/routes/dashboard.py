@@ -4487,39 +4487,53 @@ async def get_dashboard_data(
             logger.info(f"   🔍 DEBUG - Adset statuses: {adset_statuses_map}")
         
         # Update adset status vào từng row
+        TARGET_ADSET_ID = "120237687958500742"  # FL-13.11-B9
+        
         for row in all_data:
             adset_id = row.get('adset_id')
-            if adset_id and adset_id in adset_statuses_map:
-                status_info = adset_statuses_map[adset_id]
-                row['configured_status'] = status_info.get('configured_status', 'UNKNOWN')
-                row['effective_status'] = status_info.get('effective_status', 'UNKNOWN')
-                row['campaign_configured_status'] = status_info.get('campaign_configured_status', 'UNKNOWN')
-                row['campaign_effective_status'] = status_info.get('campaign_effective_status', 'UNKNOWN')
-            else:
-                row['configured_status'] = 'UNKNOWN'
-                row['effective_status'] = 'UNKNOWN'
-                row['campaign_configured_status'] = 'UNKNOWN'
-                row['campaign_effective_status'] = 'UNKNOWN'
+            status_info = adset_statuses_map.get(adset_id, {}) if adset_statuses_map else {}
             
-            # Tính 2 flags quan trọng:
-            # 1. has_impressions_today: Adset ĐÃ CHẠY hôm nay (có impressions > 0)
-            # 2. is_switch_on_now: NÚt gạt đang BẬT (configured_status của adset và campaign đều ACTIVE)
+            # Lấy các status fields
+            effective_status = status_info.get('effective_status', 'UNKNOWN')
+            configured_status = status_info.get('configured_status', 'UNKNOWN')
+            campaign_conf = status_info.get('campaign_configured_status', 'UNKNOWN')
+            campaign_eff = status_info.get('campaign_effective_status', 'UNKNOWN')
+            
+            row['effective_status'] = effective_status
+            row['configured_status'] = configured_status
+            row['campaign_configured_status'] = campaign_conf
+            row['campaign_effective_status'] = campaign_eff
+            
+            # Tính các flags:
             impressions = int(row.get('impressions', 0) or 0)
-            row['has_impressions_today'] = impressions > 0
+            spend = float(row.get('spend', 0) or 0.0)
             
-            # NÚt gạt bật khi cả adset và campaign configured_status đều ACTIVE
-            row['is_switch_on_now'] = (
-                row['configured_status'] == 'ACTIVE' and 
-                row['campaign_configured_status'] == 'ACTIVE'
-            )
+            # 1. has_impressions_today / ran_today: Adset ĐÃ CHẠY hôm nay
+            ran_today = impressions > 0
+            row['has_impressions_today'] = ran_today
+            row['ran_today'] = ran_today
             
-            # Debug logging cho các adset có impressions
+            # 2. is_active_now: Adset ĐANG HOẠT ĐỘNG thực sự (theo Facebook)
+            #    CHỈ dùng effective_status - Facebook đã tính sẵn parent status
+            #    KHÔNG dùng campaign_configured_status nữa!
+            is_active_now = ran_today and effective_status == 'ACTIVE'
+            row['is_active_now'] = is_active_now
+            
+            # DEBUG: Log chi tiết cho FL-13.11-B9
+            if adset_id == TARGET_ADSET_ID:
+                logger.warning(
+                    f"   🧪 DEBUG_FL_B9 | adset_id={adset_id} | "
+                    f"impr={impressions} | eff={effective_status} | conf={configured_status} | "
+                    f"camp_conf={campaign_conf} | camp_eff={campaign_eff} | "
+                    f"ran_today={ran_today} | is_active_now={is_active_now}"
+                )
+            
+            # DEBUG: Log tất cả adsets có impressions
             if impressions > 0:
                 logger.info(
-                    f"   📝 DEBUG_ADSET | id={adset_id} | imp={impressions} | "
-                    f"conf={row['configured_status']} | eff={row['effective_status']} | "
-                    f"camp_conf={row['campaign_configured_status']} | camp_eff={row['campaign_effective_status']} | "
-                    f"is_switch_on={row['is_switch_on_now']}"
+                    f"   📝 DEBUG_ADSET_STATUS | id={adset_id} | name={row.get('adset_name')} | "
+                    f"eff={effective_status} | conf={configured_status} | "
+                    f"ran_today={ran_today} | is_active_now={is_active_now}"
                 )
         
         # ===== BUILD SUMMARY (dùng data có impressions>0 HOẶC spend>0) =====
@@ -4621,10 +4635,10 @@ async def get_dashboard_data(
         
         # Đếm stats trước khi filter
         total_adsets = len(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
-        ran_today_count = len(set([row.get('adset_id') for row in all_data if row.get('has_impressions_today')]))
-        switch_on_count = len(set([row.get('adset_id') for row in all_data if row.get('has_impressions_today') and row.get('is_switch_on_now')]))
+        ran_today_count = len(set([row.get('adset_id') for row in all_data if row.get('ran_today')]))
+        active_now_count = len(set([row.get('adset_id') for row in all_data if row.get('is_active_now')]))
         
-        logger.info(f"   📊 Stats TRƯỚC filter: total={total_adsets} adsets, ran_today={ran_today_count}, switch_on={switch_on_count}")
+        logger.info(f"   📊 Stats TRƯỚC filter: total={total_adsets} adsets, ran_today={ran_today_count}, active_now={active_now_count}")
         
         # Xác định filter mode
         status_filter = None
@@ -4632,17 +4646,17 @@ async def get_dashboard_data(
             status_upper = status.upper().strip()
             if status_upper == 'ACTIVE':
                 status_filter = 'ACTIVE'
-                logger.info(f"   🔍 DEBUG - Filter mode: ACTIVE (chỉ is_switch_on_now - nút gạt đang bật)")
+                logger.info(f"   🔍 DEBUG - Filter mode: ACTIVE (ran_today AND effective_status=ACTIVE)")
             elif status_upper == 'RAN_TODAY':
                 status_filter = 'RAN_TODAY'
-                logger.info(f"   🔍 DEBUG - Filter mode: RAN_TODAY (chỉ has_impressions_today)")
+                logger.info(f"   🔍 DEBUG - Filter mode: RAN_TODAY (chỉ ran_today)")
             elif status_upper == 'ACTIVE_AND_RAN_TODAY':
                 status_filter = 'ACTIVE_AND_RAN_TODAY'
-                logger.info(f"   🔍 DEBUG - Filter mode: ACTIVE_AND_RAN_TODAY (bật & đã chạy)")
+                logger.info(f"   🔍 DEBUG - Filter mode: ACTIVE_AND_RAN_TODAY (giống ACTIVE)")
             else:
                 logger.info(f"   🔍 DEBUG - Status param không hợp lệ: {status_upper}, bỏ qua")
         else:
-            logger.info(f"   🔍 DEBUG - Không có status param, lấy TẤT CẢ")
+            logger.info(f"   🔍 DEBUG - Không có status param, mặc định RAN_TODAY")
         
         # Apply filter
         before_filter = len(all_data)
@@ -4650,19 +4664,15 @@ async def get_dashboard_data(
         
         for row in all_data:
             # Filter theo mode
-            if status_filter == 'ACTIVE':
-                # CHỈ lấy adsets có nút gạt đang bật (không quan tâm có chạy hay chưa)
-                if not row.get('is_switch_on_now'):
+            if status_filter == 'ACTIVE' or status_filter == 'ACTIVE_AND_RAN_TODAY':
+                # Lấy adsets đang hoạt động thực sự (ran_today AND effective_status=ACTIVE)
+                if not row.get('is_active_now'):
                     continue
-            elif status_filter == 'RAN_TODAY':
-                # CHỈ lấy adsets đã chạy hôm nay
-                if not row.get('has_impressions_today'):
+            elif status_filter == 'RAN_TODAY' or status_filter is None:
+                # Lấy tất cả adsets đã chạy hôm nay (impressions > 0)
+                if not row.get('ran_today'):
                     continue
-            elif status_filter == 'ACTIVE_AND_RAN_TODAY':
-                # Lấy adsets vừa bật vừa đã chạy
-                if not (row.get('is_switch_on_now') and row.get('has_impressions_today')):
-                    continue
-            # else: không filter, lấy tất cả
+            # else: không filter gì, lấy tất cả
             
             # Pass filter
             filtered_data.append(row)
