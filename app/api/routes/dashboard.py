@@ -5,10 +5,11 @@ Modern Facebook Ads Dashboard - Completely redesigned
 import logging
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, distinct, case
+from dataclasses import dataclass
 import pytz
 
 from app.core.database import get_db, AdMetrics
@@ -26,6 +27,16 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 # Timezone Hồ Chí Minh
 HCM_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
 
+# Cache in-memory cho Facebook API data (TTL 60s)
+@dataclass
+class CachedResult:
+    timestamp: datetime
+    data: List[Dict[str, Any]]
+
+# Global cache dict: key = (view_mode, date_from, date_to, tuple(sorted(account_ids))), value = CachedResult
+_insights_cache: Dict[Tuple, CachedResult] = {}
+CACHE_TTL_SECONDS = 60  # Cache 60 giây
+
 
 def get_user_access_token(user_id: int, db: Session) -> Optional[str]:
     """Lấy Facebook access token từ UserSettings (decrypt nếu cần)"""
@@ -41,19 +52,44 @@ def get_user_access_token(user_id: int, db: Session) -> Optional[str]:
     return None
 
 
-def pull_facebook_data_with_date_range(
+async def get_insights_cached_async(
     access_token: str,
     ad_account_ids: List[str],
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    max_results: int = 5000  # Giới hạn số lượng để tránh quá tải
+    max_results: int = 5000,
+    use_cache: bool = True
 ) -> List[Dict[str, Any]]:
     """
-    Gọi Facebook API với custom date range
-    Wrapper cho pull_facebook_data với hỗ trợ date_from/date_to
+    Lấy insights từ Facebook API với cache (TTL 60s) - Async version
+    Key cache: (date_from, date_to, tuple(sorted(account_ids)))
     """
-    # Gọi pull_facebook_data với date_from/date_to
-    all_data = pull_facebook_data(
+    # Tạo cache key
+    cache_key = (
+        date_from or '',
+        date_to or '',
+        tuple(sorted(ad_account_ids))
+    )
+    
+    # Check cache nếu use_cache = True
+    if use_cache:
+        now = datetime.now()
+        cached = _insights_cache.get(cache_key)
+        if cached:
+            age_seconds = (now - cached.timestamp).total_seconds()
+            if age_seconds < CACHE_TTL_SECONDS:
+                logger.info(f"✅ Cache hit! Dùng dữ liệu từ cache (age: {age_seconds:.1f}s)")
+                return cached.data
+            else:
+                logger.info(f"⏰ Cache expired (age: {age_seconds:.1f}s), gọi lại Facebook API")
+                # Xóa cache cũ
+                del _insights_cache[cache_key]
+    
+    # Gọi Facebook API (async để chạy song song các accounts)
+    logger.info(f"📥 Gọi Facebook API (cache miss hoặc expired)...")
+    from app.services.facebook_api import pull_facebook_data_async
+    
+    all_data = await pull_facebook_data_async(
         access_token, 
         ad_account_ids, 
         date_preset=None,  # Không dùng preset nếu có custom range
@@ -66,7 +102,36 @@ def pull_facebook_data_with_date_range(
         logger.warning(f"Giới hạn kết quả từ {len(all_data)} xuống {max_results} để tránh quá tải")
         all_data = all_data[:max_results]
     
+    # Lưu vào cache
+    if use_cache:
+        _insights_cache[cache_key] = CachedResult(
+            timestamp=datetime.now(),
+            data=all_data
+        )
+        logger.info(f"💾 Đã lưu {len(all_data)} rows vào cache")
+    
     return all_data
+
+
+async def pull_facebook_data_with_date_range_async(
+    access_token: str,
+    ad_account_ids: List[str],
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    max_results: int = 5000,  # Giới hạn số lượng để tránh quá tải
+    use_cache: bool = True
+) -> List[Dict[str, Any]]:
+    """
+    Gọi Facebook API với custom date range (wrapper với cache) - Async version
+    """
+    return await get_insights_cached_async(
+        access_token,
+        ad_account_ids,
+        date_from=date_from,
+        date_to=date_to,
+        max_results=max_results,
+        use_cache=use_cache
+    )
 
 
 def get_user_account_prefixes(user_id: int, db: Session, enabled_only: bool = True) -> tuple[List[str], List[str]]:
@@ -3349,14 +3414,15 @@ async def get_dashboard_summary(
                 raise HTTPException(status_code=403, detail="Access denied to this account")
             user_account_ids = [account_id]
         
-        # Gọi Facebook API trực tiếp
+        # Gọi Facebook API trực tiếp (async với cache)
         logger.info(f"📥 Đang lấy dữ liệu từ Facebook API cho {len(user_account_ids)} tài khoản...")
-        all_data = pull_facebook_data_with_date_range(
+        all_data = await pull_facebook_data_with_date_range_async(
             access_token,
             user_account_ids,
             date_from=date_from,
             date_to=date_to,
-            max_results=5000  # Giới hạn để tránh quá tải
+            max_results=5000,  # Giới hạn để tránh quá tải
+            use_cache=True  # Dùng cache để tránh gọi 2 lần
         )
         
         # Filter theo prefix nếu có
@@ -3483,15 +3549,16 @@ async def get_dashboard_details(
                 raise HTTPException(status_code=403, detail="Access denied to this account")
             user_account_ids = [account_id]
         
-        # Gọi Facebook API trực tiếp
+        # Gọi Facebook API trực tiếp (async với cache)
         logger.info(f"📥 Đang lấy dữ liệu chi tiết từ Facebook API cho {len(user_account_ids)} tài khoản...")
         logger.info(f"   Filters: view_mode={view_mode}, level={level}, account_id={account_id}, prefix={prefix}, status={status}, date_from={date_from}, date_to={date_to}, search={search}, campaign_id={campaign_id}, adset_id={adset_id}")
-        all_data = pull_facebook_data_with_date_range(
+        all_data = await pull_facebook_data_with_date_range_async(
             access_token,
             user_account_ids,
             date_from=date_from,
             date_to=date_to,
-            max_results=10000  # Giới hạn để tránh quá tải
+            max_results=10000,  # Giới hạn để tránh quá tải
+            use_cache=True  # Dùng cache để tránh gọi 2 lần (summary và details dùng chung cache)
         )
         logger.info(f"   ✅ Đã lấy được {len(all_data)} rows từ Facebook API")
         
@@ -3508,7 +3575,7 @@ async def get_dashboard_details(
             all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD']
         logger.info(f"   📊 Sau filter view_mode ({view_mode}): {len(all_data)}/{before_view_filter} rows")
         
-        # Lấy status của adsets từ Facebook API
+        # Lấy status của adsets từ Facebook API (chỉ khi cần thiết)
         adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
         if adset_ids:
             logger.info(f"📊 Đang lấy status cho {len(adset_ids)} adsets...")
@@ -3521,11 +3588,12 @@ async def get_dashboard_details(
                     row['effective_status'] = adset_statuses_map[adset_id]
         
         # Drill-down filter: Filter by campaign_id or adset_id
-        if campaign_id and all_data:
+        # CHỈ filter nếu param thực sự được truyền (không phải None hoặc "None")
+        if campaign_id and campaign_id != "None" and all_data:
             all_data = [row for row in all_data if row.get('campaign_id') == campaign_id]
             logger.info(f"   📊 Sau filter campaign_id ({campaign_id}): {len(all_data)} rows")
         
-        if adset_id and all_data:
+        if adset_id and adset_id != "None" and all_data:
             all_data = [row for row in all_data if row.get('adset_id') == adset_id]
             logger.info(f"   📊 Sau filter adset_id ({adset_id}): {len(all_data)} rows")
         

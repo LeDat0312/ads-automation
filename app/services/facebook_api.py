@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 FB_API_VERSION = "v24.0"
 FB_GRAPH_API_BASE = f"https://graph.facebook.com/{FB_API_VERSION}"
 
+# Global cache cho objectives và budgets (cache lâu hơn - 5 phút)
+_objectives_cache: Dict[str, Dict[str, str]] = {}  # {access_token: {campaign_id: objective}}
+_budgets_cache: Dict[str, Dict[str, float]] = {}  # {access_token: {adset_id: budget}}
+_status_cache: Dict[str, Dict[str, str]] = {}  # {access_token: {adset_id: status}}
+_cache_timestamps: Dict[str, datetime] = {}  # {cache_key: timestamp}
+CACHE_TTL_OBJECTIVES_BUDGETS = 300  # 5 phút
+CACHE_TTL_STATUS = 120  # 2 phút (status thay đổi thường xuyên hơn)
+
 
 def chunk_list(arr: List, size: int) -> List[List]:
     """Chia list thành các chunk nhỏ hơn"""
@@ -36,14 +44,41 @@ def unique_list(arr: List) -> List:
     return result
 
 
-def fetch_adset_statuses(adset_ids: List[str], access_token: str) -> Dict[str, str]:
+def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: bool = True) -> Dict[str, str]:
     """
     Lấy map { adset_id: effective_status } qua batch (?ids=)
     Thay thế cho hàm fetchAdsetStatuses() từ Facebook API.gs
+    Có cache global để tránh fetch lại nhiều lần
     """
     if not adset_ids:
         return {}
     
+    # Check cache
+    cache_key = f"status_{access_token[:20]}"  # Dùng 20 ký tự đầu của token làm key
+    if use_cache:
+        now = datetime.now()
+        cached_timestamp = _cache_timestamps.get(cache_key)
+        if cached_timestamp:
+            age_seconds = (now - cached_timestamp).total_seconds()
+            if age_seconds < CACHE_TTL_STATUS:
+                # Lấy từ cache những adset_ids có sẵn
+                cached_statuses = _status_cache.get(access_token, {})
+                result = {adset_id: cached_statuses.get(adset_id) for adset_id in adset_ids if adset_id in cached_statuses and cached_statuses.get(adset_id)}
+                if len(result) == len(adset_ids):
+                    logger.info(f"✅ Cache hit cho statuses ({len(adset_ids)} adsets)")
+                    return result
+                # Nếu thiếu một số, chỉ fetch những cái thiếu
+                missing_ids = [adset_id for adset_id in adset_ids if adset_id not in cached_statuses or not cached_statuses.get(adset_id)]
+                if missing_ids:
+                    logger.info(f"⏰ Cache partial hit, fetch thêm {len(missing_ids)} statuses...")
+                    adset_ids = missing_ids
+            else:
+                # Cache expired, clear và fetch lại
+                logger.info(f"⏰ Cache expired cho statuses, fetch lại...")
+                _status_cache.pop(access_token, None)
+                _cache_timestamps.pop(cache_key, None)
+    
+    # Fetch từ API
     status_map = {}
     batches = chunk_list(unique_list(adset_ids), 50)
     
@@ -63,17 +98,51 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str) -> Dict[str, s
         except Exception as e:
             logger.error(f"🚨 Lỗi lấy trạng thái AdSet (batch ids): {e}")
     
+    # Update cache
+    if use_cache and status_map:
+        if access_token not in _status_cache:
+            _status_cache[access_token] = {}
+        _status_cache[access_token].update(status_map)
+        _cache_timestamps[cache_key] = datetime.now()
+    
     return status_map
 
 
-def fetch_adset_budgets(adset_ids: List[str], access_token: str) -> Dict[str, float]:
+def fetch_adset_budgets(adset_ids: List[str], access_token: str, use_cache: bool = True) -> Dict[str, float]:
     """
     Lấy map { adset_id: budget } qua batch (?ids=)
     Budget = daily_budget hoặc lifetime_budget (tùy loại)
+    Có cache global để tránh fetch lại nhiều lần
     """
     if not adset_ids:
         return {}
     
+    # Check cache
+    cache_key = f"budgets_{access_token[:20]}"  # Dùng 20 ký tự đầu của token làm key
+    if use_cache:
+        now = datetime.now()
+        cached_timestamp = _cache_timestamps.get(cache_key)
+        if cached_timestamp:
+            age_seconds = (now - cached_timestamp).total_seconds()
+            if age_seconds < CACHE_TTL_OBJECTIVES_BUDGETS:
+                # Lấy từ cache những adset_ids có sẵn
+                cached_budgets = _budgets_cache.get(access_token, {})
+                result = {adset_id: cached_budgets.get(adset_id, 0.0) for adset_id in adset_ids if adset_id in cached_budgets}
+                if len(result) == len(adset_ids):
+                    logger.info(f"✅ Cache hit cho budgets ({len(adset_ids)} adsets)")
+                    return result
+                # Nếu thiếu một số, chỉ fetch những cái thiếu
+                missing_ids = [adset_id for adset_id in adset_ids if adset_id not in cached_budgets]
+                if missing_ids:
+                    logger.info(f"⏰ Cache partial hit, fetch thêm {len(missing_ids)} budgets...")
+                    adset_ids = missing_ids
+            else:
+                # Cache expired, clear và fetch lại
+                logger.info(f"⏰ Cache expired cho budgets, fetch lại...")
+                _budgets_cache.pop(access_token, None)
+                _cache_timestamps.pop(cache_key, None)
+    
+    # Fetch từ API
     budget_map = {}
     batches = chunk_list(unique_list(adset_ids), 50)
     
@@ -95,6 +164,13 @@ def fetch_adset_budgets(adset_ids: List[str], access_token: str) -> Dict[str, fl
                             budget_map[adset_id] = budget
         except Exception as e:
             logger.error(f"🚨 Lỗi lấy budget AdSet (batch ids): {e}")
+    
+    # Update cache
+    if use_cache and budget_map:
+        if access_token not in _budgets_cache:
+            _budgets_cache[access_token] = {}
+        _budgets_cache[access_token].update(budget_map)
+        _cache_timestamps[cache_key] = datetime.now()
     
     return budget_map
 
@@ -514,11 +590,39 @@ def pull_facebook_data(
     
     all_rows = []
     
-    # Cache để lưu campaign objectives (tránh gọi API nhiều lần)
-    campaign_objectives_cache = {}
+    # Dùng global cache cho objectives và budgets (cache lâu hơn)
+    # Cache key dựa trên access_token
+    cache_key_obj = f"objectives_{access_token[:20]}"
+    cache_key_bud = f"budgets_{access_token[:20]}"
     
-    # Cache để lưu adset budgets (tránh gọi API nhiều lần)
-    adset_budgets_cache = {}
+    # Check global cache cho objectives
+    now = datetime.now()
+    cached_obj_timestamp = _cache_timestamps.get(cache_key_obj)
+    if cached_obj_timestamp:
+        age_seconds = (now - cached_obj_timestamp).total_seconds()
+        if age_seconds < CACHE_TTL_OBJECTIVES_BUDGETS:
+            campaign_objectives_cache = _objectives_cache.get(access_token, {})
+        else:
+            # Cache expired
+            _objectives_cache.pop(access_token, None)
+            _cache_timestamps.pop(cache_key_obj, None)
+            campaign_objectives_cache = {}
+    else:
+        campaign_objectives_cache = {}
+    
+    # Check global cache cho budgets
+    cached_bud_timestamp = _cache_timestamps.get(cache_key_bud)
+    if cached_bud_timestamp:
+        age_seconds = (now - cached_bud_timestamp).total_seconds()
+        if age_seconds < CACHE_TTL_OBJECTIVES_BUDGETS:
+            adset_budgets_cache = _budgets_cache.get(access_token, {})
+        else:
+            # Cache expired
+            _budgets_cache.pop(access_token, None)
+            _cache_timestamps.pop(cache_key_bud, None)
+            adset_budgets_cache = {}
+    else:
+        adset_budgets_cache = {}
     
     def fetch_campaign_objectives_batch(campaign_ids: List[str], access_token: str) -> Dict[str, str]:
         """Lấy campaign objectives từ campaign objects (batch request)"""
@@ -737,6 +841,11 @@ def pull_facebook_data(
                     logger.info(f"   🔍 Đang lấy objectives cho {len(campaign_ids_to_fetch)} campaigns...")
                     new_objectives = fetch_campaign_objectives_batch(campaign_ids_to_fetch, access_token)
                     campaign_objectives_cache.update(new_objectives)
+                    # Update global cache
+                    if access_token not in _objectives_cache:
+                        _objectives_cache[access_token] = {}
+                    _objectives_cache[access_token].update(new_objectives)
+                    _cache_timestamps[cache_key_obj] = datetime.now()
                 
                 # Collect unique adset IDs để fetch budgets
                 adset_ids_to_fetch = []
@@ -745,10 +854,10 @@ def pull_facebook_data(
                     if adset_id and adset_id not in adset_budgets_cache:
                         adset_ids_to_fetch.append(adset_id)
                 
-                # Fetch adset budgets nếu có adsets mới
+                # Fetch adset budgets nếu có adsets mới (dùng global cache)
                 if adset_ids_to_fetch:
                     logger.info(f"   💰 Đang lấy budgets cho {len(adset_ids_to_fetch)} adsets...")
-                    new_budgets = fetch_adset_budgets(adset_ids_to_fetch, access_token)
+                    new_budgets = fetch_adset_budgets(adset_ids_to_fetch, access_token, use_cache=True)
                     adset_budgets_cache.update(new_budgets)
                 
                 for item in data:
