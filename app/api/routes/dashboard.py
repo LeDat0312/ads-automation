@@ -9,7 +9,6 @@ from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, distinct, case
-from dataclasses import dataclass
 import pytz
 
 from app.core.database import get_db, AdMetrics
@@ -3608,6 +3607,7 @@ async def get_dashboard_data(
         logger.info(f"   Filters: view_mode={view_mode}, level={level}, account_ids={account_ids}, prefix={prefix}, status={status}, date_from={date_from}, date_to={date_to}, search={search}, campaign_id={campaign_id}, adset_id={adset_id}")
         # DEBUG: Log raw query params để kiểm tra
         logger.info(f"   🔍 DEBUG - Raw query params adset_id: {request.query_params.get('adset_id', 'NOT_IN_URL')}, type: {type(adset_id)}")
+        logger.info(f"   🔍 DEBUG - Raw query params status: {request.query_params.get('status', 'NOT_IN_URL')}, status param value: {status}, type: {type(status)}")
         
         all_data = await pull_facebook_data_with_date_range_async(
             access_token,
@@ -3725,22 +3725,34 @@ async def get_dashboard_data(
         
         # ===== FILTER STATUS + IMPRESSIONS =====
         # Normalize status filter: nếu không có hoặc không hợp lệ => default ACTIVE
+        logger.info(f"   🔍 DEBUG - Before normalize: status param = {status}, type = {type(status)}")
         status_filter = None
-        if status and status.upper() in ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']:
-            status_filter = status.upper()
-            # Map ARCHIVED -> DELETED
-            if status_filter == 'ARCHIVED':
-                status_filter = 'DELETED'
+        if status and isinstance(status, str) and status.strip():
+            status_upper = status.upper().strip()
+            if status_upper in ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']:
+                status_filter = status_upper
+                # Map ARCHIVED -> DELETED
+                if status_filter == 'ARCHIVED':
+                    status_filter = 'DELETED'
+                logger.info(f"   🔍 DEBUG - Status filter từ param: {status_filter}")
+            else:
+                logger.info(f"   🔍 DEBUG - Status param không hợp lệ: {status_upper}, dùng default ACTIVE")
+                status_filter = 'ACTIVE'
         else:
-            # Default: ACTIVE
+            # Default: ACTIVE khi không có status filter
             status_filter = 'ACTIVE'
+            logger.info(f"   🔍 DEBUG - Không có status param, dùng default: {status_filter}")
         
         # Filter theo status và impressions
         before_status_filter = len(all_data)
         filtered_data = []
+        status_count = {}
         for row in all_data:
             # Lấy normalized status (đã được normalize từ fetch_adset_statuses)
             row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
+            
+            # Đếm status để debug
+            status_count[row_status] = status_count.get(row_status, 0) + 1
             
             # Kiểm tra status match
             status_match = row_status == status_filter
@@ -3752,6 +3764,8 @@ async def get_dashboard_data(
             if status_match and has_impressions:
                 filtered_data.append(row)
         
+        logger.info(f"   🔍 DEBUG - Status distribution: {status_count}")
+        logger.info(f"   🔍 DEBUG - Filtering với status_filter={status_filter}, impressions>0")
         all_data = filtered_data
         logger.info(f"   📊 Sau filter status ({status_filter}) + impressions>0: {len(all_data)}/{before_status_filter} rows")
         
