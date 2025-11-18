@@ -78,11 +78,13 @@ def normalize_status(effective_status: str) -> str:
     return "OTHER"
 
 
-def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: bool = True) -> Dict[str, str]:
+def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: bool = True) -> Dict[str, Dict[str, str]]:
     """
-    Lấy map { adset_id: normalized_status } qua batch (?ids=)
-    Trả về status đã được normalize: ACTIVE, PAUSED, DELETED, OTHER
-    Thay thế cho hàm fetchAdsetStatuses() từ Facebook API.gs
+    Lấy map { adset_id: { configured_status, effective_status, campaign_configured_status, ... } }
+    - configured_status: Status do user gạt (ACTIVE/PAUSED) - dùng cho nút gạt UI
+    - effective_status: Status thực tế (ACTIVE, CAMPAIGN_PAUSED, ...) - dùng để biết có đang phân phối
+    - campaign_configured_status: Status campaign do user gạt
+    - campaign_effective_status: Status campaign thực tế
     Có cache global để tránh fetch lại nhiều lần
     """
     if not adset_ids:
@@ -120,37 +122,41 @@ def fetch_adset_statuses(adset_ids: List[str], access_token: str, use_cache: boo
     for batch in batches:
         try:
             ids = ','.join(batch)
-            url = f"{FB_GRAPH_API_BASE}/?ids={ids}&fields=effective_status,status&access_token={access_token}"
+            # Lấy cả configured_status (nút gạt) và effective_status (trạng thái thực tế)
+            # Và cả campaign status để kiểm tra
+            fields = "id,configured_status,effective_status,status,campaign{id,configured_status,effective_status}"
+            url = f"{FB_GRAPH_API_BASE}/?ids={ids}&fields={fields}&access_token={access_token}"
             
             response = requests.get(url, timeout=30)
             response.raise_for_status()
             
             json_data = response.json()
-            logger.info(f"   🔍 DEBUG - Facebook response for adset statuses: {json_data}")
+            logger.debug(f"   🔍 DEBUG - Facebook response for adset statuses: {json_data}")
             if json_data and isinstance(json_data, dict):
                 for adset_id, node in json_data.items():
                     if node:
-                        # Dùng effective_status - trạng thái THỰC TẾ của quảng cáo
-                        # effective_status='ACTIVE' → Đang chạy
-                        # effective_status='CAMPAIGN_PAUSED' → Campaign tắt → Không chạy
-                        # effective_status='PAUSED' → Adset tắt → Không chạy
-                        effective_status = node.get('effective_status')
-                        adset_status = node.get('status')
+                        # Lấy tất cả status fields
+                        configured_status = node.get('configured_status') or node.get('status') or 'UNKNOWN'
+                        effective_status = node.get('effective_status') or 'UNKNOWN'
                         
-                        if effective_status:
-                            # Normalize effective_status
-                            normalized = normalize_status(effective_status)
-                            status_map[adset_id] = normalized
-                            logger.info(f"   🔍 Adset {adset_id}: effective={effective_status}, status={adset_status} → {normalized}")
-                        else:
-                            # Fallback sang status nếu không có effective_status
-                            if adset_status:
-                                normalized = normalize_status(adset_status)
-                                status_map[adset_id] = normalized
-                                logger.info(f"   🔍 Adset {adset_id}: status={adset_status} → {normalized}")
-                            else:
-                                status_map[adset_id] = 'UNKNOWN'
-                                logger.warning(f"   ⚠️ No status found for adset {adset_id}")
+                        # Lấy campaign status
+                        campaign = node.get('campaign', {})
+                        campaign_configured = campaign.get('configured_status') if isinstance(campaign, dict) else 'UNKNOWN'
+                        campaign_effective = campaign.get('effective_status') if isinstance(campaign, dict) else 'UNKNOWN'
+                        
+                        # Lưu dict đầy đủ thông tin
+                        status_map[adset_id] = {
+                            'configured_status': configured_status,
+                            'effective_status': effective_status,
+                            'campaign_configured_status': campaign_configured,
+                            'campaign_effective_status': campaign_effective,
+                        }
+                        
+                        logger.debug(
+                            f"   🔍 Adset {adset_id}: "
+                            f"configured={configured_status}, effective={effective_status}, "
+                            f"campaign_conf={campaign_configured}, campaign_eff={campaign_effective}"
+                        )
         except Exception as e:
             logger.error(f"🚨 Lỗi lấy trạng thái AdSet (batch ids): {e}")
     
