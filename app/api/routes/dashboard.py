@@ -60,11 +60,15 @@ async def get_insights_cached_async(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     max_results: int = 5000,
-    use_cache: bool = True
+    use_cache: bool = True,
+    account_type_map: Optional[Dict[str, str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Lấy insights từ Facebook API với cache (TTL 60s) - Async version
     Key cache: (date_from, date_to, tuple(sorted(account_ids)))
+    
+    Args:
+        account_type_map: Dict mapping account_id → account_type (E-COMMERCE/LEAD_GENERATION)
     """
     # Tạo cache key
     cache_key = (
@@ -96,7 +100,8 @@ async def get_insights_cached_async(
         ad_account_ids, 
         date_preset=None,  # Không dùng preset nếu có custom range
         date_from=date_from,
-        date_to=date_to
+        date_to=date_to,
+        account_type_map=account_type_map  # Truyền account_type_map
     )
     
     # Giới hạn số lượng để tránh quá tải
@@ -121,10 +126,14 @@ async def pull_facebook_data_with_date_range_async(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     max_results: int = 5000,  # Giới hạn số lượng để tránh quá tải
-    use_cache: bool = True
+    use_cache: bool = True,
+    account_type_map: Optional[Dict[str, str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Gọi Facebook API với custom date range (wrapper với cache) - Async version
+    
+    Args:
+        account_type_map: Dict mapping account_id → account_type (E-COMMERCE/LEAD_GENERATION)
     """
     return await get_insights_cached_async(
         access_token,
@@ -132,7 +141,8 @@ async def pull_facebook_data_with_date_range_async(
         date_from=date_from,
         date_to=date_to,
         max_results=max_results,
-        use_cache=use_cache
+        use_cache=use_cache,
+        account_type_map=account_type_map
     )
 
 
@@ -4373,6 +4383,25 @@ async def get_dashboard_data(
             current_user.id, db, view_mode, enabled_only=True
         )
         
+        # Build account_type_map để truyền vào Facebook API pull
+        # Mapping: account_id (không prefix) → account_type (E-COMMERCE/LEAD_GENERATION)
+        account_query = db.query(Account.account_id, Account.account_type).filter(
+            Account.user_id == current_user.id,
+            Account.enabled == True
+        )
+        if view_mode == "ecommerce":
+            account_query = account_query.filter(Account.account_type == "E-COMMERCE")
+        elif view_mode == "lead":
+            account_query = account_query.filter(Account.account_type == "LEAD_GENERATION")
+        
+        account_type_map = {}
+        for acc_id, acc_type in account_query.all():
+            # Remove 'act_' prefix nếu có
+            clean_id = acc_id.replace('act_', '')
+            account_type_map[clean_id] = acc_type
+        
+        logger.info(f"📋 Built account_type_map: {account_type_map}")
+        
         if not user_account_ids:
             # Return empty response
             empty_summary = {
@@ -4427,7 +4456,8 @@ async def get_dashboard_data(
             date_from=date_from,
             date_to=date_to,
             max_results=10000,
-            use_cache=use_cache
+            use_cache=use_cache,
+            account_type_map=account_type_map  # Truyền account_type_map
         )
         logger.info(f"   ✅ Đã lấy được {len(all_data)} rows từ Facebook API")
         

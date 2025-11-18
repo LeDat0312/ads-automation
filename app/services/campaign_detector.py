@@ -93,11 +93,17 @@ def detect_campaign_type_from_metrics(metrics: Dict[str, Any]) -> str:
 
 def detect_campaign_type_hybrid(
     objective: Optional[str] = None,
-    metrics: Optional[Dict[str, Any]] = None
+    metrics: Optional[Dict[str, Any]] = None,
+    fallback_account_type: Optional[str] = None
 ) -> str:
     """
-    Phát hiện loại campaign bằng cách kết hợp objective và metrics
-    Ưu tiên objective, nếu không có thì dùng metrics
+    Phát hiện loại campaign bằng cách kết hợp objective, metrics, và account_type
+    Priority: objective → metrics → account_type → default ECOMMERCE
+    
+    Args:
+        objective: Campaign objective từ Facebook API
+        metrics: Dict chứa metrics (purchases, messages, etc.)
+        fallback_account_type: Account type từ database (E-COMMERCE hoặc LEAD_GENERATION)
     
     Returns:
         'ECOMMERCE', 'LEAD', hoặc 'UNKNOWN'
@@ -116,9 +122,17 @@ def detect_campaign_type_hybrid(
             logger.debug(f"Detected from metrics: {type_from_metrics}")
             return type_from_metrics
     
-    # Mặc định: Nếu không detect được, coi như ECOMMERCE
-    # Vì đa số campaigns không có objective rõ ràng là e-commerce
-    logger.debug(f"Could not detect type from objective='{objective}' or metrics, defaulting to ECOMMERCE")
+    # Fallback: Dùng account_type từ database settings
+    if fallback_account_type:
+        if fallback_account_type == "E-COMMERCE":
+            logger.debug(f"Using account_type fallback: ECOMMERCE")
+            return 'ECOMMERCE'
+        elif fallback_account_type == "LEAD_GENERATION":
+            logger.debug(f"Using account_type fallback: LEAD")
+            return 'LEAD'
+    
+    # Mặc định cuối cùng: ECOMMERCE
+    logger.debug(f"Could not detect type from objective='{objective}', metrics, or account_type, defaulting to ECOMMERCE")
     return 'ECOMMERCE'
 
 

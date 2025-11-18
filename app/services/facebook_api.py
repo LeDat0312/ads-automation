@@ -689,11 +689,16 @@ def pull_facebook_data(
     ad_account_ids: List[str],
     date_preset: Optional[str] = "today",
     date_from: Optional[str] = None,
-    date_to: Optional[str] = None
+    date_to: Optional[str] = None,
+    account_type_map: Optional[Dict[str, str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Kéo dữ liệu Insights level=ad từ Facebook API
     Thay thế cho hàm pullFacebookData() từ Facebook API.gs
+    
+    Args:
+        account_type_map: Dict mapping account_id → account_type (E-COMMERCE/LEAD_GENERATION)
+                         Dùng để detect campaign type khi không có objective rõ ràng
     
     Returns:
         List of ad metrics dictionaries
@@ -1224,10 +1229,17 @@ def pull_facebook_data(
                         'onsite_conversion_post_save': post_saves  # Bắt đầu TT
                     }
                     
-                    # Dùng hybrid detection (ưu tiên objective, fallback metrics)
+                    # Lấy account_type từ map để dùng làm fallback
+                    account_id_clean = item.get('account_id', '').replace('act_', '')
+                    fallback_account_type = None
+                    if account_type_map:
+                        fallback_account_type = account_type_map.get(account_id_clean)
+                    
+                    # Dùng hybrid detection (ưu tiên objective → metrics → account_type)
                     campaign_type = detect_campaign_type_hybrid(
                         objective=campaign_objective,
-                        metrics=metrics_dict
+                        metrics=metrics_dict,
+                        fallback_account_type=fallback_account_type
                     )
                     
                     # Log campaign type detection để debug
@@ -1325,11 +1337,15 @@ async def pull_facebook_data_async(
     ad_account_ids: List[str],
     date_preset: Optional[str] = "today",
     date_from: Optional[str] = None,
-    date_to: Optional[str] = None
+    date_to: Optional[str] = None,
+    account_type_map: Optional[Dict[str, str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Async wrapper cho pull_facebook_data - chạy song song các accounts
     Sử dụng asyncio.to_thread để chạy sync function trong thread pool
+    
+    Args:
+        account_type_map: Dict mapping account_id → account_type (E-COMMERCE/LEAD_GENERATION)
     """
     async def fetch_single_account(account_id: str) -> List[Dict[str, Any]]:
         """Fetch data cho 1 account trong thread pool"""
@@ -1342,7 +1358,8 @@ async def pull_facebook_data_async(
             [account_id],  # Chỉ fetch 1 account
             date_preset,
             date_from,
-            date_to
+            date_to,
+            account_type_map  # Truyền account_type_map
         )
         return result
     
