@@ -1503,6 +1503,70 @@ async def dashboard_page(
             color: #4f46e5;
         }}
         
+        .budget-preview {{
+            margin-top: 16px;
+            padding: 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }}
+        
+        .budget-preview-title {{
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }}
+        
+        .budget-preview-list {{
+            max-height: 200px;
+            overflow-y: auto;
+        }}
+        
+        .budget-preview-item {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            background: white;
+            border-radius: 6px;
+            font-size: 13px;
+        }}
+        
+        .budget-preview-name {{
+            flex: 1;
+            color: #6b7280;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-right: 12px;
+        }}
+        
+        .budget-preview-values {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }}
+        
+        .budget-old {{
+            color: #9ca3af;
+            text-decoration: line-through;
+        }}
+        
+        .budget-arrow {{
+            color: #6b7280;
+        }}
+        
+        .budget-new {{
+            color: #10b981;
+        }}
+        
+        .budget-new.decrease {{
+            color: #f59e0b;
+        }}
+        
         .btn-cancel-modal {{
             padding: 10px 20px;
             border: 1px solid #d1d5db;
@@ -2144,6 +2208,13 @@ async def dashboard_page(
                 
                 <div class="selection-summary">
                     <span id="bulkBudgetSelectionCount">0 mục đã chọn</span>
+                </div>
+                
+                <div class="budget-preview" id="budgetPreview" style="display: none;">
+                    <div class="budget-preview-title">📊 Xem trước thay đổi:</div>
+                    <div class="budget-preview-list" id="budgetPreviewList">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -3672,6 +3743,85 @@ async def dashboard_page(
             document.getElementById('selectedPercentDisplay').textContent = `${{action}} ${{absPercent}}% đã chọn`;
             document.getElementById('selectedPercentDisplay').style.color = percent > 0 ? '#10b981' : '#f59e0b';
             document.getElementById('selectedPercentDisplay').style.fontWeight = '600';
+            
+            // Show budget preview
+            showBudgetPreview(percent);
+        }}
+        
+        function showBudgetPreview(percentOrManual) {{
+            const previewContainer = document.getElementById('budgetPreview');
+            const previewList = document.getElementById('budgetPreviewList');
+            
+            if (!previewContainer || !previewList) return;
+            
+            const items = Array.from(selectedItems);
+            if (items.length === 0) {{
+                previewContainer.style.display = 'none';
+                return;
+            }}
+            
+            let html = '';
+            const rows = Array.from(document.querySelectorAll('tbody tr'));
+            
+            for (let item_id of items) {{
+                // Find row data
+                let itemName = '';
+                let currentBudget = 0;
+                
+                for (let row of rows) {{
+                    const toggleBtn = row.querySelector('[onclick*="toggleStatus"]');
+                    if (toggleBtn && toggleBtn.getAttribute('onclick').includes(item_id)) {{
+                        // Get name
+                        const nameCell = row.querySelector('td:nth-child(3)');
+                        if (nameCell) {{
+                            itemName = nameCell.textContent.trim();
+                            if (itemName.length > 40) {{
+                                itemName = itemName.substring(0, 37) + '...';
+                            }}
+                        }}
+                        
+                        // Get budget
+                        const budgetCell = row.querySelector('.budget-cell');
+                        if (budgetCell) {{
+                            const budgetText = budgetCell.textContent.replace(/[^0-9.]/g, '');
+                            currentBudget = parseFloat(budgetText) || 0;
+                        }}
+                        break;
+                    }}
+                }}
+                
+                if (currentBudget > 0) {{
+                    let newBudget;
+                    if (typeof percentOrManual === 'number' && percentOrManual >= -100 && percentOrManual <= 100) {{
+                        // Percentage mode
+                        newBudget = Math.round(currentBudget * (1 + percentOrManual / 100));
+                    }} else {{
+                        // Manual mode
+                        newBudget = parseFloat(percentOrManual) || currentBudget;
+                    }}
+                    
+                    const isDecrease = newBudget < currentBudget;
+                    const newClass = isDecrease ? 'decrease' : '';
+                    
+                    html += `
+                        <div class="budget-preview-item">
+                            <span class="budget-preview-name">${{itemName}}</span>
+                            <div class="budget-preview-values">
+                                <span class="budget-old">${{formatCurrency(currentBudget)}}</span>
+                                <span class="budget-arrow">→</span>
+                                <span class="budget-new ${{newClass}}">${{formatCurrency(newBudget)}}</span>
+                            </div>
+                        </div>
+                    `;
+                }}
+            }}
+            
+            if (html) {{
+                previewList.innerHTML = html;
+                previewContainer.style.display = 'block';
+            }} else {{
+                previewContainer.style.display = 'none';
+            }}
         }}
         
         async function applyBulkBudget() {{
@@ -4255,9 +4405,9 @@ async def get_dashboard_data(
             row_adset_id = row.get('adset_id')  # Dùng tên biến khác để tránh conflict với param adset_id
             if row_adset_id:
                 # Ưu tiên effective_status (từ API), sau đó mới dùng adset_status
-                status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
+                row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
                 if row_adset_id not in adset_statuses:
-                    adset_statuses[row_adset_id] = status
+                    adset_statuses[row_adset_id] = row_status
         
         active_adsets = len([s for s in adset_statuses.values() if s == "ACTIVE"])
         paused_adsets = len([s for s in adset_statuses.values() if s in ["PAUSED", "ARCHIVED"]])
