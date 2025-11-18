@@ -1211,6 +1211,8 @@ async def dashboard_page(
         
         .bulk-btn.play {{ color: #22c55e; border-color: #22c55e; }}
         .bulk-btn.pause {{ color: #ef4444; border-color: #ef4444; }}
+        .bulk-btn.budget-increase {{ color: #10b981; border-color: #10b981; }}
+        .bulk-btn.budget-decrease {{ color: #f59e0b; border-color: #f59e0b; }}
         
         /* Table Styles */
         .data-table {{
@@ -1797,6 +1799,8 @@ async def dashboard_page(
                         <span id="selectedCount">0 đã chọn</span>
                         <button class="bulk-btn play" onclick="bulkAction('activate')">▶️ Bật</button>
                         <button class="bulk-btn pause" onclick="bulkAction('pause')">⏸️ Tắt</button>
+                        <button class="bulk-btn budget-increase" onclick="bulkBudgetAction('increase')" title="Tăng ngân sách các mục đã chọn">📈 Tăng NS</button>
+                        <button class="bulk-btn budget-decrease" onclick="bulkBudgetAction('decrease')" title="Giảm ngân sách các mục đã chọn">📉 Giảm NS</button>
                     </div>
                     
                     <!-- Search Box -->
@@ -1899,7 +1903,7 @@ async def dashboard_page(
                     dateRange: filters.dateRange || 'today',
                     dateFrom: filters.dateFrom || '',
                     dateTo: filters.dateTo || '',
-                    status: filters.status || 'ACTIVE',  // QUAN TRỌNG: Default ACTIVE
+                    status: 'ACTIVE',  // FORCE ACTIVE - KHÔNG restore từ localStorage
                     search: filters.search || ''
                 }};
                 
@@ -3218,6 +3222,104 @@ async def dashboard_page(
                 
             }} catch (error) {{
                 showError('Lỗi bulk action: ' + error.message);
+            }}
+        }}
+        
+        // Bulk Budget Action - Tăng/Giảm ngân sách nhiều items cùng lúc
+        async function bulkBudgetAction(type) {{
+            if (selectedItems.size === 0) {{
+                showError('Vui lòng chọn ít nhất 1 mục');
+                return;
+            }}
+            
+            const items = Array.from(selectedItems);
+            const actionText = type === 'increase' ? 'tăng' : 'giảm';
+            
+            // Prompt nhập phần trăm
+            const percentStr = prompt(`Nhập phần trăm muốn ${{actionText}} ngân sách (ví dụ: 10, 20, 30):`, '10');
+            if (!percentStr) return; // User cancelled
+            
+            const percent = parseFloat(percentStr);
+            if (isNaN(percent) || percent <= 0 || percent > 100) {{
+                showError('Phần trăm không hợp lệ. Vui lòng nhập số từ 1-100');
+                return;
+            }}
+            
+            const percentValue = type === 'increase' ? percent : -percent;
+            
+            if (!confirm(`Bạn có chắc muốn ${{actionText}} ngân sách ${{percent}}% cho ${{items.length}} mục đã chọn?`)) {{
+                return;
+            }}
+            
+            try {{
+                // Get current budgets for selected items from the table
+                const operations = [];
+                const rows = Array.from(document.querySelectorAll('tbody tr'));
+                
+                for (let item_id of items) {{
+                    // Find row with this ID
+                    let currentBudget = null;
+                    let budgetLevel = null;
+                    
+                    for (let row of rows) {{
+                        const toggleBtn = row.querySelector('[onclick*="toggleStatus"]');
+                        if (toggleBtn && toggleBtn.getAttribute('onclick').includes(item_id)) {{
+                            // Found the row, get budget
+                            const budgetCell = row.querySelector('.budget-cell');
+                            if (budgetCell) {{
+                                const budgetText = budgetCell.textContent.replace(/[^0-9.]/g, '');
+                                currentBudget = parseFloat(budgetText);
+                            }}
+                            
+                            // Determine budget level based on current level
+                            budgetLevel = currentLevel.toUpperCase(); // CAMPAIGN or ADSET
+                            break;
+                        }}
+                    }}
+                    
+                    if (currentBudget && currentBudget > 0) {{
+                        const newBudget = Math.round(currentBudget * (1 + percentValue / 100));
+                        operations.push({{
+                            level: budgetLevel,
+                            id: item_id,
+                            new_budget: newBudget
+                        }});
+                    }}
+                }}
+                
+                if (operations.length === 0) {{
+                    showError('Không tìm thấy ngân sách hợp lệ cho các mục đã chọn');
+                    return;
+                }}
+                
+                // Call API to update budgets
+                const response = await fetch('/dashboard/budget/update', {{
+                    method: 'POST',
+                    headers: {{
+                        'Authorization': 'Bearer ' + getAuthToken(),
+                        'Content-Type': 'application/json'
+                    }},
+                    body: JSON.stringify({{ operations }})
+                }});
+                
+                if (!response.ok) {{
+                    throw new Error('Failed to update budgets');
+                }}
+                
+                const result = await response.json();
+                if (result.success) {{
+                    showSuccess(`Đã ${{actionText}} ngân sách cho ${{result.results.length}} mục thành công`);
+                    selectedItems.clear();
+                    
+                    // Refresh data
+                    setTimeout(() => loadData(true), 1000);
+                }} else {{
+                    const errorMsg = result.errors?.[0]?.error || 'Lỗi không xác định';
+                    throw new Error(errorMsg);
+                }}
+                
+            }} catch (error) {{
+                showError('Lỗi bulk budget: ' + error.message);
             }}
         }}
         
