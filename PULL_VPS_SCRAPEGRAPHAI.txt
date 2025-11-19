@@ -1,0 +1,97 @@
+# 🔍 Hướng dẫn Pull Code ScrapeGraphAI về VPS
+
+## 📋 Các bước thực hiện
+
+### 1. SSH vào VPS
+```bash
+ssh adsuser@your-vps-ip
+cd ~/ads-automation
+```
+
+### 2. Pull code mới nhất
+```bash
+git pull origin main
+```
+
+### 3. Chạy migration để thêm columns mới vào database
+```bash
+source venv/bin/activate
+python migrations/add_scrapegraphai_api_key.py
+```
+
+**Lưu ý:** Nếu migration báo lỗi "columns already exist", có thể bỏ qua bước này.
+
+### 4. Restart services
+```bash
+sudo supervisorctl restart ads-automation
+sudo supervisorctl restart ads-worker
+```
+
+### 5. Kiểm tra logs
+```bash
+sudo supervisorctl status
+sudo tail -f /var/log/ads-automation.log
+```
+
+## ✅ Kiểm tra sau khi deploy
+
+1. Truy cập: `https://updatemetaads.site/`
+   - Kiểm tra có card "🔍 Nghiên Cứu Đối Thủ" không
+
+2. Truy cập: `https://updatemetaads.site/settings`
+   - Kiểm tra có section "ScrapeGraphAI API Key" không
+   - Thử lưu API key và test
+
+3. Truy cập: `https://updatemetaads.site/competitor`
+   - Kiểm tra trang nghiên cứu đối thủ có hoạt động không
+
+## 🔧 Nếu gặp lỗi
+
+### Lỗi migration:
+```bash
+# Nếu columns đã tồn tại, có thể bỏ qua
+# Hoặc chạy thủ công:
+psql -U your_user -d your_db -c "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS scrapegraphai_api_key_encrypted TEXT;"
+psql -U your_user -d your_db -c "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS scrapegraphai_api_key_status VARCHAR(50) DEFAULT 'NOT_SET';"
+psql -U your_user -d your_db -c "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS scrapegraphai_api_key_last_checked TIMESTAMP;"
+```
+
+### Lỗi import:
+```bash
+# Kiểm tra Python path
+python -c "from app.models.user_settings import UserSettings; print('OK')"
+```
+
+### Lỗi service không start:
+```bash
+# Xem log chi tiết
+sudo tail -100 /var/log/ads-automation.log
+# Hoặc
+journalctl -u ads-automation -n 50
+```
+
+## 📝 Script tự động (copy toàn bộ và chạy)
+
+```bash
+#!/bin/bash
+cd ~/ads-automation
+echo "📥 Pulling code from GitHub..."
+git pull origin main
+
+echo "🔄 Running migration..."
+source venv/bin/activate
+python migrations/add_scrapegraphai_api_key.py
+
+echo "🔄 Restarting services..."
+sudo supervisorctl restart ads-automation
+sudo supervisorctl restart ads-worker
+
+echo "⏳ Waiting 3 seconds..."
+sleep 3
+
+echo "📊 Checking status..."
+sudo supervisorctl status
+
+echo "✅ Done! Check logs with: sudo tail -f /var/log/ads-automation.log"
+```
+
