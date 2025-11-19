@@ -29,7 +29,8 @@ router = APIRouter(prefix="/competitor", tags=["competitor-research"])
 @router.get("/", response_class=HTMLResponse)
 async def competitor_research_page(
     request: Request,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db = Depends(get_db)
 ):
     """Trang nghiên cứu đối thủ với ScrapeGraphAI"""
     

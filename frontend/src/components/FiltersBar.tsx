@@ -155,8 +155,82 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
   return (
     <>
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-        {/* Status Chips Row */}
-        <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-200">
+        {/* Row 1: Search + Date + Filters + Refresh */}
+        <div className="flex items-center gap-3 mb-4">
+          {/* Search Box - Prominent */}
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <input
+                type="text"
+                value={tempFilters.search || ''}
+                onChange={(e) => {
+                  setTempFilters({ ...tempFilters, search: e.target.value });
+                  onFiltersChange({ ...filters, search: e.target.value || undefined });
+                }}
+                placeholder="🔍 Tìm kiếm tên/ID chiến dịch, nhóm quảng cáo..."
+                className="w-full pl-4 pr-10 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              />
+              {tempFilters.search && (
+                <button
+                  onClick={() => {
+                    setTempFilters({ ...tempFilters, search: '' });
+                    onFiltersChange({ ...filters, search: undefined });
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Date Picker Button */}
+          <button
+            onClick={() => setShowDatePicker(!showDatePicker)}
+            className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 whitespace-nowrap"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            📅 {formatDateRange()}
+          </button>
+
+          {/* Filters Button */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 relative whitespace-nowrap"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Bộ lọc
+            {activeFiltersCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
+
+          {/* Refresh Button */}
+          <button
+            onClick={onRefresh}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            <svg
+              className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Làm mới
+          </button>
+        </div>
+
+        {/* Row 2: Status Chips */}
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => onFiltersChange({ ...filters, status_filter: undefined })}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -166,16 +240,6 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
             }`}
           >
             📊 Tất cả
-          </button>
-          <button
-            onClick={() => onFiltersChange({ ...filters, status_filter: 'ran_today' })}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              filters.status_filter === 'ran_today'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            🔥 Đã chạy hôm nay
           </button>
           <button
             onClick={() => onFiltersChange({ ...filters, status_filter: 'ACTIVE' })}
@@ -197,101 +261,30 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
           >
             ⏸️ Đã tạm dừng
           </button>
-        </div>
 
-        <div className="flex items-center justify-between gap-4">
-          {/* Left side - Date and Filters */}
-          <div className="flex items-center gap-3 flex-wrap">{/* Date Picker Button */}
-            {/* Date Picker Button */}
-            <button
-              onClick={() => setShowDatePicker(!showDatePicker)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              {formatDateRange()}
-            </button>
-
-            {/* Filters Button */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 relative"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              Bộ lọc
-              {activeFiltersCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-                  {activeFiltersCount}
-                </span>
-              )}
-            </button>
-
-            {/* Active Filters Tags */}
-            {filters.account_ids && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md text-sm">
-                Tài khoản: {filterOptions.accounts.find(a => a.id === filters.account_ids)?.name || filters.account_ids}
-                <button
-                  onClick={() => onFiltersChange({ ...filters, account_ids: undefined })}
-                  className="hover:text-indigo-900"
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {filters.prefix_filter && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md text-sm">
-                Prefix: {filters.prefix_filter}
-                <button
-                  onClick={() => onFiltersChange({ ...filters, prefix_filter: undefined })}
-                  className="hover:text-indigo-900"
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {filters.status_filter && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md text-sm">
-                Trạng thái: {filters.status_filter}
-                <button
-                  onClick={() => onFiltersChange({ ...filters, status_filter: undefined })}
-                  className="hover:text-indigo-900"
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {filters.search && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md text-sm">
-                Tìm: {filters.search}
-                <button
-                  onClick={() => onFiltersChange({ ...filters, search: undefined })}
-                  className="hover:text-indigo-900"
-                >
-                  ×
-                </button>
-              </span>
-            )}
-          </div>
-
-          {/* Right side - Refresh */}
-          <button
-            onClick={onRefresh}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <svg
-              className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Làm mới
-          </button>
+          {/* Active Filters Tags */}
+          {filters.account_ids && (
+            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-md text-sm border border-indigo-200">
+              Tài khoản: {filterOptions.accounts.find(a => a.id === filters.account_ids)?.name || filters.account_ids}
+              <button
+                onClick={() => onFiltersChange({ ...filters, account_ids: undefined })}
+                className="hover:text-indigo-900 ml-1"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {filters.prefix_filter && (
+            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-md text-sm border border-indigo-200">
+              Prefix: {filters.prefix_filter}
+              <button
+                onClick={() => onFiltersChange({ ...filters, prefix_filter: undefined })}
+                className="hover:text-indigo-900 ml-1"
+              >
+                ×
+              </button>
+            </span>
+          )}
         </div>
       </div>
 
@@ -372,20 +365,6 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Search */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tìm kiếm
-                </label>
-                <input
-                  type="text"
-                  value={tempFilters.search || ''}
-                  onChange={(e) => setTempFilters({ ...tempFilters, search: e.target.value })}
-                  placeholder="Tìm theo tên adset, campaign..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
               {/* Status Filter */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

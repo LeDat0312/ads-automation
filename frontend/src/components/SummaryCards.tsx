@@ -24,131 +24,119 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
   const currency = summary.currency || 'VND';
 
   return (
-    <div className="space-y-4 mb-6">
-      {/* Row 1 - 6 Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-        {/* TỔNG CHI TIÊU - Always show */}
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm border border-blue-200 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white text-lg">💰</div>
-            <h3 className="text-xs font-semibold text-blue-700 uppercase">TỔNG CHI TIÊU</h3>
-          </div>
-          <p className="text-xl font-bold text-blue-900">{formatCurrency(summary.totalSpend, currency)}</p>
+    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      {/* Card 1: TỔNG CHI TIÊU - Always show */}
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center text-white text-xl">💰</div>
         </div>
-
-        {viewMode === 'ecommerce' ? (
-          <>
-            {/* % ADS */}
-            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl shadow-sm border border-red-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center text-white text-lg">📈</div>
-                <h3 className="text-xs font-semibold text-red-700 uppercase">% ADS</h3>
-              </div>
-              <p className="text-xl font-bold text-red-900">
-                {summary.adsPercent !== undefined ? `${summary.adsPercent.toFixed(2)}%` : '0.00%'}
-              </p>
-              <p className="text-xs text-red-600 mt-1">Chi tiêu / Giá trị mua</p>
-            </div>
-
-            {/* GIÁ TRỊ CHUYỂN ĐỔI */}
-            <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-xl shadow-sm border border-cyan-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-cyan-500 flex items-center justify-center text-white text-lg">💎</div>
-                <h3 className="text-xs font-semibold text-cyan-700 uppercase">GIÁ TRỊ CHUYỂN ĐỔI</h3>
-              </div>
-              <p className="text-xl font-bold text-cyan-900">{formatCurrency(summary.purchaseValue || 0, currency)}</p>
-              <p className="text-xs text-cyan-600 mt-1">Tổng từ lượt mua</p>
-            </div>
-
-            {/* TỔNG CHECKOUT */}
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl shadow-sm border border-orange-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center text-white text-lg">🛒</div>
-                <h3 className="text-xs font-semibold text-orange-700 uppercase">TỔNG CHECKOUT</h3>
-              </div>
-              <p className="text-xl font-bold text-orange-900">{formatNumber(summary.totalCheckouts || 0)}</p>
-              <p className="text-xs text-orange-600 mt-1">{formatCurrency(summary.costPerCheckout || 0, currency)}/checkout</p>
-            </div>
-
-            {/* TỔNG PURCHASES */}
-            <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl shadow-sm border border-pink-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-pink-500 flex items-center justify-center text-white text-lg">🎯</div>
-                <h3 className="text-xs font-semibold text-pink-700 uppercase">TỔNG PURCHASES</h3>
-              </div>
-              <p className="text-xl font-bold text-pink-900">{formatNumber(summary.totalPurchases || 0)}</p>
-              <p className="text-xs text-pink-600 mt-1">{formatCurrency(summary.costPerPurchase || 0, currency)}/purchase</p>
-            </div>
-
-            {/* TỔNG ADSETS - E-COMMERCE */}
-            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl shadow-sm border border-indigo-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-lg">📊</div>
-                <h3 className="text-xs font-semibold text-indigo-700 uppercase">TỔNG ADSETS</h3>
-              </div>
-              <p className="text-xl font-bold text-indigo-900">{formatNumber(summary.totalAdsets)}</p>
-              <div className="flex gap-2 mt-1 text-xs">
-                <span className="text-green-600 font-medium">✅ {summary.activeAdsets}</span>
-                <span className="text-gray-600">⏸️ {summary.pausedAdsets}</span>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* TỔNG DATA - LEAD */}
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm border border-green-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center text-white text-lg">📊</div>
-                <h3 className="text-xs font-semibold text-green-700 uppercase">TỔNG DATA</h3>
-              </div>
-              <p className="text-xl font-bold text-green-900">{formatNumber(summary.totalData || 0)}</p>
-              <p className="text-xs text-green-600 mt-1">Bình luận + Nhắn tin</p>
-            </div>
-
-            {/* GIÁ DATA - LEAD */}
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm border border-purple-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-purple-500 flex items-center justify-center text-white text-lg">💵</div>
-                <h3 className="text-xs font-semibold text-purple-700 uppercase">GIÁ DATA</h3>
-              </div>
-              <p className="text-xl font-bold text-purple-900">{formatCurrency(summary.costPerData || summary.avgGiaData || 0, currency)}</p>
-            </div>
-
-            {/* TỔNG CHECKOUT - LEAD */}
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl shadow-sm border border-orange-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center text-white text-lg">🛒</div>
-                <h3 className="text-xs font-semibold text-orange-700 uppercase">TỔNG CHECKOUT</h3>
-              </div>
-              <p className="text-xl font-bold text-orange-900">{formatNumber(summary.totalCheckouts || summary.totalLead || 0)}</p>
-              <p className="text-xs text-orange-600 mt-1">{formatCurrency(summary.costPerCheckout || 0, currency)}/checkout</p>
-            </div>
-
-            {/* TỔNG PURCHASES - LEAD */}
-            <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl shadow-sm border border-pink-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-pink-500 flex items-center justify-center text-white text-lg">🎯</div>
-                <h3 className="text-xs font-semibold text-pink-700 uppercase">TỔNG PURCHASES</h3>
-              </div>
-              <p className="text-xl font-bold text-pink-900">{formatNumber(summary.totalPurchases || 0)}</p>
-              <p className="text-xs text-pink-600 mt-1">{formatCurrency(summary.costPerPurchase || 0, currency)}/purchase</p>
-            </div>
-
-            {/* TỔNG ADSETS - LEAD */}
-            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl shadow-sm border border-indigo-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-lg">📊</div>
-                <h3 className="text-xs font-semibold text-indigo-700 uppercase">TỔNG ADSETS</h3>
-              </div>
-              <p className="text-xl font-bold text-indigo-900">{formatNumber(summary.totalAdsets)}</p>
-              <div className="flex gap-2 mt-1 text-xs">
-                <span className="text-green-600 font-medium">✅ {summary.activeAdsets}</span>
-                <span className="text-gray-600">⏸️ {summary.pausedAdsets}</span>
-              </div>
-            </div>
-          </>
-        )}
+        <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG CHI TIÊU</h3>
+        <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.totalSpend, currency)}</p>
       </div>
+
+      {viewMode === 'ecommerce' ? (
+        <>
+          {/* E-COMMERCE VIEW */}
+          {/* Card 2: % ADS */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-red-500 flex items-center justify-center text-white text-xl">📊</div>
+            </div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">% ADS</h3>
+            <p className="text-2xl font-bold text-gray-900">
+              {summary.adsPercent !== undefined ? `${summary.adsPercent.toFixed(2)}%` : '0.00%'}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Chi tiêu / Giá trị chuyển đổi</p>
+          </div>
+
+          {/* Card 3: GIÁ TRỊ CHUYỂN ĐỔI */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-cyan-500 flex items-center justify-center text-white text-xl">💎</div>
+            </div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">GIÁ TRỊ CHUYỂN ĐỔI</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.purchaseValue || 0, currency)}</p>
+            <p className="text-xs text-gray-500 mt-1">Tổng từ lượt mua</p>
+          </div>
+
+          {/* Card 4: ADSETS HOẠT ĐỘNG */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white text-xl">▶️</div>
+            </div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">ADSETS HOẠT ĐỘNG</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.activeAdsets)}</p>
+          </div>
+
+          {/* Card 5: ADSETS ĐÃ TẠM DỪNG */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-gray-500 flex items-center justify-center text-white text-xl">⏸️</div>
+            </div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">ADSETS ĐÃ TẠM DỪNG</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.pausedAdsets)}</p>
+          </div>
+
+          {/* Card 6: TỔNG ADSETS */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-xl">📊</div>
+            </div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG ADSETS</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.totalAdsets)}</p>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* LEAD GENERATION VIEW */}
+          {/* Card 2: TỔNG DATA */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white text-xl">📊</div>
+            </div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG LEAD</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.totalData || summary.totalLead || 0)}</p>
+            <p className="text-xs text-gray-500 mt-1">Bình luận + Tin nhắn</p>
+          </div>
+
+          {/* Card 3: GIÁ DATA TB */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center text-white text-xl">💵</div>
+            </div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">GIÁ DATA TB</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.costPerData || summary.avgGiaData || 0, currency)}</p>
+            <p className="text-xs text-gray-500 mt-1">Chi phí trên mỗi lượt bắt đầu thanh toán</p>
+          </div>
+
+          {/* Card 4: ADSETS HOẠT ĐỘNG */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white text-xl">▶️</div>
+            </div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">ADSETS HOẠT ĐỘNG</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.activeAdsets)}</p>
+          </div>
+
+          {/* Card 5: ADSETS ĐÃ TẠM DỪNG */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-gray-500 flex items-center justify-center text-white text-xl">⏸️</div>
+            </div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">ADSETS ĐÃ TẠM DỪNG</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.pausedAdsets)}</p>
+          </div>
+
+          {/* Card 6: TỔNG ADSETS */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-xl">📊</div>
+            </div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG ADSET</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.totalAdsets)}</p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

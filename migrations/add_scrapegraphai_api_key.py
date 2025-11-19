@@ -15,8 +15,8 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from sqlalchemy import text
-from app.core.database import engine
+from sqlalchemy import text, create_engine
+from app.core.database import init_db, engine
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,6 +25,15 @@ logger = logging.getLogger(__name__)
 def migrate():
     """Thêm các columns cho ScrapeGraphAI API key"""
     try:
+        # Khởi tạo database engine nếu chưa được khởi tạo
+        if engine is None:
+            logger.info("🔄 Đang khởi tạo database connection...")
+            init_db()
+        
+        # Kiểm tra lại engine sau khi init
+        if engine is None:
+            raise ValueError("Không thể khởi tạo database engine. Kiểm tra DATABASE_URL trong .env")
+        
         with engine.connect() as conn:
             # Check if columns already exist
             result = conn.execute(text("""
