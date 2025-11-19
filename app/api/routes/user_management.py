@@ -1522,7 +1522,16 @@ def user_management_page(
                         body: JSON.stringify(data)
                     }});
                     
-                    const result = await response.json();
+                    // Check content type before parsing
+                    const contentType = response.headers.get('content-type');
+                    let result;
+                    
+                    if (contentType && contentType.includes('application/json')) {{
+                        result = await response.json();
+                    }} else {{
+                        const text = await response.text();
+                        result = {{ detail: 'Lỗi server: ' + text.substring(0, 100) }};
+                    }}
                     
                     if (!response.ok) {{
                         throw new Error(result.detail || result.message || 'Lỗi khi lưu');
@@ -1549,7 +1558,16 @@ def user_management_page(
                                 body: JSON.stringify({{ is_active: isActive }})
                             }});
                             
-                            const result = await response.json();
+                            // Check content type before parsing
+                            const contentType = response.headers.get('content-type');
+                            let result;
+                            
+                            if (contentType && contentType.includes('application/json')) {{
+                                result = await response.json();
+                            }} else {{
+                                const text = await response.text();
+                                result = {{ detail: 'Lỗi server: ' + text.substring(0, 100) }};
+                            }}
                             
                             if (!response.ok) {{
                                 throw new Error(result.detail || result.message || 'Lỗi khi thay đổi trạng thái');
@@ -1575,7 +1593,17 @@ def user_management_page(
                                 headers: getAuthHeaders()
                             }});
                             
-                            const result = await response.json();
+                            // Check content type before parsing
+                            const contentType = response.headers.get('content-type');
+                            let result;
+                            
+                            if (contentType && contentType.includes('application/json')) {{
+                                result = await response.json();
+                            }} else {{
+                                // Handle non-JSON response (HTML error page)
+                                const text = await response.text();
+                                result = {{ detail: 'Lỗi server: ' + text.substring(0, 100) }};
+                            }}
                             
                             if (!response.ok) {{
                                 throw new Error(result.detail || result.message || 'Lỗi khi xóa');
