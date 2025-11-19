@@ -1,0 +1,151 @@
+# 🔧 Hướng dẫn Fix Service và Kiểm tra Settings
+
+## Vấn đề:
+1. ✅ Migration đã chạy thành công
+2. ❌ Service ads-automation bị lỗi (not running, spawn error)
+3. ❌ Settings page chưa hiển thị section ScrapeGraphAI
+
+## Giải pháp:
+
+### 1. Pull code mới nhất (nếu chưa pull)
+```bash
+cd ~/ads-automation
+git pull origin main
+```
+
+### 2. Fix và restart service
+```bash
+# Kill processes trên port 8000
+sudo lsof -ti:8000 | xargs sudo kill -9 2>/dev/null || echo "OK"
+
+# Fix log permissions
+sudo touch /var/log/ads-automation.log
+sudo touch /var/log/ads-worker.log
+sudo chown adsuser:adsuser /var/log/ads-automation.log /var/log/ads-worker.log
+
+# Restart services
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl restart ads-automation
+sudo supervisorctl restart ads-worker
+
+# Đợi 5 giây
+sleep 5
+
+# Kiểm tra status
+sudo supervisorctl status
+
+# Xem logs
+sudo tail -20 /var/log/ads-automation.log
+```
+
+### 3. Kiểm tra Settings page
+1. Truy cập: `https://updatemetaads.site/settings`
+2. Scroll xuống cuối trang
+3. Tìm section "🔍 ScrapeGraphAI API Key" (sau section Telegram Bot)
+
+### 4. Nếu vẫn không thấy section ScrapeGraphAI
+
+#### Kiểm tra code đã được pull chưa:
+```bash
+cd ~/ads-automation
+git log --oneline -5
+# Tìm commit có "ScrapeGraphAI" hoặc "competitor"
+```
+
+#### Kiểm tra file settings.py có code không:
+```bash
+grep -n "ScrapeGraphAI API Key" app/api/routes/settings.py
+# Nếu có kết quả → code đã có
+# Nếu không có → cần pull code mới
+```
+
+#### Nếu code chưa có, pull lại:
+```bash
+git fetch origin
+git reset --hard origin/main
+```
+
+### 5. Script tự động (copy toàn bộ và chạy)
+```bash
+#!/bin/bash
+cd ~/ads-automation
+
+echo "📥 Pulling code..."
+git pull origin main
+
+echo "🔄 Killing processes on port 8000..."
+sudo lsof -ti:8000 | xargs sudo kill -9 2>/dev/null || echo "OK"
+
+echo "🔄 Fixing log permissions..."
+sudo touch /var/log/ads-automation.log /var/log/ads-worker.log
+sudo chown adsuser:adsuser /var/log/ads-automation.log /var/log/ads-worker.log 2>/dev/null || true
+
+echo "🔄 Restarting services..."
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl restart ads-automation
+sudo supervisorctl restart ads-worker
+
+echo "⏳ Waiting 5 seconds..."
+sleep 5
+
+echo "📊 Checking status..."
+sudo supervisorctl status
+
+echo "📝 Recent logs:"
+sudo tail -20 /var/log/ads-automation.log
+
+echo ""
+echo "✅ Done! Check Settings page: https://updatemetaads.site/settings"
+```
+
+## Kiểm tra sau khi fix:
+
+1. **Service status:**
+   ```bash
+   sudo supervisorctl status
+   # Phải thấy: ads-automation RUNNING
+   ```
+
+2. **Settings page:**
+   - Truy cập: `https://updatemetaads.site/settings`
+   - Scroll xuống → Phải thấy section "🔍 ScrapeGraphAI API Key"
+
+3. **API endpoints:**
+   ```bash
+   curl -X GET https://updatemetaads.site/settings/scrapegraphai/status
+   # Phải trả về JSON (có thể cần authentication)
+   ```
+
+## Nếu vẫn lỗi:
+
+### Kiểm tra logs chi tiết:
+```bash
+sudo tail -100 /var/log/ads-automation.log
+```
+
+### Kiểm tra supervisor config:
+```bash
+cat /etc/supervisor/conf.d/ads-automation.conf
+```
+
+### Kiểm tra Python imports:
+```bash
+source venv/bin/activate
+python -c "from app.api.routes.settings import router; print('OK')"
+```
+
+### Kiểm tra database columns:
+```bash
+source venv/bin/activate
+python -c "
+from app.core.database import init_db, get_db_session
+from app.models.user_settings import UserSettings
+init_db()
+db = get_db_session()
+settings = db.query(UserSettings).first()
+print('Columns:', [c.name for c in UserSettings.__table__.columns])
+"
+```
+
