@@ -86,46 +86,49 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply }
           className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="p-6 border-b border-gray-200">
+          {/* Header - Gradient */}
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5 text-white">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-900">
-                💰 Điều chỉnh ngân sách
-              </h3>
+              <div>
+                <h3 className="text-2xl font-bold flex items-center gap-2">
+                  <span>💰</span>
+                  <span>Điều chỉnh ngân sách</span>
+                </h3>
+                <p className="mt-2 text-sm text-indigo-100">
+                  Đã chọn <span className="font-bold text-white bg-white/20 px-2 py-0.5 rounded">{selectedAdsets.length}</span> adset
+                </p>
+              </div>
               <button
                 onClick={handleClose}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-lg"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <p className="mt-2 text-sm text-gray-600">
-              Đã chọn <span className="font-semibold text-indigo-600">{selectedAdsets.length}</span> adset
-            </p>
           </div>
 
           {/* Body */}
           <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-            {/* Mode Selector */}
-            <div className="flex gap-3 mb-6">
+            {/* Mode Selector - Beautiful Tabs */}
+            <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-xl">
               <button
                 onClick={() => setMode('percent')}
-                className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all ${
+                className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all transform ${
                   mode === 'percent'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-white text-indigo-600 shadow-md scale-105'
+                    : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 📊 Theo phần trăm
               </button>
               <button
                 onClick={() => setMode('manual')}
-                className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all ${
+                className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all transform ${
                   mode === 'manual'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-white text-indigo-600 shadow-md scale-105'
+                    : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 ✏️ Nhập thủ công
