@@ -19,7 +19,6 @@ if project_root not in sys.path:
 os.chdir(project_root)
 
 from sqlalchemy import text, create_engine
-from app.core.database import init_db, engine
 from app.core.config import get_settings
 import logging
 
@@ -43,16 +42,19 @@ def migrate():
             logger.error(f"📁 .env file exists: {os.path.exists(os.path.join(project_root, '.env'))}")
             raise ValueError(f"Không thể load DATABASE_URL từ .env. Kiểm tra file .env ở {project_root}")
         
-        # Khởi tạo database engine nếu chưa được khởi tạo
-        if engine is None:
-            logger.info("🔄 Đang khởi tạo database connection...")
-            init_db()
+        # Tạo engine trực tiếp từ DATABASE_URL (đơn giản và đáng tin cậy hơn)
+        logger.info("🔄 Đang tạo database engine trực tiếp...")
+        try:
+            db_engine = create_engine(database_url, pool_pre_ping=True)
+            # Test connection
+            with db_engine.connect() as test_conn:
+                test_conn.execute(text("SELECT 1"))
+            logger.info("✅ Database engine đã được tạo và test thành công")
+        except Exception as e:
+            logger.error(f"❌ Lỗi khi tạo database engine: {e}", exc_info=True)
+            raise ValueError(f"Không thể tạo database engine. Kiểm tra DATABASE_URL và kết nối database: {e}")
         
-        # Kiểm tra lại engine sau khi init
-        if engine is None:
-            raise ValueError("Không thể khởi tạo database engine. Kiểm tra DATABASE_URL trong .env")
-        
-        with engine.connect() as conn:
+        with db_engine.connect() as conn:
             # Check if columns already exist
             result = conn.execute(text("""
                 SELECT column_name 
@@ -87,4 +89,3 @@ def migrate():
 
 if __name__ == "__main__":
     migrate()
-

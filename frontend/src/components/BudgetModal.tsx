@@ -12,12 +12,12 @@ interface BudgetModalProps {
 type BudgetMode = 'percent' | 'manual';
 
 const percentOptions = [
-  { value: -50, label: '-50%', color: 'amber' },
-  { value: -30, label: '-30%', color: 'amber' },
+  { value: -10, label: '-10%', color: 'amber' },
   { value: -20, label: '-20%', color: 'amber' },
+  { value: -30, label: '-30%', color: 'amber' },
+  { value: 10, label: '+10%', color: 'green' },
   { value: 20, label: '+20%', color: 'green' },
   { value: 30, label: '+30%', color: 'green' },
-  { value: 50, label: '+50%', color: 'green' },
 ];
 
 export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply }: BudgetModalProps) {

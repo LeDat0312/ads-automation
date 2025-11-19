@@ -318,48 +318,83 @@ function App() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
+      {/* Top Bar - Purple Header */}
+      <header className="bg-[#635BFF] shadow-lg sticky top-0 z-30">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                📊 Dashboard Quảng Cáo Facebook
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">Quản lý và theo dõi chiến dịch quảng cáo của bạn</p>
+            {/* Left: Logo & Title */}
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">🚀</div>
+              <div>
+                <h1 className="text-xl font-bold text-white">
+                  Facebook Ads Automation - Dashboard
+                </h1>
+                <p className="text-xs text-indigo-200">Quản lý chiến dịch quảng cáo thông minh</p>
+              </div>
             </div>
             
-            {/* View Mode Toggle */}
-            <div className="inline-flex rounded-xl border-2 border-gray-200 bg-white p-1 shadow-sm">
-              <button
-                onClick={() => handleViewModeChange('lead')}
-                className={`
-                  px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200
-                  ${viewMode === 'lead'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
-                    : 'text-gray-700 hover:bg-gray-50'
-                  }
-                `}
+            {/* Right: Status + Buttons */}
+            <div className="flex items-center gap-3">
+              {/* Status Badge */}
+              <div className="px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                ✓ Sẵn sàng ({data?.summary?.totalAdsets || 0} adsets)
+              </div>
+              
+              {/* Settings Button */}
+              <button 
+                className="px-4 py-2 border-2 border-white/30 text-white rounded-lg hover:bg-white/10 transition-colors text-sm font-medium"
+                onClick={() => window.location.href = '/settings'}
               >
-                📋 Lead Generation
+                ⚙️ Cài đặt
               </button>
-              <button
-                onClick={() => handleViewModeChange('ecommerce')}
-                className={`
-                  px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200
-                  ${viewMode === 'ecommerce'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
-                    : 'text-gray-700 hover:bg-gray-50'
-                  }
-                `}
+              
+              {/* Home Button */}
+              <button 
+                className="px-4 py-2 bg-white text-[#635BFF] rounded-lg hover:bg-indigo-50 transition-colors text-sm font-semibold shadow-md"
+                onClick={() => window.location.href = '/'}
               >
-                🛒 E-Commerce
+                🏠 Về Trang Chủ
               </button>
             </div>
           </div>
         </div>
       </header>
+
+      {/* View Mode Strip */}
+      <div className="bg-white border-b border-gray-200 sticky top-[60px] z-20 shadow-sm">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="flex items-center gap-4">
+            {/* View Mode Tabs */}
+            <div className="inline-flex rounded-lg border border-gray-300 p-1">
+              <button
+                onClick={() => handleViewModeChange('ecommerce')}
+                className={`
+                  px-6 py-2 rounded-md text-sm font-semibold transition-all duration-200
+                  ${viewMode === 'ecommerce'
+                    ? 'bg-[#635BFF] text-white shadow-md'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }
+                `}
+              >
+                🛒 E-Commerce
+              </button>
+              <button
+                onClick={() => handleViewModeChange('lead')}
+                className={`
+                  px-6 py-2 rounded-md text-sm font-semibold transition-all duration-200
+                  ${viewMode === 'lead'
+                    ? 'bg-[#635BFF] text-white shadow-md'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }
+                `}
+              >
+                📋 Lead Generation
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Main Content */}
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">

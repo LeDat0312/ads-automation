@@ -38,7 +38,7 @@ const CompetitorResearch: React.FC = () => {
   
   // Analytics state
   const [selectedAds, setSelectedAds] = useState<Set<string>>(new Set());
-  const [analyticsData, setAnalyticsData] = useState<any[]>([]);
+  // const [analyticsData, setAnalyticsData] = useState<any[]>([]); // TODO: implement analytics
 
   useEffect(() => {
     // Check API key status
