@@ -4655,29 +4655,30 @@ async def get_dashboard_data(
         )
         
         # Build summary response (GLOBAL - không phụ thuộc filter bảng)
+        # Theo spec: cả Lead & Ecom đều có đầy đủ metrics, chỉ khác % ADS
+        cost_per_data_global = (total_spend / total_data) if total_data > 0 else 0
+        cost_per_checkout_global = (total_spend / total_lead) if total_lead > 0 else 0
+        cost_per_purchase_global = (total_spend / total_purchases) if total_purchases > 0 else 0
+        
+        summary = {
+            "totalSpend": round(total_spend, 2),
+            "totalData": total_data,  # Kết quả = comments + messages
+            "costPerData": round(cost_per_data_global, 2),  # Giá DATA
+            "totalCheckouts": total_lead,  # Bắt đầu thanh toán
+            "costPerCheckout": round(cost_per_checkout_global, 2),  # Chi phí/Bắt đầu TT
+            "totalPurchases": total_purchases,  # Lượt mua
+            "costPerPurchase": round(cost_per_purchase_global, 2),  # Chi phí/Lượt mua
+            "purchaseValue": round(total_purchase_value, 2),  # Giá trị chuyển đổi từ lượt mua
+            "activeAdsets": adsets_active_now,  # GLOBAL: tất cả adsets ACTIVE
+            "pausedAdsets": adsets_paused_now,   # GLOBAL: tất cả adsets PAUSED
+            "totalAdsets": total_adsets,          # GLOBAL: tổng adsets
+            "adsetsRanToday": adsets_ran_today    # BONUS: adsets đã chạy hôm nay
+        }
+        
+        # E-Commerce specific: % ADS
         if view_mode == "ecommerce":
             ads_percent = (total_spend / total_purchase_value * 100) if total_purchase_value > 0 else 0
-            summary = {
-                "totalSpend": round(total_spend, 2),
-                "adsPercent": round(ads_percent, 2),
-                "purchaseValue": round(total_purchase_value, 2),
-                "activeAdsets": adsets_active_now,  # GLOBAL: tất cả adsets ACTIVE
-                "pausedAdsets": adsets_paused_now,   # GLOBAL: tất cả adsets PAUSED
-                "totalAdsets": total_adsets,          # GLOBAL: tổng adsets
-                "adsetsRanToday": adsets_ran_today    # BONUS: adsets đã chạy hôm nay
-            }
-        else:  # lead
-            avg_gia_data = total_spend / total_data if total_data > 0 else 0
-            summary = {
-                "totalSpend": round(total_spend, 2),
-                "totalData": total_data,
-                "avgGiaData": round(avg_gia_data, 2),
-                "totalLead": total_lead,
-                "activeAdsets": adsets_active_now,  # GLOBAL
-                "pausedAdsets": adsets_paused_now,   # GLOBAL
-                "totalAdsets": total_adsets,          # GLOBAL
-                "adsetsRanToday": adsets_ran_today    # BONUS
-            }
+            summary["adsPercent"] = round(ads_percent, 2)  # % ADS chỉ có ở Ecom
         
         # ===== BUILD DETAILS - FILTER BẢNG =====
         # Dùng adset_list từ adset_map, áp dụng filter prefix/status/search/campaign_id
@@ -4790,25 +4791,28 @@ async def get_dashboard_data(
                 "view_mode": view_mode
             }
             
+            # Tính cost per checkout & cost per purchase (chuẩn theo spec)
+            cost_per_checkout = (spend / checkout_starts) if checkout_starts > 0 else 0
+            cost_per_purchase = (spend / purchases) if purchases > 0 else 0
+            
+            # Common fields cho cả Lead & Ecom
+            row_data.update({
+                "data_cost": round(gia_data, 2),  # Giá DATA
+                "cost_per_checkout_initiated": round(cost_per_checkout, 2),  # Chi phí/Bắt đầu TT
+                "checkouts_initiated": checkout_starts,  # Bắt đầu TT
+                "cost_per_purchase": round(cost_per_purchase, 2),  # Chi phí/Lượt mua
+                "purchases": purchases,  # Lượt mua
+                "purchase_value": round(purchase_value, 2)  # Giá trị chuyển đổi từ lượt mua
+            })
+            
+            # E-Commerce specific: % ADS
             if view_mode == "ecommerce":
                 ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
                 # TLC = % chuyển đổi từ data -> mua hàng (nhân 100 để ra %)
                 tlc = (purchases / results * 100) if results > 0 else 0
                 row_data.update({
-                    "%ads": round(ads_percent, 2),
-                    "data_cost": round(gia_data, 2),
-                    "tlc": round(tlc, 2),  # Đã là % (0-100)
-                    "initiated_checkout": checkout_starts,  # Bắt đầu TT
-                    "purchases": purchases,
-                    "purchase_value": round(purchase_value, 2)
-                })
-            else:  # lead
-                cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
-                row_data.update({
-                    "data_cost": round(gia_data, 2),
-                    "cost_per_checkout_initiated": round(cost_per_checkout_start, 2),
-                    "initiated_checkout": checkout_starts,  # Bắt đầu TT (onsite_conversion_post_save)
-                    "purchases": purchases
+                    "ads_percent": round(ads_percent, 2),  # % ADS (chỉ Ecom)
+                    "tlc": round(tlc, 2),  # Tỷ lệ chuyển đổi (0-100)
                 })
             
             rows.append(row_data)
