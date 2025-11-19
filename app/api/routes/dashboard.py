@@ -3400,6 +3400,15 @@ async def dashboard_page(
                     
                     <div class="overview-card">
                         <div class="card-header">
+                            <div class="card-title">Bắt Đầu Thanh Toán</div>
+                            <div class="card-icon checkouts">🛒</div>
+                        </div>
+                        <div class="card-value" id="totalCheckouts">${{formatNumber(overview.totalCheckouts || 0)}}</div>
+                        <div class="card-subtitle">Checkouts Initiated</div>
+                    </div>
+                    
+                    <div class="overview-card">
+                        <div class="card-header">
                             <div class="card-title">Adsets Hoạt Động</div>
                             <div class="card-icon adsets">▶️</div>
                         </div>
