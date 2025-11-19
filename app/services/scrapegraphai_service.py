@@ -40,19 +40,40 @@ class CompetitorAdData:
     scraped_at: datetime
 
 
-def get_scrapegraphai_api_key() -> Optional[str]:
-    """Lấy API key từ environment hoặc settings"""
+def get_scrapegraphai_api_key(user_id: Optional[int] = None, db: Optional[Any] = None) -> Optional[str]:
+    """
+    Lấy API key từ database (UserSettings) hoặc environment variable
+    Ưu tiên lấy từ database nếu có user_id và db
+    """
+    # Ưu tiên lấy từ database nếu có user_id và db
+    if user_id and db:
+        try:
+            from app.models.user_settings import UserSettings
+            from app.core.security import decrypt_token
+            
+            user_settings = db.query(UserSettings).filter(UserSettings.user_id == user_id).first()
+            if user_settings and user_settings.scrapegraphai_api_key_encrypted:
+                try:
+                    api_key = decrypt_token(user_settings.scrapegraphai_api_key_encrypted)
+                    return api_key
+                except Exception as e:
+                    logger.error(f"Error decrypting ScrapeGraphAI API key for user {user_id}: {e}")
+        except Exception as e:
+            logger.error(f"Error getting ScrapeGraphAI API key from database: {e}")
+    
+    # Fallback: lấy từ environment variable
     import os
     api_key = os.getenv("SCRAPEGRAPHAI_API_KEY")
     if not api_key:
-        # Có thể lấy từ database settings trong tương lai
-        logger.warning("ScrapeGraphAI API key not found in environment")
+        logger.warning("ScrapeGraphAI API key not found in database or environment")
     return api_key
 
 
 async def scrape_facebook_ad(
     ad_url: str,
-    use_cache: bool = True
+    use_cache: bool = True,
+    user_id: Optional[int] = None,
+    db: Optional[Any] = None
 ) -> Optional[CompetitorAdData]:
     """
     Scrape thông tin một quảng cáo Facebook cụ thể
@@ -73,7 +94,7 @@ async def scrape_facebook_ad(
                 logger.info(f"✅ Cache hit cho ad: {ad_url}")
                 return _scraping_cache[cache_key]
     
-    api_key = get_scrapegraphai_api_key()
+    api_key = get_scrapegraphai_api_key(user_id, db)
     if not api_key:
         logger.error("ScrapeGraphAI API key not configured")
         return None
@@ -144,7 +165,9 @@ async def scrape_facebook_ad(
 async def scrape_competitor_ads(
     competitor_page_id: str,
     limit: int = 50,
-    use_cache: bool = True
+    use_cache: bool = True,
+    user_id: Optional[int] = None,
+    db: Optional[Any] = None
 ) -> List[CompetitorAdData]:
     """
     Scrape tất cả quảng cáo của một đối thủ
@@ -167,7 +190,7 @@ async def scrape_competitor_ads(
                 logger.info(f"✅ Cache hit cho competitor: {competitor_page_id}")
                 return _scraping_cache[cache_key]
     
-    api_key = get_scrapegraphai_api_key()
+    api_key = get_scrapegraphai_api_key(user_id, db)
     if not api_key:
         logger.error("ScrapeGraphAI API key not configured")
         return []
@@ -228,7 +251,9 @@ async def scrape_competitor_ads(
 async def search_competitor_ads_by_keyword(
     keyword: str,
     limit: int = 20,
-    use_cache: bool = True
+    use_cache: bool = True,
+    user_id: Optional[int] = None,
+    db: Optional[Any] = None
 ) -> List[CompetitorAdData]:
     """
     Tìm kiếm quảng cáo đối thủ theo keyword
@@ -251,7 +276,7 @@ async def search_competitor_ads_by_keyword(
                 logger.info(f"✅ Cache hit cho search: {keyword}")
                 return _scraping_cache[cache_key]
     
-    api_key = get_scrapegraphai_api_key()
+    api_key = get_scrapegraphai_api_key(user_id, db)
     if not api_key:
         logger.error("ScrapeGraphAI API key not configured")
         return []

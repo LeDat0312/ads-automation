@@ -44,7 +44,7 @@ async def competitor_research_page(
         return HTMLResponse(content=get_account_locked_message())
     
     user_info = get_user_dropdown_menu(current_user)
-    has_api_key = get_scrapegraphai_api_key() is not None
+    has_api_key = get_scrapegraphai_api_key(current_user.id, db) is not None
     
     html_content = f"""
     <!DOCTYPE html>
@@ -445,7 +445,9 @@ async def scrape_ad_endpoint(
     try:
         ad_data = await scrape_facebook_ad(
             ad_url=payload.ad_url,
-            use_cache=payload.use_cache
+            use_cache=payload.use_cache,
+            user_id=current_user.id,
+            db=db
         )
         
         if not ad_data:
@@ -584,11 +586,15 @@ async def search_ads_endpoint(
 
 
 @router.get("/health")
-async def competitor_research_health():
+async def competitor_research_health(
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
     """Health check endpoint"""
     from app.services.scrapegraphai_service import get_scrapegraphai_api_key
     
-    api_key = get_scrapegraphai_api_key()
+    user_id = current_user.id if current_user else None
+    api_key = get_scrapegraphai_api_key(user_id, db)
     has_api_key = api_key is not None
     
     return JSONResponse({

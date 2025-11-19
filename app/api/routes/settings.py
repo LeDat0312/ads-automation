@@ -378,6 +378,184 @@ def delete_telegram_bot(
     return {"message": "Telegram Bot Token và Chat ID đã được xóa thành công"}
 
 
+# ==================== SCRAPEGRAPHAI API KEY ENDPOINTS ====================
+
+class ScrapeGraphAIKeySaveRequest(BaseModel):
+    api_key: str
+
+
+@router.post("/scrapegraphai/save")
+def save_scrapegraphai_key(
+    key_request: ScrapeGraphAIKeySaveRequest,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Lưu ScrapeGraphAI API Key cho user (encrypted)"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    if not key_request.api_key or not key_request.api_key.strip():
+        raise HTTPException(status_code=400, detail="API key không được để trống")
+    
+    # Encrypt API key
+    try:
+        encrypted_key = encrypt_token(key_request.api_key.strip())
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Lỗi mã hóa API key: {str(e)}")
+    
+    # Get or create user settings
+    user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+    if not user_settings:
+        user_settings = UserSettings(
+            user_id=current_user.id,
+            scrapegraphai_api_key_encrypted=encrypted_key,
+            scrapegraphai_api_key_status="NOT_CHECKED"
+        )
+        db.add(user_settings)
+    else:
+        user_settings.scrapegraphai_api_key_encrypted = encrypted_key
+        user_settings.scrapegraphai_api_key_status = "NOT_CHECKED"
+        user_settings.scrapegraphai_api_key_last_checked = None
+    
+    db.commit()
+    return {"message": "ScrapeGraphAI API key đã được lưu thành công"}
+
+
+@router.post("/scrapegraphai/test")
+def test_scrapegraphai_key(
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Test ScrapeGraphAI API Key"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+    if not user_settings or not user_settings.scrapegraphai_api_key_encrypted:
+        raise HTTPException(status_code=404, detail="Chưa có API key. Vui lòng lưu API key trước.")
+    
+    # Decrypt API key
+    try:
+        api_key = decrypt_token(user_settings.scrapegraphai_api_key_encrypted)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Lỗi giải mã API key: {str(e)}")
+    
+    # Test API key bằng cách gọi health endpoint
+    try:
+        import httpx
+        response = httpx.get(
+            "https://dashboard.scrapegraphai.com/api/health",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            user_settings.scrapegraphai_api_key_status = "VALID"
+            user_settings.scrapegraphai_api_key_last_checked = datetime.now()
+            db.commit()
+            return {
+                "valid": True,
+                "status": "VALID",
+                "message": "API key hợp lệ"
+            }
+        else:
+            user_settings.scrapegraphai_api_key_status = "INVALID"
+            user_settings.scrapegraphai_api_key_last_checked = datetime.now()
+            db.commit()
+            return {
+                "valid": False,
+                "status": "INVALID",
+                "message": f"API key không hợp lệ (HTTP {response.status_code})"
+            }
+    except httpx.TimeoutException:
+        return {
+            "valid": False,
+            "status": "ERROR",
+            "message": "Timeout khi kiểm tra API key"
+        }
+    except Exception as e:
+        logger.error(f"Error testing ScrapeGraphAI API key: {e}", exc_info=True)
+        return {
+            "valid": False,
+            "status": "ERROR",
+            "message": f"Lỗi khi kiểm tra: {str(e)}"
+        }
+
+
+@router.get("/scrapegraphai/status")
+def get_scrapegraphai_status(
+    request: Request,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Lấy trạng thái ScrapeGraphAI API Key"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+    
+    if not user_settings or not user_settings.scrapegraphai_api_key_encrypted:
+        return {
+            "status": "NOT_SET",
+            "message": "Chưa cấu hình ScrapeGraphAI API Key",
+            "has_key": False,
+            "last_checked": None
+        }
+    
+    try:
+        api_key = decrypt_token(user_settings.scrapegraphai_api_key_encrypted)
+        api_key_masked = api_key[:10] + "..." + api_key[-5:] if len(api_key) > 15 else "***"
+    except Exception as e:
+        logger.error(f"Error decrypting ScrapeGraphAI API key: {e}")
+        return {
+            "status": "ERROR",
+            "message": "Lỗi khi giải mã API Key",
+            "has_key": True,
+            "last_checked": user_settings.scrapegraphai_api_key_last_checked.isoformat() if user_settings.scrapegraphai_api_key_last_checked else None
+        }
+    
+    # Format last checked time in Ho Chi Minh timezone
+    last_checked_str = None
+    if user_settings.scrapegraphai_api_key_last_checked:
+        import pytz
+        hcm_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+        last_checked_utc = user_settings.scrapegraphai_api_key_last_checked
+        if last_checked_utc.tzinfo is None:
+            last_checked_utc = pytz.UTC.localize(last_checked_utc)
+        last_checked_hcm = last_checked_utc.astimezone(hcm_tz)
+        last_checked_str = last_checked_hcm.strftime("%H:%M:%S %d/%m/%Y")
+    
+    return {
+        "status": user_settings.scrapegraphai_api_key_status,
+        "message": f"API Key đã được cấu hình (Kiểm tra lần cuối: {last_checked_str})" if last_checked_str else "API Key đã được cấu hình",
+        "has_key": True,
+        "api_key_masked": api_key_masked,
+        "last_checked": last_checked_str
+    }
+
+
+@router.delete("/scrapegraphai/delete")
+def delete_scrapegraphai_key(
+    request: Request,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Xóa ScrapeGraphAI API Key"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập")
+    
+    user_settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
+    if not user_settings or not user_settings.scrapegraphai_api_key_encrypted:
+        raise HTTPException(status_code=404, detail="Chưa có ScrapeGraphAI API Key để xóa")
+    
+    user_settings.scrapegraphai_api_key_encrypted = None
+    user_settings.scrapegraphai_api_key_status = "NOT_SET"
+    user_settings.scrapegraphai_api_key_last_checked = None
+    db.commit()
+    
+    return {"message": "ScrapeGraphAI API Key đã được xóa thành công"}
+
+
 # ==================== ACCOUNTS ENDPOINTS ====================
 
 @router.get("/accounts", response_model=List[AccountResponse])
@@ -2147,6 +2325,41 @@ async def settings_page(
                 
                 <div id="telegramTestResult" style="margin-top: 20px;"></div>
             </div>
+            
+            <!-- Section 5: ScrapeGraphAI API Key -->
+            <div class="section">
+                <div class="section-title">
+                    <span class="icon">🔍</span>
+                    <span>ScrapeGraphAI API Key</span>
+                </div>
+                
+                <div id="scrapegraphaiStatus" class="token-status not-set">
+                    Đang kiểm tra trạng thái...
+                </div>
+                
+                <div id="scrapegraphaiInfo" style="display: none; margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>API Key đã lưu:</strong>
+                            <span id="scrapegraphaiKeyMasked" style="font-family: monospace; color: #64748b; margin-left: 8px;"></span>
+                        </div>
+                        <button class="btn btn-danger" onclick="deleteScrapeGraphAIKey()" style="padding: 6px 12px; font-size: 12px;">🗑️ Xóa API Key</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>ScrapeGraphAI API Key *</label>
+                    <input type="password" id="scrapegraphaiApiKey" placeholder="Nhập API key từ dashboard.scrapegraphai.com" />
+                    <small style="color: #64748b; margin-top: 4px; display: block;">Lấy API key từ <a href="https://dashboard.scrapegraphai.com/" target="_blank" style="color: #667eea;">dashboard.scrapegraphai.com</a></small>
+                </div>
+                
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-primary" onclick="saveScrapeGraphAIKey()">💾 Lưu API Key</button>
+                    <button class="btn btn-secondary" onclick="testScrapeGraphAIKey()">✅ Kiểm Tra</button>
+                </div>
+                
+                <div id="scrapegraphaiTestResult" style="margin-top: 20px;"></div>
+            </div>
         </div>
         
         <!-- Modal Add/Edit Account -->
@@ -3616,6 +3829,9 @@ async def settings_page(
                     }}),
                     loadTelegramStatus().catch(error => {{
                         console.error('❌ Error loading Telegram Bot status:', error);
+                    }}),
+                    loadScrapeGraphAIStatus().catch(error => {{
+                        console.error('❌ Error loading ScrapeGraphAI status:', error);
                     }})
                 ]);
                 console.log('✅ All data loaded');
@@ -3782,6 +3998,138 @@ async def settings_page(
                 }} catch (error) {{
                     console.error('Error deleting Telegram bot:', error);
                     showToast('Lỗi khi xóa cấu hình: ' + error.message, 'error');
+                }}
+            }}
+            
+            // ScrapeGraphAI Functions
+            async function loadScrapeGraphAIStatus() {{
+                try {{
+                    const response = await fetch('/settings/scrapegraphai/status', {{
+                        headers: getAuthHeaders()
+                    }});
+                    
+                    if (!response.ok) {{
+                        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                    }}
+                    
+                    const data = await response.json();
+                    const statusDiv = document.getElementById('scrapegraphaiStatus');
+                    const infoDiv = document.getElementById('scrapegraphaiInfo');
+                    
+                    if (!statusDiv) return;
+                    
+                    if (data.has_key) {{
+                        if (data.status === 'VALID') {{
+                            statusDiv.className = 'token-status valid';
+                            statusDiv.innerHTML = '✅ ' + data.message;
+                        }} else if (data.status === 'INVALID') {{
+                            statusDiv.className = 'token-status invalid';
+                            statusDiv.innerHTML = '❌ ' + data.message;
+                        }} else {{
+                            statusDiv.className = 'token-status not-set';
+                            statusDiv.innerHTML = '⚠️ ' + data.message;
+                        }}
+                        
+                        if (infoDiv) {{
+                            infoDiv.style.display = 'block';
+                            document.getElementById('scrapegraphaiKeyMasked').textContent = data.api_key_masked || '***';
+                        }}
+                    }} else {{
+                        statusDiv.className = 'token-status not-set';
+                        statusDiv.innerHTML = '⚠️ ' + data.message;
+                        if (infoDiv) {{
+                            infoDiv.style.display = 'none';
+                        }}
+                    }}
+                }} catch (error) {{
+                    console.error('Error loading ScrapeGraphAI status:', error);
+                    const statusDiv = document.getElementById('scrapegraphaiStatus');
+                    if (statusDiv) {{
+                        statusDiv.className = 'token-status invalid';
+                        statusDiv.innerHTML = '❌ Lỗi khi tải trạng thái: ' + error.message;
+                    }}
+                }}
+            }}
+            
+            async function saveScrapeGraphAIKey() {{
+                const apiKey = document.getElementById('scrapegraphaiApiKey').value.trim();
+                
+                if (!apiKey) {{
+                    showToast('Vui lòng nhập API Key', 'error');
+                    return;
+                }}
+                
+                try {{
+                    const response = await fetch('/settings/scrapegraphai/save', {{
+                        method: 'POST',
+                        headers: {{
+                            ...getAuthHeaders(),
+                            'Content-Type': 'application/json'
+                        }},
+                        body: JSON.stringify({{ api_key: apiKey }})
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {{
+                        showToast('Đã lưu ScrapeGraphAI API Key thành công!');
+                        document.getElementById('scrapegraphaiApiKey').value = '';
+                        loadScrapeGraphAIStatus();
+                    }} else {{
+                        showToast(data.message || data.detail || 'Lỗi khi lưu API Key', 'error');
+                    }}
+                }} catch (error) {{
+                    console.error('Error saving ScrapeGraphAI API key:', error);
+                    showToast('Lỗi khi lưu API Key: ' + error.message, 'error');
+                }}
+            }}
+            
+            async function testScrapeGraphAIKey() {{
+                const resultDiv = document.getElementById('scrapegraphaiTestResult');
+                resultDiv.innerHTML = '<div class="loading">Đang kiểm tra...</div>';
+                
+                try {{
+                    const response = await fetch('/settings/scrapegraphai/test', {{
+                        method: 'POST',
+                        headers: getAuthHeaders()
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (data.valid) {{
+                        resultDiv.innerHTML = '<div style="padding: 16px; background: #d1fae5; border-radius: 8px; border: 1px solid #10b981;"><strong>✅ ' + data.message + '</strong></div>';
+                        loadScrapeGraphAIStatus();
+                    }} else {{
+                        resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ ' + data.message + '</strong></div>';
+                    }}
+                }} catch (error) {{
+                    console.error('Error testing ScrapeGraphAI API key:', error);
+                    resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ Lỗi khi kiểm tra: ' + error.message + '</strong></div>';
+                }}
+            }}
+            
+            async function deleteScrapeGraphAIKey() {{
+                if (!confirm('Bạn có chắc muốn xóa ScrapeGraphAI API Key?')) {{
+                    return;
+                }}
+                
+                try {{
+                    const response = await fetch('/settings/scrapegraphai/delete', {{
+                        method: 'DELETE',
+                        headers: getAuthHeaders()
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {{
+                        showToast('Đã xóa ScrapeGraphAI API Key thành công!');
+                        loadScrapeGraphAIStatus();
+                    }} else {{
+                        showToast(data.message || data.detail || 'Lỗi khi xóa API Key', 'error');
+                    }}
+                }} catch (error) {{
+                    console.error('Error deleting ScrapeGraphAI API key:', error);
+                    showToast('Lỗi khi xóa API Key: ' + error.message, 'error');
                 }}
             }}
             

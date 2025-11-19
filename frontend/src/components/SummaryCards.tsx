@@ -1,5 +1,5 @@
 import type { SummaryMetrics, ViewMode } from '@/types/dashboard';
-import { formatCurrency, formatNumber, formatPercentage } from '@/utils/formatters';
+import { formatCurrency, formatNumber } from '@/utils/formatters';
 
 interface SummaryCardsProps {
   summary: SummaryMetrics;
@@ -7,28 +7,14 @@ interface SummaryCardsProps {
   isLoading: boolean;
 }
 
-interface CardConfig {
-  title: string;
-  value: string | number;
-  icon: string;
-  gradient: string;
-  textColor: string;
-  iconBg: string;
-  subtitle?: string;
-}
-
 export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCardsProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="bg-white rounded-2xl shadow-lg p-6 animate-pulse">
-            <div className="flex items-start justify-between mb-4">
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              <div className="h-12 w-12 bg-gray-200 rounded-xl"></div>
-            </div>
-            <div className="h-10 bg-gray-200 rounded w-3/4 mb-2"></div>
-            <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 animate-pulse">
+            <div className="h-4 bg-slate-200 rounded w-24 mb-3"></div>
+            <div className="h-8 bg-slate-300 rounded w-32"></div>
           </div>
         ))}
       </div>
@@ -37,132 +23,132 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
 
   const currency = summary.currency || 'VND';
 
-  // ✅ Different cards for Lead vs Ecom - Match backend response structure
-  const cards: CardConfig[] = viewMode === 'lead'
-    ? [
-        // Lead View: Based on backend response (totalSpend, totalData, avgGiaData, totalLead)
-        {
-          title: 'Tổng Chi Tiêu',
-          value: formatCurrency(summary.totalSpend, currency),
-          icon: '💰',
-          gradient: 'from-blue-500 to-blue-600',
-          textColor: 'text-blue-700',
-          iconBg: 'bg-blue-100',
-        },
-        {
-          title: 'Tổng DATA',
-          value: formatNumber(summary.totalData || 0),
-          subtitle: 'Bình luận + Nhắn tin',
-          icon: '💬',
-          gradient: 'from-green-500 to-green-600',
-          textColor: 'text-green-700',
-          iconBg: 'bg-green-100',
-        },
-        {
-          title: 'Giá DATA TB',
-          value: formatCurrency(summary.avgGiaData || 0, currency),
-          subtitle: 'Chi phí / DATA',
-          icon: '📊',
-          gradient: 'from-teal-500 to-teal-600',
-          textColor: 'text-teal-700',
-          iconBg: 'bg-teal-100',
-        },
-        {
-          title: 'Tổng Lead',
-          value: formatNumber(summary.totalLead || 0),
-          subtitle: 'Bắt đầu thanh toán',
-          icon: '🛒',
-          gradient: 'from-purple-500 to-purple-600',
-          textColor: 'text-purple-700',
-          iconBg: 'bg-purple-100',
-        },
-      ]
-    : [
-        // E-commerce View: Based on backend response (totalSpend, adsPercent, purchaseValue)
-        {
-          title: 'Tổng Chi Tiêu',
-          value: formatCurrency(summary.totalSpend, currency),
-          icon: '💰',
-          gradient: 'from-blue-500 to-blue-600',
-          textColor: 'text-blue-700',
-          iconBg: 'bg-blue-100',
-        },
-        {
-          title: 'Giá trị chuyển đổi',
-          value: formatCurrency(summary.purchaseValue || 0, currency),
-          subtitle: 'Purchase Value',
-          icon: '💵',
-          gradient: 'from-green-500 to-green-600',
-          textColor: 'text-green-700',
-          iconBg: 'bg-green-100',
-        },
-        {
-          title: '% ADS',
-          value: formatPercentage(summary.adsPercent || 0),
-          subtitle: 'Chi tiêu / Doanh số',
-          icon: '📈',
-          gradient: 'from-rose-500 to-rose-600',
-          textColor: 'text-rose-700',
-          iconBg: 'bg-rose-100',
-        },
-      ];
-
   return (
-    <>
-      {/* Main 6 cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-        {cards.map((card, index) => (
-          <div
-            key={index}
-            className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 overflow-hidden group"
-          >
-            <div className={`h-1.5 bg-gradient-to-r ${card.gradient}`}></div>
-            <div className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">{card.title}</p>
-                  {card.subtitle && (
-                    <p className="text-xs text-gray-400">{card.subtitle}</p>
-                  )}
-                </div>
-                <div className={`${card.iconBg} p-3 rounded-xl group-hover:scale-110 transition-transform duration-300`}>
-                  <span className="text-2xl">{card.icon}</span>
-                </div>
-              </div>
-              <p className={`text-3xl font-bold ${card.textColor}`}>
-                {card.value}
-              </p>
-            </div>
+    <div className="space-y-4 mb-6">
+      {/* Row 1 - 6 Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+        {/* TỔNG CHI TIÊU - Always show */}
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm border border-blue-200 p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white text-lg">💰</div>
+            <h3 className="text-xs font-semibold text-blue-700 uppercase">TỔNG CHI TIÊU</h3>
           </div>
-        ))}
-      </div>
+          <p className="text-xl font-bold text-blue-900">{formatCurrency(summary.totalSpend, currency)}</p>
+        </div>
 
-      {/* Bottom section: Adset counts (not cards, just stats bar) */}
-      <div className="bg-white rounded-xl shadow-md p-4 mb-8 flex items-center justify-around">
-        <div className="text-center">
-          <div className="flex items-center gap-2 justify-center mb-1">
-            <span className="text-lg">✅</span>
-            <span className="text-sm font-medium text-gray-600">Adsets Hoạt Động</span>
-          </div>
-          <p className="text-2xl font-bold text-emerald-700">{formatNumber(summary.activeAdsets)}</p>
-        </div>
-        <div className="h-12 w-px bg-gray-200"></div>
-        <div className="text-center">
-          <div className="flex items-center gap-2 justify-center mb-1">
-            <span className="text-lg">⏸️</span>
-            <span className="text-sm font-medium text-gray-600">Adsets Tạm Dừng</span>
-          </div>
-          <p className="text-2xl font-bold text-amber-700">{formatNumber(summary.pausedAdsets)}</p>
-        </div>
-        <div className="h-12 w-px bg-gray-200"></div>
-        <div className="text-center">
-          <div className="flex items-center gap-2 justify-center mb-1">
-            <span className="text-lg">📊</span>
-            <span className="text-sm font-medium text-gray-600">Tổng Adsets</span>
-          </div>
-          <p className="text-2xl font-bold text-indigo-700">{formatNumber(summary.totalAdsets)}</p>
-        </div>
+        {viewMode === 'ecommerce' ? (
+          <>
+            {/* % ADS */}
+            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl shadow-sm border border-red-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center text-white text-lg">📈</div>
+                <h3 className="text-xs font-semibold text-red-700 uppercase">% ADS</h3>
+              </div>
+              <p className="text-xl font-bold text-red-900">
+                {summary.adsPercent !== undefined ? `${summary.adsPercent.toFixed(2)}%` : '0.00%'}
+              </p>
+              <p className="text-xs text-red-600 mt-1">Chi tiêu / Giá trị mua</p>
+            </div>
+
+            {/* GIÁ TRỊ CHUYỂN ĐỔI */}
+            <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-xl shadow-sm border border-cyan-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-cyan-500 flex items-center justify-center text-white text-lg">💎</div>
+                <h3 className="text-xs font-semibold text-cyan-700 uppercase">GIÁ TRỊ CHUYỂN ĐỔI</h3>
+              </div>
+              <p className="text-xl font-bold text-cyan-900">{formatCurrency(summary.purchaseValue || 0, currency)}</p>
+              <p className="text-xs text-cyan-600 mt-1">Tổng từ lượt mua</p>
+            </div>
+
+            {/* TỔNG CHECKOUT */}
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl shadow-sm border border-orange-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center text-white text-lg">🛒</div>
+                <h3 className="text-xs font-semibold text-orange-700 uppercase">TỔNG CHECKOUT</h3>
+              </div>
+              <p className="text-xl font-bold text-orange-900">{formatNumber(summary.totalCheckouts || 0)}</p>
+              <p className="text-xs text-orange-600 mt-1">{formatCurrency(summary.costPerCheckout || 0, currency)}/checkout</p>
+            </div>
+
+            {/* TỔNG PURCHASES */}
+            <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl shadow-sm border border-pink-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-pink-500 flex items-center justify-center text-white text-lg">🎯</div>
+                <h3 className="text-xs font-semibold text-pink-700 uppercase">TỔNG PURCHASES</h3>
+              </div>
+              <p className="text-xl font-bold text-pink-900">{formatNumber(summary.totalPurchases || 0)}</p>
+              <p className="text-xs text-pink-600 mt-1">{formatCurrency(summary.costPerPurchase || 0, currency)}/purchase</p>
+            </div>
+
+            {/* TỔNG ADSETS - E-COMMERCE */}
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl shadow-sm border border-indigo-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-lg">📊</div>
+                <h3 className="text-xs font-semibold text-indigo-700 uppercase">TỔNG ADSETS</h3>
+              </div>
+              <p className="text-xl font-bold text-indigo-900">{formatNumber(summary.totalAdsets)}</p>
+              <div className="flex gap-2 mt-1 text-xs">
+                <span className="text-green-600 font-medium">✅ {summary.activeAdsets}</span>
+                <span className="text-gray-600">⏸️ {summary.pausedAdsets}</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* TỔNG DATA - LEAD */}
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm border border-green-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center text-white text-lg">📊</div>
+                <h3 className="text-xs font-semibold text-green-700 uppercase">TỔNG DATA</h3>
+              </div>
+              <p className="text-xl font-bold text-green-900">{formatNumber(summary.totalData || 0)}</p>
+              <p className="text-xs text-green-600 mt-1">Bình luận + Nhắn tin</p>
+            </div>
+
+            {/* GIÁ DATA - LEAD */}
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm border border-purple-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-purple-500 flex items-center justify-center text-white text-lg">💵</div>
+                <h3 className="text-xs font-semibold text-purple-700 uppercase">GIÁ DATA</h3>
+              </div>
+              <p className="text-xl font-bold text-purple-900">{formatCurrency(summary.costPerData || summary.avgGiaData || 0, currency)}</p>
+            </div>
+
+            {/* TỔNG CHECKOUT - LEAD */}
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl shadow-sm border border-orange-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center text-white text-lg">🛒</div>
+                <h3 className="text-xs font-semibold text-orange-700 uppercase">TỔNG CHECKOUT</h3>
+              </div>
+              <p className="text-xl font-bold text-orange-900">{formatNumber(summary.totalCheckouts || summary.totalLead || 0)}</p>
+              <p className="text-xs text-orange-600 mt-1">{formatCurrency(summary.costPerCheckout || 0, currency)}/checkout</p>
+            </div>
+
+            {/* TỔNG PURCHASES - LEAD */}
+            <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl shadow-sm border border-pink-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-pink-500 flex items-center justify-center text-white text-lg">🎯</div>
+                <h3 className="text-xs font-semibold text-pink-700 uppercase">TỔNG PURCHASES</h3>
+              </div>
+              <p className="text-xl font-bold text-pink-900">{formatNumber(summary.totalPurchases || 0)}</p>
+              <p className="text-xs text-pink-600 mt-1">{formatCurrency(summary.costPerPurchase || 0, currency)}/purchase</p>
+            </div>
+
+            {/* TỔNG ADSETS - LEAD */}
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl shadow-sm border border-indigo-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-lg">📊</div>
+                <h3 className="text-xs font-semibold text-indigo-700 uppercase">TỔNG ADSETS</h3>
+              </div>
+              <p className="text-xl font-bold text-indigo-900">{formatNumber(summary.totalAdsets)}</p>
+              <div className="flex gap-2 mt-1 text-xs">
+                <span className="text-green-600 font-medium">✅ {summary.activeAdsets}</span>
+                <span className="text-gray-600">⏸️ {summary.pausedAdsets}</span>
+              </div>
+            </div>
+          </>
+        )}
       </div>
-    </>
+    </div>
   );
 }

@@ -26,6 +26,11 @@ class UserSettings(Base):
     telegram_bot_status = Column(String, default="NOT_SET")  # NOT_SET, VALID, INVALID
     telegram_bot_last_checked = Column(DateTime)  # Thời gian check bot token lần cuối
     
+    # ScrapeGraphAI API Key (encrypted)
+    scrapegraphai_api_key_encrypted = Column(Text)  # ScrapeGraphAI API key được encrypt
+    scrapegraphai_api_key_status = Column(String, default="NOT_SET")  # NOT_SET, VALID, INVALID
+    scrapegraphai_api_key_last_checked = Column(DateTime)  # Thời gian check API key lần cuối
+    
     # Timestamps
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
