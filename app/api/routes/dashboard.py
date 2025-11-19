@@ -4690,6 +4690,12 @@ async def get_dashboard_data(
             adset_list = [a for a in adset_list if a.get('campaign_id') == campaign_id]
             logger.info(f"   📊 Sau filter campaign_id ({campaign_id}): {len(adset_list)} adsets")
         
+        # Filter by prefix
+        if prefix:
+            before_prefix = len(adset_list)
+            adset_list = [a for a in adset_list if (a.get('adset_name') or '').startswith(prefix)]
+            logger.info(f"   📊 Sau filter prefix '{prefix}': {len(adset_list)}/{before_prefix} adsets")
+        
         # Filter by status (ACTIVE/PAUSED/RAN_TODAY)
         logger.info(f"   🔍 DEBUG - status param = {status}, type = {type(status)}")
         
@@ -4708,12 +4714,15 @@ async def get_dashboard_data(
                 status_filter = 'ACTIVE_AND_RAN_TODAY'
                 adset_list = [a for a in adset_list if a.get('is_active_now')]
                 logger.info(f"   🔍 Filter ACTIVE_AND_RAN_TODAY: {len(adset_list)} adsets")
+            elif status_upper == 'PAUSED':
+                status_filter = 'PAUSED'
+                adset_list = [a for a in adset_list if not a.get('is_active_now')]
+                logger.info(f"   🔍 Filter PAUSED: {len(adset_list)} adsets (not is_active_now)")
             else:
                 logger.info(f"   🔍 DEBUG - Status param không hợp lệ: {status_upper}, bỏ qua")
         else:
-            # Mặc định: lấy tất cả adsets đã chạy hôm nay
-            adset_list = [a for a in adset_list if a.get('ran_today')]
-            logger.info(f"   🔍 DEBUG - Không có status param, mặc định RAN_TODAY: {len(adset_list)} adsets")
+            # Không có status param → hiển thị TẤT CẢ adsets (theo spec)
+            logger.info(f"   🔍 Không có status param, hiển thị TẤT CẢ {len(adset_list)} adsets")
         
         # Search filter
         if search:
