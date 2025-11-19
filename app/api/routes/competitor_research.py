@@ -387,10 +387,11 @@ async def competitor_research_page(
                             resultsDiv.innerHTML = `<div class="alert alert-success">Tìm thấy ${{data.count}} quảng cáo:</div>` +
                                 data.data.map(ad => `
                                     <div class="ad-item">
-                                        <h3>${{ad.page_name}}</h3>
-                                        <p><strong>Ad ID:</strong> ${{ad.ad_id}}</p>
+                                        <h3>${{ad.page_name || 'N/A'}}</h3>
+                                        <p><strong>Ad ID:</strong> ${{ad.ad_id || 'N/A'}}</p>
                                         <p><strong>Nội dung:</strong> ${{ad.ad_text || 'N/A'}}</p>
-                                        <p><strong>Loại:</strong> ${{ad.ad_type}}</p>
+                                        <p><strong>Loại:</strong> ${{ad.ad_type || 'N/A'}}</p>
+                                        ${{ad.landing_page_url ? `<p><strong>Landing Page:</strong> <a href="${{ad.landing_page_url}}" target="_blank">${{ad.landing_page_url}}</a></p>` : ''}}
                                     </div>
                                 `).join('');
                         }}

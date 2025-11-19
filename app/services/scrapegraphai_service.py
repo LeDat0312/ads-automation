@@ -16,9 +16,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # ScrapeGraphAI API Configuration
-SCRAPEGRAPHAI_BASE_URL = "https://dashboard.scrapegraphai.com/api"  # Cần xác nhận URL thực tế
+# Documentation: https://docs.scrapegraphai.com/api-reference/introduction
+SCRAPEGRAPHAI_BASE_URL = "https://api.scrapegraphai.com/v1"
 SCRAPEGRAPHAI_API_KEY = None  # Sẽ được set từ environment hoặc settings
-SCRAPEGRAPHAI_TIMEOUT = 60  # 60 giây timeout
+SCRAPEGRAPHAI_TIMEOUT = 120  # 120 giây timeout (API có thể mất thời gian)
 
 # Cache cho dữ liệu scraping (tránh scrape quá thường xuyên)
 _scraping_cache: Dict[str, Dict[str, Any]] = {}
@@ -104,57 +105,94 @@ async def scrape_facebook_ad(
     
     try:
         async with httpx.AsyncClient(timeout=SCRAPEGRAPHAI_TIMEOUT) as client:
-            # Gọi ScrapeGraphAI API
-            # ⚠️ Cần xác nhận endpoint thực tế từ ScrapeGraphAI documentation
+            # Sử dụng SmartScraper để scrape Facebook Ad URL
+            # Documentation: https://docs.scrapegraphai.com/api-reference/endpoint/smartscraper/start
+            user_prompt = f"""Extract all information from this Facebook ad URL: {ad_url}
+            
+Please extract the following information in JSON format:
+- ad_id: The Facebook ad ID
+- ad_text: The ad text/copy
+- ad_image_url: URL of the ad image (if any)
+- ad_video_url: URL of the ad video (if any)
+- page_name: Name of the Facebook page running the ad
+- page_id: Facebook page ID
+- landing_page_url: The landing page URL the ad links to
+- ad_type: Type of ad (IMAGE, VIDEO, CAROUSEL, etc.)
+- impressions: Number of impressions (if available)
+- engagement: Number of engagements (if available)
+- created_time: When the ad was created (if available)"""
+            
+            output_schema = {
+                "type": "object",
+                "properties": {
+                    "ad_id": {"type": "string"},
+                    "ad_text": {"type": "string"},
+                    "ad_image_url": {"type": "string"},
+                    "ad_video_url": {"type": "string"},
+                    "page_name": {"type": "string"},
+                    "page_id": {"type": "string"},
+                    "landing_page_url": {"type": "string"},
+                    "ad_type": {"type": "string"},
+                    "impressions": {"type": "integer"},
+                    "engagement": {"type": "integer"},
+                    "created_time": {"type": "string"}
+                }
+            }
+            
             response = await client.post(
-                f"{SCRAPEGRAPHAI_BASE_URL}/scrape",
+                f"{SCRAPEGRAPHAI_BASE_URL}/smartscraper",
                 headers={
-                    "Authorization": f"Bearer {api_key}",
+                    "SGAI-APIKEY": api_key,  # Đúng format theo documentation
                     "Content-Type": "application/json"
                 },
                 json={
                     "url": ad_url,
-                    "platform": "facebook",
-                    "extract_fields": [
-                        "ad_text",
-                        "ad_image",
-                        "ad_video",
-                        "page_name",
-                        "page_id",
-                        "landing_page",
-                        "ad_type"
-                    ]
+                    "user_prompt": user_prompt,
+                    "output_schema": output_schema,
+                    "stealth": True  # Bypass bot protection
                 }
             )
             
             if response.status_code == 200:
                 data = response.json()
                 
-                # Parse response thành CompetitorAdData
-                ad_data = CompetitorAdData(
-                    ad_id=data.get("ad_id", ""),
-                    ad_text=data.get("ad_text", ""),
-                    ad_image_url=data.get("ad_image_url"),
-                    ad_video_url=data.get("ad_video_url"),
-                    page_name=data.get("page_name", ""),
-                    page_id=data.get("page_id", ""),
-                    impressions=data.get("impressions"),
-                    engagement=data.get("engagement"),
-                    created_time=datetime.fromisoformat(data["created_time"]) if data.get("created_time") else None,
-                    ad_type=data.get("ad_type", "UNKNOWN"),
-                    landing_page_url=data.get("landing_page_url"),
-                    scraped_at=datetime.now()
-                )
-                
-                # Lưu vào cache
-                if use_cache:
-                    _scraping_cache[cache_key] = ad_data
-                    _cache_timestamps[cache_key] = datetime.now()
-                
-                logger.info(f"✅ Đã scrape thành công ad: {ad_url}")
-                return ad_data
+                # Kiểm tra status
+                if data.get("status") == "completed":
+                    result = data.get("result", {})
+                    
+                    # Parse response thành CompetitorAdData
+                    ad_data = CompetitorAdData(
+                        ad_id=result.get("ad_id", ""),
+                        ad_text=result.get("ad_text", ""),
+                        ad_image_url=result.get("ad_image_url"),
+                        ad_video_url=result.get("ad_video_url"),
+                        page_name=result.get("page_name", ""),
+                        page_id=result.get("page_id", ""),
+                        impressions=result.get("impressions"),
+                        engagement=result.get("engagement"),
+                        created_time=datetime.fromisoformat(result["created_time"]) if result.get("created_time") else None,
+                        ad_type=result.get("ad_type", "UNKNOWN"),
+                        landing_page_url=result.get("landing_page_url"),
+                        scraped_at=datetime.now()
+                    )
+                    
+                    # Lưu vào cache
+                    if use_cache:
+                        _scraping_cache[cache_key] = ad_data
+                        _cache_timestamps[cache_key] = datetime.now()
+                    
+                    logger.info(f"✅ Đã scrape thành công ad: {ad_url}")
+                    return ad_data
+                elif data.get("status") == "processing":
+                    logger.warning(f"⏳ Ad đang được xử lý: {ad_url}, request_id: {data.get('request_id')}")
+                    return None
+                else:
+                    error_msg = data.get("error", "Unknown error")
+                    logger.error(f"❌ ScrapeGraphAI API error: {error_msg}")
+                    return None
             else:
-                logger.error(f"❌ ScrapeGraphAI API error: {response.status_code} - {response.text}")
+                error_text = response.text
+                logger.error(f"❌ ScrapeGraphAI API HTTP error: {response.status_code} - {error_text}")
                 return None
                 
     except httpx.TimeoutException:
@@ -200,50 +238,101 @@ async def scrape_competitor_ads(
     
     try:
         async with httpx.AsyncClient(timeout=SCRAPEGRAPHAI_TIMEOUT) as client:
-            # Gọi ScrapeGraphAI API để lấy danh sách ads
+            # Sử dụng SearchScraper để tìm ads của competitor
+            # Documentation: https://docs.scrapegraphai.com/api-reference/endpoint/searchscraper/start
+            user_prompt = f"""Find all Facebook ads from page ID {competitor_page_id}. 
+            
+Please search Facebook Ads Library and return up to {limit} ads from this page.
+For each ad, extract:
+- ad_id: The Facebook ad ID
+- ad_text: The ad text/copy
+- ad_image_url: URL of the ad image (if any)
+- ad_video_url: URL of the ad video (if any)
+- page_name: Name of the Facebook page
+- page_id: Facebook page ID
+- landing_page_url: The landing page URL
+- ad_type: Type of ad (IMAGE, VIDEO, CAROUSEL, etc.)
+- impressions: Number of impressions (if available)
+- engagement: Number of engagements (if available)
+- created_time: When the ad was created (if available)"""
+            
+            output_schema = {
+                "type": "object",
+                "properties": {
+                    "ads": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "ad_id": {"type": "string"},
+                                "ad_text": {"type": "string"},
+                                "ad_image_url": {"type": "string"},
+                                "ad_video_url": {"type": "string"},
+                                "page_name": {"type": "string"},
+                                "page_id": {"type": "string"},
+                                "landing_page_url": {"type": "string"},
+                                "ad_type": {"type": "string"},
+                                "impressions": {"type": "integer"},
+                                "engagement": {"type": "integer"},
+                                "created_time": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }
+            
             response = await client.post(
-                f"{SCRAPEGRAPHAI_BASE_URL}/scrape/competitor",
+                f"{SCRAPEGRAPHAI_BASE_URL}/searchscraper",
                 headers={
-                    "Authorization": f"Bearer {api_key}",
+                    "SGAI-APIKEY": api_key,
                     "Content-Type": "application/json"
                 },
                 json={
-                    "page_id": competitor_page_id,
-                    "limit": limit,
-                    "platform": "facebook"
+                    "user_prompt": user_prompt,
+                    "output_schema": output_schema,
+                    "stealth": True
                 }
             )
             
             if response.status_code == 200:
                 data = response.json()
-                ads = []
                 
-                for ad_data in data.get("ads", []):
-                    ad = CompetitorAdData(
-                        ad_id=ad_data.get("ad_id", ""),
-                        ad_text=ad_data.get("ad_text", ""),
-                        ad_image_url=ad_data.get("ad_image_url"),
-                        ad_video_url=ad_data.get("ad_video_url"),
-                        page_name=ad_data.get("page_name", ""),
-                        page_id=ad_data.get("page_id", competitor_page_id),
-                        impressions=ad_data.get("impressions"),
-                        engagement=ad_data.get("engagement"),
-                        created_time=datetime.fromisoformat(ad_data["created_time"]) if ad_data.get("created_time") else None,
-                        ad_type=ad_data.get("ad_type", "UNKNOWN"),
-                        landing_page_url=ad_data.get("landing_page_url"),
-                        scraped_at=datetime.now()
-                    )
-                    ads.append(ad)
-                
-                # Lưu vào cache
-                if use_cache:
-                    _scraping_cache[cache_key] = ads
-                    _cache_timestamps[cache_key] = datetime.now()
-                
-                logger.info(f"✅ Đã scrape {len(ads)} ads từ competitor: {competitor_page_id}")
-                return ads
+                if data.get("status") == "completed":
+                    result = data.get("result", {})
+                    ads_list = result.get("ads", [])
+                    ads = []
+                    
+                    for ad_data in ads_list[:limit]:  # Limit results
+                        ad = CompetitorAdData(
+                            ad_id=ad_data.get("ad_id", ""),
+                            ad_text=ad_data.get("ad_text", ""),
+                            ad_image_url=ad_data.get("ad_image_url"),
+                            ad_video_url=ad_data.get("ad_video_url"),
+                            page_name=ad_data.get("page_name", ""),
+                            page_id=ad_data.get("page_id", competitor_page_id),
+                            impressions=ad_data.get("impressions"),
+                            engagement=ad_data.get("engagement"),
+                            created_time=datetime.fromisoformat(ad_data["created_time"]) if ad_data.get("created_time") else None,
+                            ad_type=ad_data.get("ad_type", "UNKNOWN"),
+                            landing_page_url=ad_data.get("landing_page_url"),
+                            scraped_at=datetime.now()
+                        )
+                        ads.append(ad)
+                    
+                    # Lưu vào cache
+                    if use_cache:
+                        _scraping_cache[cache_key] = ads
+                        _cache_timestamps[cache_key] = datetime.now()
+                    
+                    logger.info(f"✅ Đã scrape {len(ads)} ads từ competitor: {competitor_page_id}")
+                    return ads
+                else:
+                    error_msg = data.get("error", "Unknown error")
+                    logger.error(f"❌ ScrapeGraphAI API error: {error_msg}")
+                    return []
             else:
-                logger.error(f"❌ ScrapeGraphAI API error: {response.status_code} - {response.text}")
+                error_text = response.text
+                logger.error(f"❌ ScrapeGraphAI API HTTP error: {response.status_code} - {error_text}")
                 return []
                 
     except Exception as e:
@@ -286,49 +375,101 @@ async def search_competitor_ads_by_keyword(
     
     try:
         async with httpx.AsyncClient(timeout=SCRAPEGRAPHAI_TIMEOUT) as client:
+            # Sử dụng SearchScraper để tìm kiếm ads theo keyword
+            # Documentation: https://docs.scrapegraphai.com/api-reference/endpoint/searchscraper/start
+            user_prompt = f"""Search Facebook Ads Library for ads related to the keyword: "{keyword}"
+
+Please find up to {limit} Facebook ads that match this keyword.
+For each ad, extract:
+- ad_id: The Facebook ad ID
+- ad_text: The ad text/copy
+- ad_image_url: URL of the ad image (if any)
+- ad_video_url: URL of the ad video (if any)
+- page_name: Name of the Facebook page running the ad
+- page_id: Facebook page ID
+- landing_page_url: The landing page URL the ad links to
+- ad_type: Type of ad (IMAGE, VIDEO, CAROUSEL, etc.)
+- impressions: Number of impressions (if available)
+- engagement: Number of engagements (if available)
+- created_time: When the ad was created (if available)"""
+            
+            output_schema = {
+                "type": "object",
+                "properties": {
+                    "ads": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "ad_id": {"type": "string"},
+                                "ad_text": {"type": "string"},
+                                "ad_image_url": {"type": "string"},
+                                "ad_video_url": {"type": "string"},
+                                "page_name": {"type": "string"},
+                                "page_id": {"type": "string"},
+                                "landing_page_url": {"type": "string"},
+                                "ad_type": {"type": "string"},
+                                "impressions": {"type": "integer"},
+                                "engagement": {"type": "integer"},
+                                "created_time": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }
+            
             response = await client.post(
-                f"{SCRAPEGRAPHAI_BASE_URL}/search/ads",
+                f"{SCRAPEGRAPHAI_BASE_URL}/searchscraper",
                 headers={
-                    "Authorization": f"Bearer {api_key}",
+                    "SGAI-APIKEY": api_key,
                     "Content-Type": "application/json"
                 },
                 json={
-                    "keyword": keyword,
-                    "platform": "facebook",
-                    "limit": limit
+                    "user_prompt": user_prompt,
+                    "output_schema": output_schema,
+                    "stealth": True
                 }
             )
             
             if response.status_code == 200:
                 data = response.json()
-                ads = []
                 
-                for ad_data in data.get("results", []):
-                    ad = CompetitorAdData(
-                        ad_id=ad_data.get("ad_id", ""),
-                        ad_text=ad_data.get("ad_text", ""),
-                        ad_image_url=ad_data.get("ad_image_url"),
-                        ad_video_url=ad_data.get("ad_video_url"),
-                        page_name=ad_data.get("page_name", ""),
-                        page_id=ad_data.get("page_id", ""),
-                        impressions=ad_data.get("impressions"),
-                        engagement=ad_data.get("engagement"),
-                        created_time=datetime.fromisoformat(ad_data["created_time"]) if ad_data.get("created_time") else None,
-                        ad_type=ad_data.get("ad_type", "UNKNOWN"),
-                        landing_page_url=ad_data.get("landing_page_url"),
-                        scraped_at=datetime.now()
-                    )
-                    ads.append(ad)
-                
-                # Lưu vào cache
-                if use_cache:
-                    _scraping_cache[cache_key] = ads
-                    _cache_timestamps[cache_key] = datetime.now()
-                
-                logger.info(f"✅ Đã tìm thấy {len(ads)} ads cho keyword: {keyword}")
-                return ads
+                if data.get("status") == "completed":
+                    result = data.get("result", {})
+                    ads_list = result.get("ads", [])
+                    ads = []
+                    
+                    for ad_data in ads_list[:limit]:  # Limit results
+                        ad = CompetitorAdData(
+                            ad_id=ad_data.get("ad_id", ""),
+                            ad_text=ad_data.get("ad_text", ""),
+                            ad_image_url=ad_data.get("ad_image_url"),
+                            ad_video_url=ad_data.get("ad_video_url"),
+                            page_name=ad_data.get("page_name", ""),
+                            page_id=ad_data.get("page_id", ""),
+                            impressions=ad_data.get("impressions"),
+                            engagement=ad_data.get("engagement"),
+                            created_time=datetime.fromisoformat(ad_data["created_time"]) if ad_data.get("created_time") else None,
+                            ad_type=ad_data.get("ad_type", "UNKNOWN"),
+                            landing_page_url=ad_data.get("landing_page_url"),
+                            scraped_at=datetime.now()
+                        )
+                        ads.append(ad)
+                    
+                    # Lưu vào cache
+                    if use_cache:
+                        _scraping_cache[cache_key] = ads
+                        _cache_timestamps[cache_key] = datetime.now()
+                    
+                    logger.info(f"✅ Đã tìm thấy {len(ads)} ads cho keyword: {keyword}")
+                    return ads
+                else:
+                    error_msg = data.get("error", "Unknown error")
+                    logger.error(f"❌ ScrapeGraphAI API error: {error_msg}")
+                    return []
             else:
-                logger.error(f"❌ ScrapeGraphAI API error: {response.status_code} - {response.text}")
+                error_text = response.text
+                logger.error(f"❌ ScrapeGraphAI API HTTP error: {response.status_code} - {error_text}")
                 return []
                 
     except Exception as e:
