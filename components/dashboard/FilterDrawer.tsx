@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search, Filter, ChevronUp, ChevronDown } from 'lucide-react';
+import { X, Search, Filter } from 'lucide-react';
 import FilterPresetDropdown from './FilterPresetDropdown';
 
 export type FilterType = 
@@ -10,7 +10,9 @@ export type FilterType =
   | 'funnel' 
   | 'device' 
   | 'placement' 
-  | 'metric';
+  | 'metric'
+  | 'account_id'
+  | 'prefix';
 
 export interface ActiveFilter {
   id: string;
@@ -194,20 +196,6 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
           </button>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes slide-up {
-          from {
-            transform: translateY(100%);
-          }
-          to {
-            transform: translateY(0);
-          }
-        }
-        .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
-        }
-      `}</style>
     </>
   );
 };

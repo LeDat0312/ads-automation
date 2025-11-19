@@ -3,7 +3,8 @@ import { Search, Filter, RefreshCw, Calendar, Settings } from 'lucide-react';
 import FilterPresetDropdown from './FilterPresetDropdown';
 import DateRangePickerPopover from './DateRangePickerPopover';
 
-export type ViewType = 'leads' | 'performance' | 'all';
+export type ViewType = 'ecommerce' | 'lead';
+export type LevelType = 'campaign' | 'adset' | 'ad';
 
 export interface DateRange {
   from: Date;
@@ -19,6 +20,8 @@ export interface AdsControlsBarProps {
   onDateRangeChange: (range: DateRange) => void;
   view: ViewType;
   onViewChange: (view: ViewType) => void;
+  level?: LevelType;
+  onLevelChange?: (level: LevelType) => void;
   onOpenFilters: () => void;
   onRefresh: () => void;
   onSettings?: () => void;
@@ -34,10 +37,12 @@ const AdsControlsBar: React.FC<AdsControlsBarProps> = ({
   onDateRangeChange,
   view,
   onViewChange,
+  level = 'adset',
+  onLevelChange,
   onOpenFilters,
   onRefresh,
   onSettings,
-  activeFiltersCount = 0,
+  activeFiltersCount = 0
 }) => {
   const formatDateRange = (range: DateRange): string => {
     const formatDate = (date: Date) => {
@@ -146,9 +151,8 @@ const AdsControlsBar: React.FC<AdsControlsBarProps> = ({
             onChange={(e) => onViewChange(e.target.value as ViewType)}
             className="appearance-none inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all cursor-pointer pr-8"
           >
-            <option value="all">Tất cả</option>
-            <option value="leads">Leads View</option>
-            <option value="performance">Performance View</option>
+            <option value="ecommerce">🛒 E-Commerce</option>
+            <option value="lead">🎯 Lead Generation</option>
           </select>
           <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
             <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -156,6 +160,26 @@ const AdsControlsBar: React.FC<AdsControlsBarProps> = ({
             </svg>
           </div>
         </div>
+
+        {/* Level Selector */}
+        {onLevelChange && (
+          <div className="relative">
+            <select
+              value={level}
+              onChange={(e) => onLevelChange(e.target.value as LevelType)}
+              className="appearance-none inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all cursor-pointer pr-8"
+            >
+              <option value="campaign">📊 Campaign</option>
+              <option value="adset">🎯 Adset</option>
+              <option value="ad">📢 Ad</option>
+            </select>
+            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
+              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+        )}
 
         {/* Settings Button */}
         {onSettings && (

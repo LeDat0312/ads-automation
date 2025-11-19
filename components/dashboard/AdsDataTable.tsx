@@ -1,9 +1,14 @@
 import React, { useState, useMemo } from 'react';
 
 interface AdsetRow {
-  adset_id: string;
-  adset_name: string;
-  campaign_name: string;
+  id: string; // Generic ID field
+  adset_id?: string;
+  campaign_id?: string;
+  ad_id?: string;
+  name: string; // Generic name field
+  adset_name?: string;
+  campaign_name?: string;
+  ad_name?: string;
   delivery: string;
   budget: number;
   spend: number;
@@ -16,6 +21,7 @@ interface AdsetRow {
   purchases: number;
   purchase_value: number;
   ads_percent?: number;
+  tlc?: number; // Total Lead Count
   cpm: number;
   impressions: number;
   reach: number;
@@ -28,10 +34,14 @@ interface AdsetRow {
 interface AdsDataTableProps {
   rows: AdsetRow[];
   viewMode: 'lead' | 'ecommerce';
+  level?: 'campaign' | 'adset' | 'ad';
   currency?: string;
   loading?: boolean;
-  onBudgetAdjust?: (adsetIds: string[]) => void;
-  onToggleStatus?: (adsetIds: string[]) => void;
+  selectedRows?: Set<string>;
+  onSelectRow?: (id: string) => void;
+  onSelectAll?: () => void;
+  onRowClick?: (row: AdsetRow) => void;
+  onToggleStatus?: (id: string, currentStatus: string) => void;
 }
 
 type SortField = keyof AdsetRow | null;
@@ -54,12 +64,15 @@ const formatNumber = (value: number): string => {
 const AdsDataTable: React.FC<AdsDataTableProps> = ({
   rows,
   viewMode,
+  level = 'adset',
   currency = 'VND',
   loading = false,
-  onBudgetAdjust,
+  selectedRows = new Set(),
+  onSelectRow,
+  onSelectAll,
+  onRowClick,
   onToggleStatus
 }) => {
-  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
@@ -72,6 +85,8 @@ const AdsDataTable: React.FC<AdsDataTableProps> = ({
       const bVal = b[sortField];
 
       if (aVal === bVal) return 0;
+      if (aVal === undefined || aVal === null) return 1;
+      if (bVal === undefined || bVal === null) return -1;
       
       const comparison = aVal > bVal ? 1 : -1;
       return sortDirection === 'asc' ? comparison : -comparison;
@@ -100,38 +115,16 @@ const AdsDataTable: React.FC<AdsDataTableProps> = ({
     return '⇅';
   };
 
-  const toggleRow = (adsetId: string) => {
-    const newSelected = new Set(selectedRows);
-    if (newSelected.has(adsetId)) {
-      newSelected.delete(adsetId);
-    } else {
-      newSelected.add(adsetId);
-    }
-    setSelectedRows(newSelected);
+  const toggleRow = (id: string) => {
+    onSelectRow?.(id);
   };
 
   const toggleAll = () => {
-    if (selectedRows.size === rows.length) {
-      setSelectedRows(new Set());
-    } else {
-      setSelectedRows(new Set(rows.map(r => r.adset_id)));
-    }
+    onSelectAll?.();
   };
 
-  const handleBudgetAdjust = () => {
-    if (selectedRows.size === 0) {
-      alert('Vui lòng chọn ít nhất 1 adset');
-      return;
-    }
-    onBudgetAdjust?.(Array.from(selectedRows));
-  };
-
-  const handleToggleStatus = () => {
-    if (selectedRows.size === 0) {
-      alert('Vui lòng chọn ít nhất 1 adset');
-      return;
-    }
-    onToggleStatus?.(Array.from(selectedRows));
+  const handleRowClick = (row: AdsetRow) => {
+    onRowClick?.(row);
   };
 
   if (loading) {
@@ -149,30 +142,12 @@ const AdsDataTable: React.FC<AdsDataTableProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-      {/* Toolbar */}
-      <div className="p-4 border-b border-slate-200 flex gap-3">
-        <button
-          onClick={handleBudgetAdjust}
-          disabled={selectedRows.size === 0}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium"
-        >
-          💰 Điều Chỉnh Ngân Sách ({selectedRows.size})
-        </button>
-        <button
-          onClick={handleToggleStatus}
-          disabled={selectedRows.size === 0}
-          className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium"
-        >
-          🔄 Bật/Tắt ({selectedRows.size})
-        </button>
-      </div>
-
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="sticky left-0 bg-slate-50 px-4 py-3 text-left">
+              <th className="sticky left-0 bg-slate-50 px-4 py-3 text-left z-10">
                 <input
                   type="checkbox"
                   checked={selectedRows.size === rows.length && rows.length > 0}
@@ -181,37 +156,54 @@ const AdsDataTable: React.FC<AdsDataTableProps> = ({
                 />
               </th>
               <th className="px-4 py-3 text-left font-semibold text-slate-700">Bật/Tắt</th>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700 min-w-[200px]">Tên</th>
+              <th className="px-4 py-3 text-left font-semibold text-slate-700 min-w-[250px]">
+                Tên {level === 'campaign' ? 'Campaign' : level === 'adset' ? 'Adset' : 'Ad'}
+              </th>
               <th className="px-4 py-3 text-left font-semibold text-slate-700">Phân Phối</th>
               <th className="px-4 py-3 text-right font-semibold text-slate-700">Ngân Sách</th>
               
               <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('spend')}>
                 Chi Tiêu {getSortIcon('spend')}
               </th>
-              <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('results')}>
-                DATA {getSortIcon('results')}
-              </th>
-              <th className="px-4 py-3 text-right font-semibold text-slate-700">Kết Quả</th>
-              <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('data_cost')}>
-                Giá DATA {getSortIcon('data_cost')}
-              </th>
-              <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('cost_per_checkout_initiated')}>
-                Chi Phí/Bắt Đầu TT {getSortIcon('cost_per_checkout_initiated')}
-              </th>
-              <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('checkouts_initiated')}>
-                Bắt Đầu TT {getSortIcon('checkouts_initiated')}
-              </th>
-              <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('cost_per_purchase')}>
-                Chi Phí/Lượt Mua {getSortIcon('cost_per_purchase')}
-              </th>
-              <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('purchases')}>
-                Lượt Mua {getSortIcon('purchases')}
-              </th>
-              
+
               {viewMode === 'ecommerce' && (
-                <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('ads_percent')}>
-                  % ADS {getSortIcon('ads_percent')}
-                </th>
+                <>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('ads_percent')}>
+                    % ADS {getSortIcon('ads_percent')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('tlc')}>
+                    TLC {getSortIcon('tlc')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('data_cost')}>
+                    Giá DATA {getSortIcon('data_cost')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('checkouts_initiated')}>
+                    Checkout {getSortIcon('checkouts_initiated')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('purchases')}>
+                    Purchases {getSortIcon('purchases')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('purchase_value')}>
+                    Value {getSortIcon('purchase_value')}
+                  </th>
+                </>
+              )}
+
+              {viewMode === 'lead' && (
+                <>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('data_cost')}>
+                    Giá DATA {getSortIcon('data_cost')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('total_leads')}>
+                    Tổng DATA {getSortIcon('total_leads')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('checkouts_initiated')}>
+                    Checkout {getSortIcon('checkouts_initiated')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('purchases')}>
+                    Purchases {getSortIcon('purchases')}
+                  </th>
+                </>
               )}
               
               <th className="px-4 py-3 text-right font-semibold text-slate-700 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('cpm')}>
@@ -239,23 +231,32 @@ const AdsDataTable: React.FC<AdsDataTableProps> = ({
           </thead>
           <tbody>
             {sortedRows.map((row) => (
-              <tr key={row.adset_id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="sticky left-0 bg-white px-4 py-3">
+              <tr 
+                key={row.id} 
+                className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                onClick={() => handleRowClick(row)}
+              >
+                <td className="sticky left-0 bg-white px-4 py-3 z-10" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
-                    checked={selectedRows.has(row.adset_id)}
-                    onChange={() => toggleRow(row.adset_id)}
+                    checked={selectedRows.has(row.id)}
+                    onChange={() => toggleRow(row.id)}
                     className="rounded border-slate-300"
                   />
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" defaultChecked={row.delivery === 'ACTIVE'} />
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={row.delivery === 'ACTIVE'}
+                      onChange={() => onToggleStatus?.(row.id, row.delivery)}
+                    />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </td>
-                <td className="px-4 py-3 font-medium text-slate-800 max-w-xs truncate" title={row.adset_name}>
-                  {row.adset_name}
+                <td className="px-4 py-3 font-medium text-slate-800 max-w-xs truncate" title={row.name}>
+                  {row.name}
                 </td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -268,18 +269,29 @@ const AdsDataTable: React.FC<AdsDataTableProps> = ({
                 </td>
                 <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(row.budget, currency)}</td>
                 <td className="px-4 py-3 text-right font-semibold text-blue-900">{formatCurrency(row.spend, currency)}</td>
-                <td className="px-4 py-3 text-right font-semibold text-green-900">{formatNumber(row.results)}</td>
-                <td className="px-4 py-3 text-right text-slate-600">{formatNumber(row.total_leads)}</td>
-                <td className="px-4 py-3 text-right font-semibold text-purple-900">{formatCurrency(row.data_cost, currency)}</td>
-                <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(row.cost_per_checkout_initiated, currency)}</td>
-                <td className="px-4 py-3 text-right text-slate-600">{formatNumber(row.checkouts_initiated)}</td>
-                <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(row.cost_per_purchase, currency)}</td>
-                <td className="px-4 py-3 text-right font-semibold text-pink-900">{formatNumber(row.purchases)}</td>
                 
                 {viewMode === 'ecommerce' && (
-                  <td className="px-4 py-3 text-right font-semibold text-red-900">
-                    {row.ads_percent !== undefined ? `${row.ads_percent.toFixed(2)}%` : '-'}
-                  </td>
+                  <>
+                    <td className="px-4 py-3 text-right font-semibold text-red-900">
+                      {row.ads_percent !== undefined ? `${row.ads_percent.toFixed(2)}%` : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-green-900">
+                      {row.tlc ? formatNumber(row.tlc) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-purple-900">{formatCurrency(row.data_cost, currency)}</td>
+                    <td className="px-4 py-3 text-right text-slate-600">{formatNumber(row.checkouts_initiated)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-pink-900">{formatNumber(row.purchases)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-900">{formatCurrency(row.purchase_value, currency)}</td>
+                  </>
+                )}
+
+                {viewMode === 'lead' && (
+                  <>
+                    <td className="px-4 py-3 text-right font-semibold text-purple-900">{formatCurrency(row.data_cost, currency)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-green-900">{formatNumber(row.total_leads)}</td>
+                    <td className="px-4 py-3 text-right text-slate-600">{formatNumber(row.checkouts_initiated)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-pink-900">{formatNumber(row.purchases)}</td>
+                  </>
                 )}
                 
                 <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(row.cpm, currency)}</td>
