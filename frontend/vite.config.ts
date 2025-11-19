@@ -23,6 +23,7 @@ export default defineConfig({
       },
     },
   },
+  base: '/dashboard/',
   build: {
     outDir: 'dist',
     sourcemap: true,
