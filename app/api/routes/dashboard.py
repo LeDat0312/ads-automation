@@ -3337,20 +3337,56 @@ async def dashboard_page(
                     
                     <div class="overview-card">
                         <div class="card-header">
-                            <div class="card-title">% ADS</div>
-                            <div class="card-icon ads">📈</div>
+                            <div class="card-title">Tổng DATA</div>
+                            <div class="card-icon leads">💬</div>
                         </div>
-                        <div class="card-value" id="adsPercent">${{formatPercentage(overview.adsPercent || 0)}}%</div>
-                        <div class="card-subtitle">Chi tiêu / Giá trị chuyển đổi</div>
+                        <div class="card-value" id="totalData">${{formatNumber(overview.totalData || 0)}}</div>
+                        <div class="card-subtitle">Bình luận + Nhắn tin</div>
+                    </div>
+                    
+                    <div class="overview-card">
+                        <div class="card-header">
+                            <div class="card-title">Giá DATA</div>
+                            <div class="card-icon data-cost">💵</div>
+                        </div>
+                        <div class="card-value" id="costPerData">${{formatCurrency(overview.costPerData || 0)}}</div>
+                        <div class="card-subtitle">Chi phí / DATA</div>
+                    </div>
+                    
+                    <div class="overview-card">
+                        <div class="card-header">
+                            <div class="card-title">Bắt Đầu TT</div>
+                            <div class="card-icon checkouts">🛒</div>
+                        </div>
+                        <div class="card-value" id="totalCheckouts">${{formatNumber(overview.totalCheckouts || 0)}}</div>
+                        <div class="card-subtitle">${{formatCurrency(overview.costPerCheckout || 0)}}/checkout</div>
+                    </div>
+                    
+                    <div class="overview-card">
+                        <div class="card-header">
+                            <div class="card-title">Lượt Mua</div>
+                            <div class="card-icon purchases">🎯</div>
+                        </div>
+                        <div class="card-value" id="totalPurchases">${{formatNumber(overview.totalPurchases || 0)}}</div>
+                        <div class="card-subtitle">${{formatCurrency(overview.costPerPurchase || 0)}}/purchase</div>
                     </div>
                     
                     <div class="overview-card">
                         <div class="card-header">
                             <div class="card-title">Giá Trị Chuyển Đổi</div>
-                            <div class="card-icon purchase">🛒</div>
+                            <div class="card-icon purchase-value">💎</div>
                         </div>
                         <div class="card-value" id="purchaseValue">${{formatCurrency(overview.purchaseValue || 0)}}</div>
-                        <div class="card-subtitle">Tổng từ lượt mua</div>
+                        <div class="card-subtitle">Từ lượt mua</div>
+                    </div>
+                    
+                    <div class="overview-card">
+                        <div class="card-header">
+                            <div class="card-title">% ADS</div>
+                            <div class="card-icon ads">📈</div>
+                        </div>
+                        <div class="card-value" id="adsPercent">${{formatPercentage(overview.adsPercent || 0)}}%</div>
+                        <div class="card-subtitle">Chi tiêu / Giá trị CV</div>
                     </div>
                     
                     <div class="overview-card">
@@ -3399,11 +3435,38 @@ async def dashboard_page(
                     
                     <div class="overview-card">
                         <div class="card-header">
-                            <div class="card-title">Tổng Lead</div>
-                            <div class="card-icon leads">🎯</div>
+                            <div class="card-title">Giá DATA</div>
+                            <div class="card-icon data-cost">💵</div>
                         </div>
-                        <div class="card-value" id="totalLead">${{formatNumber(overview.totalLead || 0)}}</div>
-                        <div class="card-subtitle">Bắt đầu thanh toán</div>
+                        <div class="card-value" id="costPerData">${{formatCurrency(overview.costPerData || 0)}}</div>
+                        <div class="card-subtitle">Chi phí / DATA</div>
+                    </div>
+                    
+                    <div class="overview-card">
+                        <div class="card-header">
+                            <div class="card-title">Bắt Đầu TT</div>
+                            <div class="card-icon checkouts">🛒</div>
+                        </div>
+                        <div class="card-value" id="totalCheckouts">${{formatNumber(overview.totalCheckouts || 0)}}</div>
+                        <div class="card-subtitle">${{formatCurrency(overview.costPerCheckout || 0)}}/checkout</div>
+                    </div>
+                    
+                    <div class="overview-card">
+                        <div class="card-header">
+                            <div class="card-title">Lượt Mua</div>
+                            <div class="card-icon purchases">🎯</div>
+                        </div>
+                        <div class="card-value" id="totalPurchases">${{formatNumber(overview.totalPurchases || 0)}}</div>
+                        <div class="card-subtitle">${{formatCurrency(overview.costPerPurchase || 0)}}/purchase</div>
+                    </div>
+                    
+                    <div class="overview-card">
+                        <div class="card-header">
+                            <div class="card-title">Giá Trị Chuyển Đổi</div>
+                            <div class="card-icon purchase-value">💎</div>
+                        </div>
+                        <div class="card-value" id="purchaseValue">${{formatCurrency(overview.purchaseValue || 0)}}</div>
+                        <div class="card-subtitle">Từ lượt mua</div>
                     </div>
                     
                     <div class="overview-card">
@@ -3447,14 +3510,20 @@ async def dashboard_page(
             let headers;
             if (currentViewMode === 'ecommerce') {{
                 headers = [
-                    'Chọn', 'Bật/Tắt', 'Tên', 'Phân Phối', 'Ngân Sách', 'Chi Tiêu', '% ADS', 
-                    'Kết Quả', 'Giá DATA', 'TLC', 'Bắt Đầu TT', 'Lượt Mua', 'Giá Trị CV',
+                    'Chọn', 'Bật/Tắt', 'Tên', 'Phân Phối', 'Ngân Sách', 'Chi Tiêu',
+                    'DATA', 'Kết Quả', 'Giá DATA',
+                    'Chi Phí/Bắt Đầu TT', 'Bắt Đầu TT',
+                    'Chi Phí/Lượt Mua', 'Lượt Mua',
+                    '% ADS',
                     'CPM', 'Hiển Thị', 'Tiếp Cận', 'Tần Suất', 'Nhấp', 'CTR', 'CPC'
                 ];
             }} else {{
+                // Lead Generation - không có cột % ADS
                 headers = [
                     'Chọn', 'Bật/Tắt', 'Tên', 'Phân Phối', 'Ngân Sách', 'Chi Tiêu',
-                    'Kết Quả', 'Giá DATA', 'Chi Phí/Bắt Đầu TT', 'Bắt Đầu TT', 'Lượt Mua',
+                    'DATA', 'Kết Quả', 'Giá DATA',
+                    'Chi Phí/Bắt Đầu TT', 'Bắt Đầu TT',
+                    'Chi Phí/Lượt Mua', 'Lượt Mua',
                     'CPM', 'Hiển Thị', 'Tiếp Cận', 'Tần Suất', 'Nhấp', 'CTR', 'CPC'
                 ];
             }}
@@ -3510,23 +3579,25 @@ async def dashboard_page(
                                 ${{budgetDisplay}}
                             </td>
                             <td class="text-right font-semibold">${{formatCurrency(row.spend || 0)}}</td>
-                            <td class="text-right">${{formatPercentage(row['%ads'] || row.ads_percent || 0)}}%</td>
-                            <td class="text-right">${{formatNumber(row.results || 0)}}</td>
-                            <td class="text-right">${{formatCurrency(row.data_cost || row.gia_data || 0)}}</td>
-                            <td class="text-right">${{formatPercentage(row.tlc || 0)}}%</td>
-                            <td class="text-right">${{formatNumber(row.initiated_checkout || row.checkout_starts || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.purchases || 0)}}</td>
-                            <td class="text-right">${{formatCurrency(row.purchase_value || 0)}}</td>
-                            <td class="text-right">${{formatCurrency(row.cpm || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.impressions || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.reach || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.frequency || 0, 2)}}</td>
-                            <td class="text-right">${{formatNumber(row.clicks || 0)}}</td>
-                            <td class="text-right">${{formatPercentage(row.ctr || 0)}}%</td>
-                            <td class="text-right">${{formatCurrency(row.cpc || 0)}}</td>
+                            <td class="text-right font-semibold text-green">${{formatNumber(row.results || row.total_leads || 0)}}</td>
+                            <td class="text-right text-gray">${{formatNumber(row.results || row.total_leads || 0)}}</td>
+                            <td class="text-right font-semibold text-purple">${{formatCurrency(row.data_cost || 0)}}</td>
+                            <td class="text-right text-gray">${{formatCurrency(row.cost_per_checkout_initiated || 0)}}</td>
+                            <td class="text-right text-gray">${{formatNumber(row.checkouts_initiated || 0)}}</td>
+                            <td class="text-right text-gray">${{formatCurrency(row.cost_per_purchase || 0)}}</td>
+                            <td class="text-right font-semibold text-pink">${{formatNumber(row.purchases || 0)}}</td>
+                            <td class="text-right font-semibold text-red">${{formatPercentage(row.ads_percent || 0)}}%</td>
+                            <td class="text-right text-gray">${{formatCurrency(row.cpm || 0)}}</td>
+                            <td class="text-right text-gray">${{formatNumber(row.impressions || 0)}}</td>
+                            <td class="text-right text-gray">${{formatNumber(row.reach || 0)}}</td>
+                            <td class="text-right text-gray">${{(row.frequency || 0).toFixed(2)}}</td>
+                            <td class="text-right text-gray">${{formatNumber(row.clicks || 0)}}</td>
+                            <td class="text-right text-gray">${{(row.ctr || 0).toFixed(2)}}%</td>
+                            <td class="text-right text-gray">${{formatCurrency(row.cpc || 0)}}</td>
                         </tr>
                     `;
                 }} else {{
+                    // Lead Generation - không có cột % ADS
                     return `
                         <tr>
                             <td><div class="checkbox ${{isSelected ? 'checked' : ''}}" onclick="toggleSelection('${{row.id}}')"></div></td>
@@ -3542,18 +3613,20 @@ async def dashboard_page(
                                 ${{budgetDisplay}}
                             </td>
                             <td class="text-right font-semibold">${{formatCurrency(row.spend || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.results || 0)}}</td>
-                            <td class="text-right">${{formatCurrency(row.data_cost || row.gia_data || 0)}}</td>
-                            <td class="text-right">${{formatCurrency(row.cost_per_checkout_initiated || row.cost_per_checkout_start || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.initiated_checkout || row.checkout_starts || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.purchases || 0)}}</td>
-                            <td class="text-right">${{formatCurrency(row.cpm || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.impressions || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.reach || 0)}}</td>
-                            <td class="text-right">${{formatNumber(row.frequency || 0, 2)}}</td>
-                            <td class="text-right">${{formatNumber(row.clicks || 0)}}</td>
-                            <td class="text-right">${{formatPercentage(row.ctr || 0)}}%</td>
-                            <td class="text-right">${{formatCurrency(row.cpc || 0)}}</td>
+                            <td class="text-right font-semibold text-green">${{formatNumber(row.results || row.total_leads || 0)}}</td>
+                            <td class="text-right text-gray">${{formatNumber(row.results || row.total_leads || 0)}}</td>
+                            <td class="text-right font-semibold text-purple">${{formatCurrency(row.data_cost || 0)}}</td>
+                            <td class="text-right text-gray">${{formatCurrency(row.cost_per_checkout_initiated || 0)}}</td>
+                            <td class="text-right text-gray">${{formatNumber(row.checkouts_initiated || 0)}}</td>
+                            <td class="text-right text-gray">${{formatCurrency(row.cost_per_purchase || 0)}}</td>
+                            <td class="text-right font-semibold text-pink">${{formatNumber(row.purchases || 0)}}</td>
+                            <td class="text-right text-gray">${{formatCurrency(row.cpm || 0)}}</td>
+                            <td class="text-right text-gray">${{formatNumber(row.impressions || 0)}}</td>
+                            <td class="text-right text-gray">${{formatNumber(row.reach || 0)}}</td>
+                            <td class="text-right text-gray">${{(row.frequency || 0).toFixed(2)}}</td>
+                            <td class="text-right text-gray">${{formatNumber(row.clicks || 0)}}</td>
+                            <td class="text-right text-gray">${{(row.ctr || 0).toFixed(2)}}%</td>
+                            <td class="text-right text-gray">${{formatCurrency(row.cpc || 0)}}</td>
                         </tr>
                     `;
                 }}
