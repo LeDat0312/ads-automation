@@ -117,8 +117,8 @@ const BudgetAdjustmentModal: React.FC<BudgetAdjustmentModalProps> = ({
           {adjustmentType === 'percent' && (
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-3">Phần Trăm Thay Đổi</label>
-              <div className="grid grid-cols-4 gap-2 mb-3">
-                {[10, 20, 30, 50].map(p => (
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {[10, 20, 30].map(p => (
                   <button
                     key={p}
                     onClick={() => setPercentValue(p)}
@@ -132,8 +132,8 @@ const BudgetAdjustmentModal: React.FC<BudgetAdjustmentModalProps> = ({
                   </button>
                 ))}
               </div>
-              <div className="grid grid-cols-4 gap-2 mb-3">
-                {[-10, -20, -30, -50].map(p => (
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {[-10, -20, -30].map(p => (
                   <button
                     key={p}
                     onClick={() => setPercentValue(p)}
