@@ -3326,6 +3326,7 @@ async def dashboard_page(
             const grid = document.getElementById('overviewGrid');
             
             if (currentViewMode === 'ecommerce') {{
+                // E-Commerce view - CHỈ 6 CARDS
                 grid.innerHTML = `
                     <div class="overview-card">
                         <div class="card-header">
@@ -3337,56 +3338,20 @@ async def dashboard_page(
                     
                     <div class="overview-card">
                         <div class="card-header">
-                            <div class="card-title">Tổng DATA</div>
-                            <div class="card-icon leads">💬</div>
-                        </div>
-                        <div class="card-value" id="totalData">${{formatNumber(overview.totalData || 0)}}</div>
-                        <div class="card-subtitle">Bình luận + Nhắn tin</div>
-                    </div>
-                    
-                    <div class="overview-card">
-                        <div class="card-header">
-                            <div class="card-title">Giá DATA</div>
-                            <div class="card-icon data-cost">💵</div>
-                        </div>
-                        <div class="card-value" id="costPerData">${{formatCurrency(overview.costPerData || 0)}}</div>
-                        <div class="card-subtitle">Chi phí / DATA</div>
-                    </div>
-                    
-                    <div class="overview-card">
-                        <div class="card-header">
-                            <div class="card-title">Bắt Đầu TT</div>
-                            <div class="card-icon checkouts">🛒</div>
-                        </div>
-                        <div class="card-value" id="totalCheckouts">${{formatNumber(overview.totalCheckouts || 0)}}</div>
-                        <div class="card-subtitle">${{formatCurrency(overview.costPerCheckout || 0)}}/checkout</div>
-                    </div>
-                    
-                    <div class="overview-card">
-                        <div class="card-header">
-                            <div class="card-title">Lượt Mua</div>
-                            <div class="card-icon purchases">🎯</div>
-                        </div>
-                        <div class="card-value" id="totalPurchases">${{formatNumber(overview.totalPurchases || 0)}}</div>
-                        <div class="card-subtitle">${{formatCurrency(overview.costPerPurchase || 0)}}/purchase</div>
-                    </div>
-                    
-                    <div class="overview-card">
-                        <div class="card-header">
-                            <div class="card-title">Giá Trị Chuyển Đổi</div>
-                            <div class="card-icon purchase-value">💎</div>
-                        </div>
-                        <div class="card-value" id="purchaseValue">${{formatCurrency(overview.purchaseValue || 0)}}</div>
-                        <div class="card-subtitle">Từ lượt mua</div>
-                    </div>
-                    
-                    <div class="overview-card">
-                        <div class="card-header">
                             <div class="card-title">% ADS</div>
                             <div class="card-icon ads">📈</div>
                         </div>
                         <div class="card-value" id="adsPercent">${{formatPercentage(overview.adsPercent || 0)}}%</div>
-                        <div class="card-subtitle">Chi tiêu / Giá trị CV</div>
+                        <div class="card-subtitle">Chi tiêu / Doanh số</div>
+                    </div>
+                    
+                    <div class="overview-card">
+                        <div class="card-header">
+                            <div class="card-title">Doanh Số</div>
+                            <div class="card-icon purchase">🛒</div>
+                        </div>
+                        <div class="card-value" id="purchaseValue">${{formatCurrency(overview.purchaseValue || 0)}}</div>
+                        <div class="card-subtitle">Giá trị từ lượt mua</div>
                     </div>
                     
                     <div class="overview-card">
@@ -3414,7 +3379,7 @@ async def dashboard_page(
                     </div>
                 `;
             }} else {{
-                // Lead Generation view
+                // Lead Generation view - CHỈ 5 CARDS
                 grid.innerHTML = `
                     <div class="overview-card">
                         <div class="card-header">
@@ -3431,42 +3396,6 @@ async def dashboard_page(
                         </div>
                         <div class="card-value" id="totalData">${{formatNumber(overview.totalData || 0)}}</div>
                         <div class="card-subtitle">Bình luận + Nhắn tin</div>
-                    </div>
-                    
-                    <div class="overview-card">
-                        <div class="card-header">
-                            <div class="card-title">Giá DATA</div>
-                            <div class="card-icon data-cost">💵</div>
-                        </div>
-                        <div class="card-value" id="costPerData">${{formatCurrency(overview.costPerData || 0)}}</div>
-                        <div class="card-subtitle">Chi phí / DATA</div>
-                    </div>
-                    
-                    <div class="overview-card">
-                        <div class="card-header">
-                            <div class="card-title">Bắt Đầu TT</div>
-                            <div class="card-icon checkouts">🛒</div>
-                        </div>
-                        <div class="card-value" id="totalCheckouts">${{formatNumber(overview.totalCheckouts || 0)}}</div>
-                        <div class="card-subtitle">${{formatCurrency(overview.costPerCheckout || 0)}}/checkout</div>
-                    </div>
-                    
-                    <div class="overview-card">
-                        <div class="card-header">
-                            <div class="card-title">Lượt Mua</div>
-                            <div class="card-icon purchases">🎯</div>
-                        </div>
-                        <div class="card-value" id="totalPurchases">${{formatNumber(overview.totalPurchases || 0)}}</div>
-                        <div class="card-subtitle">${{formatCurrency(overview.costPerPurchase || 0)}}/purchase</div>
-                    </div>
-                    
-                    <div class="overview-card">
-                        <div class="card-header">
-                            <div class="card-title">Giá Trị Chuyển Đổi</div>
-                            <div class="card-icon purchase-value">💎</div>
-                        </div>
-                        <div class="card-value" id="purchaseValue">${{formatCurrency(overview.purchaseValue || 0)}}</div>
-                        <div class="card-subtitle">Từ lượt mua</div>
                     </div>
                     
                     <div class="overview-card">
