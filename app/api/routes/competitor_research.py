@@ -501,7 +501,9 @@ async def scrape_competitor_endpoint(
         ads = await scrape_competitor_ads(
             competitor_page_id=payload.page_id,
             limit=payload.limit,
-            use_cache=payload.use_cache
+            use_cache=payload.use_cache,
+            user_id=current_user.id,
+            db=db
         )
         
         return JSONResponse({
@@ -554,7 +556,9 @@ async def search_ads_endpoint(
         ads = await search_competitor_ads_by_keyword(
             keyword=payload.keyword,
             limit=payload.limit,
-            use_cache=payload.use_cache
+            use_cache=payload.use_cache,
+            user_id=current_user.id,
+            db=db
         )
         
         return JSONResponse({

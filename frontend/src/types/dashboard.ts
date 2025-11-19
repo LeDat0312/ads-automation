@@ -81,11 +81,18 @@ export interface SummaryMetrics {
   // Lead Generation specific (from backend)
   totalData?: number;  // comments + messages (Lead only)
   avgGiaData?: number;  // Chi phí / DATA (Lead only)
+  costPerData?: number;  // Alias for avgGiaData
   totalLead?: number;  // Bắt đầu thanh toán (Lead only)
   
   // E-Commerce specific (from backend)
   adsPercent?: number;  // % ADS (Ecommerce only)
   purchaseValue?: number;  // Giá trị chuyển đổi (Ecommerce only)
+  
+  // Checkouts & Purchases (both views)
+  totalCheckouts?: number;  // Tổng checkout
+  costPerCheckout?: number;  // Chi phí / checkout
+  totalPurchases?: number;  // Tổng purchases
+  costPerPurchase?: number;  // Chi phí / purchase
   
   // Currency
   currency?: Currency;  // VND or USD

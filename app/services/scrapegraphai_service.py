@@ -6,9 +6,12 @@ Tích hợp ScrapeGraphAI để nghiên cứu và scraping đối thủ Facebook
 import logging
 import httpx
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from datetime import datetime, timedelta
 from dataclasses import dataclass
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +43,7 @@ class CompetitorAdData:
     scraped_at: datetime
 
 
-def get_scrapegraphai_api_key(user_id: Optional[int] = None, db: Optional[Any] = None) -> Optional[str]:
+def get_scrapegraphai_api_key(user_id: Optional[int] = None, db: Optional['Session'] = None) -> Optional[str]:
     """
     Lấy API key từ database (UserSettings) hoặc environment variable
     Ưu tiên lấy từ database nếu có user_id và db
