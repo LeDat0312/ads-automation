@@ -10,13 +10,17 @@ Cách chạy:
 import sys
 import os
 
-# Thêm project root vào PYTHONPATH
+# Thêm project root vào PYTHONPATH và set working directory
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# Đảm bảo working directory là project root để .env được load đúng
+os.chdir(project_root)
+
 from sqlalchemy import text, create_engine
 from app.core.database import init_db, engine
+from app.core.config import get_settings
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,6 +29,20 @@ logger = logging.getLogger(__name__)
 def migrate():
     """Thêm các columns cho ScrapeGraphAI API key"""
     try:
+        # Kiểm tra DATABASE_URL trước
+        try:
+            settings = get_settings()
+            database_url = settings.DATABASE_URL
+            if not database_url:
+                raise ValueError("DATABASE_URL không được tìm thấy trong .env file")
+            logger.info(f"✅ Đã load DATABASE_URL từ .env (length: {len(database_url)})")
+        except Exception as e:
+            logger.error(f"❌ Không thể load DATABASE_URL: {e}")
+            logger.error(f"📁 Current working directory: {os.getcwd()}")
+            logger.error(f"📁 Project root: {project_root}")
+            logger.error(f"📁 .env file exists: {os.path.exists(os.path.join(project_root, '.env'))}")
+            raise ValueError(f"Không thể load DATABASE_URL từ .env. Kiểm tra file .env ở {project_root}")
+        
         # Khởi tạo database engine nếu chưa được khởi tạo
         if engine is None:
             logger.info("🔄 Đang khởi tạo database connection...")

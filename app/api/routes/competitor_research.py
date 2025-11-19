@@ -32,7 +32,7 @@ async def competitor_research_page(
     current_user: Optional[User] = Depends(get_current_user_optional),
     db = Depends(get_db)
 ):
-    """Trang nghiên cứu đối thủ với ScrapeGraphAI"""
+    """Trang nghiên cứu đối thủ với ScrapeGraphAI - Serve React App"""
     
     if not current_user:
         return HTMLResponse(content="""
@@ -44,6 +44,16 @@ async def competitor_research_page(
     if not current_user.is_active:
         return HTMLResponse(content=get_account_locked_message())
     
+    # Serve React app (giống như dashboard)
+    import os
+    frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "frontend", "dist", "index.html")
+    
+    if os.path.exists(frontend_dist):
+        with open(frontend_dist, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        return HTMLResponse(content=html_content)
+    
+    # Fallback: Trả về HTML cũ nếu React app chưa được build
     user_info = get_user_dropdown_menu(current_user)
     has_api_key = get_scrapegraphai_api_key(current_user.id, db) is not None
     
