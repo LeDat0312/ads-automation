@@ -4,7 +4,7 @@ import SummaryCards from './components/SummaryCards';
 import AdsetTable from './components/AdsetTable';
 import FiltersBar from './components/FiltersBar';
 import BudgetModal from './components/BudgetModal';
-import LevelTabs, { Level } from './components/LevelTabs';
+import { Level } from './components/LevelTabs';
 import PaginationControls from './components/PaginationControls';
 import { getDashboardData, getErrorMessage, updateBudget, updateStatus } from './services/api';
 import type {
@@ -363,14 +363,6 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Level Tabs */}
-        <LevelTabs
-          currentLevel={currentLevel}
-          onLevelChange={handleLevelChange}
-          drillDownPath={drillDownPath}
-          onDrillUp={handleDrillUp}
-        />
-
         {/* FiltersBar */}
         <FiltersBar
           filters={filters}
@@ -416,6 +408,88 @@ function App() {
           viewMode={viewMode}
           isLoading={loading}
         />
+
+        {/* Table Header with Level Selector */}
+        <div className="bg-white rounded-t-xl shadow-sm border border-gray-200 border-b-0 p-4 mb-0">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">
+              {viewMode === 'ecommerce' ? '🛒 Chi Tiết Quảng Cáo E-Commerce' : '📋 Chi Tiết Quảng Cáo Lead Generation'}
+            </h2>
+            
+            {/* Level Tabs */}
+            <div className="flex items-center gap-2">
+              {/* Drill-down Path */}
+              {drillDownPath && (drillDownPath.campaignId || drillDownPath.adsetId) && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 rounded-lg border border-indigo-200">
+                  {drillDownPath.campaignId && (
+                    <>
+                      <span className="text-sm font-medium text-indigo-700">
+                        🎯 {drillDownPath.campaignName || drillDownPath.campaignId}
+                      </span>
+                      {drillDownPath.adsetId && (
+                        <>
+                          <span className="text-indigo-400">→</span>
+                          <span className="text-sm font-medium text-indigo-700">
+                            📊 {drillDownPath.adsetName || drillDownPath.adsetId}
+                          </span>
+                        </>
+                      )}
+                    </>
+                  )}
+                  {handleDrillUp && (
+                    <button
+                      onClick={handleDrillUp}
+                      className="ml-2 px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+                      title="Quay lại"
+                    >
+                      ← Quay lại
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Level Selector Buttons */}
+              <div className="inline-flex rounded-xl border-2 border-gray-200 bg-white p-1">
+                <button
+                  onClick={() => handleLevelChange('campaign')}
+                  className={`
+                    px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200
+                    ${currentLevel === 'campaign'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-gray-700 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  🎯 Chiến dịch
+                </button>
+                <button
+                  onClick={() => handleLevelChange('adset')}
+                  className={`
+                    px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200
+                    ${currentLevel === 'adset'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-gray-700 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  📊 Nhóm QC
+                </button>
+                <button
+                  onClick={() => handleLevelChange('ad')}
+                  className={`
+                    px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200
+                    ${currentLevel === 'ad'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-gray-700 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  📱 Quảng cáo
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Selected Items Actions */}
         {selectedIds.size > 0 && (

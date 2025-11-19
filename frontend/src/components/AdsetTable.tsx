@@ -18,36 +18,53 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
 }) => {
   const [budgetEditorRow, setBudgetEditorRow] = useState<AdsetRow | null>(null);
 
-  // ✅ COMPLETELY DIFFERENT columns for Lead vs Ecom (per DASHBOARD_SPEC.md)
+  // ✅ COMPLETELY DIFFERENT columns for Lead vs Ecom (per old dashboard)
   const columns = useMemo(() => {
     if (viewMode === 'lead') {
-      // Lead columns: Checkbox, Trạng thái, Tên, Ngân sách, Chi tiêu, DATA, Giá DATA, Bắt đầu TT, Lượt mua, Chi phí/Lượt mua, Impressions
+      // Lead columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, Kết Quả, Giá DATA, Chi Phí Bắt Đầu TT, Bắt Đầu TT, Lượt Mua, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
       return [
-        { key: 'select', label: '', sortable: false, width: 'w-12', fixed: true },
-        { key: 'status', label: 'Trạng thái', sortable: false, width: 'w-28', fixed: true },
-        { key: 'adset_name', label: 'Tên nhóm QC', sortable: false, width: 'min-w-[280px]', fixed: true },
-        { key: 'budget', label: 'Ngân sách', sortable: false, width: 'w-32' },
-        { key: 'spend', label: 'Chi tiêu', sortable: true, width: 'w-32' },
-        { key: 'results', label: 'DATA', sortable: true, width: 'w-28' },
+        { key: 'select', label: 'Chọn', sortable: false, width: 'w-16', fixed: true },
+        { key: 'status', label: 'Bật/Tắt', sortable: false, width: 'w-24', fixed: true },
+        { key: 'name', label: 'Tên', sortable: false, width: 'min-w-[300px]', fixed: true },
+        { key: 'delivery', label: 'Phân Phối', sortable: false, width: 'w-28' },
+        { key: 'budget', label: 'Ngân Sách', sortable: false, width: 'w-32' },
+        { key: 'spend', label: 'Chi Tiêu', sortable: true, width: 'w-32' },
+        { key: 'results', label: 'Kết Quả', sortable: true, width: 'w-28' },
         { key: 'data_cost', label: 'Giá DATA', sortable: true, width: 'w-32' },
-        { key: 'checkouts_initiated', label: 'Bắt đầu TT', sortable: true, width: 'w-32' },
-        { key: 'purchases', label: 'Lượt mua', sortable: true, width: 'w-28' },
-        { key: 'cost_per_purchase', label: 'Chi phí/Lượt mua', sortable: true, width: 'w-36' },
-        { key: 'impressions', label: 'Impressions', sortable: true, width: 'w-32' },
+        { key: 'cost_per_checkout', label: 'Chi Phí/Bắt Đầu TT', sortable: true, width: 'w-40' },
+        { key: 'checkouts_initiated', label: 'Bắt Đầu TT', sortable: true, width: 'w-32' },
+        { key: 'purchases', label: 'Lượt Mua', sortable: true, width: 'w-28' },
+        { key: 'cpm', label: 'CPM', sortable: true, width: 'w-28' },
+        { key: 'impressions', label: 'Hiển Thị', sortable: true, width: 'w-32' },
+        { key: 'reach', label: 'Tiếp Cận', sortable: true, width: 'w-32' },
+        { key: 'frequency', label: 'Tần Suất', sortable: true, width: 'w-28' },
+        { key: 'clicks', label: 'Nhấp', sortable: true, width: 'w-28' },
+        { key: 'ctr', label: 'CTR', sortable: true, width: 'w-24' },
+        { key: 'cpc', label: 'CPC', sortable: true, width: 'w-28' },
       ];
     } else {
-      // Ecom columns: Checkbox, Trạng thái, Tên, Ngân sách, Chi tiêu, Giá trị mua, % ADS, Bắt đầu TT, Lượt mua, Chi phí/Lượt mua
+      // Ecom columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, % ADS, Kết Quả, Giá DATA, TLC, Bắt Đầu TT, Lượt Mua, Giá Trị CĐ, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
       return [
-        { key: 'select', label: '', sortable: false, width: 'w-12', fixed: true },
-        { key: 'status', label: 'Trạng thái', sortable: false, width: 'w-28', fixed: true },
-        { key: 'adset_name', label: 'Tên nhóm QC', sortable: false, width: 'min-w-[280px]', fixed: true },
-        { key: 'budget', label: 'Ngân sách', sortable: false, width: 'w-32' },
-        { key: 'spend', label: 'Chi tiêu', sortable: true, width: 'w-32' },
-        { key: 'purchase_value', label: 'Giá trị mua', sortable: true, width: 'w-36' },
+        { key: 'select', label: 'Chọn', sortable: false, width: 'w-16', fixed: true },
+        { key: 'status', label: 'Bật/Tắt', sortable: false, width: 'w-24', fixed: true },
+        { key: 'name', label: 'Tên', sortable: false, width: 'min-w-[300px]', fixed: true },
+        { key: 'delivery', label: 'Phân Phối', sortable: false, width: 'w-28' },
+        { key: 'budget', label: 'Ngân Sách', sortable: false, width: 'w-32' },
+        { key: 'spend', label: 'Chi Tiêu', sortable: true, width: 'w-32' },
         { key: 'ads_percent', label: '% ADS', sortable: true, width: 'w-28' },
-        { key: 'checkouts_initiated', label: 'Bắt đầu TT', sortable: true, width: 'w-32' },
-        { key: 'purchases', label: 'Lượt mua', sortable: true, width: 'w-28' },
-        { key: 'cost_per_purchase', label: 'Chi phí/Lượt mua', sortable: true, width: 'w-36' },
+        { key: 'results', label: 'Kết Quả', sortable: true, width: 'w-28' },
+        { key: 'data_cost', label: 'Giá DATA', sortable: true, width: 'w-32' },
+        { key: 'tlc', label: 'TLC', sortable: true, width: 'w-24' },
+        { key: 'checkouts_initiated', label: 'Bắt Đầu TT', sortable: true, width: 'w-32' },
+        { key: 'purchases', label: 'Lượt Mua', sortable: true, width: 'w-28' },
+        { key: 'purchase_value', label: 'Giá Trị CĐ', sortable: true, width: 'w-36' },
+        { key: 'cpm', label: 'CPM', sortable: true, width: 'w-28' },
+        { key: 'impressions', label: 'Hiển Thị', sortable: true, width: 'w-32' },
+        { key: 'reach', label: 'Tiếp Cận', sortable: true, width: 'w-32' },
+        { key: 'frequency', label: 'Tần Suất', sortable: true, width: 'w-28' },
+        { key: 'clicks', label: 'Nhấp', sortable: true, width: 'w-28' },
+        { key: 'ctr', label: 'CTR', sortable: true, width: 'w-24' },
+        { key: 'cpc', label: 'CPC', sortable: true, width: 'w-28' },
       ];
     }
   }, [viewMode]);
@@ -111,7 +128,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className="bg-white rounded-b-lg shadow overflow-hidden border border-gray-200 border-t-0">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -205,18 +222,15 @@ const TableRow: React.FC<TableRowProps> = ({
   isSelected, 
   onSelect,
   onStatusToggle,
-  onDrillDown,
   onOpenBudgetEditor,
 }) => {
-  const statusIcon = row.is_active_now ? '✅' : '⏸️';
   const statusColor = row.is_active_now ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
 
   if (viewMode === 'lead') {
-    // Lead row: Checkbox, Status, Name(+prefix+account), Budget, Spend, DATA, Cost/DATA, Checkouts, Purchases, Cost/Purchase, Impressions
     return (
       <tr className="hover:bg-gray-50">
-        {/* Checkbox - Fixed */}
-        <td className="px-4 py-3 sticky left-0 z-10 bg-white" style={{ left: 0 }}>
+        {/* Checkbox */}
+        <td className="px-3 py-3 sticky left-0 z-10 bg-white" style={{ left: 0 }}>
           <input
             type="checkbox"
             checked={isSelected}
@@ -225,8 +239,8 @@ const TableRow: React.FC<TableRowProps> = ({
           />
         </td>
 
-        {/* Status - Fixed with Toggle */}
-        <td className="px-4 py-3 sticky z-10 bg-white" style={{ left: '3rem' }}>
+        {/* Status Toggle */}
+        <td className="px-3 py-3 sticky z-10 bg-white" style={{ left: '4rem' }}>
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
@@ -235,120 +249,11 @@ const TableRow: React.FC<TableRowProps> = ({
               className="sr-only peer"
             />
             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-            <span className="ml-2 text-xs font-medium text-gray-700">
-              {row.delivery === 'ACTIVE' ? 'Bật' : 'Tắt'}
-            </span>
           </label>
         </td>
 
-        {/* Adset Name - Fixed with Drill-down */}
-        <td className="px-4 py-3 sticky z-10 bg-white" style={{ left: '7rem' }}>
-          <div className="font-semibold text-gray-900 truncate" title={row.adset_name}>
-            {row.adset_name}
-          </div>
-          <div className="text-xs text-gray-500 flex items-center gap-2">
-            <span className="font-medium text-indigo-600">{row.prefix || 'N/A'}</span>
-            <span>•</span>
-            {row.campaign_name && onDrillDown ? (
-              <button
-                onClick={() => onDrillDown('campaign', row.campaign_id, row.campaign_name)}
-                className="text-indigo-600 hover:text-indigo-800 hover:underline truncate max-w-[150px]"
-                title={`Click để xem chi tiết chiến dịch: ${row.campaign_name}`}
-              >
-                {row.campaign_name}
-              </button>
-            ) : (
-              <span className="truncate max-w-[150px]" title={row.account_name}>{row.account_name}</span>
-            )}
-          </div>
-        </td>
-
-        {/* Budget - Clickable */}
-        <td className="px-4 py-3 text-right">
-          <button
-            onClick={() => {
-              // In lead view, can edit if budget_level is ADSET
-              const canEdit = row.budget_level === 'ADSET';
-              if (canEdit && onOpenBudgetEditor) {
-                onOpenBudgetEditor(row);
-              }
-            }}
-            className={`
-              text-gray-700 hover:text-indigo-600 hover:underline transition-colors
-              ${row.budget_level === 'ADSET'
-                ? 'cursor-pointer font-medium'
-                : 'cursor-not-allowed opacity-60'
-              }
-            `}
-            title={
-              row.budget_level === 'ADSET'
-                ? 'Click để chỉnh sửa ngân sách'
-                : 'Ngân sách ở cấp Chiến dịch'
-            }
-          >
-            {formatCurrency(row.budget, row.currency)}
-          </button>
-        </td>
-
-        {/* Spend */}
-        <td className="px-4 py-3 text-right font-semibold text-gray-900">
-          {formatCurrency(row.spend, row.currency)}
-        </td>
-
-        {/* DATA (results) */}
-        <td className="px-4 py-3 text-right font-semibold text-green-600">
-          {formatNumber(row.results)}
-        </td>
-
-        {/* Cost per DATA */}
-        <td className="px-4 py-3 text-right font-semibold text-teal-600">
-          {formatCurrency(row.data_cost, row.currency)}
-        </td>
-
-        {/* Checkouts Initiated */}
-        <td className="px-4 py-3 text-right text-gray-700">
-          {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
-        </td>
-
-        {/* Purchases */}
-        <td className="px-4 py-3 text-right font-semibold text-purple-600">
-          {formatNumber(row.purchases)}
-        </td>
-
-        {/* Cost per Purchase */}
-        <td className="px-4 py-3 text-right text-gray-700">
-          {formatCurrency(row.cost_per_purchase, row.currency)}
-        </td>
-
-        {/* Impressions */}
-        <td className="px-4 py-3 text-right text-gray-600">
-          {formatNumber(row.impressions)}
-        </td>
-      </tr>
-    );
-  } else {
-    // Ecom row: Checkbox, Status, Name(+prefix+account), Budget, Spend, Purchase Value, % ADS, Checkouts, Purchases, Cost/Purchase
-    return (
-      <tr className="hover:bg-gray-50">
-        {/* Checkbox - Fixed */}
-        <td className="px-4 py-3 sticky left-0 z-10 bg-white" style={{ left: 0 }}>
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={onSelect}
-            className="rounded border-gray-300"
-          />
-        </td>
-
-        {/* Status - Fixed */}
-        <td className="px-4 py-3 sticky z-10 bg-white" style={{ left: '3rem' }}>
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
-            {statusIcon}
-          </span>
-        </td>
-
-        {/* Adset Name - Fixed */}
-        <td className="px-4 py-3 sticky z-10 bg-white" style={{ left: '7rem' }}>
+        {/* Name */}
+        <td className="px-3 py-3 sticky z-10 bg-white" style={{ left: '8rem' }}>
           <div className="font-semibold text-gray-900 truncate" title={row.adset_name}>
             {row.adset_name}
           </div>
@@ -359,61 +264,236 @@ const TableRow: React.FC<TableRowProps> = ({
           </div>
         </td>
 
-        {/* Budget - Clickable */}
-        <td className="px-4 py-3 text-right">
+        {/* Delivery Status */}
+        <td className="px-3 py-3">
+          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
+            {row.delivery === 'ACTIVE' ? 'Đang chạy' : 'Tạm dừng'}
+          </span>
+        </td>
+
+        {/* Budget */}
+        <td className="px-3 py-3 text-right">
           <button
             onClick={() => {
-              // In ecommerce view, can edit if budget_level is CAMPAIGN
-              const canEdit = row.budget_level === 'CAMPAIGN';
+              const canEdit = row.budget_level === 'ADSET';
               if (canEdit && onOpenBudgetEditor) {
                 onOpenBudgetEditor(row);
               }
             }}
             className={`
-              text-gray-700 hover:text-indigo-600 hover:underline transition-colors
-              ${row.budget_level === 'CAMPAIGN'
-                ? 'cursor-pointer font-medium'
-                : 'cursor-not-allowed opacity-60'
-              }
+              text-gray-700 hover:text-indigo-600 hover:underline transition-colors text-sm
+              ${row.budget_level === 'ADSET' ? 'cursor-pointer font-medium' : 'cursor-not-allowed opacity-60'}
             `}
-            title={
-              row.budget_level === 'CAMPAIGN'
-                ? 'Click để chỉnh sửa ngân sách'
-                : 'Ngân sách ở cấp Nhóm quảng cáo'
-            }
+            title={row.budget_level === 'ADSET' ? 'Click để chỉnh sửa' : 'Ngân sách ở cấp Chiến dịch'}
           >
             {formatCurrency(row.budget, row.currency)}
           </button>
         </td>
 
         {/* Spend */}
-        <td className="px-4 py-3 text-right font-semibold text-gray-900">
+        <td className="px-3 py-3 text-right font-semibold text-gray-900 text-sm">
           {formatCurrency(row.spend, row.currency)}
         </td>
 
-        {/* Purchase Value */}
-        <td className="px-4 py-3 text-right font-semibold text-green-600">
-          {formatCurrency(row.purchase_value, row.currency)}
+        {/* Results (DATA) */}
+        <td className="px-3 py-3 text-right font-semibold text-green-600 text-sm">
+          {formatNumber(row.results)}
         </td>
 
-        {/* % ADS */}
-        <td className="px-4 py-3 text-right font-semibold text-rose-600">
-          {formatPercentage(row.ads_percent || 0)}%
+        {/* Cost per DATA */}
+        <td className="px-3 py-3 text-right font-semibold text-teal-600 text-sm">
+          {formatCurrency(row.data_cost, row.currency)}
+        </td>
+
+        {/* Cost per Checkout */}
+        <td className="px-3 py-3 text-right text-gray-700 text-sm">
+          {formatCurrency((row.initiated_checkout && row.initiated_checkout > 0) ? row.spend / row.initiated_checkout : 0, row.currency)}
         </td>
 
         {/* Checkouts Initiated */}
-        <td className="px-4 py-3 text-right text-gray-700">
+        <td className="px-3 py-3 text-right text-gray-700 text-sm">
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
         {/* Purchases */}
-        <td className="px-4 py-3 text-right font-semibold text-purple-600">
+        <td className="px-3 py-3 text-right font-semibold text-purple-600 text-sm">
           {formatNumber(row.purchases)}
         </td>
 
-        {/* Cost per Purchase */}
-        <td className="px-4 py-3 text-right text-gray-700">
-          {formatCurrency(row.cost_per_purchase, row.currency)}
+        {/* CPM */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatCurrency(row.cpm || 0, row.currency)}
+        </td>
+
+        {/* Impressions */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatNumber(row.impressions)}
+        </td>
+
+        {/* Reach */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatNumber(row.reach || 0)}
+        </td>
+
+        {/* Frequency */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {(row.frequency || 0).toFixed(2)}
+        </td>
+
+        {/* Clicks */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatNumber(row.clicks || 0)}
+        </td>
+
+        {/* CTR */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatPercentage(row.ctr || 0)}%
+        </td>
+
+        {/* CPC */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatCurrency(row.cpc || 0, row.currency)}
+        </td>
+      </tr>
+    );
+  } else {
+    // E-COMMERCE
+    return (
+      <tr className="hover:bg-gray-50">
+        {/* Checkbox */}
+        <td className="px-3 py-3 sticky left-0 z-10 bg-white" style={{ left: 0 }}>
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onSelect}
+            className="rounded border-gray-300"
+          />
+        </td>
+
+        {/* Status Toggle */}
+        <td className="px-3 py-3 sticky z-10 bg-white" style={{ left: '4rem' }}>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={row.delivery === 'ACTIVE'}
+              onChange={() => onStatusToggle?.(row)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+          </label>
+        </td>
+
+        {/* Name */}
+        <td className="px-3 py-3 sticky z-10 bg-white" style={{ left: '8rem' }}>
+          <div className="font-semibold text-gray-900 truncate" title={row.adset_name}>
+            {row.adset_name}
+          </div>
+          <div className="text-xs text-gray-500 flex items-center gap-2">
+            <span className="font-medium text-indigo-600">{row.prefix || 'N/A'}</span>
+            <span>•</span>
+            <span className="truncate max-w-[150px]" title={row.account_name}>{row.account_name}</span>
+          </div>
+        </td>
+
+        {/* Delivery Status */}
+        <td className="px-3 py-3">
+          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
+            {row.delivery === 'ACTIVE' ? 'Đang chạy' : 'Tạm dừng'}
+          </span>
+        </td>
+
+        {/* Budget */}
+        <td className="px-3 py-3 text-right">
+          <button
+            onClick={() => {
+              const canEdit = row.budget_level === 'CAMPAIGN';
+              if (canEdit && onOpenBudgetEditor) {
+                onOpenBudgetEditor(row);
+              }
+            }}
+            className={`
+              text-gray-700 hover:text-indigo-600 hover:underline transition-colors text-sm
+              ${row.budget_level === 'CAMPAIGN' ? 'cursor-pointer font-medium' : 'cursor-not-allowed opacity-60'}
+            `}
+            title={row.budget_level === 'CAMPAIGN' ? 'Click để chỉnh sửa' : 'Ngân sách ở cấp Adset'}
+          >
+            {formatCurrency(row.budget, row.currency)}
+          </button>
+        </td>
+
+        {/* Spend */}
+        <td className="px-3 py-3 text-right font-semibold text-gray-900 text-sm">
+          {formatCurrency(row.spend, row.currency)}
+        </td>
+
+        {/* % ADS */}
+        <td className="px-3 py-3 text-right font-semibold text-rose-600 text-sm">
+          {formatPercentage(row.ads_percent || 0)}%
+        </td>
+
+        {/* Results (Kết quả) */}
+        <td className="px-3 py-3 text-right font-semibold text-green-600 text-sm">
+          {formatNumber(row.results)}
+        </td>
+
+        {/* Cost per DATA */}
+        <td className="px-3 py-3 text-right font-semibold text-teal-600 text-sm">
+          {formatCurrency(row.data_cost, row.currency)}
+        </td>
+
+        {/* TLC (Tỷ lệ chuyển đổi) */}
+        <td className="px-3 py-3 text-right text-gray-700 text-sm">
+          {formatPercentage(row.tlc || (row.initiated_checkout && row.impressions ? (row.initiated_checkout / row.impressions) * 100 : 0))}%
+        </td>
+
+        {/* Checkouts Initiated */}
+        <td className="px-3 py-3 text-right text-gray-700 text-sm">
+          {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
+        </td>
+
+        {/* Purchases */}
+        <td className="px-3 py-3 text-right font-semibold text-purple-600 text-sm">
+          {formatNumber(row.purchases)}
+        </td>
+
+        {/* Purchase Value */}
+        <td className="px-3 py-3 text-right font-semibold text-green-600 text-sm">
+          {formatCurrency(row.purchase_value, row.currency)}
+        </td>
+
+        {/* CPM */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatCurrency(row.cpm || 0, row.currency)}
+        </td>
+
+        {/* Impressions */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatNumber(row.impressions)}
+        </td>
+
+        {/* Reach */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatNumber(row.reach || 0)}
+        </td>
+
+        {/* Frequency */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {(row.frequency || 0).toFixed(2)}
+        </td>
+
+        {/* Clicks */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatNumber(row.clicks || 0)}
+        </td>
+
+        {/* CTR */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatPercentage(row.ctr || 0)}%
+        </td>
+
+        {/* CPC */}
+        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+          {formatCurrency(row.cpc || 0, row.currency)}
         </td>
       </tr>
     );
