@@ -451,11 +451,21 @@ function App() {
           isLoading={loading}
         />
 
-        {/* Table Header with Level Selector */}
-        <div className="bg-white rounded-t-xl shadow-sm border border-gray-200 border-b-0 p-4 mb-0">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">
-              {viewMode === 'ecommerce' ? '🛒 Chi Tiết Quảng Cáo E-Commerce' : '📋 Chi Tiết Quảng Cáo Lead Generation'}
+        {/* Table Header with Level Selector - Improved Layout */}
+        <div className="bg-white rounded-t-xl shadow-sm border border-gray-200 border-b-0 px-6 py-4 mb-0">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              {viewMode === 'ecommerce' ? (
+                <>
+                  <span>🛒</span>
+                  <span>Chi Tiết Quảng Cáo E-Commerce</span>
+                </>
+              ) : (
+                <>
+                  <span>📋</span>
+                  <span>Chi Tiết Quảng Cáo Lead Generation</span>
+                </>
+              )}
             </h2>
             
             {/* Level Tabs */}
