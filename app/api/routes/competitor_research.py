@@ -45,16 +45,7 @@ async def competitor_research_page(
     if not current_user.is_active:
         return HTMLResponse(content=get_account_locked_message())
     
-    # Serve React app (giống như dashboard)
-    import os
-    frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "frontend", "dist", "index.html")
-    
-    if os.path.exists(frontend_dist):
-        with open(frontend_dist, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
-    
-    # Fallback: Trả về HTML cũ nếu React app chưa được build
+    # Serve HTML trực tiếp (vì React app chưa có routing cho /competitor)
     user_info = get_user_dropdown_menu(current_user)
     has_api_key = get_scrapegraphai_api_key(current_user.id, db) is not None
     
@@ -254,7 +245,7 @@ async def competitor_research_page(
                 <p>Scrape và phân tích quảng cáo của đối thủ với ScrapeGraphAI</p>
             </div>
             
-            {f'<div class="alert alert-warning"><strong>⚠️ Lưu ý:</strong> ScrapeGraphAI API key chưa được cấu hình. Vui lòng set biến môi trường SCRAPEGRAPHAI_API_KEY.</div>' if not has_api_key else ''}
+            {f'<div class="alert alert-warning"><strong>⚠️ Lưu ý:</strong> ScrapeGraphAI API key chưa được cấu hình. Vui lòng vào <a href="/settings" style="color: #667eea; text-decoration: underline;">Settings</a> để cấu hình API key.</div>' if not has_api_key else ''}
             
             <div class="card">
                 <h2>🔎 Tìm kiếm quảng cáo theo keyword</h2>
