@@ -271,10 +271,17 @@ const TableRow: React.FC<TableRowProps> = ({
           <div className="font-semibold text-gray-900 truncate" title={row.adset_name}>
             {row.adset_name}
           </div>
-          <div className="text-xs text-gray-500 flex items-center gap-2">
-            <span className="font-medium text-indigo-600">{row.prefix || 'N/A'}</span>
-            <span>•</span>
-            <span className="truncate max-w-[150px]" title={row.account_name}>{row.account_name}</span>
+          <div className="text-xs text-gray-500 space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-indigo-600">{row.prefix || 'N/A'}</span>
+              <span>•</span>
+              <span className="truncate max-w-[120px]" title={row.account_name}>{row.account_name}</span>
+            </div>
+            {row.adset_id && (
+              <div className="text-gray-400">
+                ID: {row.adset_id}
+              </div>
+            )}
           </div>
         </td>
 
@@ -402,10 +409,17 @@ const TableRow: React.FC<TableRowProps> = ({
           <div className="font-semibold text-gray-900 truncate" title={row.adset_name}>
             {row.adset_name}
           </div>
-          <div className="text-xs text-gray-500 flex items-center gap-2">
-            <span className="font-medium text-indigo-600">{row.prefix || 'N/A'}</span>
-            <span>•</span>
-            <span className="truncate max-w-[150px]" title={row.account_name}>{row.account_name}</span>
+          <div className="text-xs text-gray-500 space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-indigo-600">{row.prefix || 'N/A'}</span>
+              <span>•</span>
+              <span className="truncate max-w-[120px]" title={row.account_name}>{row.account_name}</span>
+            </div>
+            {row.adset_id && (
+              <div className="text-gray-400">
+                ID: {row.adset_id}
+              </div>
+            )}
           </div>
         </td>
 

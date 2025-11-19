@@ -224,29 +224,30 @@ export default function BudgetEditor({
             </div>
           </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
 
-        {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            onClick={handleCancel}
-            disabled={saving}
-            className="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
-          >
-            Hủy
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || draftBudget < 0}
-            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Đang lưu...' : 'Lưu'}
-          </button>
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              onClick={handleCancel}
+              disabled={saving}
+              className="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || draftBudget < 0}
+              className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Đang lưu...' : 'Lưu'}
+            </button>
+          </div>
         </div>
       </div>
     </>
