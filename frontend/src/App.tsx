@@ -134,13 +134,14 @@ function App() {
   const handleBudgetUpdate = async (changes: { id: string; new_budget: number }[]) => {
     try {
       setLoading(true);
-      for (const change of changes) {
-        await updateBudget({
-          adset_ids: [change.id],
+      await updateBudget({
+        operations: changes.map(change => ({
+          level: 'ADSET',
+          id: change.id,
           new_budget: change.new_budget,
-          operation: 'set',
-        });
-      }
+        })),
+        view_mode: viewMode,
+      });
       await fetchData();
       setSelectedIds(new Set());
     } catch (err) {
@@ -155,8 +156,11 @@ function App() {
     try {
       setLoading(true);
       await updateStatus({
-        adset_ids: Array.from(selectedIds),
-        action,
+        level: 'ADSET',
+        items: Array.from(selectedIds).map(id => ({
+          id,
+          new_status: action === 'pause' ? 'PAUSED' : 'ACTIVE',
+        })),
       });
       await fetchData();
       setSelectedIds(new Set());

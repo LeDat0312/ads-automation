@@ -98,8 +98,7 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
 
   const handleClearFilters = () => {
     const clearedFilters: DashboardFilters = {
-      date_from: filters.date_from,
-      date_to: filters.date_to,
+      ...filters,
       prefix_filter: undefined,
       search: undefined,
       status_filter: undefined,

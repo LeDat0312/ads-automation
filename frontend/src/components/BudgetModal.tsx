@@ -241,11 +241,11 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply }
                             {selectedAdsets.find(a => a.adset_id === change.id)?.adset_name || change.id}
                           </td>
                           <td className="px-4 py-2 text-right text-gray-600">
-                            {formatCurrency(change.current, change.currency)}
+                            {formatCurrency(change.current, change.currency as any)}
                           </td>
                           <td className="px-4 py-2 text-center text-gray-400">→</td>
                           <td className="px-4 py-2 text-right font-semibold text-indigo-600">
-                            {formatCurrency(change.new, change.currency)}
+                            {formatCurrency(change.new, change.currency as any)}
                           </td>
                         </tr>
                       ))}
