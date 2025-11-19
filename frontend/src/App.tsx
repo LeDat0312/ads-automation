@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import SummaryCards from './components/SummaryCards';
 import AdsetTable from './components/AdsetTable';
-import { getDashboardData, getErrorMessage } from './services/api';
+import FiltersBar from './components/FiltersBar';
+import BudgetModal from './components/BudgetModal';
+import { getDashboardData, getErrorMessage, updateBudget } from './services/api';
 import type {
   ViewMode,
   DashboardFilters,
@@ -20,8 +22,10 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: null, direction: 'desc' });
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
   
   // Filters
+  const today = new Date().toISOString().split('T')[0];
   const [filters, setFilters] = useState<DashboardFilters>({
     view_mode: 'ecommerce',
     level: 'adset',
@@ -29,6 +33,8 @@ function App() {
     page: 1,
     pageSize: 50,
     force_refresh: 0,
+    date_from: today,
+    date_to: today,
   });
 
   // Fetch data from API

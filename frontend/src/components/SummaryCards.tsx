@@ -1,54 +1,179 @@
 import React from 'react';
-import type { SummaryCardsProps } from '@/types/dashboard';
+import type { SummaryMetrics, ViewMode } from '@/types/dashboard';
 import { formatCurrency, formatNumber, formatPercentage } from '@/utils/formatters';
 
-/**
- * Summary Cards Component
- * Hiển thị tóm tắt metrics ở đầu dashboard
- * 
- * Lead view: 6 cards
- *   - Tổng Chi Tiêu
- *   - Tổng DATA (Bình luận + Nhắn tin)
- *   - Bắt Đầu Thanh Toán (Checkouts Initiated)
- *   - Adsets Hoạt Động
- *   - Adsets Đã Tạm Dừng
- *   - Tổng Adsets
- * 
- * E-Commerce view: 6 cards
- *   - Tổng Chi Tiêu
- *   - % ADS
- *   - Doanh Số (Purchase Value)
- *   - Adsets Hoạt Động
- *   - Adsets Đã Tạm Dừng
- *   - Tổng Adsets
- */
-
-interface CardData {
-  title: string;
-  value: string;
-  subtitle?: string;
-  icon: string;
-  colorClass: string;
+interface SummaryCardsProps {
+  summary: SummaryMetrics;
+  viewMode: ViewMode;
+  isLoading: boolean;
 }
 
-export const SummaryCards: React.FC<SummaryCardsProps> = ({ 
-  summary, 
-  viewMode, 
-  currency,
-  loading = false 
-}) => {
-  // Build cards based on view mode
-  const cards: CardData[] = viewMode === 'lead' 
+interface CardConfig {
+  title: string;
+  value: string | number;
+  icon: string;
+  gradient: string;
+  textColor: string;
+  iconBg: string;
+  subtitle?: string;
+}
+
+export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCardsProps) {
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="bg-white rounded-2xl shadow-lg p-6 animate-pulse">
+            <div className="flex items-start justify-between mb-4">
+              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+              <div className="h-12 w-12 bg-gray-200 rounded-xl"></div>
+            </div>
+            <div className="h-10 bg-gray-200 rounded w-3/4 mb-2"></div>
+            <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const currency = summary.currency || 'USD';
+
+  const cards: CardConfig[] = viewMode === 'lead' 
+  const cards: CardConfig[] = viewMode === 'lead'
     ? [
         {
           title: 'Tổng Chi Tiêu',
           value: formatCurrency(summary.totalSpend, currency),
           icon: '💰',
-          colorClass: 'bg-blue-50 border-blue-200',
+          gradient: 'from-blue-500 to-blue-600',
+          textColor: 'text-blue-700',
+          iconBg: 'bg-blue-100',
         },
         {
           title: 'Tổng DATA',
           value: formatNumber(summary.totalData),
+          subtitle: 'Bình luận + Nhắn tin',
+          icon: '💬',
+          gradient: 'from-green-500 to-green-600',
+          textColor: 'text-green-700',
+          iconBg: 'bg-green-100',
+        },
+        {
+          title: 'Bắt Đầu Thanh Toán',
+          value: formatNumber(summary.totalCheckouts || 0),
+          subtitle: 'Checkouts Initiated',
+          icon: '🛒',
+          gradient: 'from-purple-500 to-purple-600',
+          textColor: 'text-purple-700',
+          iconBg: 'bg-purple-100',
+        },
+        {
+          title: 'Adsets Hoạt Động',
+          value: formatNumber(summary.activeAdsets),
+          icon: '✅',
+          gradient: 'from-emerald-500 to-emerald-600',
+          textColor: 'text-emerald-700',
+          iconBg: 'bg-emerald-100',
+        },
+        {
+          title: 'Adsets Tạm Dừng',
+          value: formatNumber(summary.pausedAdsets),
+          icon: '⏸️',
+          gradient: 'from-amber-500 to-amber-600',
+          textColor: 'text-amber-700',
+          iconBg: 'bg-amber-100',
+        },
+        {
+          title: 'Tổng Adsets',
+          value: formatNumber(summary.totalAdsets),
+          icon: '📊',
+          gradient: 'from-indigo-500 to-indigo-600',
+          textColor: 'text-indigo-700',
+          iconBg: 'bg-indigo-100',
+        },
+      ]
+    : [
+        {
+          title: 'Tổng Chi Tiêu',
+          value: formatCurrency(summary.totalSpend, currency),
+          icon: '💰',
+          gradient: 'from-blue-500 to-blue-600',
+          textColor: 'text-blue-700',
+          iconBg: 'bg-blue-100',
+        },
+        {
+          title: '% ADS',
+          value: formatPercentage(summary.adsPercent || 0),
+          subtitle: 'Chi phí quảng cáo / Doanh số',
+          icon: '📈',
+          gradient: 'from-rose-500 to-rose-600',
+          textColor: 'text-rose-700',
+          iconBg: 'bg-rose-100',
+        },
+        {
+          title: 'Doanh Số',
+          value: formatCurrency(summary.purchaseValue || 0, currency),
+          subtitle: 'Purchase Value',
+          icon: '💵',
+          gradient: 'from-green-500 to-green-600',
+          textColor: 'text-green-700',
+          iconBg: 'bg-green-100',
+        },
+        {
+          title: 'Adsets Hoạt Động',
+          value: formatNumber(summary.activeAdsets),
+          icon: '✅',
+          gradient: 'from-emerald-500 to-emerald-600',
+          textColor: 'text-emerald-700',
+          iconBg: 'bg-emerald-100',
+        },
+        {
+          title: 'Adsets Tạm Dừng',
+          value: formatNumber(summary.pausedAdsets),
+          icon: '⏸️',
+          gradient: 'from-amber-500 to-amber-600',
+          textColor: 'text-amber-700',
+          iconBg: 'bg-amber-100',
+        },
+        {
+          title: 'Tổng Adsets',
+          value: formatNumber(summary.totalAdsets),
+          icon: '📊',
+          gradient: 'from-indigo-500 to-indigo-600',
+          textColor: 'text-indigo-700',
+          iconBg: 'bg-indigo-100',
+        },
+      ];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      {cards.map((card, index) => (
+        <div
+          key={index}
+          className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 overflow-hidden group"
+        >
+          <div className={`h-1.5 bg-gradient-to-r ${card.gradient}`}></div>
+          <div className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-1">{card.title}</p>
+                {card.subtitle && (
+                  <p className="text-xs text-gray-400">{card.subtitle}</p>
+                )}
+              </div>
+              <div className={`${card.iconBg} p-3 rounded-xl group-hover:scale-110 transition-transform duration-300`}>
+                <span className="text-2xl">{card.icon}</span>
+              </div>
+            </div>
+            <p className={`text-3xl font-bold ${card.textColor}`}>
+              {card.value}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
           subtitle: 'Bình luận + Nhắn tin',
           icon: '💬',
           colorClass: 'bg-green-50 border-green-200',
