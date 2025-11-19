@@ -94,4 +94,42 @@ tmp/
 docs/_build/
 site/
 
+# Windows system files
+AppData/
+NTUSER.DAT*
+ntuser.*
+*.ini
+*.xml
+*.LOG*
+*.blf
+*.regtrans-ms
+Contacts/
+Desktop/
+Documents/
+Downloads/
+Favorites/
+Links/
+Music/
+Pictures/
+Videos/
+OneDrive/
+Saved Games/
+Searches/
+*.VirtualBox/
+.android/
+.antigravity/
+.cache/
+.claude/
+.cursor/
+.gemini/
+.genlogin/
+.gitconfig
+.lesshst
+.local/
+.pionlogin/
+.prefs/
+.skiko/
+.vscode/
+go/
+funlink.html
 

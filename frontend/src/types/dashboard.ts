@@ -41,8 +41,9 @@ export interface AdsetRow {
   data_cost: number;  // Cost per DATA (spend / results)
   
   // Checkouts
-  checkouts_initiated: number;  // Lượt bắt đầu thanh toán
-  cost_per_checkout_initiated: number;  // Chi phí / Lượt bắt đầu TT
+  initiated_checkout?: number;  // Lượt bắt đầu thanh toán (from backend)
+  checkouts_initiated?: number;  // Alias for initiated_checkout
+  cost_per_checkout_initiated?: number;  // Chi phí / Lượt bắt đầu TT
   
   // Purchases
   purchases: number;  // Lượt mua
@@ -67,29 +68,22 @@ export interface AdsetRow {
 }
 
 // Summary metrics (global, not affected by table filters)
+// Match backend response structure from /dashboard/data endpoint
 export interface SummaryMetrics {
   // Common for both views
   totalSpend: number;
-  totalData: number;  // comments + messages
-  costPerData: number;  // spend / totalData
-  
-  // Checkouts
-  totalCheckouts: number;  // Bắt đầu thanh toán
-  costPerCheckout: number;  // spend / totalCheckouts
-  
-  // Purchases
-  totalPurchases: number;  // Lượt mua
-  costPerPurchase: number;  // spend / totalPurchases
-  purchaseValue: number;  // Giá trị chuyển đổi từ lượt mua
-  
-  // E-Commerce specific
-  adsPercent?: number;  // % ADS (only for ecommerce view)
-  
-  // Adset counts
-  activeAdsets: number;  // is_active_now == true
-  pausedAdsets: number;  // is_active_now == false
+  activeAdsets: number;
+  pausedAdsets: number;
   totalAdsets: number;
-  adsetsRanToday?: number;  // ran_today == true
+  
+  // Lead Generation specific (from backend)
+  totalData?: number;  // comments + messages (Lead only)
+  avgGiaData?: number;  // Chi phí / DATA (Lead only)
+  totalLead?: number;  // Bắt đầu thanh toán (Lead only)
+  
+  // E-Commerce specific (from backend)
+  adsPercent?: number;  // % ADS (Ecommerce only)
+  purchaseValue?: number;  // Giá trị chuyển đổi (Ecommerce only)
   
   // Currency
   currency?: Currency;  // VND or USD
@@ -222,6 +216,10 @@ export interface AdsetTableProps {
   sortConfig?: SortConfig;
   selectedIds?: Set<string>;
   onSelectionChange?: (ids: Set<string>) => void;
+  onStatusToggle?: (row: AdsetRow) => void;
+  onBudgetUpdate?: (row: AdsetRow, newBudget: number) => Promise<void>;
+  onDrillDown?: (level: 'campaign' | 'adset', id: string, name: string) => void;
+  currency?: Currency;
 }
 
 export interface FiltersBarProps {

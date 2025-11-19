@@ -68,12 +68,14 @@ export async function getDashboardData(
 
   // Add optional filters
   if (filters.account_ids) params.account_ids = filters.account_ids;
-  if (filters.prefix) params.prefix = filters.prefix;
+  if (filters.prefix || filters.prefix_filter) params.prefix = filters.prefix || filters.prefix_filter;
   if (filters.status && filters.status !== 'ALL') params.status = filters.status;
+  if (filters.status_filter && filters.status_filter !== 'ALL') params.status = filters.status_filter;
   if (filters.date_from) params.date_from = filters.date_from;
   if (filters.date_to) params.date_to = filters.date_to;
   if (filters.search) params.search = filters.search;
   if (filters.campaign_id) params.campaign_id = filters.campaign_id;
+  if (filters.adset_id) params.adset_id = filters.adset_id;
 
   const response = await api.get<DashboardDataResponse>('/dashboard/data', { params });
   return response.data;
@@ -85,6 +87,19 @@ export async function getDashboardData(
  */
 export async function getSettingsStatus(): Promise<SettingsStatus> {
   const response = await api.get<SettingsStatus>('/dashboard/settings-status');
+  return response.data;
+}
+
+/**
+ * Get filter options (accounts and prefixes)
+ */
+export async function getDashboardFilters(viewMode?: 'ecommerce' | 'lead'): Promise<{
+  accounts: Array<{ id: string; name: string; type: string; enabled: boolean }>;
+  prefixes: Array<{ id: string; name: string; description: string }>;
+}> {
+  const params: any = {};
+  if (viewMode) params.view_mode = viewMode;
+  const response = await api.get('/dashboard/filters', { params });
   return response.data;
 }
 

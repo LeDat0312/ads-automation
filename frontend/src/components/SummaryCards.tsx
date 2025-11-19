@@ -37,10 +37,10 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
 
   const currency = summary.currency || 'VND';
 
-  // ✅ Different cards for Lead vs Ecom per DASHBOARD_SPEC.md
+  // ✅ Different cards for Lead vs Ecom - Match backend response structure
   const cards: CardConfig[] = viewMode === 'lead'
     ? [
-        // Lead View: 6 cards
+        // Lead View: Based on backend response (totalSpend, totalData, avgGiaData, totalLead)
         {
           title: 'Tổng Chi Tiêu',
           value: formatCurrency(summary.totalSpend, currency),
@@ -51,7 +51,7 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
         },
         {
           title: 'Tổng DATA',
-          value: formatNumber(summary.totalData),
+          value: formatNumber(summary.totalData || 0),
           subtitle: 'Bình luận + Nhắn tin',
           icon: '💬',
           gradient: 'from-green-500 to-green-600',
@@ -59,44 +59,26 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
           iconBg: 'bg-green-100',
         },
         {
-          title: 'Chi phí / DATA',
-          value: formatCurrency(summary.costPerData || 0, currency),
-          subtitle: 'Giá mỗi DATA',
+          title: 'Giá DATA TB',
+          value: formatCurrency(summary.avgGiaData || 0, currency),
+          subtitle: 'Chi phí / DATA',
           icon: '📊',
           gradient: 'from-teal-500 to-teal-600',
           textColor: 'text-teal-700',
           iconBg: 'bg-teal-100',
         },
         {
-          title: 'Bắt Đầu Thanh Toán',
-          value: formatNumber(summary.totalCheckouts || 0),
-          subtitle: 'Checkouts Initiated',
+          title: 'Tổng Lead',
+          value: formatNumber(summary.totalLead || 0),
+          subtitle: 'Bắt đầu thanh toán',
           icon: '🛒',
           gradient: 'from-purple-500 to-purple-600',
           textColor: 'text-purple-700',
           iconBg: 'bg-purple-100',
         },
-        {
-          title: 'Lượt Mua',
-          value: formatNumber(summary.totalPurchases || 0),
-          subtitle: 'Purchases',
-          icon: '💵',
-          gradient: 'from-emerald-500 to-emerald-600',
-          textColor: 'text-emerald-700',
-          iconBg: 'bg-emerald-100',
-        },
-        {
-          title: 'Chi phí / Lượt Mua',
-          value: formatCurrency(summary.costPerPurchase || 0, currency),
-          subtitle: 'Cost per Purchase',
-          icon: '📈',
-          gradient: 'from-indigo-500 to-indigo-600',
-          textColor: 'text-indigo-700',
-          iconBg: 'bg-indigo-100',
-        },
       ]
     : [
-        // E-commerce View: 6 cards
+        // E-commerce View: Based on backend response (totalSpend, adsPercent, purchaseValue)
         {
           title: 'Tổng Chi Tiêu',
           value: formatCurrency(summary.totalSpend, currency),
@@ -122,33 +104,6 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
           gradient: 'from-rose-500 to-rose-600',
           textColor: 'text-rose-700',
           iconBg: 'bg-rose-100',
-        },
-        {
-          title: 'Bắt Đầu Thanh Toán',
-          value: formatNumber(summary.totalCheckouts || 0),
-          subtitle: 'Checkouts Initiated',
-          icon: '🛒',
-          gradient: 'from-purple-500 to-purple-600',
-          textColor: 'text-purple-700',
-          iconBg: 'bg-purple-100',
-        },
-        {
-          title: 'Lượt Mua',
-          value: formatNumber(summary.totalPurchases || 0),
-          subtitle: 'Purchases',
-          icon: '🎯',
-          gradient: 'from-emerald-500 to-emerald-600',
-          textColor: 'text-emerald-700',
-          iconBg: 'bg-emerald-100',
-        },
-        {
-          title: 'Chi phí / Lượt Mua',
-          value: formatCurrency(summary.costPerPurchase || 0, currency),
-          subtitle: 'Cost per Purchase',
-          icon: '💎',
-          gradient: 'from-indigo-500 to-indigo-600',
-          textColor: 'text-indigo-700',
-          iconBg: 'bg-indigo-100',
         },
       ];
 

@@ -4,6 +4,8 @@ import SummaryCards from './components/SummaryCards';
 import AdsetTable from './components/AdsetTable';
 import FiltersBar from './components/FiltersBar';
 import BudgetModal from './components/BudgetModal';
+import LevelTabs, { Level } from './components/LevelTabs';
+import PaginationControls from './components/PaginationControls';
 import { getDashboardData, getErrorMessage, updateBudget, updateStatus } from './services/api';
 import type {
   ViewMode,
@@ -28,36 +30,55 @@ function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: null, direction: 'desc' });
   const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [currentLevel, setCurrentLevel] = useState<Level>('adset');
+  const [drillDownPath, setDrillDownPath] = useState<{
+    campaignId?: string;
+    campaignName?: string;
+    adsetId?: string;
+    adsetName?: string;
+  }>({});
   
   // Filters - Initialize from URL params
   const today = new Date().toISOString().split('T')[0];
   const [filters, setFilters] = useState<DashboardFilters>(() => {
     return {
       view_mode: (searchParams.get('view') as ViewMode) || 'ecommerce',
-      level: 'adset',
+      level: (searchParams.get('level') as 'campaign' | 'adset' | 'ad') || 'adset',
       status: 'ALL',
-      page: 1,
-      pageSize: 50,
+      page: parseInt(searchParams.get('page') || '1'),
+      pageSize: parseInt(searchParams.get('pageSize') || '50'),
       force_refresh: 0,
       date_from: searchParams.get('from') || today,
       date_to: searchParams.get('to') || today,
       prefix_filter: searchParams.get('prefix') || undefined,
       status_filter: searchParams.get('status') || undefined,
       search: searchParams.get('search') || undefined,
+      campaign_id: searchParams.get('campaign_id') || undefined,
+      adset_id: searchParams.get('adset_id') || undefined,
     };
   });
+  
+  // Sync currentLevel with filters.level
+  useEffect(() => {
+    setCurrentLevel(filters.level || 'adset');
+  }, [filters.level]);
 
   // ✅ Sync filters to URL when they change
   useEffect(() => {
     const params: Record<string, string> = {
       view: filters.view_mode,
+      level: filters.level || 'adset',
       from: filters.date_from,
       to: filters.date_to,
+      page: String(filters.page || 1),
+      pageSize: String(filters.pageSize || 50),
     };
     
     if (filters.prefix_filter) params.prefix = filters.prefix_filter;
     if (filters.status_filter) params.status = filters.status_filter;
     if (filters.search) params.search = filters.search;
+    if (filters.campaign_id) params.campaign_id = filters.campaign_id;
+    if (filters.adset_id) params.adset_id = filters.adset_id;
     
     setSearchParams(params, { replace: true });
   }, [filters, setSearchParams]);
@@ -130,13 +151,13 @@ function App() {
     }, 1000);
   };
 
-  // Handle budget update
+  // Handle budget update - bulk
   const handleBudgetUpdate = async (changes: { id: string; new_budget: number }[]) => {
     try {
       setLoading(true);
       await updateBudget({
         operations: changes.map(change => ({
-          level: 'ADSET',
+          level: currentLevel === 'campaign' ? 'CAMPAIGN' : 'ADSET',
           id: change.id,
           new_budget: change.new_budget,
         })),
@@ -151,12 +172,110 @@ function App() {
     }
   };
 
-  // Handle status update (pause/resume)
+  // Handle drill-down
+  const handleDrillDown = (level: 'campaign' | 'adset', id: string, name: string) => {
+    if (level === 'campaign') {
+      setFilters(prev => ({
+        ...prev,
+        campaign_id: id,
+        adset_id: undefined,
+        page: 1,
+      }));
+      setDrillDownPath({
+        campaignId: id,
+        campaignName: name,
+      });
+      setCurrentLevel('adset');
+    } else if (level === 'adset') {
+      setFilters(prev => ({
+        ...prev,
+        adset_id: id,
+        page: 1,
+      }));
+      setDrillDownPath(prev => ({
+        ...prev,
+        adsetId: id,
+        adsetName: name,
+      }));
+      setCurrentLevel('ad');
+    }
+  };
+
+  // Handle drill-up
+  const handleDrillUp = () => {
+    if (drillDownPath.adsetId) {
+      // Drill up from ad to adset
+      setFilters(prev => ({
+        ...prev,
+        adset_id: undefined,
+        page: 1,
+      }));
+      setDrillDownPath({
+        campaignId: drillDownPath.campaignId,
+        campaignName: drillDownPath.campaignName,
+      });
+      setCurrentLevel('adset');
+    } else if (drillDownPath.campaignId) {
+      // Drill up from adset to campaign
+      setFilters(prev => ({
+        ...prev,
+        campaign_id: undefined,
+        page: 1,
+      }));
+      setDrillDownPath({});
+      setCurrentLevel('campaign');
+    }
+  };
+
+  // Handle level change
+  const handleLevelChange = (level: Level) => {
+    setCurrentLevel(level);
+    setFilters(prev => ({
+      ...prev,
+      level,
+      campaign_id: undefined,
+      adset_id: undefined,
+      page: 1,
+    }));
+    setDrillDownPath({});
+  };
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setFilters(prev => ({ ...prev, page }));
+  };
+
+  // Handle page size change
+  const handlePageSizeChange = (pageSize: number) => {
+    setFilters(prev => ({ ...prev, pageSize, page: 1 }));
+  };
+
+  // Handle status update (pause/resume) - single row
+  const handleStatusToggle = async (row: any) => {
+    try {
+      setLoading(true);
+      const newStatus = row.delivery === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+      await updateStatus({
+        level: currentLevel.toUpperCase() as 'CAMPAIGN' | 'ADSET' | 'AD',
+        items: [{
+          id: row.id || row.adset_id || row.campaign_id,
+          new_status: newStatus,
+        }],
+      });
+      await fetchData();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle status update (pause/resume) - bulk
   const handleStatusUpdate = async (action: 'pause' | 'resume') => {
     try {
       setLoading(true);
       await updateStatus({
-        level: 'ADSET',
+        level: currentLevel.toUpperCase() as 'CAMPAIGN' | 'ADSET' | 'AD',
         items: Array.from(selectedIds).map(id => ({
           id,
           new_status: action === 'pause' ? 'PAUSED' : 'ACTIVE',
@@ -171,7 +290,32 @@ function App() {
     }
   };
 
-  const selectedAdsets = sortedRows.filter(row => selectedIds.has(row.adset_id));
+  // Handle budget update - single row
+  const handleBudgetUpdateSingle = async (row: any, newBudget: number) => {
+    try {
+      setLoading(true);
+      await updateBudget({
+        operations: [{
+          level: row.budget_level || (currentLevel === 'campaign' ? 'CAMPAIGN' : 'ADSET'),
+          id: row.id || row.adset_id || row.campaign_id,
+          new_budget: newBudget,
+        }],
+        view_mode: viewMode,
+      });
+      // Refresh data after budget update
+      await fetchData();
+    } catch (err) {
+      setError(getErrorMessage(err));
+      throw err; // Re-throw để BudgetEditor hiển thị error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedAdsets = sortedRows.filter(row => {
+    const rowId = row.id || row.adset_id || row.campaign_id || row.ad_id || '';
+    return selectedIds.has(rowId);
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
@@ -219,12 +363,21 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Level Tabs */}
+        <LevelTabs
+          currentLevel={currentLevel}
+          onLevelChange={handleLevelChange}
+          drillDownPath={drillDownPath}
+          onDrillUp={handleDrillUp}
+        />
+
         {/* FiltersBar */}
         <FiltersBar
           filters={filters}
           onFiltersChange={setFilters}
           onRefresh={handleRefresh}
           isLoading={loading}
+          viewMode={viewMode}
         />
 
         {/* Error Message */}
@@ -250,17 +403,14 @@ function App() {
         <SummaryCards
           summary={data?.summary || {
             totalSpend: 0,
-            totalData: 0,
-            costPerData: 0,
-            totalCheckouts: 0,
-            costPerCheckout: 0,
-            totalPurchases: 0,
-            costPerPurchase: 0,
-            purchaseValue: 0,
             activeAdsets: 0,
             pausedAdsets: 0,
             totalAdsets: 0,
+            totalData: 0,
+            avgGiaData: 0,
+            totalLead: 0,
             adsPercent: 0,
+            purchaseValue: 0,
             currency: currency,
           }}
           viewMode={viewMode}
@@ -318,15 +468,20 @@ function App() {
           sortConfig={sortConfig}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
+          onStatusToggle={handleStatusToggle}
+          onBudgetUpdate={handleBudgetUpdateSingle}
+          onDrillDown={handleDrillDown}
+          currency={currency}
         />
 
-        {/* Pagination Info */}
+        {/* Pagination Controls */}
         {data?.details.pagination && !loading && (
-          <div className="mt-4 text-center text-sm text-gray-600">
-            Hiển thị{' '}
-            <span className="font-medium">{data.details.pagination.total_rows}</span>{' '}
-            nhóm quảng cáo
-          </div>
+          <PaginationControls
+            pagination={data.details.pagination}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            loading={loading}
+          />
         )}
       </main>
 

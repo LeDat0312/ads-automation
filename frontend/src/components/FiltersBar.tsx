@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { DashboardFilters } from '@/types/dashboard';
+import { getDashboardFilters } from '@/services/api';
 
 interface FiltersBarProps {
   filters: DashboardFilters;
   onFiltersChange: (filters: DashboardFilters) => void;
   onRefresh: () => void;
   isLoading: boolean;
+  viewMode?: 'ecommerce' | 'lead';
 }
 
 interface DatePreset {
@@ -71,10 +73,26 @@ const datePresets: DatePreset[] = [
   },
 ];
 
-export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoading }: FiltersBarProps) {
+export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoading, viewMode = 'ecommerce' }: FiltersBarProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [tempFilters, setTempFilters] = useState(filters);
+  const [filterOptions, setFilterOptions] = useState<{
+    accounts: Array<{ id: string; name: string; type: string }>;
+    prefixes: Array<{ id: string; name: string }>;
+  }>({ accounts: [], prefixes: [] });
+
+  // Load filter options
+  useEffect(() => {
+    getDashboardFilters(viewMode).then((data) => {
+      setFilterOptions({
+        accounts: data.accounts,
+        prefixes: data.prefixes,
+      });
+    }).catch((err) => {
+      console.error('Error loading filter options:', err);
+    });
+  }, [viewMode]);
 
   const handleDatePresetClick = (preset: DatePreset) => {
     const dates = preset.getDates();
@@ -99,15 +117,19 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
   const handleClearFilters = () => {
     const clearedFilters: DashboardFilters = {
       ...filters,
+      account_ids: undefined,
       prefix_filter: undefined,
+      prefix: undefined,
       search: undefined,
       status_filter: undefined,
+      status: 'ALL',
     };
     setTempFilters(clearedFilters);
     onFiltersChange(clearedFilters);
   };
 
   const activeFiltersCount = [
+    filters.account_ids,
     filters.prefix_filter,
     filters.search,
     filters.status_filter,
@@ -208,6 +230,17 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
             </button>
 
             {/* Active Filters Tags */}
+            {filters.account_ids && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md text-sm">
+                Tài khoản: {filterOptions.accounts.find(a => a.id === filters.account_ids)?.name || filters.account_ids}
+                <button
+                  onClick={() => onFiltersChange({ ...filters, account_ids: undefined })}
+                  className="hover:text-indigo-900"
+                >
+                  ×
+                </button>
+              </span>
+            )}
             {filters.prefix_filter && (
               <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md text-sm">
                 Prefix: {filters.prefix_filter}
@@ -369,18 +402,42 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
                 </select>
               </div>
 
+              {/* Account Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tài khoản
+                </label>
+                <select
+                  value={tempFilters.account_ids || ''}
+                  onChange={(e) => setTempFilters({ ...tempFilters, account_ids: e.target.value || undefined })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Tất cả tài khoản</option>
+                  {filterOptions.accounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} ({acc.type})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Prefix Filter */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Prefix
                 </label>
-                <input
-                  type="text"
+                <select
                   value={tempFilters.prefix_filter || ''}
                   onChange={(e) => setTempFilters({ ...tempFilters, prefix_filter: e.target.value || undefined })}
-                  placeholder="Nhập prefix..."
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                >
+                  <option value="">Tất cả prefix</option>
+                  {filterOptions.prefixes.map((prefix) => (
+                    <option key={prefix.id} value={prefix.id}>
+                      {prefix.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { AdsetTableProps, AdsetRow, SortableColumn } from '@/types/dashboard';
 import { formatCurrency, formatNumber, formatPercentage } from '@/utils/formatters';
+import BudgetEditor from './BudgetEditor';
 
 export const AdsetTable: React.FC<AdsetTableProps> = ({
   rows,
@@ -10,7 +11,13 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   sortConfig,
   selectedIds = new Set(),
   onSelectionChange,
+  onStatusToggle,
+  onBudgetUpdate,
+  onDrillDown,
+  currency = 'VND',
 }) => {
+  const [budgetEditorRow, setBudgetEditorRow] = useState<AdsetRow | null>(null);
+
   // ✅ COMPLETELY DIFFERENT columns for Lead vs Ecom (per DASHBOARD_SPEC.md)
   const columns = useMemo(() => {
     if (viewMode === 'lead') {
@@ -51,18 +58,19 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
     if (selectedIds.size === rows.length) {
       onSelectionChange(new Set());
     } else {
-      onSelectionChange(new Set(rows.map(r => r.adset_id)));
+      // Use id field (which can be campaign_id, adset_id, or ad_id depending on level)
+      onSelectionChange(new Set(rows.map(r => r.id || r.adset_id || r.campaign_id || r.ad_id || '').filter(Boolean)));
     }
   };
 
-  const handleSelectRow = (adsetId: string) => {
+  const handleSelectRow = (rowId: string) => {
     if (!onSelectionChange) return;
     
     const newSelection = new Set(selectedIds);
-    if (newSelection.has(adsetId)) {
-      newSelection.delete(adsetId);
+    if (newSelection.has(rowId)) {
+      newSelection.delete(rowId);
     } else {
-      newSelection.add(adsetId);
+      newSelection.add(rowId);
     }
     onSelectionChange(newSelection);
   };
@@ -145,18 +153,39 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {rows.map((row) => (
-              <TableRow
-                key={row.adset_id}
-                row={row}
-                viewMode={viewMode}
-                isSelected={selectedIds.has(row.adset_id)}
-                onSelect={() => handleSelectRow(row.adset_id)}
-              />
-            ))}
+            {rows.map((row) => {
+              const rowId = row.id || row.adset_id || row.campaign_id || row.ad_id || '';
+              return (
+                <TableRow
+                  key={rowId}
+                  row={row}
+                  viewMode={viewMode}
+                  isSelected={selectedIds.has(rowId)}
+                  onSelect={() => handleSelectRow(rowId)}
+                  onStatusToggle={onStatusToggle}
+                  onBudgetUpdate={onBudgetUpdate}
+                  onDrillDown={onDrillDown}
+                  currency={currency}
+                />
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {/* Budget Editor Popup */}
+      {budgetEditorRow && onBudgetUpdate && (
+        <BudgetEditor
+          row={budgetEditorRow}
+          isOpen={!!budgetEditorRow}
+          onClose={() => setBudgetEditorRow(null)}
+          onSave={async (newBudget) => {
+            await onBudgetUpdate(budgetEditorRow, newBudget);
+            setBudgetEditorRow(null);
+          }}
+          currency={currency}
+        />
+      )}
     </div>
   );
 };
@@ -166,9 +195,22 @@ interface TableRowProps {
   viewMode: 'lead' | 'ecommerce';
   isSelected: boolean;
   onSelect: () => void;
+  onStatusToggle?: (row: AdsetRow) => void;
+  onBudgetUpdate?: (row: AdsetRow, newBudget: number) => Promise<void>;
+  onDrillDown?: (level: 'campaign' | 'adset', id: string, name: string) => void;
+  currency?: string;
 }
 
-const TableRow: React.FC<TableRowProps> = ({ row, viewMode, isSelected, onSelect }) => {
+const TableRow: React.FC<TableRowProps> = ({ 
+  row, 
+  viewMode, 
+  isSelected, 
+  onSelect,
+  onStatusToggle,
+  onBudgetUpdate,
+  onDrillDown,
+  currency = 'VND',
+}) => {
   const statusIcon = row.is_active_now ? '✅' : '⏸️';
   const statusColor = row.is_active_now ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
 
@@ -186,14 +228,23 @@ const TableRow: React.FC<TableRowProps> = ({ row, viewMode, isSelected, onSelect
           />
         </td>
 
-        {/* Status - Fixed */}
+        {/* Status - Fixed with Toggle */}
         <td className="px-4 py-3 sticky z-10 bg-white" style={{ left: '3rem' }}>
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
-            {statusIcon}
-          </span>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={row.delivery === 'ACTIVE'}
+              onChange={() => onStatusToggle?.(row)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+            <span className="ml-2 text-xs font-medium text-gray-700">
+              {row.delivery === 'ACTIVE' ? 'Bật' : 'Tắt'}
+            </span>
+          </label>
         </td>
 
-        {/* Adset Name - Fixed */}
+        {/* Adset Name - Fixed with Drill-down */}
         <td className="px-4 py-3 sticky z-10 bg-white" style={{ left: '7rem' }}>
           <div className="font-semibold text-gray-900 truncate" title={row.adset_name}>
             {row.adset_name}
@@ -201,13 +252,49 @@ const TableRow: React.FC<TableRowProps> = ({ row, viewMode, isSelected, onSelect
           <div className="text-xs text-gray-500 flex items-center gap-2">
             <span className="font-medium text-indigo-600">{row.prefix || 'N/A'}</span>
             <span>•</span>
-            <span className="truncate max-w-[150px]" title={row.account_name}>{row.account_name}</span>
+            {row.campaign_name && onDrillDown ? (
+              <button
+                onClick={() => onDrillDown('campaign', row.campaign_id, row.campaign_name)}
+                className="text-indigo-600 hover:text-indigo-800 hover:underline truncate max-w-[150px]"
+                title={`Click để xem chi tiết chiến dịch: ${row.campaign_name}`}
+              >
+                {row.campaign_name}
+              </button>
+            ) : (
+              <span className="truncate max-w-[150px]" title={row.account_name}>{row.account_name}</span>
+            )}
           </div>
         </td>
 
-        {/* Budget */}
-        <td className="px-4 py-3 text-right text-gray-700">
-          {formatCurrency(row.budget, row.currency)}
+        {/* Budget - Clickable */}
+        <td className="px-4 py-3 text-right">
+          <button
+            onClick={() => {
+              const canEdit = (viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
+                             (viewMode === 'lead' && row.budget_level === 'ADSET');
+              if (canEdit) {
+                setBudgetEditorRow(row);
+              }
+            }}
+            className={`
+              text-gray-700 hover:text-indigo-600 hover:underline transition-colors
+              ${(viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
+                (viewMode === 'lead' && row.budget_level === 'ADSET')
+                ? 'cursor-pointer font-medium'
+                : 'cursor-not-allowed opacity-60'
+              }
+            `}
+            title={
+              (viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
+              (viewMode === 'lead' && row.budget_level === 'ADSET')
+                ? 'Click để chỉnh sửa ngân sách'
+                : row.budget_level === 'CAMPAIGN'
+                ? 'Ngân sách ở cấp Chiến dịch'
+                : 'Ngân sách ở cấp Nhóm quảng cáo'
+            }
+          >
+            {formatCurrency(row.budget, row.currency)}
+          </button>
         </td>
 
         {/* Spend */}
@@ -227,7 +314,7 @@ const TableRow: React.FC<TableRowProps> = ({ row, viewMode, isSelected, onSelect
 
         {/* Checkouts Initiated */}
         <td className="px-4 py-3 text-right text-gray-700">
-          {formatNumber(row.checkouts_initiated)}
+          {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
         {/* Purchases */}
@@ -279,9 +366,35 @@ const TableRow: React.FC<TableRowProps> = ({ row, viewMode, isSelected, onSelect
           </div>
         </td>
 
-        {/* Budget */}
-        <td className="px-4 py-3 text-right text-gray-700">
-          {formatCurrency(row.budget, row.currency)}
+        {/* Budget - Clickable */}
+        <td className="px-4 py-3 text-right">
+          <button
+            onClick={() => {
+              const canEdit = (viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
+                             (viewMode === 'lead' && row.budget_level === 'ADSET');
+              if (canEdit) {
+                setBudgetEditorRow(row);
+              }
+            }}
+            className={`
+              text-gray-700 hover:text-indigo-600 hover:underline transition-colors
+              ${(viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
+                (viewMode === 'lead' && row.budget_level === 'ADSET')
+                ? 'cursor-pointer font-medium'
+                : 'cursor-not-allowed opacity-60'
+              }
+            `}
+            title={
+              (viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
+              (viewMode === 'lead' && row.budget_level === 'ADSET')
+                ? 'Click để chỉnh sửa ngân sách'
+                : row.budget_level === 'CAMPAIGN'
+                ? 'Ngân sách ở cấp Chiến dịch'
+                : 'Ngân sách ở cấp Nhóm quảng cáo'
+            }
+          >
+            {formatCurrency(row.budget, row.currency)}
+          </button>
         </td>
 
         {/* Spend */}
@@ -301,7 +414,7 @@ const TableRow: React.FC<TableRowProps> = ({ row, viewMode, isSelected, onSelect
 
         {/* Checkouts Initiated */}
         <td className="px-4 py-3 text-right text-gray-700">
-          {formatNumber(row.checkouts_initiated)}
+          {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
         {/* Purchases */}
