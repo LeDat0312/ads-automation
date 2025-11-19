@@ -9,7 +9,7 @@ import type {
 } from '@/types/dashboard';
 
 // ⚠️ MOCK MODE: Set to true to use mock data without backend
-const USE_MOCK_DATA = false; // Change to true to test without backend
+const USE_MOCK_DATA = true; // Change to true to test without backend
 
 // Create axios instance with base configuration
 const api = axios.create({

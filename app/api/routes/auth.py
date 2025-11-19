@@ -59,16 +59,19 @@ def get_current_user_optional(
 
 
 @router.get("/captcha")
-async def get_captcha(response: Response):
+async def get_captcha():
     """Generate CAPTCHA image"""
     text = generate_captcha_text()
     image_bytes = generate_captcha_image(text)
     
-    # Create hash and set cookie
+    # Create hash
     captcha_hash = hash_captcha(text, settings.SECRET_KEY)
     
-    # Return image
-    response = StreamingResponse(image_bytes, media_type="image/png")
+    # Read bytes from BytesIO
+    content = image_bytes.read()
+    
+    # Return image with cookie (use Response instead of StreamingResponse)
+    response = Response(content=content, media_type="image/png")
     response.set_cookie(
         key="captcha_hash",
         value=captcha_hash,
