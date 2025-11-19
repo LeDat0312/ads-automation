@@ -3,7 +3,7 @@ import SummaryCards from './components/SummaryCards';
 import AdsetTable from './components/AdsetTable';
 import FiltersBar from './components/FiltersBar';
 import BudgetModal from './components/BudgetModal';
-import { getDashboardData, getErrorMessage, updateBudget } from './services/api';
+import { getDashboardData, getErrorMessage, updateBudget, updateStatus } from './services/api';
 import type {
   ViewMode,
   DashboardFilters,
@@ -100,61 +100,88 @@ function App() {
   // Handle force refresh
   const handleRefresh = () => {
     setFilters(prev => ({ ...prev, force_refresh: 1 }));
-    // Reset after fetch
     setTimeout(() => {
       setFilters(prev => ({ ...prev, force_refresh: 0 }));
     }, 1000);
   };
 
+  // Handle budget update
+  const handleBudgetUpdate = async (changes: { id: string; new_budget: number }[]) => {
+    try {
+      setLoading(true);
+      for (const change of changes) {
+        await updateBudget({
+          adset_ids: [change.id],
+          new_budget: change.new_budget,
+          operation: 'set',
+        });
+      }
+      await fetchData();
+      setSelectedIds(new Set());
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle status update (pause/resume)
+  const handleStatusUpdate = async (action: 'pause' | 'resume') => {
+    try {
+      setLoading(true);
+      await updateStatus({
+        adset_ids: Array.from(selectedIds),
+        action,
+      });
+      await fetchData();
+      setSelectedIds(new Set());
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedAdsets = sortedRows.filter(row => selectedIds.has(row.adset_id));
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">
-              📊 Dashboard Quảng Cáo Facebook
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                📊 Dashboard Quảng Cáo Facebook
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">Quản lý và theo dõi chiến dịch quảng cáo của bạn</p>
+            </div>
             
             {/* View Mode Toggle */}
-            <div className="flex items-center gap-4">
-              <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
-                <button
-                  onClick={() => handleViewModeChange('lead')}
-                  className={`
-                    px-4 py-2 rounded-md text-sm font-medium transition-colors
-                    ${viewMode === 'lead'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-700 hover:bg-gray-50'
-                    }
-                  `}
-                >
-                  📋 Lead Generation
-                </button>
-                <button
-                  onClick={() => handleViewModeChange('ecommerce')}
-                  className={`
-                    px-4 py-2 rounded-md text-sm font-medium transition-colors
-                    ${viewMode === 'ecommerce'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-700 hover:bg-gray-50'
-                    }
-                  `}
-                >
-                  🛒 E-Commerce
-                </button>
-              </div>
-
+            <div className="inline-flex rounded-xl border-2 border-gray-200 bg-white p-1 shadow-sm">
               <button
-                onClick={handleRefresh}
-                disabled={loading}
-                className="
-                  px-4 py-2 bg-blue-600 text-white rounded-lg
-                  hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed
-                  transition-colors font-medium
-                "
+                onClick={() => handleViewModeChange('lead')}
+                className={`
+                  px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200
+                  ${viewMode === 'lead'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
+                    : 'text-gray-700 hover:bg-gray-50'
+                  }
+                `}
               >
-                {loading ? '⏳ Đang tải...' : '🔄 Làm mới'}
+                📋 Lead Generation
+              </button>
+              <button
+                onClick={() => handleViewModeChange('ecommerce')}
+                className={`
+                  px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200
+                  ${viewMode === 'ecommerce'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
+                    : 'text-gray-700 hover:bg-gray-50'
+                  }
+                `}
+              >
+                🛒 E-Commerce
               </button>
             </div>
           </div>
@@ -163,15 +190,29 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* FiltersBar */}
+        <FiltersBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          onRefresh={handleRefresh}
+          isLoading={loading}
+        />
+
         {/* Error Message */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-red-600 text-xl">⚠️</span>
+          <div className="mb-6 bg-red-50 border-2 border-red-200 rounded-xl p-4 shadow-lg animate-shake">
+            <div className="flex items-center gap-3">
+              <span className="text-red-600 text-2xl">⚠️</span>
               <div>
-                <h3 className="text-red-900 font-medium">Lỗi</h3>
+                <h3 className="text-red-900 font-semibold">Lỗi</h3>
                 <p className="text-red-700 text-sm">{error}</p>
               </div>
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto text-red-400 hover:text-red-600"
+              >
+                ✕
+              </button>
             </div>
           </div>
         )}
@@ -190,32 +231,47 @@ function App() {
             activeAdsets: 0,
             pausedAdsets: 0,
             totalAdsets: 0,
+            adsPercent: 0,
+            currency: currency,
           }}
           viewMode={viewMode}
-          currency={currency}
-          loading={loading}
+          isLoading={loading}
         />
 
         {/* Selected Items Actions */}
         {selectedIds.size > 0 && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="mb-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-4 shadow-lg">
             <div className="flex items-center justify-between">
-              <span className="text-blue-900 font-medium">
-                Đã chọn {selectedIds.size} nhóm quảng cáo
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">✅</span>
+                <span className="text-indigo-900 font-semibold text-lg">
+                  Đã chọn {selectedIds.size} nhóm quảng cáo
+                </span>
+              </div>
               <div className="flex gap-2">
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <button
+                  onClick={() => setShowBudgetModal(true)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg font-medium"
+                >
                   💰 Điều chỉnh ngân sách
                 </button>
-                <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                <button
+                  onClick={() => handleStatusUpdate('resume')}
+                  disabled={loading}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all shadow-md hover:shadow-lg font-medium disabled:opacity-50"
+                >
                   ▶️ Kích hoạt
                 </button>
-                <button className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors">
+                <button
+                  onClick={() => handleStatusUpdate('pause')}
+                  disabled={loading}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all shadow-md hover:shadow-lg font-medium disabled:opacity-50"
+                >
                   ⏸️ Tạm dừng
                 </button>
                 <button 
                   onClick={() => setSelectedIds(new Set())}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                 >
                   ✖️ Bỏ chọn
                 </button>
@@ -251,6 +307,14 @@ function App() {
           <p>Dashboard Quảng Cáo Facebook • Powered by React + Vite + FastAPI</p>
         </div>
       </footer>
+
+      {/* Budget Modal */}
+      <BudgetModal
+        isOpen={showBudgetModal}
+        onClose={() => setShowBudgetModal(false)}
+        selectedAdsets={selectedAdsets}
+        onApply={handleBudgetUpdate}
+      />
     </div>
   );
 }
