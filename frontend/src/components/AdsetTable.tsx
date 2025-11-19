@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { AdsetTableProps, AdsetRow, SortableColumn } from '@/types/dashboard';
+import type { AdsetTableProps, AdsetRow, SortableColumn, ViewMode } from '@/types/dashboard';
 import { formatCurrency, formatNumber, formatPercentage } from '@/utils/formatters';
 import BudgetEditor from './BudgetEditor';
 
@@ -163,9 +163,8 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                   isSelected={selectedIds.has(rowId)}
                   onSelect={() => handleSelectRow(rowId)}
                   onStatusToggle={onStatusToggle}
-                  onBudgetUpdate={onBudgetUpdate}
                   onDrillDown={onDrillDown}
-                  currency={currency}
+                  onOpenBudgetEditor={setBudgetEditorRow}
                 />
               );
             })}
@@ -192,13 +191,12 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
 
 interface TableRowProps {
   row: AdsetRow;
-  viewMode: 'lead' | 'ecommerce';
+  viewMode: ViewMode;
   isSelected: boolean;
   onSelect: () => void;
   onStatusToggle?: (row: AdsetRow) => void;
-  onBudgetUpdate?: (row: AdsetRow, newBudget: number) => Promise<void>;
   onDrillDown?: (level: 'campaign' | 'adset', id: string, name: string) => void;
-  currency?: string;
+  onOpenBudgetEditor?: (row: AdsetRow) => void;
 }
 
 const TableRow: React.FC<TableRowProps> = ({ 
@@ -207,9 +205,8 @@ const TableRow: React.FC<TableRowProps> = ({
   isSelected, 
   onSelect,
   onStatusToggle,
-  onBudgetUpdate,
   onDrillDown,
-  currency = 'VND',
+  onOpenBudgetEditor,
 }) => {
   const statusIcon = row.is_active_now ? '✅' : '⏸️';
   const statusColor = row.is_active_now ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
@@ -270,27 +267,23 @@ const TableRow: React.FC<TableRowProps> = ({
         <td className="px-4 py-3 text-right">
           <button
             onClick={() => {
-              const canEdit = (viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
-                             (viewMode === 'lead' && row.budget_level === 'ADSET');
-              if (canEdit) {
-                setBudgetEditorRow(row);
+              // In lead view, can edit if budget_level is ADSET
+              const canEdit = row.budget_level === 'ADSET';
+              if (canEdit && onOpenBudgetEditor) {
+                onOpenBudgetEditor(row);
               }
             }}
             className={`
               text-gray-700 hover:text-indigo-600 hover:underline transition-colors
-              ${(viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
-                (viewMode === 'lead' && row.budget_level === 'ADSET')
+              ${row.budget_level === 'ADSET'
                 ? 'cursor-pointer font-medium'
                 : 'cursor-not-allowed opacity-60'
               }
             `}
             title={
-              (viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
-              (viewMode === 'lead' && row.budget_level === 'ADSET')
+              row.budget_level === 'ADSET'
                 ? 'Click để chỉnh sửa ngân sách'
-                : row.budget_level === 'CAMPAIGN'
-                ? 'Ngân sách ở cấp Chiến dịch'
-                : 'Ngân sách ở cấp Nhóm quảng cáo'
+                : 'Ngân sách ở cấp Chiến dịch'
             }
           >
             {formatCurrency(row.budget, row.currency)}
@@ -370,26 +363,22 @@ const TableRow: React.FC<TableRowProps> = ({
         <td className="px-4 py-3 text-right">
           <button
             onClick={() => {
-              const canEdit = (viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
-                             (viewMode === 'lead' && row.budget_level === 'ADSET');
-              if (canEdit) {
-                setBudgetEditorRow(row);
+              // In ecommerce view, can edit if budget_level is CAMPAIGN
+              const canEdit = row.budget_level === 'CAMPAIGN';
+              if (canEdit && onOpenBudgetEditor) {
+                onOpenBudgetEditor(row);
               }
             }}
             className={`
               text-gray-700 hover:text-indigo-600 hover:underline transition-colors
-              ${(viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
-                (viewMode === 'lead' && row.budget_level === 'ADSET')
+              ${row.budget_level === 'CAMPAIGN'
                 ? 'cursor-pointer font-medium'
                 : 'cursor-not-allowed opacity-60'
               }
             `}
             title={
-              (viewMode === 'ecommerce' && row.budget_level === 'CAMPAIGN') ||
-              (viewMode === 'lead' && row.budget_level === 'ADSET')
+              row.budget_level === 'CAMPAIGN'
                 ? 'Click để chỉnh sửa ngân sách'
-                : row.budget_level === 'CAMPAIGN'
-                ? 'Ngân sách ở cấp Chiến dịch'
                 : 'Ngân sách ở cấp Nhóm quảng cáo'
             }
           >

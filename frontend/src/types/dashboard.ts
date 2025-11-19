@@ -10,10 +10,12 @@ export type Currency = 'VND' | 'USD';
 // Adset row data from backend
 export interface AdsetRow {
   // IDs
+  id?: string;  // Generic ID (can be campaign_id, adset_id, or ad_id depending on level)
   adset_id: string;
   adset_name: string;
   campaign_id: string;
   campaign_name: string;
+  ad_id?: string;  // Ad ID (when level is 'ad')
   account_id: string;
   account_name?: string;  // Account name for display
   prefix?: string;
@@ -127,6 +129,7 @@ export interface DashboardFilters {
   date_to: string;    // YYYY-MM-DD (required for URL sync)
   search?: string;
   campaign_id?: string;
+  adset_id?: string;  // For drill-down filtering
   page?: number;
   pageSize?: number;
   force_refresh?: 0 | 1;  // 0=cache, 1=refresh
