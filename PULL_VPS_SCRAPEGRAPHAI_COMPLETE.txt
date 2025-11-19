@@ -1,0 +1,176 @@
+# 🔍 Hướng dẫn Pull Code ScrapeGraphAI về VPS - HOÀN CHỈNH
+
+## 📋 Script tự động (Copy toàn bộ và chạy)
+
+```bash
+cd ~/ads-automation && \
+git pull origin main && \
+source venv/bin/activate && \
+export PYTHONPATH=/home/adsuser/ads-automation:$PYTHONPATH && \
+python migrations/add_scrapegraphai_api_key.py && \
+sudo supervisorctl reread && \
+sudo supervisorctl update && \
+sudo supervisorctl restart ads-automation && \
+sudo supervisorctl restart ads-worker && \
+sleep 3 && \
+sudo supervisorctl status && \
+sudo tail -10 /var/log/ads-automation.log
+```
+
+## 📝 Hoặc chạy script file:
+
+```bash
+chmod +x PULL_VPS_SCRAPEGRAPHAI_COMPLETE.sh
+./PULL_VPS_SCRAPEGRAPHAI_COMPLETE.sh
+```
+
+## 🔧 Các bước chi tiết
+
+### 1. SSH vào VPS
+```bash
+ssh adsuser@your-vps-ip
+cd ~/ads-automation
+```
+
+### 2. Pull code mới nhất
+```bash
+git pull origin main
+```
+
+Nếu có conflict:
+```bash
+git fetch origin
+git reset --hard origin/main
+```
+
+### 3. Chạy migration để thêm columns mới vào database
+```bash
+source venv/bin/activate
+export PYTHONPATH=/home/adsuser/ads-automation:$PYTHONPATH
+python migrations/add_scrapegraphai_api_key.py
+```
+
+**Lưu ý:** 
+- Nếu migration báo lỗi "columns already exist", có thể bỏ qua
+- PYTHONPATH cần thiết để script có thể import `app` module
+
+### 4. Restart services (QUAN TRỌNG)
+```bash
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl restart ads-automation
+sudo supervisorctl restart ads-worker
+```
+
+### 5. Kiểm tra status và logs
+```bash
+# Kiểm tra status
+sudo supervisorctl status
+
+# Xem logs real-time (10 dòng cuối)
+sudo tail -10 /var/log/ads-automation.log
+
+# Xem logs real-time (theo dõi liên tục)
+sudo tail -f /var/log/ads-automation.log
+```
+
+## ✅ Kiểm tra sau khi deploy
+
+1. **Truy cập:** `https://updatemetaads.site/`
+   - Kiểm tra có card "🔍 Nghiên Cứu Đối Thủ" không
+
+2. **Truy cập:** `https://updatemetaads.site/settings`
+   - Kiểm tra có section "ScrapeGraphAI API Key" không
+   - Thử lưu API key và test
+
+3. **Truy cập:** `https://updatemetaads.site/competitor`
+   - Kiểm tra trang nghiên cứu đối thủ có hoạt động không
+
+## 🔧 Nếu gặp lỗi
+
+### Lỗi migration "ModuleNotFoundError: No module named 'app'":
+```bash
+# Đảm bảo set PYTHONPATH
+export PYTHONPATH=/home/adsuser/ads-automation:$PYTHONPATH
+python migrations/add_scrapegraphai_api_key.py
+```
+
+### Lỗi migration "columns already exist":
+```bash
+# Có thể bỏ qua, columns đã tồn tại
+# Hoặc chạy thủ công bằng psql:
+psql -U your_user -d your_db << EOF
+ALTER TABLE user_settings 
+ADD COLUMN IF NOT EXISTS scrapegraphai_api_key_encrypted TEXT,
+ADD COLUMN IF NOT EXISTS scrapegraphai_api_key_status VARCHAR(50) DEFAULT 'NOT_SET',
+ADD COLUMN IF NOT EXISTS scrapegraphai_api_key_last_checked TIMESTAMP;
+EOF
+```
+
+### Lỗi service không start:
+```bash
+# Xem log chi tiết
+sudo tail -100 /var/log/ads-automation.log
+
+# Hoặc xem log systemd (nếu dùng systemd thay vì supervisor)
+journalctl -u ads-automation -n 50 --no-pager
+```
+
+### Service không restart được:
+```bash
+# Kiểm tra xem supervisor có đang chạy không
+sudo systemctl status supervisor
+
+# Nếu supervisor không chạy, start nó
+sudo systemctl start supervisor
+sudo systemctl enable supervisor
+
+# Sau đó restart services
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl restart ads-automation
+sudo supervisorctl restart ads-worker
+```
+
+## 📊 Kiểm tra logs chi tiết
+
+### Xem logs real-time:
+```bash
+sudo tail -f /var/log/ads-automation.log
+```
+
+### Xem logs worker:
+```bash
+sudo tail -f /var/log/ads-worker.log
+```
+
+### Xem logs supervisor:
+```bash
+sudo tail -f /var/log/supervisor/supervisord.log
+```
+
+### Xem tất cả logs gần đây:
+```bash
+sudo tail -50 /var/log/ads-automation.log
+sudo tail -50 /var/log/ads-worker.log
+```
+
+## 🔄 Restart nhanh (nếu chỉ cần restart services)
+
+```bash
+sudo supervisorctl reread && \
+sudo supervisorctl update && \
+sudo supervisorctl restart ads-automation && \
+sudo supervisorctl restart ads-worker && \
+sleep 3 && \
+sudo supervisorctl status && \
+sudo tail -f /var/log/ads-automation.log
+```
+
+## ⚠️ Lưu ý quan trọng
+
+1. **PYTHONPATH**: Luôn set PYTHONPATH trước khi chạy migration script
+2. **Supervisor**: Đảm bảo supervisor service đang chạy
+3. **Logs**: Kiểm tra logs sau mỗi lần restart để đảm bảo không có lỗi
+4. **Database**: Migration chỉ cần chạy 1 lần, các lần sau có thể bỏ qua
+
