@@ -26,27 +26,27 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
       {/* Card 1: TỔNG CHI TIÊU - Always show */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center text-white text-xl">💰</div>
         </div>
-        <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG CHI TIÊU</h3>
-        <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.totalSpend, currency)}</p>
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">TỔNG CHI TIÊU</h3>
+        <p className="text-2xl font-extrabold text-gray-900">{formatCurrency(summary.totalSpend, currency)}</p>
       </div>
 
       {viewMode === 'ecommerce' ? (
         <>
           {/* E-COMMERCE VIEW */}
           {/* Card 2: % ADS */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-10 h-10 rounded-lg bg-red-500 flex items-center justify-center text-white text-xl">📊</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">% ADS</h3>
-            <p className="text-2xl font-bold text-gray-900">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">% ADS</h3>
+            <p className="text-2xl font-extrabold text-gray-900">
               {summary.adsPercent !== undefined ? `${summary.adsPercent.toFixed(2)}%` : '0.00%'}
             </p>
-            <p className="text-xs text-gray-500 mt-1">Chi tiêu / Giá trị chuyển đổi</p>
+            <p className="text-xs text-gray-400 mt-1.5">Chi tiêu / Giá trị chuyển đổi</p>
           </div>
 
           {/* Card 3: GIÁ TRỊ CHUYỂN ĐỔI */}
