@@ -8,6 +8,9 @@ import type {
   StatusUpdateRequest,
 } from '@/types/dashboard';
 
+// ⚠️ MOCK MODE: Set to true to use mock data without backend
+const USE_MOCK_DATA = false; // Change to true to test without backend
+
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
@@ -58,6 +61,13 @@ api.interceptors.response.use(
 export async function getDashboardData(
   filters: DashboardFilters
 ): Promise<DashboardDataResponse> {
+  // 🎭 MOCK MODE: Return mock data if enabled
+  if (USE_MOCK_DATA) {
+    const { mockLeadDashboardData, mockEcommerceDashboardData } = await import('./mockData');
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+    return filters.view_mode === 'lead' ? mockLeadDashboardData : mockEcommerceDashboardData;
+  }
+
   const params: any = {
     view_mode: filters.view_mode,
     level: filters.level || 'adset',
@@ -86,6 +96,13 @@ export async function getDashboardData(
  * Check if user has configured Facebook accounts, tokens, etc.
  */
 export async function getSettingsStatus(): Promise<SettingsStatus> {
+  // 🎭 MOCK MODE
+  if (USE_MOCK_DATA) {
+    const { mockSettingsStatus } = await import('./mockData');
+    await new Promise(resolve => setTimeout(resolve, 200));
+    return mockSettingsStatus;
+  }
+
   const response = await api.get<SettingsStatus>('/dashboard/settings-status');
   return response.data;
 }
@@ -97,6 +114,13 @@ export async function getDashboardFilters(viewMode?: 'ecommerce' | 'lead'): Prom
   accounts: Array<{ id: string; name: string; type: string; enabled: boolean }>;
   prefixes: Array<{ id: string; name: string; description: string }>;
 }> {
+  // 🎭 MOCK MODE
+  if (USE_MOCK_DATA) {
+    const { mockFilterOptions } = await import('./mockData');
+    await new Promise(resolve => setTimeout(resolve, 200));
+    return mockFilterOptions as any;
+  }
+
   const params: any = {};
   if (viewMode) params.view_mode = viewMode;
   const response = await api.get('/dashboard/filters', { params });
@@ -109,6 +133,23 @@ export async function getDashboardFilters(viewMode?: 'ecommerce' | 'lead'): Prom
 export async function updateBudget(
   request: BudgetUpdateRequest
 ): Promise<BudgetUpdateResponse> {
+  // 🎭 MOCK MODE
+  if (USE_MOCK_DATA) {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    console.log('🎭 MOCK: Budget update request:', request);
+    return {
+      success: true,
+      results: request.operations.map(op => ({
+        id: op.id,
+        level: op.level,
+        old_budget: 500000,
+        new_budget: op.new_budget,
+        status: 'ok',
+      })),
+      message: `Updated ${request.operations.length} items (MOCK)`,
+    };
+  }
+
   const response = await api.post<BudgetUpdateResponse>('/dashboard/budget/update', request);
   return response.data;
 }
@@ -119,6 +160,16 @@ export async function updateBudget(
 export async function updateStatus(
   request: StatusUpdateRequest
 ): Promise<{ success: boolean; message: string }> {
+  // 🎭 MOCK MODE
+  if (USE_MOCK_DATA) {
+    await new Promise(resolve => setTimeout(resolve, 600));
+    console.log('🎭 MOCK: Status update request:', request);
+    return {
+      success: true,
+      message: `Updated ${request.items.length} items to ${request.items[0]?.new_status} (MOCK)`,
+    };
+  }
+
   const response = await api.post('/dashboard/status/update', request);
   return response.data;
 }

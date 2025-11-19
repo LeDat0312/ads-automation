@@ -1,0 +1,298 @@
+/**
+ * Mock data for frontend development without backend
+ * Uncomment the mock interceptor in api.ts to use this
+ */
+
+import type { DashboardDataResponse, SummaryMetrics } from '@/types/dashboard';
+
+// Mock summary for Lead view
+export const mockLeadSummary: SummaryMetrics = {
+  totalSpend: 15000000, // 15M VND
+  totalData: 850, // Comments + Messages
+  avgGiaData: 17647, // 15M / 850
+  totalLead: 120, // Checkouts initiated
+  activeAdsets: 45,
+  pausedAdsets: 23,
+  totalAdsets: 68,
+  currency: 'VND',
+};
+
+// Mock summary for Ecommerce view
+export const mockEcommerceSummary: SummaryMetrics = {
+  totalSpend: 25000000, // 25M VND
+  purchaseValue: 150000000, // 150M VND
+  adsPercent: 16.67, // 25M / 150M * 100
+  activeAdsets: 38,
+  pausedAdsets: 17,
+  totalAdsets: 55,
+  currency: 'VND',
+};
+
+// Mock adset rows for Lead view
+export const mockLeadRows = [
+  {
+    id: 'adset_1',
+    adset_id: '123456789',
+    adset_name: 'Lead Gen - Lookalike 1% - Hà Nội',
+    campaign_id: 'campaign_001',
+    campaign_name: 'Lead Generation Q4 2024',
+    account_id: '987654321',
+    account_name: 'Ads Account VN 01',
+    prefix: 'LG_HN',
+    budget: 500000,
+    budget_level: 'ADSET' as const,
+    currency: 'VND' as const,
+    delivery: 'ACTIVE' as const,
+    spend: 487500,
+    impressions: 125000,
+    clicks: 3500,
+    reach: 98000,
+    frequency: 1.28,
+    ctr: 2.8,
+    cpc: 139.29,
+    cpm: 3900,
+    results: 35, // Comments + Messages
+    total_leads: 35,
+    data_cost: 13928.57,
+    initiated_checkout: 8,
+    checkouts_initiated: 8,
+    cost_per_checkout_initiated: 60937.5,
+    purchases: 3,
+    cost_per_purchase: 162500,
+    purchase_value: 4500000,
+    is_active_now: true,
+    ran_today: true,
+    view_mode: 'lead' as const,
+  },
+  {
+    id: 'adset_2',
+    adset_id: '123456790',
+    adset_name: 'Lead Gen - Interest: Bất động sản',
+    campaign_id: 'campaign_001',
+    campaign_name: 'Lead Generation Q4 2024',
+    account_id: '987654321',
+    account_name: 'Ads Account VN 01',
+    prefix: 'LG_BDS',
+    budget: 300000,
+    budget_level: 'ADSET' as const,
+    currency: 'VND' as const,
+    delivery: 'PAUSED' as const,
+    spend: 289000,
+    impressions: 75000,
+    clicks: 1800,
+    reach: 62000,
+    frequency: 1.21,
+    ctr: 2.4,
+    cpc: 160.56,
+    cpm: 3853.33,
+    results: 18,
+    total_leads: 18,
+    data_cost: 16055.56,
+    initiated_checkout: 4,
+    checkouts_initiated: 4,
+    cost_per_checkout_initiated: 72250,
+    purchases: 1,
+    cost_per_purchase: 289000,
+    purchase_value: 1500000,
+    is_active_now: false,
+    ran_today: true,
+    view_mode: 'lead' as const,
+  },
+  {
+    id: 'adset_3',
+    adset_id: '123456791',
+    adset_name: 'Lead Gen - Retargeting Website Visitors',
+    campaign_id: 'campaign_002',
+    campaign_name: 'Retargeting Campaign',
+    account_id: '987654321',
+    account_name: 'Ads Account VN 01',
+    prefix: 'RT_WEB',
+    budget: 400000,
+    budget_level: 'ADSET' as const,
+    currency: 'VND' as const,
+    delivery: 'ACTIVE' as const,
+    spend: 395000,
+    impressions: 95000,
+    clicks: 2800,
+    reach: 78000,
+    frequency: 1.22,
+    ctr: 2.95,
+    cpc: 141.07,
+    cpm: 4157.89,
+    results: 28,
+    total_leads: 28,
+    data_cost: 14107.14,
+    initiated_checkout: 12,
+    checkouts_initiated: 12,
+    cost_per_checkout_initiated: 32916.67,
+    purchases: 5,
+    cost_per_purchase: 79000,
+    purchase_value: 7500000,
+    is_active_now: true,
+    ran_today: true,
+    view_mode: 'lead' as const,
+  },
+];
+
+// Mock adset rows for Ecommerce view
+export const mockEcommerceRows = [
+  {
+    id: 'adset_10',
+    adset_id: '223456789',
+    adset_name: 'Ecom - Giày thể thao - Nam 18-35',
+    campaign_id: 'campaign_010',
+    campaign_name: 'E-Commerce Shoes Campaign',
+    account_id: '887654321',
+    account_name: 'Ecom Store Account',
+    prefix: 'SHOE_M',
+    budget: 1500000,
+    budget_level: 'CAMPAIGN' as const,
+    currency: 'VND' as const,
+    delivery: 'ACTIVE' as const,
+    spend: 1450000,
+    impressions: 285000,
+    clicks: 8500,
+    reach: 220000,
+    frequency: 1.3,
+    ctr: 2.98,
+    cpc: 170.59,
+    cpm: 5087.72,
+    results: 0,
+    total_leads: 0,
+    data_cost: 0,
+    initiated_checkout: 85,
+    checkouts_initiated: 85,
+    cost_per_checkout_initiated: 17058.82,
+    purchases: 42,
+    cost_per_purchase: 34523.81,
+    purchase_value: 12600000,
+    ads_percent: 11.51,
+    is_active_now: true,
+    ran_today: true,
+    view_mode: 'ecommerce' as const,
+  },
+  {
+    id: 'adset_11',
+    adset_id: '223456790',
+    adset_name: 'Ecom - Túi xách - Nữ 25-45',
+    campaign_id: 'campaign_011',
+    campaign_name: 'Fashion Bags Campaign',
+    account_id: '887654321',
+    account_name: 'Ecom Store Account',
+    prefix: 'BAG_F',
+    budget: 2000000,
+    budget_level: 'CAMPAIGN' as const,
+    currency: 'VND' as const,
+    delivery: 'ACTIVE' as const,
+    spend: 1980000,
+    impressions: 350000,
+    clicks: 10500,
+    reach: 280000,
+    frequency: 1.25,
+    ctr: 3.0,
+    cpc: 188.57,
+    cpm: 5657.14,
+    results: 0,
+    total_leads: 0,
+    data_cost: 0,
+    initiated_checkout: 120,
+    checkouts_initiated: 120,
+    cost_per_checkout_initiated: 16500,
+    purchases: 68,
+    cost_per_purchase: 29117.65,
+    purchase_value: 20400000,
+    ads_percent: 9.71,
+    is_active_now: true,
+    ran_today: true,
+    view_mode: 'ecommerce' as const,
+  },
+  {
+    id: 'adset_12',
+    adset_id: '223456791',
+    adset_name: 'Ecom - Đồng hồ - Broad Audience',
+    campaign_id: 'campaign_012',
+    campaign_name: 'Watches Broad Campaign',
+    account_id: '887654321',
+    account_name: 'Ecom Store Account',
+    prefix: 'WATCH',
+    budget: 1000000,
+    budget_level: 'CAMPAIGN' as const,
+    currency: 'VND' as const,
+    delivery: 'PAUSED' as const,
+    spend: 950000,
+    impressions: 180000,
+    clicks: 5200,
+    reach: 145000,
+    frequency: 1.24,
+    ctr: 2.89,
+    cpc: 182.69,
+    cpm: 5277.78,
+    results: 0,
+    total_leads: 0,
+    data_cost: 0,
+    initiated_checkout: 45,
+    checkouts_initiated: 45,
+    cost_per_checkout_initiated: 21111.11,
+    purchases: 18,
+    cost_per_purchase: 52777.78,
+    purchase_value: 5400000,
+    ads_percent: 17.59,
+    is_active_now: false,
+    ran_today: true,
+    view_mode: 'ecommerce' as const,
+  },
+];
+
+// Mock dashboard data response - Lead view
+export const mockLeadDashboardData: DashboardDataResponse = {
+  summary: mockLeadSummary,
+  details: {
+    level: 'adset',
+    rows: mockLeadRows,
+    pagination: {
+      page: 1,
+      page_size: 50,
+      total_rows: 3,
+      total_pages: 1,
+    },
+  },
+};
+
+// Mock dashboard data response - Ecommerce view
+export const mockEcommerceDashboardData: DashboardDataResponse = {
+  summary: mockEcommerceSummary,
+  details: {
+    level: 'adset',
+    rows: mockEcommerceRows,
+    pagination: {
+      page: 1,
+      page_size: 50,
+      total_rows: 3,
+      total_pages: 1,
+    },
+  },
+};
+
+// Mock filter options
+export const mockFilterOptions = {
+  accounts: [
+    { id: '987654321', name: 'Ads Account VN 01', type: 'LEAD_GENERATION' },
+    { id: '887654321', name: 'Ecom Store Account', type: 'E-COMMERCE' },
+  ],
+  prefixes: [
+    { id: 'LG_HN', name: 'LG_HN' },
+    { id: 'LG_BDS', name: 'LG_BDS' },
+    { id: 'RT_WEB', name: 'RT_WEB' },
+    { id: 'SHOE_M', name: 'SHOE_M' },
+    { id: 'BAG_F', name: 'BAG_F' },
+    { id: 'WATCH', name: 'WATCH' },
+  ],
+};
+
+// Mock settings status
+export const mockSettingsStatus = {
+  hasAccounts: true,
+  hasFacebookToken: true,
+  hasTelegramToken: true,
+  accountsCount: 2,
+};

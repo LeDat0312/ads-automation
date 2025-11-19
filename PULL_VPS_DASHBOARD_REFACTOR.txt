@@ -1,0 +1,68 @@
+========================================
+CÂU LỆNH PULL CODE VỀ VPS
+========================================
+
+1. SSH vào VPS:
+   ssh root@your-vps-ip
+
+2. Di chuyển vào thư mục project:
+   cd ~/ads-automation
+
+3. Pull code mới nhất:
+   git pull origin main
+
+4. Nếu có conflict, reset về remote:
+   git fetch origin
+   git reset --hard origin/main
+
+5. Cài đặt dependencies (nếu có thay đổi):
+   # Backend
+   source venv/bin/activate
+   pip install -r requirements.txt
+   
+   # Frontend (QUAN TRỌNG: Cần build frontend)
+   cd frontend
+   npm install
+   npm run build
+   cd ..
+
+6. Restart services:
+   sudo supervisorctl restart ads-automation
+
+7. Kiểm tra logs:
+   tail -f /var/log/supervisor/ads-automation.log
+
+========================================
+LỆNH NHANH (Copy toàn bộ):
+========================================
+
+cd ~/ads-automation && \
+git pull origin main && \
+source venv/bin/activate && \
+pip install -r requirements.txt && \
+cd frontend && npm install && npm run build && cd .. && \
+sudo supervisorctl restart ads-automation && \
+tail -f /var/log/supervisor/ads-automation.log
+
+========================================
+LƯU Ý QUAN TRỌNG:
+========================================
+
+1. Frontend cần được build trước khi serve:
+   - Chạy: cd frontend && npm install && npm run build
+   - Build output sẽ ở: frontend/dist/
+   - Nginx cần được config để serve từ frontend/dist/
+
+2. Kiểm tra nginx config:
+   - Đảm bảo nginx serve /dashboard/ từ frontend/dist/
+   - Ví dụ config:
+     location /dashboard/ {
+         alias /path/to/project/frontend/dist/;
+         try_files $uri $uri/ /dashboard/index.html;
+     }
+
+3. Nếu có lỗi, rollback:
+   git log --oneline
+   git reset --hard <commit-hash-before>
+
+========================================
