@@ -76,7 +76,7 @@ async def scrape_facebook_ad(
     ad_url: str,
     use_cache: bool = True,
     user_id: Optional[int] = None,
-    db: Optional[Any] = None
+    db: Optional['Session'] = None
 ) -> Optional[CompetitorAdData]:
     """
     Scrape thông tin một quảng cáo Facebook cụ thể
@@ -170,7 +170,7 @@ async def scrape_competitor_ads(
     limit: int = 50,
     use_cache: bool = True,
     user_id: Optional[int] = None,
-    db: Optional[Any] = None
+    db: Optional['Session'] = None
 ) -> List[CompetitorAdData]:
     """
     Scrape tất cả quảng cáo của một đối thủ
@@ -256,7 +256,7 @@ async def search_competitor_ads_by_keyword(
     limit: int = 20,
     use_cache: bool = True,
     user_id: Optional[int] = None,
-    db: Optional[Any] = None
+    db: Optional['Session'] = None
 ) -> List[CompetitorAdData]:
     """
     Tìm kiếm quảng cáo đối thủ theo keyword
