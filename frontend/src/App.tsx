@@ -6,12 +6,10 @@ import type {
   ViewMode,
   DashboardFilters,
   DashboardDataResponse,
-  AdsetRow,
   SortConfig,
   SortableColumn,
   Currency,
 } from './types/dashboard';
-import { formatDateForAPI } from './utils/formatters';
 
 function App() {
   // State
