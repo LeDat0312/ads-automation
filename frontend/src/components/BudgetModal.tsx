@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { formatCurrency, formatNumber } from '@/utils/formatters';
+import { useState, useEffect } from 'react';
+import { formatCurrency } from '@/utils/formatters';
 import type { AdsetRow } from '@/types/dashboard';
 
 interface BudgetModalProps {
@@ -30,8 +30,9 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply }
     if (mode === 'percent' && selectedPercent !== null) {
       const changes = selectedAdsets.map(adset => ({
         id: adset.adset_id,
-        current: adset.daily_budget || 0,
-        new: Math.round((adset.daily_budget || 0) * (1 + selectedPercent / 100)),
+        current: adset.budget || 0,
+        // ✅ FIX: Use exact original budget, don't round until display
+        new: (adset.budget || 0) * (1 + selectedPercent / 100),
         currency: adset.currency,
       }));
       setPreviewChanges(changes);
@@ -40,7 +41,7 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply }
       if (!isNaN(budget) && budget > 0) {
         const changes = selectedAdsets.map(adset => ({
           id: adset.adset_id,
-          current: adset.daily_budget || 0,
+          current: adset.budget || 0,
           new: budget,
           currency: adset.currency,
         }));
@@ -70,7 +71,7 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply }
 
   if (!isOpen) return null;
 
-  const totalCurrentBudget = selectedAdsets.reduce((sum, adset) => sum + (adset.daily_budget || 0), 0);
+  const totalCurrentBudget = selectedAdsets.reduce((sum, adset) => sum + (adset.budget || 0), 0);
   const totalNewBudget = previewChanges.reduce((sum, change) => sum + change.new, 0);
   const budgetDifference = totalNewBudget - totalCurrentBudget;
   const currency = selectedAdsets[0]?.currency || 'USD';

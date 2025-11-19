@@ -15,6 +15,7 @@ export interface AdsetRow {
   campaign_id: string;
   campaign_name: string;
   account_id: string;
+  account_name?: string;  // Account name for display
   prefix?: string;
 
   // Budget
@@ -89,6 +90,9 @@ export interface SummaryMetrics {
   pausedAdsets: number;  // is_active_now == false
   totalAdsets: number;
   adsetsRanToday?: number;  // ran_today == true
+  
+  // Currency
+  currency?: Currency;  // VND or USD
 }
 
 // Pagination info
@@ -125,13 +129,16 @@ export interface DashboardFilters {
   account_ids?: string;
   prefix?: string;
   status?: 'ACTIVE' | 'PAUSED' | 'RAN_TODAY' | 'ALL';
-  date_from?: string;  // YYYY-MM-DD
-  date_to?: string;    // YYYY-MM-DD
+  date_from: string;  // YYYY-MM-DD (required for URL sync)
+  date_to: string;    // YYYY-MM-DD (required for URL sync)
   search?: string;
   campaign_id?: string;
   page?: number;
   pageSize?: number;
   force_refresh?: 0 | 1;  // 0=cache, 1=refresh
+  // Additional filters for UI
+  prefix_filter?: string;
+  status_filter?: string;  // 'ran_today' | 'ACTIVE' | 'PAUSED'
 }
 
 // Budget operation
@@ -145,6 +152,7 @@ export interface BudgetOperation {
 export interface BudgetUpdateRequest {
   operations: BudgetOperation[];
   view_mode?: ViewMode;
+  adset_ids?: string[];  // For bulk budget update
 }
 
 export interface BudgetUpdateResponse {
@@ -172,6 +180,7 @@ export interface StatusUpdateItem {
 export interface StatusUpdateRequest {
   level: 'CAMPAIGN' | 'ADSET' | 'AD';
   items: StatusUpdateItem[];
+  adset_ids?: string[];  // For bulk status update
 }
 
 // Sort configuration

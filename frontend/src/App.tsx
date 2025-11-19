@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import SummaryCards from './components/SummaryCards';
 import AdsetTable from './components/AdsetTable';
 import FiltersBar from './components/FiltersBar';
@@ -14,8 +15,12 @@ import type {
 } from './types/dashboard';
 
 function App() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  
   // State
-  const [viewMode, setViewMode] = useState<ViewMode>('ecommerce');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    return (searchParams.get('view') as ViewMode) || 'ecommerce';
+  });
   const [currency] = useState<Currency>('VND'); // TODO: Get from backend
   const [data, setData] = useState<DashboardDataResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,18 +29,38 @@ function App() {
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: null, direction: 'desc' });
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   
-  // Filters
+  // Filters - Initialize from URL params
   const today = new Date().toISOString().split('T')[0];
-  const [filters, setFilters] = useState<DashboardFilters>({
-    view_mode: 'ecommerce',
-    level: 'adset',
-    status: 'ALL',
-    page: 1,
-    pageSize: 50,
-    force_refresh: 0,
-    date_from: today,
-    date_to: today,
+  const [filters, setFilters] = useState<DashboardFilters>(() => {
+    return {
+      view_mode: (searchParams.get('view') as ViewMode) || 'ecommerce',
+      level: 'adset',
+      status: 'ALL',
+      page: 1,
+      pageSize: 50,
+      force_refresh: 0,
+      date_from: searchParams.get('from') || today,
+      date_to: searchParams.get('to') || today,
+      prefix_filter: searchParams.get('prefix') || undefined,
+      status_filter: searchParams.get('status') || undefined,
+      search: searchParams.get('search') || undefined,
+    };
   });
+
+  // ✅ Sync filters to URL when they change
+  useEffect(() => {
+    const params: Record<string, string> = {
+      view: filters.view_mode,
+      from: filters.date_from,
+      to: filters.date_to,
+    };
+    
+    if (filters.prefix_filter) params.prefix = filters.prefix_filter;
+    if (filters.status_filter) params.status = filters.status_filter;
+    if (filters.search) params.search = filters.search;
+    
+    setSearchParams(params, { replace: true });
+  }, [filters, setSearchParams]);
 
   // Fetch data from API
   const fetchData = useCallback(async () => {

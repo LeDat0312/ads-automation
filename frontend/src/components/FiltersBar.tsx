@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { DashboardFilters } from '@/types/dashboard';
 
 interface FiltersBarProps {
@@ -134,9 +134,53 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
   return (
     <>
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+        {/* Status Chips Row */}
+        <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-200">
+          <button
+            onClick={() => onFiltersChange({ ...filters, status_filter: undefined })}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              !filters.status_filter
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            📊 Tất cả
+          </button>
+          <button
+            onClick={() => onFiltersChange({ ...filters, status_filter: 'ran_today' })}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              filters.status_filter === 'ran_today'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            🔥 Đã chạy hôm nay
+          </button>
+          <button
+            onClick={() => onFiltersChange({ ...filters, status_filter: 'ACTIVE' })}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              filters.status_filter === 'ACTIVE'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            ✅ Đang hoạt động
+          </button>
+          <button
+            onClick={() => onFiltersChange({ ...filters, status_filter: 'PAUSED' })}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              filters.status_filter === 'PAUSED'
+                ? 'bg-amber-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            ⏸️ Đã tạm dừng
+          </button>
+        </div>
+
         <div className="flex items-center justify-between gap-4">
           {/* Left side - Date and Filters */}
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">{/* Date Picker Button */}
             {/* Date Picker Button */}
             <button
               onClick={() => setShowDatePicker(!showDatePicker)}

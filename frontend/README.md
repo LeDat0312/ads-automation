@@ -196,7 +196,48 @@ Frontend gọi các endpoint sau:
 
 ## 📝 Code Style
 
-- **Components**: PascalCase (e.g., `SummaryCards.tsx`)
+- **Components**: PascalCase (e.g., `SummaryCards.tsx`)server {
+    listen 80;
+    server_name your-vps-ip;  # Hoặc domain nếu có
+
+    # Frontend static files
+    location / {
+        root /var/www/ads-dashboard;
+        try_files $uri $uri/ /index.html;
+        
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # API proxy to FastAPI backend
+    location /dashboard/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/javascript application/json;
+}
 - **Utilities**: camelCase (e.g., `formatCurrency`)
 - **Types**: PascalCase (e.g., `ViewMode`, `DashboardFilters`)
 - **Files**: kebab-case hoặc PascalCase
