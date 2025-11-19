@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from fastapi.responses import JSONResponse, HTMLResponse
 from typing import List, Optional
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.routes.auth import get_current_user_optional
