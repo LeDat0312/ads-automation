@@ -15,6 +15,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.account_prefix import Account, Prefix
 from app.models.logic_rule import LogicRule
+from app.models.user_settings import UserSettings
 from app.core.security import get_password_hash, get_current_user
 from app.api.routes.auth import get_current_user_optional
 from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
@@ -1815,6 +1816,9 @@ def delete_user(
     # Không cho phép xóa chính mình
     if user.id == admin_user.id:
         raise HTTPException(status_code=400, detail="Không thể xóa chính tài khoản của bạn")
+    
+    # Xóa user_settings trước (foreign key constraint)
+    db.query(UserSettings).filter(UserSettings.user_id == user_id).delete()
     
     db.delete(user)
     db.commit()
