@@ -39,7 +39,14 @@ function App() {
   }>({});
   
   // Filters - Initialize from URL params
-  const today = new Date().toISOString().split('T')[0];
+  // Use Vietnam timezone (UTC+7) for correct date
+  const getVietnamDate = () => {
+    const now = new Date();
+    const vietnamTime = new Date(now.getTime() + (7 * 60 * 60 * 1000)); // UTC+7
+    return vietnamTime.toISOString().split('T')[0];
+  };
+  const today = getVietnamDate();
+  
   const [filters, setFilters] = useState<DashboardFilters>(() => {
     return {
       view_mode: (searchParams.get('view') as ViewMode) || 'ecommerce',

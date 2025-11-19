@@ -59,13 +59,14 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
             <p className="text-xs text-gray-500 mt-1">Tổng từ lượt mua</p>
           </div>
 
-          {/* Card 4: ADSETS HOẠT ĐỘNG */}
+          {/* Card 4: TỔNG BẮT ĐẦU TT */}
           <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white text-xl">▶️</div>
+              <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center text-white text-xl">🛒</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">ADSETS HOẠT ĐỘNG</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.activeAdsets)}</p>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG BẮT ĐẦU TT</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.totalCheckouts || 0)}</p>
+            <p className="text-xs text-gray-500 mt-1">Lượt bắt đầu thanh toán</p>
           </div>
 
           {/* Card 5: ADSETS ĐÃ TẠM DỪNG */}
@@ -106,16 +107,17 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
             </div>
             <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">GIÁ DATA TB</h3>
             <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.costPerData || summary.avgGiaData || 0, currency)}</p>
-            <p className="text-xs text-gray-500 mt-1">Chi phí trên mỗi lượt bắt đầu thanh toán</p>
+            <p className="text-xs text-gray-500 mt-1">Chi phí trên mỗi lead</p>
           </div>
 
-          {/* Card 4: ADSETS HOẠT ĐỘNG */}
+          {/* Card 4: TỔNG BẮT ĐẦU TT */}
           <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white text-xl">▶️</div>
+              <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center text-white text-xl">🛍️</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">ADSETS HOẠT ĐỘNG</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.activeAdsets)}</p>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG BẮT ĐẦU TT</h3>
+            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.totalCheckouts || 0)}</p>
+            <p className="text-xs text-gray-500 mt-1">Lượt bắt đầu thanh toán</p>
           </div>
 
           {/* Card 5: ADSETS ĐÃ TẠM DỪNG */}

@@ -532,7 +532,8 @@ async def get_dashboard_data(
                 "costPerPurchase": round(cost_per_purchase, 2),
                 "activeAdsets": active_adsets,
                 "pausedAdsets": paused_adsets,
-                "totalAdsets": total_adsets
+                "totalAdsets": total_adsets,
+                "currency": "VND"
             }
         else:  # lead
             avg_gia_data = total_spend / total_data if total_data > 0 else 0
@@ -548,7 +549,8 @@ async def get_dashboard_data(
                 "costPerPurchase": round(cost_per_purchase, 2),
                 "activeAdsets": active_adsets,
                 "pausedAdsets": paused_adsets,
-                "totalAdsets": total_adsets
+                "totalAdsets": total_adsets,
+                "currency": "VND"
             }
         
         # ===== BUILD DETAILS (filter và group theo level) =====

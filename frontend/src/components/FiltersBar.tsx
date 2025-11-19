@@ -16,12 +16,19 @@ interface DatePreset {
   getDates: () => { from: string; to: string };
 }
 
+// Helper: Get Vietnam date (UTC+7)
+const getVietnamDate = (offsetDays: number = 0): string => {
+  const now = new Date();
+  const vietnamTime = new Date(now.getTime() + (7 * 60 * 60 * 1000) + (offsetDays * 86400000));
+  return vietnamTime.toISOString().split('T')[0];
+};
+
 const datePresets: DatePreset[] = [
   {
     label: 'Hôm nay',
     value: 'today',
     getDates: () => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getVietnamDate();
       return { from: today, to: today };
     },
   },
@@ -29,7 +36,7 @@ const datePresets: DatePreset[] = [
     label: 'Hôm qua',
     value: 'yesterday',
     getDates: () => {
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const yesterday = getVietnamDate(-1);
       return { from: yesterday, to: yesterday };
     },
   },
@@ -37,8 +44,8 @@ const datePresets: DatePreset[] = [
     label: '7 ngày qua',
     value: 'last_7d',
     getDates: () => {
-      const to = new Date().toISOString().split('T')[0];
-      const from = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
+      const to = getVietnamDate();
+      const from = getVietnamDate(-6);
       return { from, to };
     },
   },
@@ -46,8 +53,8 @@ const datePresets: DatePreset[] = [
     label: '30 ngày qua',
     value: 'last_30d',
     getDates: () => {
-      const to = new Date().toISOString().split('T')[0];
-      const from = new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0];
+      const to = getVietnamDate();
+      const from = getVietnamDate(-29);
       return { from, to };
     },
   },
@@ -56,8 +63,9 @@ const datePresets: DatePreset[] = [
     value: 'this_month',
     getDates: () => {
       const now = new Date();
-      const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-      const to = new Date().toISOString().split('T')[0];
+      const vietnamNow = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+      const from = new Date(vietnamNow.getFullYear(), vietnamNow.getMonth(), 1).toISOString().split('T')[0];
+      const to = getVietnamDate();
       return { from, to };
     },
   },
@@ -66,8 +74,9 @@ const datePresets: DatePreset[] = [
     value: 'last_month',
     getDates: () => {
       const now = new Date();
-      const from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-      const to = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+      const vietnamNow = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+      const from = new Date(vietnamNow.getFullYear(), vietnamNow.getMonth() - 1, 1).toISOString().split('T')[0];
+      const to = new Date(vietnamNow.getFullYear(), vietnamNow.getMonth(), 0).toISOString().split('T')[0];
       return { from, to };
     },
   },
