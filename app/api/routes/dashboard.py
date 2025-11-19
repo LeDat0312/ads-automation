@@ -4461,17 +4461,29 @@ async def get_dashboard_data(
         )
         logger.info(f"   ✅ Đã lấy được {len(all_data)} rows từ Facebook API")
         
-        # Filter by prefix nếu có
+        # Filter by prefix nếu có (TRƯỚC view_mode để không ảnh hưởng summary)
         if prefix and all_data:
             all_data = [row for row in all_data if row.get('prefix') == prefix]
+            logger.info(f"   📊 Sau filter prefix ({prefix}): {len(all_data)} rows")
         
-        # Filter by view mode (campaign type)
+        # Filter by view mode - CHỈ dựa vào account_type_map, KHÔNG dùng objective
+        # Lọc theo account_id thuộc loại LEAD_GENERATION hoặc E-COMMERCE
         before_view_filter = len(all_data)
-        if view_mode == "ecommerce":
-            all_data = [row for row in all_data if row.get('campaign_type') == 'ECOMMERCE']
-        elif view_mode == "lead":
-            all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD']
-        logger.info(f"   📊 Sau filter view_mode ({view_mode}): {len(all_data)}/{before_view_filter} rows")
+        if view_mode == "lead":
+            # Chỉ giữ rows từ accounts có type = LEAD_GENERATION
+            all_data = [
+                row for row in all_data 
+                if str(row.get('account_id')).replace('act_', '') in account_type_map
+                and account_type_map[str(row.get('account_id')).replace('act_', '')] == 'LEAD_GENERATION'
+            ]
+        elif view_mode == "ecommerce":
+            # Chỉ giữ rows từ accounts có type = E-COMMERCE
+            all_data = [
+                row for row in all_data
+                if str(row.get('account_id')).replace('act_', '') in account_type_map
+                and account_type_map[str(row.get('account_id')).replace('act_', '')] == 'E-COMMERCE'
+            ]
+        logger.info(f"   📊 Sau filter view_mode ({view_mode}) theo account_type_map: {len(all_data)}/{before_view_filter} rows")
         
         # ===== Lấy adset effective_status từ Facebook API =====
         # Facebook đã tính sẵn effective_status cho adset (bao gồm cả campaign/ad status)
@@ -4536,36 +4548,80 @@ async def get_dashboard_data(
                     f"ran_today={ran_today} | is_active_now={is_active_now}"
                 )
         
-        # ===== BUILD SUMMARY GLOBAL (TRƯỚC TẤT CẢ FILTER) =====
-        # Summary cho card: Tính trên TẤT CẢ adsets thuộc view_mode
-        # KHÔNG áp dụng prefix, status, search, campaign_id, adset_id
-        logger.info(f"   📊 BUILD SUMMARY GLOBAL từ {len(all_data)} rows (chỉ sau view_mode filter)")
+        # ===== BUILD ADSET_MAP - GỘP THEO ADSET_ID =====
+        # Vì level=adset có thể trả nhiều rows cho cùng 1 adset (nhiều ads)
+        # Phải gộp lại theo adset_id trước khi tính summary
+        logger.info(f"   📊 BUILD ADSET_MAP từ {len(all_data)} rows (sau view_mode filter)")
         
-        # Gom theo adset để đếm unique
-        per_adset_global = {}
+        adset_map = {}
         for r in all_data:
             aid = r.get('adset_id')
             if not aid:
                 continue
             
-            if aid not in per_adset_global:
-                per_adset_global[aid] = {
+            if aid not in adset_map:
+                adset_map[aid] = {
+                    'adset_id': aid,
+                    'adset_name': r.get('adset_name'),
+                    'campaign_id': r.get('campaign_id'),
+                    'campaign_name': r.get('campaign_name'),
+                    'account_id': r.get('account_id'),
+                    'prefix': r.get('prefix'),
+                    'budget': r.get('budget', 0.0) or 0.0,
+                    'budget_level': r.get('budget_level', 'ADSET'),
                     'spend': 0.0,
                     'impressions': 0,
-                    'data': 0,  # comments + messages
-                    'lead': 0,  # checkout started
+                    'clicks': 0,
+                    'reach': 0,
+                    'post_comments': 0,
+                    'messaging_conversations_started': 0,
                     'purchases': 0,
-                    'purchase_value': 0.0,
-                    'effective_status': r.get('effective_status', 'UNKNOWN')
+                    'gia_tri_chuyen_doi_tu_luot_mua': 0.0,
+                    'checkout_initiated': 0,
+                    'effective_status': 'UNKNOWN',
+                    'configured_status': 'UNKNOWN',
                 }
             
-            stat = per_adset_global[aid]
-            stat['spend'] += float(r.get('spend', 0) or 0)
-            stat['impressions'] += int(r.get('impressions', 0) or 0)
-            stat['data'] += int(r.get('post_comments', 0) or 0) + int(r.get('messaging_conversations_started', 0) or 0)
-            stat['lead'] += int(r.get('onsite_conversion_post_save', 0) or 0)
-            stat['purchases'] += int(r.get('purchases', 0) or 0)
-            stat['purchase_value'] += float(r.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
+            # Aggregate metrics
+            adset = adset_map[aid]
+            adset['spend'] += float(r.get('spend', 0) or 0)
+            adset['impressions'] += int(r.get('impressions', 0) or 0)
+            adset['clicks'] += int(r.get('clicks', 0) or 0)
+            adset['reach'] += int(r.get('reach', 0) or 0)
+            adset['post_comments'] += int(r.get('post_comments', 0) or 0)
+            adset['messaging_conversations_started'] += int(r.get('messaging_conversations_started', 0) or 0)
+            adset['purchases'] += int(r.get('purchases', 0) or 0)
+            adset['gia_tri_chuyen_doi_tu_luot_mua'] += float(r.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
+            adset['checkout_initiated'] += int(r.get('checkout_initiated', 0) or 0)
+            
+            # Update status từ row (đã được gắn từ fetch_adset_statuses)
+            if r.get('effective_status'):
+                adset['effective_status'] = r.get('effective_status')
+            if r.get('configured_status'):
+                adset['configured_status'] = r.get('configured_status')
+        
+        logger.info(f"   📊 Sau gộp theo adset_id: {len(adset_map)} adsets duy nhất (từ {len(all_data)} rows)")
+        
+        # Enrich status info và tính flags
+        for aid, adset in adset_map.items():
+            status_info = adset_statuses_map.get(aid, {}) if adset_statuses_map else {}
+            
+            # Lấy status từ API (ưu tiên hơn từ row)
+            effective_status = status_info.get('effective_status') or adset.get('effective_status', 'UNKNOWN')
+            configured_status = status_info.get('configured_status') or adset.get('configured_status', 'UNKNOWN')
+            
+            adset['effective_status'] = effective_status
+            adset['configured_status'] = configured_status
+            adset['campaign_configured_status'] = status_info.get('campaign_configured_status', 'UNKNOWN')
+            adset['campaign_effective_status'] = status_info.get('campaign_effective_status', 'UNKNOWN')
+            
+            # Tính flags
+            adset['ran_today'] = (adset['impressions'] > 0) or (adset['spend'] > 0)
+            adset['is_active_now'] = (effective_status == 'ACTIVE')
+        
+        # ===== BUILD SUMMARY GLOBAL (từ adset_map) =====
+        # Summary cho card: Tính trên TẤT CẢ adsets (không bị ảnh hưởng filter bảng)
+        logger.info(f"   📊 BUILD SUMMARY GLOBAL từ {len(adset_map)} adsets")
         
         # Tính summary metrics
         total_spend = 0.0
@@ -4573,26 +4629,22 @@ async def get_dashboard_data(
         total_lead = 0
         total_purchases = 0
         total_purchase_value = 0.0
-        total_adsets = len(per_adset_global)
+        total_adsets = len(adset_map)
         adsets_ran_today = 0
         adsets_active_now = 0
         adsets_paused_now = 0
         
-        for aid, s in per_adset_global.items():
-            total_spend += s['spend']
-            total_data += s['data']
-            total_lead += s['lead']
-            total_purchases += s['purchases']
-            total_purchase_value += s['purchase_value']
+        for aid, adset in adset_map.items():
+            total_spend += adset['spend']
+            total_data += adset['post_comments'] + adset['messaging_conversations_started']
+            total_lead += adset['checkout_initiated']
+            total_purchases += adset['purchases']
+            total_purchase_value += adset['gia_tri_chuyen_doi_tu_luot_mua']
             
-            # Đã chạy hôm nay: có impressions hoặc spend > 0
-            ran_today = (s['impressions'] > 0) or (s['spend'] > 0)
-            if ran_today:
+            if adset['ran_today']:
                 adsets_ran_today += 1
             
-            # Đang hoạt động: CHỈ cần effective_status = ACTIVE
-            # KHÔNG cần phải có impression hôm nay
-            if s['effective_status'] == 'ACTIVE':
+            if adset['is_active_now']:
                 adsets_active_now += 1
             else:
                 adsets_paused_now += 1
@@ -4627,182 +4679,72 @@ async def get_dashboard_data(
                 "adsetsRanToday": adsets_ran_today    # BONUS
             }
         
-        # ===== BUILD DETAILS (filter và group theo level) =====
-        # QUAN TRỌNG: TUYỆT ĐỐI không filter adset_id nếu không có param rõ ràng
-        # Chỉ filter khi user thực sự click vào 1 adset cụ thể
-        if campaign_id and campaign_id != "None" and all_data:
-            all_data = [row for row in all_data if row.get('campaign_id') == campaign_id]
-            logger.info(f"   📊 Sau filter campaign_id ({campaign_id}): {len(all_data)} rows")
+        # ===== BUILD DETAILS - FILTER BẢNG =====
+        # Dùng adset_list từ adset_map, áp dụng filter prefix/status/search/campaign_id
+        # KHÔNG filter adset_id (bỏ debug)
+        adset_list = list(adset_map.values())
+        logger.info(f"   📊 Bắt đầu filter bảng từ {len(adset_list)} adsets")
         
-        # FIX: Chỉ filter adset_id nếu param thực sự được truyền và không phải None/"None"
-        # QUAN TRỌNG: Lưu giá trị ban đầu để tránh bị thay đổi
-        original_adset_id = adset_id
-        logger.info(f"   🔍 DEBUG - adset_id ban đầu: {original_adset_id}, type: {type(original_adset_id)}")
+        # Filter by campaign_id (nếu có)
+        if campaign_id and campaign_id != "None":
+            adset_list = [a for a in adset_list if a.get('campaign_id') == campaign_id]
+            logger.info(f"   📊 Sau filter campaign_id ({campaign_id}): {len(adset_list)} adsets")
         
-        # Kiểm tra kỹ: adset_id phải là string không rỗng và không phải "None"
-        should_filter_adset = False
-        filter_adset_id_value = None
-        
-        if original_adset_id:
-            # Kiểm tra nếu là string và không rỗng sau khi strip
-            if isinstance(original_adset_id, str):
-                adset_id_clean = original_adset_id.strip()
-                if adset_id_clean and adset_id_clean.lower() != "none":
-                    should_filter_adset = True
-                    filter_adset_id_value = adset_id_clean
-        
-        logger.info(f"   🔍 DEBUG - should_filter_adset: {should_filter_adset}, filter_adset_id_value: {filter_adset_id_value}")
-        
-        if should_filter_adset and filter_adset_id_value:
-            all_data = [row for row in all_data if row.get('adset_id') == filter_adset_id_value]
-            logger.info(f"   📊 Sau filter adset_id ({filter_adset_id_value}): {len(all_data)} rows")
-        else:
-            logger.info(f"   🔎 Không filter theo adset_id (original_adset_id={original_adset_id}, should_filter={should_filter_adset})")
-        
-        # ===== FILTER theo 2 flags: has_impressions_today và is_active_now =====
+        # Filter by status (ACTIVE/PAUSED/RAN_TODAY)
         logger.info(f"   🔍 DEBUG - status param = {status}, type = {type(status)}")
         
-        # Đếm stats trước khi filter
-        total_adsets = len(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
-        ran_today_count = len(set([row.get('adset_id') for row in all_data if row.get('ran_today')]))
-        active_now_count = len(set([row.get('adset_id') for row in all_data if row.get('is_active_now')]))
-        
-        logger.info(f"   📊 Stats TRƯỚC filter: total={total_adsets} adsets, ran_today={ran_today_count}, active_now={active_now_count}")
-        
-        # Xác định filter mode
         status_filter = None
         if status and isinstance(status, str) and status.strip():
             status_upper = status.upper().strip()
             if status_upper == 'ACTIVE':
                 status_filter = 'ACTIVE'
-                logger.info(f"   🔍 DEBUG - Filter mode: ACTIVE (ran_today AND effective_status=ACTIVE)")
+                adset_list = [a for a in adset_list if a.get('is_active_now')]
+                logger.info(f"   🔍 Filter ACTIVE: {len(adset_list)} adsets (effective_status=ACTIVE)")
             elif status_upper == 'RAN_TODAY':
                 status_filter = 'RAN_TODAY'
-                logger.info(f"   🔍 DEBUG - Filter mode: RAN_TODAY (chỉ ran_today)")
+                adset_list = [a for a in adset_list if a.get('ran_today')]
+                logger.info(f"   🔍 Filter RAN_TODAY: {len(adset_list)} adsets (impressions>0 or spend>0)")
             elif status_upper == 'ACTIVE_AND_RAN_TODAY':
                 status_filter = 'ACTIVE_AND_RAN_TODAY'
-                logger.info(f"   🔍 DEBUG - Filter mode: ACTIVE_AND_RAN_TODAY (giống ACTIVE)")
+                adset_list = [a for a in adset_list if a.get('is_active_now')]
+                logger.info(f"   🔍 Filter ACTIVE_AND_RAN_TODAY: {len(adset_list)} adsets")
             else:
                 logger.info(f"   🔍 DEBUG - Status param không hợp lệ: {status_upper}, bỏ qua")
         else:
-            logger.info(f"   🔍 DEBUG - Không có status param, mặc định RAN_TODAY")
-        
-        # Apply filter
-        before_filter = len(all_data)
-        filtered_data = []
-        
-        for row in all_data:
-            # Filter theo mode
-            if status_filter == 'ACTIVE' or status_filter == 'ACTIVE_AND_RAN_TODAY':
-                # Lấy adsets đang hoạt động thực sự (ran_today AND effective_status=ACTIVE)
-                if not row.get('is_active_now'):
-                    continue
-            elif status_filter == 'RAN_TODAY' or status_filter is None:
-                # Lấy tất cả adsets đã chạy hôm nay (impressions > 0)
-                if not row.get('ran_today'):
-                    continue
-            # else: không filter gì, lấy tất cả
-            
-            # Pass filter
-            filtered_data.append(row)
-        
-        logger.info(f"   📊 Sau filter: {len(filtered_data)}/{before_filter} rows (filter={status_filter or 'NONE (all data)'})")
-        all_data = filtered_data
+            # Mặc định: lấy tất cả adsets đã chạy hôm nay
+            adset_list = [a for a in adset_list if a.get('ran_today')]
+            logger.info(f"   🔍 DEBUG - Không có status param, mặc định RAN_TODAY: {len(adset_list)} adsets")
         
         # Search filter
-        if search and all_data:
+        if search:
             search_lower = search.lower()
-            all_data = [row for row in all_data if (
-                (row.get('campaign_name', '') or '').lower().find(search_lower) >= 0 or
-                (row.get('adset_name', '') or '').lower().find(search_lower) >= 0 or
-                (row.get('ad_name', '') or '').lower().find(search_lower) >= 0 or
-                (row.get('campaign_id', '') or '').lower().find(search_lower) >= 0 or
-                (row.get('adset_id', '') or '').lower().find(search_lower) >= 0 or
-                (row.get('ad_id', '') or '').lower().find(search_lower) >= 0
-            )]
+            before_search = len(adset_list)
+            adset_list = [
+                a for a in adset_list if (
+                    (a.get('campaign_name', '') or '').lower().find(search_lower) >= 0 or
+                    (a.get('adset_name', '') or '').lower().find(search_lower) >= 0 or
+                    (a.get('campaign_id', '') or '').lower().find(search_lower) >= 0 or
+                    (a.get('adset_id', '') or '').lower().find(search_lower) >= 0
+                )
+            ]
+            logger.info(f"   🔍 Sau search filter '{search}': {len(adset_list)}/{before_search} adsets")
         
-        logger.info(f"   📊 Sau TẤT CẢ filter (prefix/status/search/campaign/adset): {len(all_data)} rows cho bảng")
+        logger.info(f"   📊 Sau TẤT CẢ filter (prefix/status/search/campaign): {len(adset_list)} adsets cho bảng")
         
-        # ===== GROUP BY LEVEL và AGGREGATE =====
-        grouped_data = {}
-        for row in all_data:
-            # Determine entity key based on level
-            if level == "campaign":
-                entity_key = row.get('campaign_id')
-                entity_id = row.get('campaign_id')
-                entity_name = row.get('campaign_name', '')
-            elif level == "adset":
-                entity_key = row.get('adset_id')
-                entity_id = row.get('adset_id')
-                entity_name = row.get('adset_name', '')
-            else:  # ad
-                entity_key = row.get('ad_id')
-                entity_id = row.get('ad_id')
-                entity_name = row.get('ad_name', '')
-            
-            if not entity_key:
-                continue
-            
-            # Initialize group if not exists
-            if entity_key not in grouped_data:
-                grouped_data[entity_key] = {
-                    'id': entity_id,
-                    'name': entity_name,
-                    'account_id': row.get('account_id', ''),
-                    'prefix': row.get('prefix', ''),
-                    'status': (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper(),
-                    'delivery': (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper(),  # Alias for status - dùng status từ API
-                    'budget': row.get('budget', 0.0) or 0.0,  # Budget từ cache
-                    'budget_level': row.get('budget_level', 'ADSET'),  # Đã được xác định từ campaign info
-                    'currency': 'VND',  # Default, có thể lấy từ account
-                    'spend': 0,
-                    'impressions': 0,
-                    'clicks': 0,
-                    'reach': 0,
-                    'post_comments': 0,
-                    'messaging_conversations_started': 0,
-                    'purchases': 0,
-                    'gia_tri_chuyen_doi_tu_luot_mua': 0,
-                    'checkout_initiated': 0,
-                    'campaign_id': row.get('campaign_id', ''),
-                    'campaign_name': row.get('campaign_name', ''),
-                    'adset_id': row.get('adset_id', ''),
-                    'adset_name': row.get('adset_name', ''),
-                }
-            
-            # Aggregate metrics
-            group = grouped_data[entity_key]
-            group['spend'] += float(row.get('spend', 0) or 0)
-            group['impressions'] += int(row.get('impressions', 0) or 0)
-            group['clicks'] += int(row.get('clicks', 0) or 0)
-            group['reach'] += int(row.get('reach', 0) or 0)
-            group['post_comments'] += int(row.get('post_comments', 0) or 0)
-            group['messaging_conversations_started'] += int(row.get('messaging_conversations_started', 0) or 0)
-            group['purchases'] += int(row.get('purchases', 0) or 0)
-            group['gia_tri_chuyen_doi_tu_luot_mua'] += float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
-            group['checkout_initiated'] += int(row.get('checkout_initiated', 0) or 0)
-            
-            # Update status if available - ưu tiên effective_status, sau đó adset_status
-            # Status đã được update từ fetch_adset_statuses ở trên
-            effective_status = row.get('effective_status') or row.get('adset_status')
-            if effective_status:
-                group['status'] = effective_status.upper()
-                group['delivery'] = group['status']
-        
-        # Convert to list and calculate derived metrics
+        # ===== BUILD TABLE ROWS =====
         rows = []
-        for group in grouped_data.values():
-            spend = group['spend']
-            impressions = group['impressions']
-            clicks = group['clicks']
-            reach = group['reach']
-            post_comments = group['post_comments']
-            messages = group['messaging_conversations_started']
-            purchases = group['purchases']
-            purchase_value = group['gia_tri_chuyen_doi_tu_luot_mua']
-            checkout_starts = group['checkout_initiated']
-            budget = group['budget']
-            budget_level = group['budget_level']
+        for adset in adset_list:
+            spend = adset['spend']
+            impressions = adset['impressions']
+            clicks = adset['clicks']
+            reach = adset['reach']
+            post_comments = adset['post_comments']
+            messages = adset['messaging_conversations_started']
+            purchases = adset['purchases']
+            purchase_value = adset['gia_tri_chuyen_doi_tu_luot_mua']
+            checkout_starts = adset['checkout_initiated']
+            budget = adset.get('budget', 0.0) or 0.0
+            budget_level = adset.get('budget_level', 'ADSET')
             
             # Calculate results (comments + messages)
             results = post_comments + messages
@@ -4815,17 +4757,17 @@ async def get_dashboard_data(
             frequency = (impressions / reach) if reach > 0 else 0
             
             row_data = {
-                "account_id": group['account_id'],
-                "campaign_id": group['campaign_id'],
-                "campaign_name": group['campaign_name'] or "-",
-                "adset_id": group['adset_id'],
-                "adset_name": group['adset_name'] or "-",
-                "id": group['id'],
-                "name": group['name'] or "-",
-                "delivery": group['delivery'],
+                "account_id": adset.get('account_id', ''),
+                "campaign_id": adset.get('campaign_id', ''),
+                "campaign_name": adset.get('campaign_name') or "-",
+                "adset_id": adset['adset_id'],
+                "adset_name": adset.get('adset_name') or "-",
+                "id": adset['adset_id'],
+                "name": adset.get('adset_name') or "-",
+                "delivery": adset.get('effective_status', 'UNKNOWN').upper(),
                 "budget": round(budget, 2),
                 "budget_level": budget_level,
-                "currency": group['currency'],
+                "currency": 'VND',
                 "spend": round(spend, 2),
                 "results": results,
                 "total_leads": results,  # Alias
