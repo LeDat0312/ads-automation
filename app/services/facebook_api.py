@@ -1075,6 +1075,69 @@ def update_adset_budget(
         }
 
 
+def fetch_campaign_budgets_batch(campaign_ids: List[str], access_token: str) -> Dict[str, Dict[str, Any]]:
+    """
+    Lấy campaign budgets và CBO status từ campaign objects (batch request)
+    Returns: {campaign_id: {'daily_budget': float, 'lifetime_budget': float, 'budget_level': 'CAMPAIGN'|'ADSET'}}
+    """
+    if not campaign_ids:
+        return {}
+    
+    campaigns_info = {}
+    campaign_batches = chunk_list(campaign_ids, 50)
+    
+    for batch in campaign_batches:
+        try:
+            batch_payload = []
+            for campaign_id in batch:
+                batch_payload.append({
+                    "method": "GET",
+                    "relative_url": f"{FB_API_VERSION}/{campaign_id}?fields=daily_budget,lifetime_budget"
+                })
+            
+            import json
+            url = f"{FB_GRAPH_API_BASE}/"
+            form_data = {
+                'access_token': access_token,
+                'batch': json.dumps(batch_payload)
+            }
+            
+            response = requests.post(url, data=form_data, timeout=60)
+            response.raise_for_status()
+            
+            json_response = response.json()
+            if isinstance(json_response, list):
+                for i, item in enumerate(json_response):
+                    if i < len(batch):
+                        campaign_id = batch[i]
+                        if item.get('code') == 200:
+                            try:
+                                body = item.get('body', '{}')
+                                if isinstance(body, str):
+                                    body_json = json.loads(body)
+                                else:
+                                    body_json = body
+                                
+                                daily_budget = float(body_json.get('daily_budget', 0) or 0)
+                                lifetime_budget = float(body_json.get('lifetime_budget', 0) or 0)
+                                
+                                # Nếu campaign có daily_budget hoặc lifetime_budget → budget_level = CAMPAIGN
+                                budget_level = 'CAMPAIGN' if (daily_budget > 0 or lifetime_budget > 0) else 'ADSET'
+                                
+                                campaigns_info[campaign_id] = {
+                                    'daily_budget': daily_budget,
+                                    'lifetime_budget': lifetime_budget,
+                                    'budget_level': budget_level
+                                }
+                            except Exception as e:
+                                logger.warning(f"Lỗi parse campaign budget cho {campaign_id}: {e}")
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy campaign budgets batch: {e}")
+            continue
+    
+    return campaigns_info
+
+
 def pull_facebook_data(
     access_token: str,
     ad_account_ids: List[str],
@@ -1195,68 +1258,6 @@ def pull_facebook_data(
                 continue
         
         return objectives_map
-    
-    def fetch_campaign_budgets_batch(campaign_ids: List[str], access_token: str) -> Dict[str, Dict[str, Any]]:
-        """
-        Lấy campaign budgets và CBO status từ campaign objects (batch request)
-        Returns: {campaign_id: {'daily_budget': float, 'lifetime_budget': float, 'budget_level': 'CAMPAIGN'|'ADSET'}}
-        """
-        if not campaign_ids:
-            return {}
-        
-        campaigns_info = {}
-        campaign_batches = chunk_list(campaign_ids, 50)
-        
-        for batch in campaign_batches:
-            try:
-                batch_payload = []
-                for campaign_id in batch:
-                    batch_payload.append({
-                        "method": "GET",
-                        "relative_url": f"{FB_API_VERSION}/{campaign_id}?fields=daily_budget,lifetime_budget"
-                    })
-                
-                import json
-                url = f"{FB_GRAPH_API_BASE}/"
-                form_data = {
-                    'access_token': access_token,
-                    'batch': json.dumps(batch_payload)
-                }
-                
-                response = requests.post(url, data=form_data, timeout=60)
-                response.raise_for_status()
-                
-                json_response = response.json()
-                if isinstance(json_response, list):
-                    for i, item in enumerate(json_response):
-                        if i < len(batch):
-                            campaign_id = batch[i]
-                            if item.get('code') == 200:
-                                try:
-                                    body = item.get('body', '{}')
-                                    if isinstance(body, str):
-                                        body_json = json.loads(body)
-                                    else:
-                                        body_json = body
-                                    
-                                    daily_budget = float(body_json.get('daily_budget', 0) or 0)
-                                    lifetime_budget = float(body_json.get('lifetime_budget', 0) or 0)
-                                    
-                                    # Nếu campaign có daily_budget hoặc lifetime_budget → budget_level = CAMPAIGN
-                                    budget_level = 'CAMPAIGN' if (daily_budget > 0 or lifetime_budget > 0) else 'ADSET'
-                                    
-                                    campaigns_info[campaign_id] = {
-                                        'daily_budget': daily_budget,
-                                        'lifetime_budget': lifetime_budget,
-                                        'budget_level': budget_level
-                                    }
-                                except Exception as e:
-                                    logger.warning(f"Lỗi parse campaign budget cho {campaign_id}: {e}")
-            except Exception as e:
-                logger.warning(f"Lỗi khi lấy campaign budgets batch: {e}")
-                continue
-        
-        return campaigns_info
     
     for account_id in ad_account_ids:
         try:

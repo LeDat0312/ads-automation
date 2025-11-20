@@ -26,7 +26,8 @@ from app.services.facebook_api import (
     resume_adsets, 
     update_adset_budget, 
     update_campaign_budget,
-    normalize_status
+    normalize_status,
+    fetch_campaign_budgets_batch
 )
 from pydantic import BaseModel
 from typing import Literal
