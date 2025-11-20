@@ -317,7 +317,7 @@ function App() {
       const selectedIdsArray = Array.from(selectedIds);
       const items = selectedIdsArray.map(id => ({
         id,
-        new_status: action === 'pause' ? 'PAUSED' : 'ACTIVE',
+        new_status: (action === 'pause' ? 'PAUSED' : 'ACTIVE') as 'ACTIVE' | 'PAUSED' | 'DELETED',
       }));
 
       // Gọi API update status
