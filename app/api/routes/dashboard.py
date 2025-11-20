@@ -861,11 +861,12 @@ async def get_dashboard_data(
             }
             
             if view_mode == "ecommerce":
-                # Tính % ADS: spend / purchase_value * 100
-                # Nếu purchase_value = 0 nhưng có purchases > 0, có thể là do chưa có giá trị conversion
-                ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
+                # Tính % ADS: spend / purchase_value (KHÔNG nhân 100, giống Google Script)
+                # Người dùng: "% ADS chỉ là số tiền chi tiêu / giá trị chuyển đổi từ lượt mua thôi"
+                ads_percent = (spend / purchase_value) if purchase_value > 0 else 0
                 tlc = (purchases / results * 100) if results > 0 else 0
                 cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
+                # Chi phí trên mỗi lượt mua = số tiền chi tiêu / lượt mua
                 cost_per_purchase = (spend / purchases) if purchases > 0 else 0
                 row_data.update({
                     "ads_percent": round(ads_percent, 2),  # % ADS (chỉ Ecom) - dùng ads_percent thay vì %ads
