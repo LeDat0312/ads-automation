@@ -142,26 +142,31 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-b-lg shadow overflow-hidden border border-gray-200 border-t-0">
+    <div className="bg-white rounded-2xl shadow-md overflow-hidden" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full" style={{ borderCollapse: 'collapse' }}>
+          <thead style={{ background: '#f9fafb' }}>
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
                   className={`
                     ${col.width}
-                    ${col.fixed ? 'sticky left-0 z-10 bg-gray-50' : ''}
-                    px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider
+                    ${col.fixed ? 'sticky left-0 z-10' : ''}
+                    px-3 py-3 text-left text-sm font-semibold uppercase
                     ${col.sortable ? 'cursor-pointer hover:bg-gray-100 select-none' : ''}
                   `}
-                  style={
-                    col.key === 'select' ? { left: 0 } :
-                    col.key === 'status' ? { left: '3rem' } :
-                    col.key === 'adset_name' ? { left: '7rem' } :
-                    undefined
-                  }
+                  style={{
+                    ...(col.fixed ? { background: '#f9fafb', zIndex: 10 } : {}),
+                    color: '#374151',
+                    borderBottom: '1px solid #f3f4f6',
+                    position: col.fixed ? 'sticky' : 'relative',
+                    top: 0,
+                    ...(col.key === 'select' ? { left: 0 } :
+                        col.key === 'status' ? { left: '3rem' } :
+                        col.key === 'adset_name' ? { left: '7rem' } :
+                        {})
+                  }}
                   onClick={() => col.sortable && handleSort(col.key)}
                 >
                   <div className="flex items-center gap-1">
@@ -183,7 +188,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody style={{ background: 'white' }}>
             {rows.map((row) => {
               const rowId = row.id || row.adset_id || row.campaign_id || row.ad_id || '';
               return (
@@ -242,9 +247,22 @@ const TableRow: React.FC<TableRowProps> = ({
 
   if (viewMode === 'lead') {
     return (
-      <tr className="hover:bg-gray-50">
+      <tr 
+        style={{ 
+          borderBottom: '1px solid #f3f4f6',
+        }}
+        className="hover:bg-[#f9fafb] transition-colors"
+      >
         {/* Checkbox */}
-        <td className="px-3 py-3 sticky left-0 z-10 bg-white" style={{ left: 0 }}>
+        <td 
+          className="sticky left-0 z-10 bg-white" 
+          style={{ 
+            left: 0,
+            padding: '12px',
+            fontSize: '14px',
+            color: '#1f2937'
+          }}
+        >
           <input
             type="checkbox"
             checked={isSelected}
@@ -317,62 +335,62 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Results (DATA) */}
-        <td className="px-3 py-3 text-right font-semibold text-green-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600 }}>
           {formatNumber(row.results)}
         </td>
 
         {/* Cost per DATA */}
-        <td className="px-3 py-3 text-right font-semibold text-teal-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#14b8a6', textAlign: 'right', fontWeight: 600 }}>
           {formatCurrency(row.data_cost, row.currency)}
         </td>
 
         {/* Cost per Checkout */}
-        <td className="px-3 py-3 text-right text-gray-700 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatCurrency((row.initiated_checkout && row.initiated_checkout > 0) ? row.spend / row.initiated_checkout : 0, row.currency)}
         </td>
 
         {/* Checkouts Initiated */}
-        <td className="px-3 py-3 text-right text-gray-700 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
         {/* Purchases */}
-        <td className="px-3 py-3 text-right font-semibold text-purple-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'right', fontWeight: 600 }}>
           {formatNumber(row.purchases)}
         </td>
 
         {/* CPM */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatCurrency(row.cpm || 0, row.currency)}
         </td>
 
         {/* Impressions */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatNumber(row.impressions)}
         </td>
 
         {/* Reach */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatNumber(row.reach || 0)}
         </td>
 
         {/* Frequency */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {(row.frequency || 0).toFixed(2)}
         </td>
 
         {/* Clicks */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatNumber(row.clicks || 0)}
         </td>
 
         {/* CTR */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatPercentage(row.ctr || 0)}%
         </td>
 
         {/* CPC */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatCurrency(row.cpc || 0, row.currency)}
         </td>
       </tr>
@@ -380,9 +398,22 @@ const TableRow: React.FC<TableRowProps> = ({
   } else {
     // E-COMMERCE
     return (
-      <tr className="hover:bg-gray-50">
+      <tr 
+        style={{ 
+          borderBottom: '1px solid #f3f4f6',
+        }}
+        className="hover:bg-[#f9fafb] transition-colors"
+      >
         {/* Checkbox */}
-        <td className="px-3 py-3 sticky left-0 z-10 bg-white" style={{ left: 0 }}>
+        <td 
+          className="sticky left-0 z-10 bg-white" 
+          style={{ 
+            left: 0,
+            padding: '12px',
+            fontSize: '14px',
+            color: '#1f2937'
+          }}
+        >
           <input
             type="checkbox"
             checked={isSelected}
@@ -392,7 +423,15 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Status Toggle */}
-        <td className="px-3 py-3 sticky z-10 bg-white" style={{ left: '4rem' }}>
+        <td 
+          className="sticky z-10 bg-white" 
+          style={{ 
+            left: '4rem',
+            padding: '12px',
+            fontSize: '14px',
+            color: '#1f2937'
+          }}
+        >
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
@@ -405,7 +444,15 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Name */}
-        <td className="px-3 py-3 sticky z-10 bg-white" style={{ left: '8rem' }}>
+        <td 
+          className="sticky z-10 bg-white" 
+          style={{ 
+            left: '8rem',
+            padding: '12px',
+            fontSize: '14px',
+            color: '#1f2937'
+          }}
+        >
           <div className="font-semibold text-gray-900 truncate" title={row.adset_name}>
             {row.adset_name}
           </div>
@@ -424,14 +471,14 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Delivery Status */}
-        <td className="px-3 py-3">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937' }}>
           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
             {row.delivery === 'ACTIVE' ? 'Đang chạy' : 'Tạm dừng'}
           </span>
         </td>
 
         {/* Budget */}
-        <td className="px-3 py-3 text-right">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           <button
             onClick={() => {
               const canEdit = row.budget_level === 'CAMPAIGN';
@@ -440,9 +487,10 @@ const TableRow: React.FC<TableRowProps> = ({
               }
             }}
             className={`
-              text-gray-700 hover:text-indigo-600 hover:underline transition-colors text-sm
+              hover:text-indigo-600 hover:underline transition-colors
               ${row.budget_level === 'CAMPAIGN' ? 'cursor-pointer font-medium' : 'cursor-not-allowed opacity-60'}
             `}
+            style={{ color: '#1f2937' }}
             title={row.budget_level === 'CAMPAIGN' ? 'Click để chỉnh sửa' : 'Ngân sách ở cấp Adset'}
           >
             {formatCurrency(row.budget, row.currency)}
@@ -450,77 +498,77 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Spend */}
-        <td className="px-3 py-3 text-right font-semibold text-gray-900 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', fontWeight: 600 }}>
           {formatCurrency(row.spend, row.currency)}
         </td>
 
         {/* % ADS */}
-        <td className="px-3 py-3 text-right font-semibold text-rose-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#e11d48', textAlign: 'right', fontWeight: 600 }}>
           {formatPercentage(row.ads_percent || 0)}%
         </td>
 
         {/* Results (Kết quả) */}
-        <td className="px-3 py-3 text-right font-semibold text-green-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600 }}>
           {formatNumber(row.results)}
         </td>
 
         {/* Cost per DATA */}
-        <td className="px-3 py-3 text-right font-semibold text-teal-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#14b8a6', textAlign: 'right', fontWeight: 600 }}>
           {formatCurrency(row.data_cost, row.currency)}
         </td>
 
         {/* TLC (Tỷ lệ chuyển đổi) */}
-        <td className="px-3 py-3 text-right text-gray-700 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatPercentage(row.tlc || (row.initiated_checkout && row.impressions ? (row.initiated_checkout / row.impressions) * 100 : 0))}%
         </td>
 
         {/* Checkouts Initiated */}
-        <td className="px-3 py-3 text-right text-gray-700 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
         {/* Purchases */}
-        <td className="px-3 py-3 text-right font-semibold text-purple-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'right', fontWeight: 600 }}>
           {formatNumber(row.purchases)}
         </td>
 
         {/* Purchase Value */}
-        <td className="px-3 py-3 text-right font-semibold text-green-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600 }}>
           {formatCurrency(row.purchase_value, row.currency)}
         </td>
 
         {/* CPM */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatCurrency(row.cpm || 0, row.currency)}
         </td>
 
         {/* Impressions */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatNumber(row.impressions)}
         </td>
 
         {/* Reach */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatNumber(row.reach || 0)}
         </td>
 
         {/* Frequency */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {(row.frequency || 0).toFixed(2)}
         </td>
 
         {/* Clicks */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatNumber(row.clicks || 0)}
         </td>
 
         {/* CTR */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatPercentage(row.ctr || 0)}%
         </td>
 
         {/* CPC */}
-        <td className="px-3 py-3 text-right text-gray-600 text-sm">
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
           {formatCurrency(row.cpc || 0, row.currency)}
         </td>
       </tr>

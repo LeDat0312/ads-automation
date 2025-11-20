@@ -26,114 +26,114 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
       {/* Card 1: TỔNG CHI TIÊU - Always show */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center text-white text-xl">💰</div>
+      <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="flex items-center justify-between mb-4">
+          <div className="w-10 h-10 rounded-[10px] bg-[#6366f1] flex items-center justify-center text-white text-lg">💰</div>
         </div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">TỔNG CHI TIÊU</h3>
-        <p className="text-2xl font-extrabold text-gray-900">{formatCurrency(summary.totalSpend, currency)}</p>
+        <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">TỔNG CHI TIÊU</h3>
+        <p className="text-[32px] font-bold text-[#1f2937] leading-tight">{formatCurrency(summary.totalSpend, currency)}</p>
       </div>
 
       {viewMode === 'ecommerce' ? (
         <>
           {/* E-COMMERCE VIEW */}
           {/* Card 2: % ADS */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-red-500 flex items-center justify-center text-white text-xl">📊</div>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-[10px] bg-[#ef4444] flex items-center justify-center text-white text-lg">📈</div>
             </div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">% ADS</h3>
-            <p className="text-2xl font-extrabold text-gray-900">
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">% ADS</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight mb-2">
               {summary.adsPercent !== undefined ? `${summary.adsPercent.toFixed(2)}%` : '0.00%'}
             </p>
-            <p className="text-xs text-gray-400 mt-1.5">Chi tiêu / Giá trị chuyển đổi</p>
+            <p className="text-sm text-[#6b7280]">Chi tiêu / Giá trị chuyển đổi</p>
           </div>
 
           {/* Card 3: GIÁ TRỊ CHUYỂN ĐỔI */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-cyan-500 flex items-center justify-center text-white text-xl">💎</div>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-[10px] bg-[#06b6d4] flex items-center justify-center text-white text-lg">🛒</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">GIÁ TRỊ CHUYỂN ĐỔI</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.purchaseValue || 0, currency)}</p>
-            <p className="text-xs text-gray-500 mt-1">Tổng từ lượt mua</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">GIÁ TRỊ CHUYỂN ĐỔI</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight mb-2">{formatCurrency(summary.purchaseValue || 0, currency)}</p>
+            <p className="text-sm text-[#6b7280]">Tổng từ lượt mua</p>
           </div>
 
           {/* Card 4: ADSETS HOẠT ĐỘNG */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white text-xl">▶️</div>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-[10px] bg-[#8b5cf6] flex items-center justify-center text-white text-lg">▶️</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">ADSETS HOẠT ĐỘNG</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.activeAdsets)}</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">ADSETS HOẠT ĐỘNG</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight">{formatNumber(summary.activeAdsets)}</p>
           </div>
 
           {/* Card 5: ADSETS ĐÃ TẠM DỪNG */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-gray-500 flex items-center justify-center text-white text-xl">⏸️</div>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-[10px] bg-[#8b5cf6] flex items-center justify-center text-white text-lg">⏸️</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">ADSETS ĐÃ TẠM DỪNG</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.pausedAdsets)}</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">ADSETS ĐÃ TẠM DỪNG</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight">{formatNumber(summary.pausedAdsets)}</p>
           </div>
 
           {/* Card 6: TỔNG ADSETS */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-xl">📊</div>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-[10px] bg-[#8b5cf6] flex items-center justify-center text-white text-lg">📊</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG ADSETS</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.totalAdsets)}</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">TỔNG ADSETS</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight">{formatNumber(summary.totalAdsets)}</p>
           </div>
         </>
       ) : (
         <>
           {/* LEAD GENERATION VIEW */}
           {/* Card 2: TỔNG LEAD */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white text-xl">📊</div>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-[10px] bg-[#22c55e] flex items-center justify-center text-white text-lg">💬</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG LEAD</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.totalData || summary.totalLead || 0)}</p>
-            <p className="text-xs text-gray-500 mt-1">Bình luận + Tin nhắn</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">TỔNG LEAD</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight mb-2">{formatNumber(summary.totalData || summary.totalLead || 0)}</p>
+            <p className="text-sm text-[#6b7280]">Bình luận + Tin nhắn</p>
           </div>
 
           {/* Card 3: TỔNG BẮT ĐẦU TT */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center text-white text-xl">🛒</div>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-[10px] bg-[#06b6d4] flex items-center justify-center text-white text-lg">🛒</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG BẮT ĐẦU TT</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.totalCheckouts || 0)}</p>
-            <p className="text-xs text-gray-500 mt-1">Lượt bắt đầu thanh toán</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">TỔNG BẮT ĐẦU TT</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight mb-2">{formatNumber(summary.totalCheckouts || 0)}</p>
+            <p className="text-sm text-[#6b7280]">Lượt bắt đầu thanh toán</p>
           </div>
 
           {/* Card 4: ADSETS HOẠT ĐỘNG */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white text-xl">▶️</div>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-[10px] bg-[#8b5cf6] flex items-center justify-center text-white text-lg">▶️</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">ADSETS HOẠT ĐỘNG</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.activeAdsets)}</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">ADSETS HOẠT ĐỘNG</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight">{formatNumber(summary.activeAdsets)}</p>
           </div>
 
           {/* Card 5: ADSETS ĐÃ TẠM DỪNG */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-gray-500 flex items-center justify-center text-white text-xl">⏸️</div>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-[10px] bg-[#8b5cf6] flex items-center justify-center text-white text-lg">⏸️</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">ADSETS ĐÃ TẠM DỪNG</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.pausedAdsets)}</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">ADSETS ĐÃ TẠM DỪNG</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight">{formatNumber(summary.pausedAdsets)}</p>
           </div>
 
           {/* Card 6: TỔNG ADSETS */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-xl">📊</div>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-[10px] bg-[#8b5cf6] flex items-center justify-center text-white text-lg">📊</div>
             </div>
-            <h3 className="text-xs font-semibold text-gray-600 uppercase mb-1">TỔNG ADSET</h3>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(summary.totalAdsets)}</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">TỔNG ADSET</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight">{formatNumber(summary.totalAdsets)}</p>
           </div>
         </>
       )}

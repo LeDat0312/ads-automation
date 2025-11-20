@@ -325,9 +325,9 @@ function App() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
+    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
       {/* Top Bar - Purple Header */}
-      <header className="bg-[#635BFF] shadow-lg sticky top-0 z-30">
+      <header className="bg-transparent shadow-lg sticky top-0 z-30">
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-between">
             {/* Left: Logo & Title */}
@@ -337,20 +337,20 @@ function App() {
                 <h1 className="text-xl font-bold text-white">
                   Facebook Ads Automation - Dashboard
                 </h1>
-                <p className="text-xs text-indigo-200">Quản lý chiến dịch quảng cáo thông minh</p>
+                <p className="text-xs text-white/80">Quản lý chiến dịch quảng cáo thông minh</p>
               </div>
             </div>
             
             {/* Right: Status + Buttons */}
             <div className="flex items-center gap-3">
               {/* Status Badge */}
-              <div className="px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+              <div className="px-4 py-2 bg-green-500/20 backdrop-blur-sm border border-green-400/30 text-white rounded-full text-sm font-medium">
                 ✓ Sẵn sàng ({data?.summary?.totalAdsets || 0} adsets)
               </div>
               
               {/* Settings Button */}
               <button 
-                className="px-4 py-2 border-2 border-white/30 text-white rounded-lg hover:bg-white/10 transition-colors text-sm font-medium"
+                className="px-4 py-2 border-2 border-white/30 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium backdrop-blur-sm"
                 onClick={() => window.location.href = '/settings'}
               >
                 ⚙️ Cài đặt
@@ -358,7 +358,7 @@ function App() {
               
               {/* Home Button */}
               <button 
-                className="px-4 py-2 bg-white text-[#635BFF] rounded-lg hover:bg-indigo-50 transition-colors text-sm font-semibold shadow-md"
+                className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-colors text-sm font-semibold border border-white/30"
                 onClick={() => window.location.href = '/'}
               >
                 🏠 Về Trang Chủ
@@ -369,18 +369,18 @@ function App() {
       </header>
 
       {/* View Mode Strip */}
-      <div className="bg-white border-b border-gray-200 sticky top-[60px] z-20 shadow-sm">
+      <div className="bg-transparent sticky top-[60px] z-20">
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-4">
             {/* View Mode Tabs */}
-            <div className="inline-flex rounded-lg border border-gray-300 p-1">
+            <div className="inline-flex rounded-lg border border-white/30 p-1 bg-white/10 backdrop-blur-sm">
               <button
                 onClick={() => handleViewModeChange('ecommerce')}
                 className={`
                   px-6 py-2 rounded-md text-sm font-semibold transition-all duration-200
                   ${viewMode === 'ecommerce'
-                    ? 'bg-[#635BFF] text-white shadow-md'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    ? 'bg-white text-[#667eea] shadow-md'
+                    : 'text-white hover:bg-white/20'
                   }
                 `}
               >
@@ -391,8 +391,8 @@ function App() {
                 className={`
                   px-6 py-2 rounded-md text-sm font-semibold transition-all duration-200
                   ${viewMode === 'lead'
-                    ? 'bg-[#635BFF] text-white shadow-md'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    ? 'bg-white text-[#667eea] shadow-md'
+                    : 'text-white hover:bg-white/20'
                   }
                 `}
               >
