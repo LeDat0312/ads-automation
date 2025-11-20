@@ -309,35 +309,66 @@ function App() {
     setShowConfirmModal(true);
   };
 
-  const handleStatusUpdate = async (action: 'pause' | 'resume') => {
+  const handleConfirmStatusUpdate = async () => {
+    if (!confirmAction) return;
+    
     try {
       setLoading(true);
-      setBulkProgress({ current: 0, total: selectedIds.size });
+      setShowConfirmModal(false);
       
       const selectedIdsArray = Array.from(selectedIds);
-      const items = selectedIdsArray.map(id => ({
-        id,
-        new_status: (action === 'pause' ? 'PAUSED' : 'ACTIVE') as 'ACTIVE' | 'PAUSED' | 'DELETED',
-      }));
-
-      // Gọi API update status
-      await updateStatus({
-        level: currentLevel.toUpperCase() as 'CAMPAIGN' | 'ADSET' | 'AD',
-        items,
-      });
-
-      // Update progress
-      setBulkProgress({ current: selectedIdsArray.length, total: selectedIdsArray.length });
+      const total = selectedIdsArray.length;
+      setBulkProgress({ current: 0, total });
+      
+      // Xử lý từng item một để update progress incrementally
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (let i = 0; i < selectedIdsArray.length; i++) {
+        const id = selectedIdsArray[i];
+        try {
+          await updateStatus({
+            level: currentLevel.toUpperCase() as 'CAMPAIGN' | 'ADSET' | 'AD',
+            items: [{
+              id,
+              new_status: (confirmAction === 'pause' ? 'PAUSED' : 'ACTIVE') as 'ACTIVE' | 'PAUSED' | 'DELETED',
+            }],
+          });
+          successCount++;
+        } catch (err) {
+          failCount++;
+          console.error(`Failed to update ${id}:`, err);
+        }
+        
+        // Update progress sau mỗi item
+        setBulkProgress({ current: i + 1, total });
+        
+        // Thêm delay nhỏ để user thấy progress
+        if (i < selectedIdsArray.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
       
       // Đợi một chút để user thấy progress 100%
       await new Promise(resolve => setTimeout(resolve, 300));
       
+      // Refresh data và clear selection
       await fetchData();
       setSelectedIds(new Set());
       setBulkProgress(null);
+      setConfirmAction(null);
+      setShowConfirmModal(false);
+      
+      // Show success/error message
+      if (failCount === 0) {
+        // Success - có thể show toast nếu muốn
+      } else {
+        setError(`Đã xử lý ${successCount}/${total} item thành công. ${failCount} item thất bại.`);
+      }
     } catch (err) {
       setError(getErrorMessage(err));
       setBulkProgress(null);
+      setConfirmAction(null);
     } finally {
       setLoading(false);
     }
@@ -737,6 +768,27 @@ function App() {
       />
 
       {/* Confirm Modal for Bulk Actions */}
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => {
+          setShowConfirmModal(false);
+          setConfirmAction(null);
+        }}
+        onConfirm={handleConfirmStatusUpdate}
+        title={
+          confirmAction === 'pause'
+            ? `Tắt ${selectedIds.size} ${currentLevel === 'campaign' ? 'chiến dịch' : currentLevel === 'adset' ? 'nhóm quảng cáo' : 'quảng cáo'}?`
+            : `Bật ${selectedIds.size} ${currentLevel === 'campaign' ? 'chiến dịch' : currentLevel === 'adset' ? 'nhóm quảng cáo' : 'quảng cáo'}?`
+        }
+        message={
+          confirmAction === 'pause'
+            ? `Bạn chắc chắn muốn tắt ${selectedIds.size} ${currentLevel === 'campaign' ? 'chiến dịch' : currentLevel === 'adset' ? 'nhóm quảng cáo' : 'quảng cáo'} không?`
+            : `Bạn chắc chắn muốn bật ${selectedIds.size} ${currentLevel === 'campaign' ? 'chiến dịch' : currentLevel === 'adset' ? 'nhóm quảng cáo' : 'quảng cáo'} không?`
+        }
+        confirmText={confirmAction === 'pause' ? 'Tắt' : 'Bật'}
+        cancelText="Hủy"
+        loading={loading && !!bulkProgress}
+      />
       <ConfirmModal
         isOpen={showConfirmModal}
         onClose={() => {
