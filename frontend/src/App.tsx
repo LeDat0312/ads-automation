@@ -155,23 +155,20 @@ function App() {
   // Handle budget update - bulk
   const handleBudgetUpdate = async (changes: { id: string; new_budget: number }[]) => {
     try {
-      setLoading(true);
-      await updateBudget({
-        operations: changes.map(change => ({
-          level: currentLevel === 'campaign' ? 'CAMPAIGN' : 'ADSET',
-          id: change.id,
-          new_budget: change.new_budget,
-        })),
-        view_mode: viewMode,
-      });
-      // Chỉ update các rows đã thay đổi, không reload toàn bộ
+      // 🔹 OPTIMISTIC UI: Update state trước khi gọi API
       setData(prev => {
         if (!prev) return prev;
         const updatedRows = prev.details.rows.map(r => {
           const rowId = r.id || r.adset_id || r.campaign_id || r.ad_id || '';
           const change = changes.find(c => c.id === rowId);
           if (change) {
-            return { ...r, budget: change.new_budget };
+            // Update đúng field dựa trên budget_level
+            const isCampaignBudget = currentLevel === 'campaign' || r.budget_level === 'CAMPAIGN';
+            if (isCampaignBudget) {
+              return { ...r, campaign_daily_budget: change.new_budget, budget: change.new_budget };
+            } else {
+              return { ...r, adset_daily_budget: change.new_budget, budget: change.new_budget };
+            }
           }
           return r;
         });
@@ -183,6 +180,18 @@ function App() {
           }
         };
       });
+      
+      // Gọi API update
+      await updateBudget({
+        operations: changes.map(change => ({
+          level: currentLevel === 'campaign' ? 'CAMPAIGN' : 'ADSET',
+          id: change.id,
+          new_budget: change.new_budget,
+        })),
+        view_mode: viewMode,
+      });
+      
+      // Nếu API thành công, state đã được update ở trên (optimistic)
       setSelectedIds(new Set());
       // KHÔNG gọi fetchData - chỉ update số tiền ngân sách
     } catch (err) {
@@ -313,23 +322,21 @@ function App() {
   // Handle budget update - single row (chỉ update row đó, không reload toàn bộ)
   const handleBudgetUpdateSingle = async (row: any, newBudget: number) => {
     try {
-      setLoading(true);
-      await updateBudget({
-        operations: [{
-          level: row.budget_level || (currentLevel === 'campaign' ? 'CAMPAIGN' : 'ADSET'),
-          id: row.id || row.adset_id || row.campaign_id,
-          new_budget: newBudget,
-        }],
-        view_mode: viewMode,
-      });
-      // Chỉ update row đó trong state, không reload toàn bộ
+      const targetId = row.id || row.adset_id || row.campaign_id || row.ad_id || '';
+      const isCampaignBudget = row.budget_level === 'CAMPAIGN' || currentLevel === 'campaign';
+      
+      // 🔹 OPTIMISTIC UI: Update state trước khi gọi API
       setData(prev => {
         if (!prev) return prev;
         const updatedRows = prev.details.rows.map(r => {
           const rowId = r.id || r.adset_id || r.campaign_id || r.ad_id || '';
-          const targetId = row.id || row.adset_id || row.campaign_id || row.ad_id || '';
           if (rowId === targetId) {
-            return { ...r, budget: newBudget };
+            // Update đúng field dựa trên budget_level
+            if (isCampaignBudget) {
+              return { ...r, campaign_daily_budget: newBudget, budget: newBudget };
+            } else {
+              return { ...r, adset_daily_budget: newBudget, budget: newBudget };
+            }
           }
           return r;
         });
@@ -341,6 +348,18 @@ function App() {
           }
         };
       });
+      
+      // Gọi API update
+      await updateBudget({
+        operations: [{
+          level: row.budget_level || (currentLevel === 'campaign' ? 'CAMPAIGN' : 'ADSET'),
+          id: targetId,
+          new_budget: newBudget,
+        }],
+        view_mode: viewMode,
+      });
+      
+      // Nếu API thành công, state đã được update ở trên (optimistic)
       // KHÔNG gọi fetchData - chỉ update số tiền ngân sách
     } catch (err) {
       setError(getErrorMessage(err));
