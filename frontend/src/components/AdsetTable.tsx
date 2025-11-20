@@ -37,15 +37,15 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
     if (viewMode === 'lead') {
       // Lead columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, Kết Quả, Giá DATA, Chi Phi/BĐTT, Bắt Đầu TT, Chi phí / LM, Lượt Mua, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
       return [
-        { key: 'select', label: 'Chọn', sortable: false, width: 'w-16', fixed: true },
-        { key: 'status', label: 'Bật/Tắt', sortable: false, width: 'w-24', fixed: true },
+        { key: 'select', label: 'Chọn', sortable: false, width: 'w-12', fixed: true },
+        { key: 'status', label: 'Bật/Tắt', sortable: false, width: 'w-20', fixed: true },
         { key: 'name', label: 'Tên', sortable: false, width: 'min-w-[300px]', fixed: true },
-        { key: 'delivery', label: 'Phân Phối', sortable: false, width: 'w-28' },
+        { key: 'delivery', label: 'Phân Phối', sortable: false, width: 'w-24' },
         { key: 'budget', label: 'Ngân Sách', sortable: false, width: 'w-32' },
         { key: 'spend', label: 'Chi Tiêu', sortable: true, width: 'w-32' },
         { key: 'results', label: 'Kết Quả', sortable: true, width: 'w-28' },
         { key: 'data_cost', label: 'Giá DATA', sortable: true, width: 'w-32' },
-        { key: 'cost_per_checkout_initiated', label: 'Chi Phi/BĐTT', sortable: true, width: 'w-32' },
+        { key: 'cost_per_checkout_initiated', label: 'Chi Phí/BĐTT', sortable: true, width: 'w-32' },
         { key: 'checkouts_initiated', label: 'Bắt Đầu TT', sortable: true, width: 'w-32' },
         { key: 'cost_per_purchase', label: 'Chi phí / LM', sortable: true, width: 'w-32' },
         { key: 'purchases', label: 'Lượt Mua', sortable: true, width: 'w-28' },
@@ -181,14 +181,17 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                     position: col.fixed ? 'sticky' : 'relative',
                     top: 0,
                     zIndex: col.fixed ? 10 : 1,
-                    ...(col.key === 'select' ? { left: 0 } :
-                        col.key === 'status' ? { left: '4rem' } :
-                        col.key === 'name' ? { left: '8rem' } :
-                        {})
+                    ...(col.key === 'select' ? { left: 0, width: '48px', padding: '8px' } :
+                        col.key === 'status' ? { left: '3rem', width: '80px', padding: '8px' } :
+                        col.key === 'name' ? { left: '5.5rem' } :
+                        {}),
+                    textAlign: (col.key === 'select' || col.key === 'status' || col.key === 'delivery') ? 'center' :
+                               (col.key === 'name') ? 'left' :
+                               (col.sortable || ['spend', 'results', 'data_cost', 'cost_per_checkout_initiated', 'checkouts_initiated', 'cost_per_purchase', 'purchases', 'cpm', 'impressions', 'reach', 'frequency', 'clicks', 'ctr', 'cpc', 'budget'].includes(col.key)) ? 'center' : 'left'
                   }}
                   onClick={() => col.sortable && handleSort(col.key)}
                 >
-                  <div className="flex items-center gap-1">
+                  <div className={`flex items-center gap-1 ${(col.key === 'select' || col.key === 'status' || col.key === 'delivery' || (col.sortable && col.key !== 'name')) ? 'justify-center' : 'justify-start'}`}>
                     {col.key === 'select' ? (
                       <input
                         type="checkbox"
@@ -283,10 +286,12 @@ const TableRow: React.FC<TableRowProps> = ({
           className="sticky left-0 z-10 bg-white" 
           style={{ 
             left: 0,
-            padding: '12px',
+            padding: '8px',
             fontSize: '14px',
             color: '#1f2937',
-            borderBottom: '1px solid #f3f4f6'
+            borderBottom: '1px solid #f3f4f6',
+            textAlign: 'center',
+            width: '48px'
           }}
         >
           <input
@@ -301,11 +306,13 @@ const TableRow: React.FC<TableRowProps> = ({
         <td 
           className="sticky z-10 bg-white" 
           style={{ 
-            left: '4rem',
-            padding: '12px',
+            left: '3rem',
+            padding: '8px',
             fontSize: '14px',
             color: '#1f2937',
-            borderBottom: '1px solid #f3f4f6'
+            borderBottom: '1px solid #f3f4f6',
+            textAlign: 'center',
+            width: '80px'
           }}
         >
           <label className="relative inline-flex items-center cursor-pointer">
@@ -323,7 +330,7 @@ const TableRow: React.FC<TableRowProps> = ({
         <td 
           className="sticky z-10 bg-white" 
           style={{ 
-            left: '8rem',
+            left: '5.5rem',
             padding: '12px',
             fontSize: '14px',
             color: '#1f2937',
@@ -342,7 +349,7 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Delivery Status - chỉ icon tròn */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'left', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           <span 
             className="inline-block rounded-full"
             style={{
@@ -355,12 +362,12 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Budget */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
             let budgetDisplay: string;
             if (canEdit) {
-              budgetDisplay = formatCurrency(row.budget, row.currency);
+              budgetDisplay = formatCurrency(row.budget || 0, row.currency || 'VND');
             } else {
               // Nếu budget_level === 'CAMPAIGN' và đang ở tab 'adset' → hiển thị "Ngân sách chiến dịch"
               if (row.budget_level === 'CAMPAIGN' && currentLevel === 'adset') {
@@ -370,9 +377,16 @@ const TableRow: React.FC<TableRowProps> = ({
               else if (row.budget_level === 'ADSET' && currentLevel === 'campaign') {
                 budgetDisplay = 'Ngân sách nhóm QC';
               }
-              // Trường hợp khác: hiển thị số tiền
-              else {
-                budgetDisplay = formatCurrency(row.budget, row.currency);
+              // Trường hợp khác: hiển thị số tiền (nếu có)
+              else if (row.budget && row.budget > 0) {
+                budgetDisplay = formatCurrency(row.budget, row.currency || 'VND');
+              } else {
+                // Nếu budget = 0 và không thể edit, hiển thị text tương ứng
+                if (row.budget_level === 'CAMPAIGN') {
+                  budgetDisplay = currentLevel === 'campaign' ? formatCurrency(row.budget || 0, row.currency || 'VND') : 'Ngân sách chiến dịch';
+                } else {
+                  budgetDisplay = currentLevel === 'adset' ? formatCurrency(row.budget || 0, row.currency || 'VND') : 'Ngân sách nhóm QC';
+                }
               }
             }
             const budgetTitle = canEdit 
@@ -405,22 +419,22 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Spend */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.spend, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.spend, row.currency || 'VND')}
         </td>
 
         {/* Results (DATA) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.results)}
         </td>
 
         {/* Cost per DATA */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.data_cost, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.data_cost, row.currency || 'VND')}
         </td>
 
-        {/* Cost per Checkout Initiated (Chi Phi/BĐTT) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        {/* Cost per Checkout Initiated (Chi Phí/BĐTT) */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {(() => {
             const checkoutCount = (row.initiated_checkout || row.checkouts_initiated || 0) as number;
             const costPerCheckout = row.cost_per_checkout_initiated || (checkoutCount > 0 ? row.spend / checkoutCount : 0);
@@ -429,53 +443,53 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Checkouts Initiated (Bắt Đầu TT) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
         {/* Cost per Purchase (Chi phí / LM) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatCurrency(row.cost_per_purchase || (row.purchases && row.purchases > 0 ? row.spend / row.purchases : 0), row.currency || 'VND')}
         </td>
 
         {/* Purchases (Lượt Mua) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.purchases)}
         </td>
 
         {/* CPM */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.cpm || 0, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cpm || 0, row.currency || 'VND')}
         </td>
 
         {/* Impressions */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.impressions)}
         </td>
 
         {/* Reach */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.reach || 0)}
         </td>
 
         {/* Frequency */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {(row.frequency || 0).toFixed(2)}
         </td>
 
         {/* Clicks */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.clicks || 0)}
         </td>
 
         {/* CTR */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatPercentage(row.ctr || 0)}%
         </td>
 
         {/* CPC */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.cpc || 0, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cpc || 0, row.currency || 'VND')}
         </td>
       </tr>
     );
@@ -495,10 +509,12 @@ const TableRow: React.FC<TableRowProps> = ({
           className="sticky left-0 z-10 bg-white" 
           style={{ 
             left: 0,
-            padding: '12px',
+            padding: '8px',
             fontSize: '14px',
             color: '#1f2937',
-            borderBottom: '1px solid #f3f4f6'
+            borderBottom: '1px solid #f3f4f6',
+            textAlign: 'center',
+            width: '48px'
           }}
         >
           <input
@@ -513,11 +529,13 @@ const TableRow: React.FC<TableRowProps> = ({
         <td 
           className="sticky z-10 bg-white" 
           style={{ 
-            left: '4rem',
-            padding: '12px',
+            left: '3rem',
+            padding: '8px',
             fontSize: '14px',
             color: '#1f2937',
-            borderBottom: '1px solid #f3f4f6'
+            borderBottom: '1px solid #f3f4f6',
+            textAlign: 'center',
+            width: '80px'
           }}
         >
           <label className="relative inline-flex items-center cursor-pointer">
@@ -535,7 +553,7 @@ const TableRow: React.FC<TableRowProps> = ({
         <td 
           className="sticky z-10 bg-white" 
           style={{ 
-            left: '8rem',
+            left: '5.5rem',
             padding: '12px',
             fontSize: '14px',
             color: '#1f2937',
@@ -554,7 +572,7 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Delivery Status - chỉ icon tròn */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'left', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           <span 
             className="inline-block rounded-full"
             style={{
@@ -567,12 +585,12 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Budget */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
             let budgetDisplay: string;
             if (canEdit) {
-              budgetDisplay = formatCurrency(row.budget, row.currency);
+              budgetDisplay = formatCurrency(row.budget || 0, row.currency || 'VND');
             } else {
               // Nếu budget_level === 'CAMPAIGN' và đang ở tab 'adset' → hiển thị "Ngân sách chiến dịch"
               if (row.budget_level === 'CAMPAIGN' && currentLevel === 'adset') {
@@ -582,9 +600,16 @@ const TableRow: React.FC<TableRowProps> = ({
               else if (row.budget_level === 'ADSET' && currentLevel === 'campaign') {
                 budgetDisplay = 'Ngân sách nhóm QC';
               }
-              // Trường hợp khác: hiển thị số tiền
-              else {
-                budgetDisplay = formatCurrency(row.budget, row.currency);
+              // Trường hợp khác: hiển thị số tiền (nếu có)
+              else if (row.budget && row.budget > 0) {
+                budgetDisplay = formatCurrency(row.budget, row.currency || 'VND');
+              } else {
+                // Nếu budget = 0 và không thể edit, hiển thị text tương ứng
+                if (row.budget_level === 'CAMPAIGN') {
+                  budgetDisplay = currentLevel === 'campaign' ? formatCurrency(row.budget || 0, row.currency || 'VND') : 'Ngân sách chiến dịch';
+                } else {
+                  budgetDisplay = currentLevel === 'adset' ? formatCurrency(row.budget || 0, row.currency || 'VND') : 'Ngân sách nhóm QC';
+                }
               }
             }
             const budgetTitle = canEdit 

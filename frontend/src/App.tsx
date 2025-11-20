@@ -121,7 +121,11 @@ function App() {
 
   // Handle sort - gửi sort request lên backend
   const handleSort = (column: SortableColumn) => {
-    const newDirection = sortConfig.column === column && sortConfig.direction === 'asc' ? 'desc' : 'asc';
+    // Toggle direction: nếu đang sort column này thì đổi hướng, nếu không thì mặc định desc
+    let newDirection: 'asc' | 'desc' = 'desc';
+    if (sortConfig.column === column) {
+      newDirection = sortConfig.direction === 'desc' ? 'asc' : 'desc';
+    }
     setSortConfig({
       column,
       direction: newDirection,
@@ -160,8 +164,30 @@ function App() {
         })),
         view_mode: viewMode,
       });
-      await fetchData();
+      // Chỉ update các rows đã thay đổi, không reload toàn bộ
+      setData(prev => {
+        if (!prev) return prev;
+        const updatedRows = prev.details.rows.map(r => {
+          const rowId = r.id || r.adset_id || r.campaign_id || r.ad_id || '';
+          const change = changes.find(c => c.id === rowId);
+          if (change) {
+            return { ...r, budget: change.new_budget };
+          }
+          return r;
+        });
+        return {
+          ...prev,
+          details: {
+            ...prev.details,
+            rows: updatedRows
+          }
+        };
+      });
       setSelectedIds(new Set());
+      // Refresh data ở background (không block UI)
+      fetchData().catch(err => {
+        console.error('Background refresh failed:', err);
+      });
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

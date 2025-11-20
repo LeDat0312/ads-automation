@@ -847,6 +847,8 @@ async def get_dashboard_data(
                     'cpm': 'cpm',
                     'ctr': 'ctr',
                     'cpc': 'cpc',
+                    'reach': 'reach',
+                    'frequency': 'frequency',
                 }
                 backend_field = column_map.get(sort_by, sort_by)
                 
