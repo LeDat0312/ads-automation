@@ -727,26 +727,26 @@ async def get_dashboard_data(
                 campaign_daily_budget_raw = campaign_info.get('daily_budget') or campaign_info.get('lifetime_budget')
                 campaign_daily_budget = float(campaign_daily_budget_raw) if campaign_daily_budget_raw else None
                 
-                # Xác định using_campaign_budget và budget
-                # 1️⃣ Nếu adset có daily_budget → dùng nó
+                # 🔹 FIX CBO BUDGET: Xác định using_campaign_budget và budget
+                # 1️⃣ Nếu adset có daily_budget > 0 → dùng nó
                 if adset_daily_budget and adset_daily_budget > 0:
                     using_campaign_budget = False
                     budget_level = 'ADSET'
                     budget = adset_daily_budget
                     adset_daily_budget_final = adset_daily_budget
                     campaign_daily_budget_final = campaign_daily_budget if campaign_daily_budget and campaign_daily_budget > 0 else None
-                # 2️⃣ Nếu không có adset budget → kiểm tra campaign budget
+                # 2️⃣ Nếu adset không có budget (None hoặc 0) nhưng campaign có budget → dùng campaign budget
                 elif campaign_daily_budget and campaign_daily_budget > 0:
                     using_campaign_budget = True
                     budget_level = 'CAMPAIGN'
-                    budget = campaign_daily_budget
-                    adset_daily_budget_final = None
+                    budget = campaign_daily_budget  # KHÔNG set 0, set campaign_daily_budget
+                    adset_daily_budget_final = None  # Adset không có budget riêng
                     campaign_daily_budget_final = campaign_daily_budget
-                # 3️⃣ Cả 2 đều không có
+                # 3️⃣ Cả 2 đều không có (None hoặc 0)
                 else:
                     using_campaign_budget = False
                     budget_level = 'ADSET'
-                    budget = None  # KHÔNG set 0, set None để frontend xử lý
+                    budget = None  # KHÔNG set 0, set None để frontend hiển thị "-"
                     adset_daily_budget_final = None
                     campaign_daily_budget_final = None
                 
@@ -781,9 +781,9 @@ async def get_dashboard_data(
             
             logger.info(f"   ✅ Đã khởi tạo {len(adset_map)} adsets từ struct_adsets")
             
-            # Merge insights vào adset_map
+            # Merge insights vào adset_map (từ rows_for_table - đã filter spend>0 && impressions>0 && prefix/status/search)
             insights_adsets_count = 0
-            for row in all_data:
+            for row in rows_for_table:
                 row_adset_id = row.get('adset_id')
                 if not row_adset_id or row_adset_id not in adset_map:
                     continue
