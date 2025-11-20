@@ -113,6 +113,7 @@ export interface DashboardDataResponse {
   details: {
     level: 'campaign' | 'adset' | 'ad';
     rows: AdsetRow[];
+    totals?: Partial<AdsetRow>;  // Tổng kết và trung bình
     pagination: PaginationInfo;
   };
 }
@@ -234,6 +235,7 @@ export interface AdsetTableProps {
   onBudgetUpdate?: (row: AdsetRow, newBudget: number) => Promise<void>;
   onDrillDown?: (level: 'campaign' | 'adset', id: string, name: string) => void;
   currency?: Currency;
+  totals?: Partial<AdsetRow>;  // Tổng kết và trung bình
 }
 
 export interface FiltersBarProps {

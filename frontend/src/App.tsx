@@ -642,6 +642,7 @@ function App() {
           onBudgetUpdate={handleBudgetUpdateSingle}
           onDrillDown={handleDrillDown}
           currency={currency}
+          totals={data?.details.totals}
         />
 
         {/* Pagination Controls */}

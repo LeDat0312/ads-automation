@@ -887,25 +887,64 @@ async def get_dashboard_data(
                 }
                 backend_field = column_map.get(sort_by, sort_by)
                 
-                def get_sort_value(row):
+                def get_sort_value_safe(row):
                     value = row.get(backend_field)
-                    # Handle None, empty, or zero values
+                    # Handle None, empty, or zero values - đặt ở cuối cho cả desc và asc
                     if value is None or value == '' or value == 0:
-                        return (1, 0)  # (priority, value) - 1 = invalid/zero, sort to end for desc, start for asc
+                        # Dùng một giá trị rất nhỏ (cho desc) hoặc rất lớn (cho asc) để đặt ở cuối
+                        return float('-inf') if reverse_order else float('inf')
                     # Convert to number if possible
                     try:
                         num_value = float(value)
-                        return (0, num_value)  # (priority, value) - 0 = valid number
+                        return num_value
                     except (ValueError, TypeError):
-                        return (1, 0)  # (priority, value) - 1 = invalid, sort to end
+                        # Invalid value - đặt ở cuối
+                        return float('-inf') if reverse_order else float('inf')
                 
-                # Sort: priority 0 (valid numbers) first, then priority 1 (zeros/invalid)
-                # For desc: reverse=True means (0, high) > (0, low) > (1, 0)
-                # For asc: reverse=False means (0, low) < (0, high) < (1, 0)
-                rows.sort(key=get_sort_value, reverse=reverse_order)
+                # Sort: valid numbers trước, zeros/invalid ở cuối
+                rows.sort(key=get_sort_value_safe, reverse=reverse_order)
                 logger.info(f"   📊 Đã sắp xếp {len(rows)} rows theo {sort_by} -> {backend_field} ({sort_order})")
             except Exception as e:
                 logger.warning(f"   ⚠️ Lỗi khi sắp xếp theo {sort_by}: {e}")
+        
+        # Tính tổng kết và trung bình từ TẤT CẢ rows (trước khi paginate)
+        totals = {}
+        if rows:
+            totals = {
+                "spend": sum(r.get('spend', 0) or 0 for r in rows),
+                "results": sum(r.get('results', 0) or 0 for r in rows),
+                "data_cost": sum(r.get('data_cost', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                "impressions": sum(r.get('impressions', 0) or 0 for r in rows),
+                "clicks": sum(r.get('clicks', 0) or 0 for r in rows),
+                "reach": sum(r.get('reach', 0) or 0 for r in rows),
+                "frequency": sum(r.get('frequency', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                "ctr": sum(r.get('ctr', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                "cpc": sum(r.get('cpc', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                "cpm": sum(r.get('cpm', 0) or 0 for r in rows) / len(rows) if rows else 0,
+            }
+            
+            if view_mode == "ecommerce":
+                totals.update({
+                    "ads_percent": sum(r.get('%ads', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "tlc": sum(r.get('tlc', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "cost_per_checkout_initiated": sum(r.get('cost_per_checkout_initiated', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "initiated_checkout": sum(r.get('initiated_checkout', 0) or 0 for r in rows),
+                    "cost_per_purchase": sum(r.get('cost_per_purchase', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "purchases": sum(r.get('purchases', 0) or 0 for r in rows),
+                    "purchase_value": sum(r.get('purchase_value', 0) or 0 for r in rows),
+                })
+            else:  # lead
+                totals.update({
+                    "cost_per_checkout_initiated": sum(r.get('cost_per_checkout_initiated', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "initiated_checkout": sum(r.get('initiated_checkout', 0) or 0 for r in rows),
+                    "cost_per_purchase": sum(r.get('cost_per_purchase', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "purchases": sum(r.get('purchases', 0) or 0 for r in rows),
+                })
+            
+            # Round tất cả giá trị
+            for key in totals:
+                if isinstance(totals[key], float):
+                    totals[key] = round(totals[key], 2)
         
         # Pagination (sau khi sort)
         total_rows = len(rows)
@@ -920,6 +959,7 @@ async def get_dashboard_data(
             "details": {
                 "level": level,
                 "rows": paginated_rows,
+                "totals": totals,  # Thêm totals vào response
                 "pagination": {
                     "page": page,
                     "page_size": pageSize,

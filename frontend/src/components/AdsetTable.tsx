@@ -16,6 +16,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   onBudgetUpdate,
   onDrillDown,
   currency = 'VND',
+  totals,
 }) => {
   const [budgetEditorRow, setBudgetEditorRow] = useState<AdsetRow | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
