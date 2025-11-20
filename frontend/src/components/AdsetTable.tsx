@@ -909,7 +909,7 @@ const TableRow: React.FC<TableRowProps> = ({
 
         {/* TLC (Tỷ lệ chuyển đổi) */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('tlc')}px`, minWidth: `${getColumnWidth('tlc')}px` }}>
-          {formatPercentage(row.tlc || (row.initiated_checkout && row.impressions ? (row.initiated_checkout / row.impressions) * 100 : 0))}%
+          {formatPercentage(row.tlc || 0)}%
         </td>
 
         {/* Cost per Checkout Initiated */}
