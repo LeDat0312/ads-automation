@@ -670,6 +670,7 @@ async def get_dashboard_data(
                     'post_comments': 0,  # actions; action_type="comment"
                     'messaging_conversations_started': 0,  # actions; action_type="onsite_conversion.messaging_conversation_started_7d"
                     'checkouts_initiated': 0,  # actions; action_type="omni_initiated_checkout"
+                    'onsite_conversion_post_save': 0,  # actions; action_type="onsite_conversion.post_save" (cho Lead Gen)
                     'purchases': 0,  # actions; action_type="omni_purchase"
                     'purchase_value': 0.0,  # action_values; action_type="omni_purchase"
                     'ran_today': False,
@@ -700,8 +701,10 @@ async def get_dashboard_data(
                 # Messages: actions; action_type="onsite_conversion.messaging_conversation_started_7d"
                 adset['messaging_conversations_started'] += int(row.get('messaging_conversations_started', 0) or 0)
                 # Checkouts: actions; action_type="omni_initiated_checkout"
-                # Note: Code hiện tại đã parse omni_initiated_checkout trong pull_facebook_data, nhưng cần đảm bảo dùng đúng field
+                # 🔹 FIX: Dùng đúng omni_initiated_checkout từ Facebook API
                 adset['checkouts_initiated'] += int(row.get('checkouts_initiated', 0) or 0)
+                # Lead Gen: onsite_conversion_post_save (từ actions, không phải pixel)
+                adset['onsite_conversion_post_save'] = adset.get('onsite_conversion_post_save', 0) + int(row.get('onsite_conversion_post_save', 0) or 0)
                 # Purchases: actions; action_type="omni_purchase"
                 adset['purchases'] += int(row.get('purchases', 0) or 0)
                 # Purchase value: action_values; action_type="omni_purchase"
@@ -744,7 +747,17 @@ async def get_dashboard_data(
                 (adset.get('post_comments', 0) or 0) + (adset.get('messaging_conversations_started', 0) or 0)
                 for adset in adset_map_raw.values()
             )
-            total_checkouts_summary = sum(adset.get('checkouts_initiated', 0) or 0 for adset in adset_map_raw.values())
+            # 🔹 FIX: Tính total_checkouts_summary đúng theo view_mode
+            # Lead Gen: ưu tiên onsite_conversion_post_save (từ actions, không phải pixel)
+            # E-Commerce: dùng checkouts_initiated (từ actions)
+            if view_mode == "lead":
+                total_checkouts_summary = sum(
+                    (adset.get('onsite_conversion_post_save', 0) or 0) or 
+                    (adset.get('checkouts_initiated', 0) or 0)
+                    for adset in adset_map_raw.values()
+                )
+            else:
+                total_checkouts_summary = sum(adset.get('checkouts_initiated', 0) or 0 for adset in adset_map_raw.values())
             total_purchases_summary = sum(adset.get('purchases', 0) or 0 for adset in adset_map_raw.values())
             total_purchase_value_summary = sum(adset.get('purchase_value', 0) or 0 for adset in adset_map_raw.values())
             
