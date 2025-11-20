@@ -17,6 +17,12 @@ echo "📥 Đang pull code mới từ GitHub..."
 cd ~/ads-automation
 git pull origin main
 
+echo "🧹 Đang clear Python cache..."
+find . -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
+find . -type f -name "*.pyc" -delete 2>/dev/null || true
+find . -type f -name "*.pyo" -delete 2>/dev/null || true
+echo "✅ Đã clear cache"
+
 echo "🔨 Đang build frontend (nếu có thay đổi)..."
 # Chỉ build nếu có thay đổi trong frontend hoặc lần đầu
 if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
