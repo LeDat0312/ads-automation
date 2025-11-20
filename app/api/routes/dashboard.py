@@ -541,43 +541,8 @@ async def get_dashboard_data(
             )
         
         # CHƯA tính summary ở đây - sẽ tính sau khi group theo level
+        # Summary sẽ được tính từ grouped_data (sau khi group theo level) để đảm bảo khớp với Chi Tiết Quảng Cáo
         # Tạm thời lưu all_adsets_from_accounts và adset_statuses_map để dùng sau khi group
-        
-        # Build summary response
-        if view_mode == "ecommerce":
-            ads_percent = (total_spend / total_purchase_value * 100) if total_purchase_value > 0 else 0
-            cost_per_checkout = total_spend / total_checkouts if total_checkouts > 0 else 0
-            cost_per_purchase = total_spend / total_purchases if total_purchases > 0 else 0
-            summary = {
-                "totalSpend": round(total_spend, 2),
-                "adsPercent": round(ads_percent, 2),
-                "purchaseValue": round(total_purchase_value, 2),
-                "totalCheckouts": total_checkouts,
-                "costPerCheckout": round(cost_per_checkout, 2),
-                "totalPurchases": total_purchases,
-                "costPerPurchase": round(cost_per_purchase, 2),
-                "activeAdsets": active_adsets,
-                "pausedAdsets": paused_adsets,
-                "totalAdsets": total_adsets,
-                "currency": "VND"
-            }
-        else:  # lead
-            avg_gia_data = total_spend / total_data if total_data > 0 else 0
-            cost_per_checkout = total_spend / total_checkouts if total_checkouts > 0 else 0
-            cost_per_purchase = total_spend / total_purchases if total_purchases > 0 else 0
-            summary = {
-                "totalSpend": round(total_spend, 2),
-                "totalData": total_data,
-                "avgGiaData": round(avg_gia_data, 2),
-                "totalCheckouts": total_checkouts,
-                "costPerCheckout": round(cost_per_checkout, 2),
-                "totalPurchases": total_purchases,
-                "costPerPurchase": round(cost_per_purchase, 2),
-                "activeAdsets": active_adsets,
-                "pausedAdsets": paused_adsets,
-                "totalAdsets": total_adsets,
-                "currency": "VND"
-            }
         
         # ===== BUILD DETAILS (filter và group theo level) =====
         # Filter campaign_id nếu có
