@@ -522,13 +522,23 @@ async def get_dashboard_data(
             int(row.get('post_comments', 0) or 0) + int(row.get('messaging_conversations_started', 0) or 0)
             for row in all_data_for_metrics
         )
-        # Tính total_checkouts: ưu tiên checkouts_initiated (từ actions, không phải pixel)
-        total_checkouts = sum(
-            int(row.get('checkouts_initiated', 0) or 0) or 
-            int(row.get('checkout_initiated', 0) or 0) or 
-            int(row.get('onsite_conversion_post_save', 0) or 0)
-            for row in all_data_for_metrics
-        )
+        # Tính total_checkouts: tùy theo view_mode
+        if view_mode == "lead":
+            # Lead Gen: ưu tiên onsite_conversion_post_save (từ actions, không phải pixel)
+            total_checkouts = sum(
+                int(row.get('onsite_conversion_post_save', 0) or 0) or 
+                int(row.get('checkouts_initiated', 0) or 0) or 
+                int(row.get('checkout_initiated', 0) or 0)
+                for row in all_data_for_metrics
+            )
+        else:
+            # Ecommerce: ưu tiên checkouts_initiated (từ actions)
+            total_checkouts = sum(
+                int(row.get('checkouts_initiated', 0) or 0) or 
+                int(row.get('checkout_initiated', 0) or 0) or 
+                int(row.get('onsite_conversion_post_save', 0) or 0)
+                for row in all_data_for_metrics
+            )
         
         # Count unique adsets by status - từ TẤT CẢ adsets trong accounts (không chỉ từ insights)
         # Ưu tiên dùng all_adsets_from_accounts (đầy đủ nhất)
@@ -760,12 +770,16 @@ async def get_dashboard_data(
             group['messaging_conversations_started'] += int(row.get('messaging_conversations_started', 0) or 0)
             group['purchases'] += int(row.get('purchases', 0) or 0)
             group['gia_tri_chuyen_doi_tu_luot_mua'] += float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
-            # Tổng hợp checkout: ưu tiên checkouts_initiated, fallback checkout_initiated, onsite_conversion_post_save
-            checkout_val = (
-                int(row.get('checkouts_initiated', 0) or 0) or
-                int(row.get('checkout_initiated', 0) or 0) or
-                int(row.get('onsite_conversion_post_save', 0) or 0)
-            )
+            # Tổng hợp checkout: ưu tiên checkouts_initiated (từ actions), fallback checkout_initiated, onsite_conversion_post_save (cho Lead Gen)
+            # QUAN TRỌNG: Với Lead Gen, dùng onsite_conversion_post_save (không dùng pixel checkouts_initiated)
+            checkout_val = 0
+            if view_mode == "lead":
+                # Lead Gen: ưu tiên onsite_conversion_post_save (từ actions, không phải pixel)
+                checkout_val = int(row.get('onsite_conversion_post_save', 0) or 0) or int(row.get('checkouts_initiated', 0) or 0) or int(row.get('checkout_initiated', 0) or 0)
+            else:
+                # Ecommerce: ưu tiên checkouts_initiated (từ actions)
+                checkout_val = int(row.get('checkouts_initiated', 0) or 0) or int(row.get('checkout_initiated', 0) or 0) or int(row.get('onsite_conversion_post_save', 0) or 0)
+            
             group['checkout_initiated'] += checkout_val
             group['checkouts_initiated'] += checkout_val
             group['onsite_conversion_post_save'] += int(row.get('onsite_conversion_post_save', 0) or 0)
@@ -787,12 +801,21 @@ async def get_dashboard_data(
             messages = group['messaging_conversations_started']
             purchases = group['purchases']
             purchase_value = group['gia_tri_chuyen_doi_tu_luot_mua']
-            # Lấy checkout_starts: ưu tiên checkouts_initiated, fallback checkout_initiated, onsite_conversion_post_save
-            checkout_starts = (
-                group.get('checkouts_initiated', 0) or
-                group.get('checkout_initiated', 0) or
-                group.get('onsite_conversion_post_save', 0)
-            )
+            # Lấy checkout_starts: tùy theo view_mode
+            if view_mode == "lead":
+                # Lead Gen: ưu tiên onsite_conversion_post_save (từ actions, không phải pixel)
+                checkout_starts = (
+                    group.get('onsite_conversion_post_save', 0) or
+                    group.get('checkouts_initiated', 0) or
+                    group.get('checkout_initiated', 0)
+                )
+            else:
+                # Ecommerce: ưu tiên checkouts_initiated (từ actions)
+                checkout_starts = (
+                    group.get('checkouts_initiated', 0) or
+                    group.get('checkout_initiated', 0) or
+                    group.get('onsite_conversion_post_save', 0)
+                )
             budget = group['budget']
             budget_level = group['budget_level']
             

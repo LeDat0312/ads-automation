@@ -21,6 +21,9 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   const [budgetEditorRow, setBudgetEditorRow] = useState<AdsetRow | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   
+  // Helper function to get column width
+  const getColumnWidth = (key: string) => columnWidths[key] || defaultWidths[key] || 128;
+  
   // Helper function to check if budget can be edited
   const canEditBudget = (row: AdsetRow, level: 'campaign' | 'adset' | 'ad'): boolean => {
     if (!row.budget_level) return false;
@@ -235,27 +238,46 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                     )}
                     {!col.fixed && (
                       <div
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-indigo-400 bg-transparent"
-                        style={{ width: '4px', marginRight: '-2px' }}
+                        className="absolute right-0 top-0 h-full cursor-col-resize hover:bg-indigo-400 bg-transparent transition-colors"
+                        style={{ 
+                          width: '6px', 
+                          marginRight: '-3px',
+                          zIndex: 10
+                        }}
                         onMouseDown={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           const startX = e.clientX;
-                          const startWidth = col.width;
+                          // Lấy width hiện tại từ state hoặc default
+                          const currentWidth = columnWidths[col.key] || col.width || defaultWidths[col.key] || 128;
+                          let lastWidth = currentWidth;
                           
                           const handleMouseMove = (e: MouseEvent) => {
                             const diff = e.clientX - startX;
-                            const newWidth = Math.max(50, startWidth + diff);
-                            setColumnWidths(prev => ({ ...prev, [col.key]: newWidth }));
+                            const newWidth = Math.max(50, Math.min(500, currentWidth + diff));
+                            if (newWidth !== lastWidth) {
+                              lastWidth = newWidth;
+                              setColumnWidths(prev => ({ ...prev, [col.key]: newWidth }));
+                            }
                           };
                           
                           const handleMouseUp = () => {
                             document.removeEventListener('mousemove', handleMouseMove);
                             document.removeEventListener('mouseup', handleMouseUp);
+                            // Reset cursor
+                            document.body.style.cursor = '';
                           };
                           
+                          // Set cursor khi bắt đầu resize
+                          document.body.style.cursor = 'col-resize';
                           document.addEventListener('mousemove', handleMouseMove);
                           document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#818cf8';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
                         }}
                       />
                     )}
