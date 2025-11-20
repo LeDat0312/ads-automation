@@ -668,7 +668,7 @@ const TableRow: React.FC<TableRowProps> = ({
 
         {/* Cost per Purchase (Chi phí / LM) */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cost_per_purchase')}px`, minWidth: `${getColumnWidth('cost_per_purchase')}px` }}>
-          {formatCurrency(row.cost_per_purchase || 0, row.currency || 'VND')}
+          {row.cost_per_purchase != null ? formatCurrency(row.cost_per_purchase, row.currency || 'VND') : '-'}
         </td>
 
         {/* Purchases (Lượt Mua) */}

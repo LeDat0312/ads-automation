@@ -587,35 +587,44 @@ async def get_dashboard_data(
         
         logger.info(f"   ✅ Đã merge insights vào {insights_count} adsets trong summary map")
         
-        # Tính summary từ adset_map_summary (TOÀN BỘ adsets, không filter search/status/prefix)
-        total_spend_summary = sum(adset.get('spend', 0) or 0 for adset in adset_map_summary.values())
+        # 🔹 FIX SUMMARY: Chỉ tính từ adsets có spend > 0 VÀ impressions > 0
+        eligible_adsets = [
+            adset for adset in adset_map_summary.values()
+            if (adset.get('spend', 0) or 0) > 0 and (adset.get('impressions', 0) or 0) > 0
+        ]
+        logger.info(f"   📊 SUMMARY_DEBUG view={view_mode} | total_adsets_in_map={len(adset_map_summary)} | eligible_adsets={len(eligible_adsets)}")
+        
+        # Tính summary từ eligible_adsets (chỉ adsets có spend > 0 và impressions > 0)
+        total_spend_summary = sum(adset.get('spend', 0) or 0 for adset in eligible_adsets)
         total_data_summary = sum(
             (adset.get('post_comments', 0) or 0) + (adset.get('messaging_conversations_started', 0) or 0)
-            for adset in adset_map_summary.values()
+            for adset in eligible_adsets
         )
         # Tính total_checkouts_summary đúng theo view_mode
         if view_mode == "lead":
             total_checkouts_summary = sum(
                 (adset.get('onsite_conversion_post_save', 0) or 0) or 
                 (adset.get('checkouts_initiated', 0) or 0)
-                for adset in adset_map_summary.values()
+                for adset in eligible_adsets
             )
         else:
-            total_checkouts_summary = sum(adset.get('checkouts_initiated', 0) or 0 for adset in adset_map_summary.values())
-        total_purchases_summary = sum(adset.get('purchases', 0) or 0 for adset in adset_map_summary.values())
-        total_purchase_value_summary = sum(adset.get('purchase_value', 0) or 0 for adset in adset_map_summary.values())
+            total_checkouts_summary = sum(adset.get('checkouts_initiated', 0) or 0 for adset in eligible_adsets)
+        total_purchases_summary = sum(adset.get('purchases', 0) or 0 for adset in eligible_adsets)
+        total_purchase_value_summary = sum(adset.get('purchase_value', 0) or 0 for adset in eligible_adsets)
         
-        # Đếm adsets theo status (từ TOÀN BỘ adsets, không filter)
+        # Đếm adsets theo status (chỉ từ eligible_adsets)
         active_adsets_summary = 0
         paused_adsets_summary = 0
-        total_adsets_summary = len(adset_map_summary)
+        total_adsets_summary = len(eligible_adsets)
         
-        for adset in adset_map_summary.values():
+        for adset in eligible_adsets:
             effective_status = normalize_status(adset.get('effective_status', 'UNKNOWN').upper())
             if effective_status == 'ACTIVE':
                 active_adsets_summary += 1
             elif effective_status in ['PAUSED', 'ARCHIVED']:
                 paused_adsets_summary += 1
+        
+        logger.info(f"   📊 SUMMARY_DEBUG view={view_mode} | eligible_adsets={total_adsets_summary} active={active_adsets_summary} paused={paused_adsets_summary}")
         
         # Build summary object
         if view_mode == "ecommerce":
@@ -1200,19 +1209,20 @@ async def get_dashboard_data(
                 if cost_per_checkout_from_map is not None:
                     cost_per_checkout_start = cost_per_checkout_from_map
                 else:
-                    cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
-                # Dùng cost_per_purchase từ adset_map nếu có, nếu không thì tính từ spend/purchases
+                    cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else None
+                # 🔹 FIX: Dùng cost_per_purchase từ adset_map nếu có, nếu không thì tính từ spend/purchases
+                # KHÔNG set default là 0 nếu không có dữ liệu; dùng None để frontend hiển thị "0 đ"/"-" cho đẹp
                 if cost_per_purchase_from_map is not None:
                     cost_per_purchase = cost_per_purchase_from_map
                 else:
-                    cost_per_purchase = (spend / purchases) if purchases > 0 else 0
+                    cost_per_purchase = (spend / purchases) if purchases > 0 else None
                 row_data.update({
                     "data_cost": round(gia_data, 2),
-                    "cost_per_checkout_initiated": round(cost_per_checkout_start, 2),
-                    "cost_per_checkout": round(cost_per_checkout_start, 2),  # Alias
+                    "cost_per_checkout_initiated": round(cost_per_checkout_start, 2) if cost_per_checkout_start is not None else None,
+                    "cost_per_checkout": round(cost_per_checkout_start, 2) if cost_per_checkout_start is not None else None,  # Alias
                     "initiated_checkout": checkout_starts,
                     "checkouts_initiated": checkout_starts,  # Alias
-                    "cost_per_purchase": round(cost_per_purchase, 2),
+                    "cost_per_purchase": round(cost_per_purchase, 2) if cost_per_purchase is not None else None,
                     "purchases": purchases
                 })
             
