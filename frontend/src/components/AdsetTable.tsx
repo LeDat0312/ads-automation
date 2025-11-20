@@ -42,8 +42,8 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   const defaultWidths: Record<string, number> = {
     select: 48,
     status: 80,
-    name: 300,
-    delivery: 96,
+    name: 180,  // Giảm từ 300 xuống 180 để tiết kiệm không gian
+    delivery: 80,  // Giảm từ 96 xuống 80
     budget: 128,
     spend: 128,
     results: 112,
@@ -520,12 +520,12 @@ const TableRow: React.FC<TableRowProps> = ({
           </label>
         </td>
 
-        {/* Name */}
+        {/* Name - Width cố định nhưng có thể resize */}
         <td 
           className="sticky z-10 bg-white" 
           style={{ 
             left: `${getColumnWidth('select') + getColumnWidth('status')}px`,
-            padding: '8px 12px',
+            padding: '8px 10px',
             fontSize: '14px',
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
@@ -544,8 +544,16 @@ const TableRow: React.FC<TableRowProps> = ({
           )}
         </td>
 
-        {/* Delivery Status - chỉ icon tròn */}
-        <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('delivery')}px`, minWidth: `${getColumnWidth('delivery')}px` }}>
+        {/* Delivery Status - chỉ icon tròn, sát với tên */}
+        <td style={{ 
+          padding: '8px 4px', 
+          fontSize: '14px', 
+          color: '#1f2937', 
+          textAlign: 'center', 
+          borderBottom: '1px solid #f3f4f6', 
+          width: `${getColumnWidth('delivery')}px`, 
+          minWidth: `${getColumnWidth('delivery')}px` 
+        }}>
           <span 
             className="inline-block rounded-full"
             style={{
@@ -743,12 +751,12 @@ const TableRow: React.FC<TableRowProps> = ({
           </label>
         </td>
 
-        {/* Name */}
+        {/* Name - Width cố định nhưng có thể resize */}
         <td 
           className="sticky z-10 bg-white" 
           style={{ 
             left: `${getColumnWidth('select') + getColumnWidth('status')}px`,
-            padding: '8px 12px',
+            padding: '8px 10px',
             fontSize: '14px',
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
@@ -767,8 +775,16 @@ const TableRow: React.FC<TableRowProps> = ({
           )}
         </td>
 
-        {/* Delivery Status - chỉ icon tròn */}
-        <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('delivery')}px`, minWidth: `${getColumnWidth('delivery')}px` }}>
+        {/* Delivery Status - chỉ icon tròn, sát với tên */}
+        <td style={{ 
+          padding: '8px 4px', 
+          fontSize: '14px', 
+          color: '#1f2937', 
+          textAlign: 'center', 
+          borderBottom: '1px solid #f3f4f6', 
+          width: `${getColumnWidth('delivery')}px`, 
+          minWidth: `${getColumnWidth('delivery')}px` 
+        }}>
           <span 
             className="inline-block rounded-full"
             style={{

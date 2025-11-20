@@ -967,13 +967,6 @@ async def get_dashboard_data(
                     "cost_per_purchase": sum(r.get('cost_per_purchase', 0) or 0 for r in rows) / len(rows) if rows else 0,
                     "purchases": sum(r.get('purchases', 0) or 0 for r in rows),
                 })
-            else:  # lead
-                totals.update({
-                    "cost_per_checkout_initiated": sum(r.get('cost_per_checkout_initiated', 0) or 0 for r in rows) / len(rows) if rows else 0,
-                    "initiated_checkout": sum(r.get('initiated_checkout', 0) or 0 for r in rows),
-                    "cost_per_purchase": sum(r.get('cost_per_purchase', 0) or 0 for r in rows) / len(rows) if rows else 0,
-                    "purchases": sum(r.get('purchases', 0) or 0 for r in rows),
-                })
             
             # Round tất cả giá trị
             for key in totals:
