@@ -210,8 +210,6 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                     position: col.fixed ? 'sticky' : 'relative',
                     top: 0,
                     zIndex: col.fixed ? 10 : 1,
-                    width: `${getColumnWidth(col.key)}px`,
-                    minWidth: `${getColumnWidth(col.key)}px`,
                     ...(col.key === 'select' ? { 
                         left: 0, 
                         padding: '8px',
