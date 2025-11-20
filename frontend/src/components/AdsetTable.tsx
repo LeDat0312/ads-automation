@@ -272,7 +272,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                           const handleMouseMove = (e: MouseEvent) => {
                             const diff = e.clientX - startX;
                             const newWidth = Math.max(50, Math.min(500, currentWidth + diff));
-                            if (newWidth !== lastWidth) {
+                            if (Math.abs(newWidth - lastWidth) > 1) {  // Chỉ update nếu thay đổi > 1px để tối ưu performance
                               lastWidth = newWidth;
                               setColumnWidths(prev => ({ ...prev, [col.key]: newWidth }));
                             }
@@ -281,12 +281,14 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                           const handleMouseUp = () => {
                             document.removeEventListener('mousemove', handleMouseMove);
                             document.removeEventListener('mouseup', handleMouseUp);
-                            // Reset cursor
+                            // Reset cursor và user selection
                             document.body.style.cursor = '';
+                            document.body.style.userSelect = '';
                           };
                           
-                          // Set cursor khi bắt đầu resize
+                          // Set cursor và disable text selection khi bắt đầu resize
                           document.body.style.cursor = 'col-resize';
+                          document.body.style.userSelect = 'none';
                           document.addEventListener('mousemove', handleMouseMove);
                           document.addEventListener('mouseup', handleMouseUp);
                         }}
