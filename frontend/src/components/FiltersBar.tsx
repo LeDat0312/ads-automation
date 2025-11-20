@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { DashboardFilters } from '@/types/dashboard';
 import { getDashboardFilters } from '@/services/api';
+import DatePicker from './DatePicker';
 
 interface FiltersBarProps {
   filters: DashboardFilters;
@@ -297,58 +298,20 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
         </div>
       </div>
 
-      {/* Date Picker Dropdown */}
+      {/* Date Picker Modal */}
       {showDatePicker && (
-        <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowDatePicker(false)}
-          />
-          <div className="absolute z-50 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 w-80">
-            <div className="space-y-2">
-              <div className="font-semibold text-gray-700 text-sm mb-3">Khoảng thời gian</div>
-              {datePresets.map((preset) => (
-                <button
-                  key={preset.value}
-                  onClick={() => handleDatePresetClick(preset)}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-sm"
-                >
-                  {preset.label}
-                </button>
-              ))}
-              
-              <div className="border-t border-gray-200 my-3 pt-3">
-                <div className="text-xs font-semibold text-gray-500 mb-2">TÙY CHỈNH</div>
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">Từ ngày</label>
-                    <input
-                      type="date"
-                      value={tempFilters.date_from || ''}
-                      onChange={(e) => setTempFilters({ ...tempFilters, date_from: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">Đến ngày</label>
-                    <input
-                      type="date"
-                      value={tempFilters.date_to || ''}
-                      onChange={(e) => setTempFilters({ ...tempFilters, date_to: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <button
-                    onClick={handleCustomDateApply}
-                    className="w-full mt-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-                  >
-                    Áp dụng
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
+        <DatePicker
+          dateFrom={filters.date_from}
+          dateTo={filters.date_to}
+          onDateChange={(from, to) => {
+            onFiltersChange({
+              ...filters,
+              date_from: from,
+              date_to: to,
+            });
+          }}
+          onClose={() => setShowDatePicker(false)}
+        />
       )}
 
       {/* Filters Sidebar */}

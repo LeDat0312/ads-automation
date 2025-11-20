@@ -416,15 +416,6 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* FiltersBar */}
-        <FiltersBar
-          filters={filters}
-          onFiltersChange={setFilters}
-          onRefresh={handleRefresh}
-          isLoading={loading}
-          viewMode={viewMode}
-        />
-
         {/* Error Message */}
         {error && (
           <div className="mb-6 bg-red-50 border-2 border-red-200 rounded-xl p-4 shadow-lg animate-shake">
@@ -444,7 +435,7 @@ function App() {
           </div>
         )}
 
-        {/* Summary Cards */}
+        {/* Summary Cards - Lên đầu tiên sau view mode tabs */}
         <SummaryCards
           summary={data?.summary || {
             totalSpend: 0,
@@ -456,11 +447,23 @@ function App() {
             totalLead: 0,
             adsPercent: 0,
             purchaseValue: 0,
+            totalCheckouts: 0,
             currency: currency,
           }}
           viewMode={viewMode}
           isLoading={loading}
         />
+
+        {/* FiltersBar - Chuyển xuống dưới cạnh Table Header */}
+        <div className="mb-6">
+          <FiltersBar
+            filters={filters}
+            onFiltersChange={setFilters}
+            onRefresh={handleRefresh}
+            isLoading={loading}
+            viewMode={viewMode}
+          />
+        </div>
 
         {/* Table Header with Level Selector - Improved Layout */}
         <div className="bg-white rounded-t-xl shadow-sm border border-gray-200 border-b-0 px-6 py-4 mb-0">

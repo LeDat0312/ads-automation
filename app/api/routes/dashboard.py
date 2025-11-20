@@ -504,7 +504,13 @@ async def get_dashboard_data(
             int(row.get('post_comments', 0) or 0) + int(row.get('messaging_conversations_started', 0) or 0)
             for row in all_data_for_summary
         )
-        total_checkouts = sum(int(row.get('checkout_initiated', 0) or 0) for row in all_data_for_summary)
+        # Tính total_checkouts: ưu tiên checkouts_initiated, fallback onsite_conversion_post_save (Lead Gen)
+        total_checkouts = sum(
+            int(row.get('checkouts_initiated', 0) or 0) or 
+            int(row.get('checkout_initiated', 0) or 0) or 
+            int(row.get('onsite_conversion_post_save', 0) or 0)
+            for row in all_data_for_summary
+        )
         
         # Count unique adsets by status
         adset_statuses = {}
@@ -632,7 +638,8 @@ async def get_dashboard_data(
         grouped_data = defaultdict(lambda: {
             'spend': 0, 'impressions': 0, 'clicks': 0, 'reach': 0,
             'post_comments': 0, 'messaging_conversations_started': 0,
-            'purchases': 0, 'gia_tri_chuyen_doi_tu_luot_mua': 0, 'checkout_initiated': 0
+            'purchases': 0, 'gia_tri_chuyen_doi_tu_luot_mua': 0, 
+            'checkout_initiated': 0, 'checkouts_initiated': 0, 'onsite_conversion_post_save': 0
         })
         
         for row in all_data:
@@ -717,7 +724,15 @@ async def get_dashboard_data(
             group['messaging_conversations_started'] += int(row.get('messaging_conversations_started', 0) or 0)
             group['purchases'] += int(row.get('purchases', 0) or 0)
             group['gia_tri_chuyen_doi_tu_luot_mua'] += float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
-            group['checkout_initiated'] += int(row.get('checkout_initiated', 0) or 0)
+            # Tổng hợp checkout: ưu tiên checkouts_initiated, fallback checkout_initiated, onsite_conversion_post_save
+            checkout_val = (
+                int(row.get('checkouts_initiated', 0) or 0) or
+                int(row.get('checkout_initiated', 0) or 0) or
+                int(row.get('onsite_conversion_post_save', 0) or 0)
+            )
+            group['checkout_initiated'] += checkout_val
+            group['checkouts_initiated'] += checkout_val
+            group['onsite_conversion_post_save'] += int(row.get('onsite_conversion_post_save', 0) or 0)
             
             # Update status
             effective_status = row.get('effective_status') or row.get('adset_status')
@@ -736,7 +751,12 @@ async def get_dashboard_data(
             messages = group['messaging_conversations_started']
             purchases = group['purchases']
             purchase_value = group['gia_tri_chuyen_doi_tu_luot_mua']
-            checkout_starts = group['checkout_initiated']
+            # Lấy checkout_starts: ưu tiên checkouts_initiated, fallback checkout_initiated, onsite_conversion_post_save
+            checkout_starts = (
+                group.get('checkouts_initiated', 0) or
+                group.get('checkout_initiated', 0) or
+                group.get('onsite_conversion_post_save', 0)
+            )
             budget = group['budget']
             budget_level = group['budget_level']
             
