@@ -11,78 +11,6 @@ interface FiltersBarProps {
   viewMode?: 'ecommerce' | 'lead';
 }
 
-interface DatePreset {
-  label: string;
-  value: string;
-  getDates: () => { from: string; to: string };
-}
-
-// Helper: Get Vietnam date (UTC+7)
-const getVietnamDate = (offsetDays: number = 0): string => {
-  const now = new Date();
-  const vietnamTime = new Date(now.getTime() + (7 * 60 * 60 * 1000) + (offsetDays * 86400000));
-  return vietnamTime.toISOString().split('T')[0];
-};
-
-const datePresets: DatePreset[] = [
-  {
-    label: 'Hôm nay',
-    value: 'today',
-    getDates: () => {
-      const today = getVietnamDate();
-      return { from: today, to: today };
-    },
-  },
-  {
-    label: 'Hôm qua',
-    value: 'yesterday',
-    getDates: () => {
-      const yesterday = getVietnamDate(-1);
-      return { from: yesterday, to: yesterday };
-    },
-  },
-  {
-    label: '7 ngày qua',
-    value: 'last_7d',
-    getDates: () => {
-      const to = getVietnamDate();
-      const from = getVietnamDate(-6);
-      return { from, to };
-    },
-  },
-  {
-    label: '30 ngày qua',
-    value: 'last_30d',
-    getDates: () => {
-      const to = getVietnamDate();
-      const from = getVietnamDate(-29);
-      return { from, to };
-    },
-  },
-  {
-    label: 'Tháng này',
-    value: 'this_month',
-    getDates: () => {
-      const now = new Date();
-      const vietnamNow = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-      const from = new Date(vietnamNow.getFullYear(), vietnamNow.getMonth(), 1).toISOString().split('T')[0];
-      const to = getVietnamDate();
-      return { from, to };
-    },
-  },
-  {
-    label: 'Tháng trước',
-    value: 'last_month',
-    getDates: () => {
-      const now = new Date();
-      const vietnamNow = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-      const from = new Date(vietnamNow.getFullYear(), vietnamNow.getMonth() - 1, 1).toISOString().split('T')[0];
-      const to = new Date(vietnamNow.getFullYear(), vietnamNow.getMonth(), 0).toISOString().split('T')[0];
-      return { from, to };
-    },
-  },
-];
-
 export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoading, viewMode = 'ecommerce' }: FiltersBarProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -103,21 +31,6 @@ export default function FiltersBar({ filters, onFiltersChange, onRefresh, isLoad
       console.error('Error loading filter options:', err);
     });
   }, [viewMode]);
-
-  const handleDatePresetClick = (preset: DatePreset) => {
-    const dates = preset.getDates();
-    onFiltersChange({
-      ...filters,
-      date_from: dates.from,
-      date_to: dates.to,
-    });
-    setShowDatePicker(false);
-  };
-
-  const handleCustomDateApply = () => {
-    onFiltersChange(tempFilters);
-    setShowDatePicker(false);
-  };
 
   const handleFilterApply = () => {
     onFiltersChange(tempFilters);
