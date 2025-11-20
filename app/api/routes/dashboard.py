@@ -968,15 +968,23 @@ async def get_dashboard_data(
             }
             
             if view_mode == "ecommerce":
+                # Tính totals cho E-Commerce
+                total_spend_ecom = sum(r.get('spend', 0) or 0 for r in rows)
+                total_purchase_value_ecom = sum(r.get('purchase_value', 0) or 0 for r in rows)
+                total_purchases_ecom = sum(r.get('purchases', 0) or 0 for r in rows)
+                total_checkouts_ecom = sum(r.get('initiated_checkout', 0) or r.get('checkouts_initiated', 0) or 0 for r in rows)
+                
                 totals.update({
-                    "ads_percent": sum(r.get('ads_percent', 0) or r.get('%ads', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    # % ADS = tổng spend / tổng purchase_value (KHÔNG nhân 100, giống Google Script)
+                    "ads_percent": (total_spend_ecom / total_purchase_value_ecom) if total_purchase_value_ecom > 0 else 0,
+                    "%ads": (total_spend_ecom / total_purchase_value_ecom) if total_purchase_value_ecom > 0 else 0,
                     "tlc": sum(r.get('tlc', 0) or 0 for r in rows) / len(rows) if rows else 0,
-                    "cost_per_checkout_initiated": sum(r.get('cost_per_checkout_initiated', 0) or 0 for r in rows) / len(rows) if rows else 0,
-                    "initiated_checkout": sum(r.get('initiated_checkout', 0) or r.get('checkouts_initiated', 0) or 0 for r in rows),
-                    "checkouts_initiated": sum(r.get('checkouts_initiated', 0) or r.get('initiated_checkout', 0) or 0 for r in rows),
-                    "cost_per_purchase": sum(r.get('cost_per_purchase', 0) or 0 for r in rows) / len(rows) if rows else 0,
-                    "purchases": sum(r.get('purchases', 0) or 0 for r in rows),
-                    "purchase_value": sum(r.get('purchase_value', 0) or 0 for r in rows),
+                    "cost_per_checkout_initiated": (total_spend_ecom / total_checkouts_ecom) if total_checkouts_ecom > 0 else 0,
+                    "initiated_checkout": total_checkouts_ecom,
+                    "checkouts_initiated": total_checkouts_ecom,
+                    "cost_per_purchase": (total_spend_ecom / total_purchases_ecom) if total_purchases_ecom > 0 else 0,
+                    "purchases": total_purchases_ecom,
+                    "purchase_value": total_purchase_value_ecom,
                 })
             else:  # lead
                 totals.update({
