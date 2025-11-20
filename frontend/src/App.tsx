@@ -789,27 +789,6 @@ function App() {
         cancelText="Hủy"
         loading={loading && !!bulkProgress}
       />
-      <ConfirmModal
-        isOpen={showConfirmModal}
-        onClose={() => {
-          setShowConfirmModal(false);
-          setConfirmAction(null);
-        }}
-        onConfirm={() => {
-          if (confirmAction) {
-            handleStatusUpdate(confirmAction);
-          }
-        }}
-        title={confirmAction === 'pause' ? 'Xác nhận tắt' : 'Xác nhận bật'}
-        message={
-          confirmAction === 'pause'
-            ? `Bạn chắc chắn muốn tắt ${selectedIds.size} ${currentLevel === 'campaign' ? 'chiến dịch' : currentLevel === 'adset' ? 'nhóm quảng cáo' : 'quảng cáo'} không?`
-            : `Bạn chắc chắn muốn bật ${selectedIds.size} ${currentLevel === 'campaign' ? 'chiến dịch' : currentLevel === 'adset' ? 'nhóm quảng cáo' : 'quảng cáo'} không?`
-        }
-        confirmText="Xác nhận"
-        cancelText="Hủy"
-        confirmColor={confirmAction === 'pause' ? 'amber' : 'green'}
-      />
     </div>
   );
 }
