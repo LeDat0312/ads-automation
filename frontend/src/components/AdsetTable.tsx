@@ -6,6 +6,7 @@ import BudgetEditor from './BudgetEditor';
 export const AdsetTable: React.FC<AdsetTableProps> = ({
   rows,
   viewMode,
+  currentLevel = 'adset',
   loading = false,
   onSort,
   sortConfig,
@@ -17,6 +18,19 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   currency = 'VND',
 }) => {
   const [budgetEditorRow, setBudgetEditorRow] = useState<AdsetRow | null>(null);
+  
+  // Helper function to check if budget can be edited
+  const canEditBudget = (row: AdsetRow, level: 'campaign' | 'adset' | 'ad'): boolean => {
+    if (!row.budget_level) return false;
+    if (level === 'campaign') {
+      // Tab Chiến dịch: chỉ cho edit nếu budget_level === 'CAMPAIGN'
+      return row.budget_level === 'CAMPAIGN';
+    } else if (level === 'adset') {
+      // Tab Nhóm quảng cáo: chỉ cho edit nếu budget_level === 'ADSET'
+      return row.budget_level === 'ADSET';
+    }
+    return false;
+  };
 
   // ✅ COMPLETELY DIFFERENT columns for Lead vs Ecom (per old dashboard)
   const columns = useMemo(() => {
@@ -43,19 +57,21 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
         { key: 'cpc', label: 'CPC', sortable: true, width: 'w-28' },
       ];
     } else {
-      // Ecom columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, % ADS, Kết Quả, Giá DATA, TLC, Bắt Đầu TT, Lượt Mua, Giá Trị CĐ, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
+      // Ecom columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, % ADS, Kết Quả, Giá DATA, TLC, Chi Phí/Bắt Đầu TT, Bắt Đầu TT, Chi Phí/Lượt Mua, Lượt Mua, Giá Trị CĐ, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
       return [
         { key: 'select', label: 'Chọn', sortable: false, width: 'w-16', fixed: true },
         { key: 'status', label: 'Bật/Tắt', sortable: false, width: 'w-24', fixed: true },
-        { key: 'name', label: 'Tên', sortable: false, width: 'min-w-[300px]', fixed: true },
-        { key: 'delivery', label: 'Phân Phối', sortable: false, width: 'w-28' },
+        { key: 'name', label: 'Tên', sortable: false, width: 'min-w-[200px]', fixed: true },
+        { key: 'delivery', label: 'Phân Phối', sortable: false, width: 'w-20' },
         { key: 'budget', label: 'Ngân Sách', sortable: false, width: 'w-32' },
         { key: 'spend', label: 'Chi Tiêu', sortable: true, width: 'w-32' },
         { key: 'ads_percent', label: '% ADS', sortable: true, width: 'w-28' },
         { key: 'results', label: 'Kết Quả', sortable: true, width: 'w-28' },
         { key: 'data_cost', label: 'Giá DATA', sortable: true, width: 'w-32' },
         { key: 'tlc', label: 'TLC', sortable: true, width: 'w-24' },
+        { key: 'cost_per_checkout_initiated', label: 'Chi Phí/Bắt Đầu TT', sortable: true, width: 'w-40' },
         { key: 'checkouts_initiated', label: 'Bắt Đầu TT', sortable: true, width: 'w-32' },
+        { key: 'cost_per_purchase', label: 'Chi Phí/Lượt Mua', sortable: true, width: 'w-36' },
         { key: 'purchases', label: 'Lượt Mua', sortable: true, width: 'w-28' },
         { key: 'purchase_value', label: 'Giá Trị CĐ', sortable: true, width: 'w-36' },
         { key: 'cpm', label: 'CPM', sortable: true, width: 'w-28' },
@@ -142,29 +158,31 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-md overflow-hidden" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+    <div className="bg-white rounded-lg shadow overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-full" style={{ borderCollapse: 'collapse' }}>
+        <table className="min-w-full" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead style={{ background: '#f9fafb' }}>
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
                   className={`
-                    ${col.width}
-                    ${col.fixed ? 'sticky left-0 z-10' : ''}
-                    px-3 py-3 text-left text-sm font-semibold uppercase
                     ${col.sortable ? 'cursor-pointer hover:bg-gray-100 select-none' : ''}
                   `}
                   style={{
-                    ...(col.fixed ? { background: '#f9fafb', zIndex: 10 } : {}),
-                    color: '#374151',
+                    padding: '12px',
+                    textAlign: 'left',
                     borderBottom: '1px solid #f3f4f6',
+                    background: col.fixed ? '#f9fafb' : '#f9fafb',
+                    fontWeight: 600,
+                    color: '#374151',
+                    fontSize: '14px',
                     position: col.fixed ? 'sticky' : 'relative',
                     top: 0,
+                    zIndex: col.fixed ? 10 : 1,
                     ...(col.key === 'select' ? { left: 0 } :
-                        col.key === 'status' ? { left: '3rem' } :
-                        col.key === 'adset_name' ? { left: '7rem' } :
+                        col.key === 'status' ? { left: '4rem' } :
+                        col.key === 'name' ? { left: '8rem' } :
                         {})
                   }}
                   onClick={() => col.sortable && handleSort(col.key)}
@@ -196,11 +214,13 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                   key={rowId}
                   row={row}
                   viewMode={viewMode}
+                  currentLevel={currentLevel}
                   isSelected={selectedIds.has(rowId)}
                   onSelect={() => handleSelectRow(rowId)}
                   onStatusToggle={onStatusToggle}
                   onDrillDown={onDrillDown}
                   onOpenBudgetEditor={setBudgetEditorRow}
+                  canEditBudget={canEditBudget}
                 />
               );
             })}
@@ -228,23 +248,25 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
 interface TableRowProps {
   row: AdsetRow;
   viewMode: ViewMode;
+  currentLevel: 'campaign' | 'adset' | 'ad';
   isSelected: boolean;
   onSelect: () => void;
   onStatusToggle?: (row: AdsetRow) => void;
   onDrillDown?: (level: 'campaign' | 'adset', id: string, name: string) => void;
   onOpenBudgetEditor?: (row: AdsetRow) => void;
+  canEditBudget: (row: AdsetRow, level: 'campaign' | 'adset' | 'ad') => boolean;
 }
 
 const TableRow: React.FC<TableRowProps> = ({ 
   row, 
-  viewMode, 
+  viewMode,
+  currentLevel,
   isSelected, 
   onSelect,
   onStatusToggle,
   onOpenBudgetEditor,
+  canEditBudget,
 }) => {
-  const statusColor = row.is_active_now ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
-
   if (viewMode === 'lead') {
     return (
       <tr 
@@ -252,157 +274,8 @@ const TableRow: React.FC<TableRowProps> = ({
           borderBottom: '1px solid #f3f4f6',
         }}
         className="hover:bg-[#f9fafb] transition-colors"
-      >
-        {/* Checkbox */}
-        <td 
-          className="sticky left-0 z-10 bg-white" 
-          style={{ 
-            left: 0,
-            padding: '12px',
-            fontSize: '14px',
-            color: '#1f2937'
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={onSelect}
-            className="rounded border-gray-300"
-          />
-        </td>
-
-        {/* Status Toggle */}
-        <td className="px-3 py-3 sticky z-10 bg-white" style={{ left: '4rem' }}>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={row.delivery === 'ACTIVE'}
-              onChange={() => onStatusToggle?.(row)}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-          </label>
-        </td>
-
-        {/* Name */}
-        <td className="px-3 py-3 sticky z-10 bg-white" style={{ left: '8rem' }}>
-          <div className="font-semibold text-gray-900 truncate" title={row.adset_name}>
-            {row.adset_name}
-          </div>
-          <div className="text-xs text-gray-500 space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-indigo-600">{row.prefix || 'N/A'}</span>
-              <span>•</span>
-              <span className="truncate max-w-[120px]" title={row.account_name}>{row.account_name}</span>
-            </div>
-            {row.adset_id && (
-              <div className="text-gray-400">
-                ID: {row.adset_id}
-              </div>
-            )}
-          </div>
-        </td>
-
-        {/* Delivery Status */}
-        <td className="px-3 py-3">
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
-            {row.delivery === 'ACTIVE' ? 'Đang chạy' : 'Tạm dừng'}
-          </span>
-        </td>
-
-        {/* Budget */}
-        <td className="px-3 py-3 text-right">
-          <button
-            onClick={() => {
-              const canEdit = row.budget_level === 'ADSET';
-              if (canEdit && onOpenBudgetEditor) {
-                onOpenBudgetEditor(row);
-              }
-            }}
-            className={`
-              text-gray-700 hover:text-indigo-600 hover:underline transition-colors text-sm
-              ${row.budget_level === 'ADSET' ? 'cursor-pointer font-medium' : 'cursor-not-allowed opacity-60'}
-            `}
-            title={row.budget_level === 'ADSET' ? 'Click để chỉnh sửa' : 'Ngân sách ở cấp Chiến dịch'}
-          >
-            {formatCurrency(row.budget, row.currency)}
-          </button>
-        </td>
-
-        {/* Spend */}
-        <td className="px-3 py-3 text-right font-semibold text-gray-900 text-sm">
-          {formatCurrency(row.spend, row.currency)}
-        </td>
-
-        {/* Results (DATA) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600 }}>
-          {formatNumber(row.results)}
-        </td>
-
-        {/* Cost per DATA */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#14b8a6', textAlign: 'right', fontWeight: 600 }}>
-          {formatCurrency(row.data_cost, row.currency)}
-        </td>
-
-        {/* Cost per Checkout */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          {formatCurrency((row.initiated_checkout && row.initiated_checkout > 0) ? row.spend / row.initiated_checkout : 0, row.currency)}
-        </td>
-
-        {/* Checkouts Initiated */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
-        </td>
-
-        {/* Purchases */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'right', fontWeight: 600 }}>
-          {formatNumber(row.purchases)}
-        </td>
-
-        {/* CPM */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          {formatCurrency(row.cpm || 0, row.currency)}
-        </td>
-
-        {/* Impressions */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          {formatNumber(row.impressions)}
-        </td>
-
-        {/* Reach */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          {formatNumber(row.reach || 0)}
-        </td>
-
-        {/* Frequency */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          {(row.frequency || 0).toFixed(2)}
-        </td>
-
-        {/* Clicks */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          {formatNumber(row.clicks || 0)}
-        </td>
-
-        {/* CTR */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          {formatPercentage(row.ctr || 0)}%
-        </td>
-
-        {/* CPC */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          {formatCurrency(row.cpc || 0, row.currency)}
-        </td>
-      </tr>
-    );
-  } else {
-    // E-COMMERCE
-    return (
-      <tr 
-        style={{ 
-          borderBottom: '1px solid #f3f4f6',
-        }}
-        className="hover:bg-[#f9fafb] transition-colors"
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
       >
         {/* Checkbox */}
         <td 
@@ -450,125 +323,341 @@ const TableRow: React.FC<TableRowProps> = ({
             left: '8rem',
             padding: '12px',
             fontSize: '14px',
-            color: '#1f2937'
+            color: '#1f2937',
+            maxWidth: '200px'
           }}
         >
-          <div className="font-semibold text-gray-900 truncate" title={row.adset_name}>
-            {row.adset_name}
+          <div className="font-semibold text-gray-900 truncate" title={row.adset_name || row.campaign_name || row.ad_name || ''} style={{ fontSize: '14px', lineHeight: '1.4' }}>
+            {row.adset_name || row.campaign_name || row.ad_name || '-'}
           </div>
-          <div className="text-xs text-gray-500 space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-indigo-600">{row.prefix || 'N/A'}</span>
-              <span>•</span>
-              <span className="truncate max-w-[120px]" title={row.account_name}>{row.account_name}</span>
+          {row.adset_id && (
+            <div className="text-gray-400" style={{ fontSize: '12px', marginTop: '2px' }}>
+              ID: {row.adset_id}
             </div>
-            {row.adset_id && (
-              <div className="text-gray-400">
-                ID: {row.adset_id}
-              </div>
-            )}
-          </div>
+          )}
         </td>
 
-        {/* Delivery Status */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937' }}>
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
-            {row.delivery === 'ACTIVE' ? 'Đang chạy' : 'Tạm dừng'}
-          </span>
+        {/* Delivery Status - chỉ icon tròn */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center' }}>
+          <span 
+            className="inline-block rounded-full"
+            style={{
+              width: '12px',
+              height: '12px',
+              backgroundColor: row.delivery === 'ACTIVE' ? '#22c55e' : (row.delivery === 'PAUSED' ? '#ef4444' : '#d1d5db')
+            }}
+            title={row.delivery === 'ACTIVE' ? 'Đang chạy' : row.delivery === 'PAUSED' ? 'Tạm dừng' : 'Không xác định'}
+          />
         </td>
 
         {/* Budget */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          <button
-            onClick={() => {
-              const canEdit = row.budget_level === 'CAMPAIGN';
-              if (canEdit && onOpenBudgetEditor) {
-                onOpenBudgetEditor(row);
-              }
-            }}
-            className={`
-              hover:text-indigo-600 hover:underline transition-colors
-              ${row.budget_level === 'CAMPAIGN' ? 'cursor-pointer font-medium' : 'cursor-not-allowed opacity-60'}
-            `}
-            style={{ color: '#1f2937' }}
-            title={row.budget_level === 'CAMPAIGN' ? 'Click để chỉnh sửa' : 'Ngân sách ở cấp Adset'}
-          >
-            {formatCurrency(row.budget, row.currency)}
-          </button>
+          {(() => {
+            const canEdit = canEditBudget(row, currentLevel);
+            const budgetDisplay = canEdit 
+              ? formatCurrency(row.budget, row.currency)
+              : (row.budget_level === 'CAMPAIGN' 
+                ? (currentLevel === 'campaign' ? 'Theo ngân sách nhóm' : 'Ngân sách chiến dịch')
+                : (currentLevel === 'campaign' ? 'Ngân sách chiến dịch' : 'Theo ngân sách nhóm'));
+            const budgetTitle = canEdit 
+              ? 'Click để chỉnh sửa ngân sách'
+              : `Ngân sách đang ở cấp ${row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}. Chỉnh ở tab ${row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}`;
+            
+            if (canEdit && onOpenBudgetEditor) {
+              return (
+                <button
+                  onClick={() => onOpenBudgetEditor(row)}
+                  className="hover:text-indigo-600 hover:underline transition-colors cursor-pointer font-medium"
+                  style={{ color: '#1f2937', background: 'none', border: 'none', padding: 0, fontSize: '14px' }}
+                  title={budgetTitle}
+                >
+                  {budgetDisplay}
+                </button>
+              );
+            } else {
+              return (
+                <span 
+                  className="cursor-not-allowed opacity-60"
+                  style={{ color: '#1f2937', fontSize: '14px' }}
+                  title={budgetTitle}
+                >
+                  {budgetDisplay}
+                </span>
+              );
+            }
+          })()}
         </td>
 
         {/* Spend */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', fontWeight: 600 }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
           {formatCurrency(row.spend, row.currency)}
         </td>
 
-        {/* % ADS */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#e11d48', textAlign: 'right', fontWeight: 600 }}>
-          {formatPercentage(row.ads_percent || 0)}%
-        </td>
-
-        {/* Results (Kết quả) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600 }}>
+        {/* Results (DATA) */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.results)}
         </td>
 
         {/* Cost per DATA */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#14b8a6', textAlign: 'right', fontWeight: 600 }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
           {formatCurrency(row.data_cost, row.currency)}
         </td>
 
-        {/* TLC (Tỷ lệ chuyển đổi) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
-          {formatPercentage(row.tlc || (row.initiated_checkout && row.impressions ? (row.initiated_checkout / row.impressions) * 100 : 0))}%
+        {/* Cost per Checkout */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency((row.initiated_checkout && row.initiated_checkout > 0) ? row.spend / row.initiated_checkout : 0, row.currency)}
         </td>
 
         {/* Checkouts Initiated */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
         {/* Purchases */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'right', fontWeight: 600 }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.purchases)}
         </td>
 
-        {/* Purchase Value */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600 }}>
-          {formatCurrency(row.purchase_value, row.currency)}
-        </td>
-
         {/* CPM */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {formatCurrency(row.cpm || 0, row.currency)}
         </td>
 
         {/* Impressions */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.impressions)}
         </td>
 
         {/* Reach */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.reach || 0)}
         </td>
 
         {/* Frequency */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {(row.frequency || 0).toFixed(2)}
         </td>
 
         {/* Clicks */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.clicks || 0)}
         </td>
 
         {/* CTR */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {formatPercentage(row.ctr || 0)}%
         </td>
 
         {/* CPC */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cpc || 0, row.currency)}
+        </td>
+      </tr>
+    );
+  } else {
+    // E-COMMERCE
+    return (
+      <tr 
+        style={{ 
+          borderBottom: '1px solid #f3f4f6',
+        }}
+        className="hover:bg-[#f9fafb] transition-colors"
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+      >
+        {/* Checkbox */}
+        <td 
+          className="sticky left-0 z-10 bg-white" 
+          style={{ 
+            left: 0,
+            padding: '12px',
+            fontSize: '14px',
+            color: '#1f2937'
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onSelect}
+            className="rounded border-gray-300"
+          />
+        </td>
+
+        {/* Status Toggle */}
+        <td 
+          className="sticky z-10 bg-white" 
+          style={{ 
+            left: '4rem',
+            padding: '12px',
+            fontSize: '14px',
+            color: '#1f2937'
+          }}
+        >
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={row.delivery === 'ACTIVE'}
+              onChange={() => onStatusToggle?.(row)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+          </label>
+        </td>
+
+        {/* Name */}
+        <td 
+          className="sticky z-10 bg-white" 
+          style={{ 
+            left: '8rem',
+            padding: '12px',
+            fontSize: '14px',
+            color: '#1f2937',
+            maxWidth: '200px'
+          }}
+        >
+          <div className="font-semibold text-gray-900 truncate" title={row.adset_name || row.campaign_name || row.ad_name || ''} style={{ fontSize: '14px', lineHeight: '1.4' }}>
+            {row.adset_name || row.campaign_name || row.ad_name || '-'}
+          </div>
+          {row.adset_id && (
+            <div className="text-gray-400" style={{ fontSize: '12px', marginTop: '2px' }}>
+              ID: {row.adset_id}
+            </div>
+          )}
+        </td>
+
+        {/* Delivery Status - chỉ icon tròn */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center' }}>
+          <span 
+            className="inline-block rounded-full"
+            style={{
+              width: '12px',
+              height: '12px',
+              backgroundColor: row.delivery === 'ACTIVE' ? '#22c55e' : (row.delivery === 'PAUSED' ? '#ef4444' : '#d1d5db')
+            }}
+            title={row.delivery === 'ACTIVE' ? 'Đang chạy' : row.delivery === 'PAUSED' ? 'Tạm dừng' : 'Không xác định'}
+          />
+        </td>
+
+        {/* Budget */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
+          {(() => {
+            const canEdit = canEditBudget(row, currentLevel);
+            const budgetDisplay = canEdit 
+              ? formatCurrency(row.budget, row.currency)
+              : (row.budget_level === 'CAMPAIGN' 
+                ? (currentLevel === 'campaign' ? 'Theo ngân sách nhóm' : 'Ngân sách chiến dịch')
+                : (currentLevel === 'campaign' ? 'Ngân sách chiến dịch' : 'Theo ngân sách nhóm'));
+            const budgetTitle = canEdit 
+              ? 'Click để chỉnh sửa ngân sách'
+              : `Ngân sách đang ở cấp ${row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}. Chỉnh ở tab ${row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}`;
+            
+            if (canEdit && onOpenBudgetEditor) {
+              return (
+                <button
+                  onClick={() => onOpenBudgetEditor(row)}
+                  className="hover:text-indigo-600 hover:underline transition-colors cursor-pointer font-medium"
+                  style={{ color: '#1f2937', background: 'none', border: 'none', padding: 0, fontSize: '14px' }}
+                  title={budgetTitle}
+                >
+                  {budgetDisplay}
+                </button>
+              );
+            } else {
+              return (
+                <span 
+                  className="cursor-not-allowed opacity-60"
+                  style={{ color: '#1f2937', fontSize: '14px' }}
+                  title={budgetTitle}
+                >
+                  {budgetDisplay}
+                </span>
+              );
+            }
+          })()}
+        </td>
+
+        {/* Spend */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.spend, row.currency)}
+        </td>
+
+        {/* % ADS */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#ef4444', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatPercentage(row.ads_percent || 0)}%
+        </td>
+
+        {/* Results (Kết quả) */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatNumber(row.results)}
+        </td>
+
+        {/* Cost per DATA */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.data_cost, row.currency)}
+        </td>
+
+        {/* TLC (Tỷ lệ chuyển đổi) */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatPercentage(row.tlc || (row.initiated_checkout && row.impressions ? (row.initiated_checkout / row.impressions) * 100 : 0))}%
+        </td>
+
+        {/* Cost per Checkout Initiated */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cost_per_checkout_initiated || 0, row.currency)}
+        </td>
+
+        {/* Checkouts Initiated */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
+        </td>
+
+        {/* Cost per Purchase */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cost_per_purchase || 0, row.currency)}
+        </td>
+
+        {/* Purchases */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatNumber(row.purchases)}
+        </td>
+
+        {/* Purchase Value */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.purchase_value, row.currency)}
+        </td>
+
+        {/* CPM */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cpm || 0, row.currency)}
+        </td>
+
+        {/* Impressions */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatNumber(row.impressions)}
+        </td>
+
+        {/* Reach */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatNumber(row.reach || 0)}
+        </td>
+
+        {/* Frequency */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {(row.frequency || 0).toFixed(2)}
+        </td>
+
+        {/* Clicks */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatNumber(row.clicks || 0)}
+        </td>
+
+        {/* CTR */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatPercentage(row.ctr || 0)}%
+        </td>
+
+        {/* CPC */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {formatCurrency(row.cpc || 0, row.currency)}
         </td>
       </tr>

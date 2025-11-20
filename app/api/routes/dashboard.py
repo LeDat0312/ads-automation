@@ -370,6 +370,8 @@ async def get_dashboard_data(
     adset_id: Optional[str] = Query(None, description="Filter by adset ID (for drill-down) - CHỈ dùng khi user click vào 1 adset cụ thể"),
     page: int = Query(1, ge=1),
     pageSize: int = Query(50, ge=10, le=500),
+    sort_by: Optional[str] = Query(None, description="Column to sort by (e.g., 'data_cost', 'spend', 'results')"),
+    sort_order: Optional[str] = Query("desc", description="Sort order: 'asc' or 'desc'"),
     force_refresh: int = Query(0, ge=0, le=1, description="0=use cache, 1=force refresh from Facebook API"),
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -653,6 +655,40 @@ async def get_dashboard_data(
             
             # Initialize group nếu chưa tồn tại (defaultdict tự động init metrics)
             if entity_key not in grouped_data or 'id' not in grouped_data[entity_key]:
+                # Xác định budget và budget_level dựa trên level hiện tại
+                # Lấy cả campaign và adset budget từ row (nếu có)
+                campaign_budget = row.get('campaign_budget', 0.0) or 0.0
+                adset_budget = row.get('adset_budget', 0.0) or 0.0
+                row_budget_level = row.get('budget_level', 'ADSET')
+                
+                if level == "campaign":
+                    # Ở level campaign: 
+                    # - Nếu campaign có budget → hiển thị campaign budget, budget_level = 'CAMPAIGN'
+                    # - Nếu không → budget_level = 'ADSET', budget = 0 (vì không có campaign budget)
+                    if campaign_budget > 0:
+                        budget = campaign_budget
+                        budget_level = 'CAMPAIGN'
+                    else:
+                        # Campaign không có budget, budget ở cấp adset
+                        budget = 0.0
+                        budget_level = 'ADSET'
+                elif level == "adset":
+                    # Ở level adset: 
+                    # - Nếu adset có budget → hiển thị adset budget, budget_level = 'ADSET'
+                    # - Nếu không (campaign có budget) → budget_level = 'CAMPAIGN', budget = 0
+                    if adset_budget > 0:
+                        # Adset có budget riêng
+                        budget = adset_budget
+                        budget_level = 'ADSET'
+                    else:
+                        # Campaign có budget, adset không có budget riêng
+                        budget = 0.0
+                        budget_level = 'CAMPAIGN'
+                else:  # ad
+                    # Ở level ad: budget_level và budget lấy từ adset (vì ad không có budget riêng)
+                    budget = adset_budget if adset_budget > 0 else campaign_budget
+                    budget_level = row_budget_level
+                
                 # Chỉ set metadata lần đầu
                 grouped_data[entity_key].update({
                     'id': entity_id,
@@ -662,8 +698,8 @@ async def get_dashboard_data(
                     'prefix': row.get('prefix', ''),
                     'status': normalize_status((row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()),
                     'delivery': normalize_status((row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()),
-                    'budget': row.get('budget', 0.0) or 0.0,
-                    'budget_level': row.get('budget_level', 'ADSET'),
+                    'budget': budget,
+                    'budget_level': budget_level,
                     'currency': 'VND',
                     'campaign_id': row.get('campaign_id', ''),
                     'campaign_name': row.get('campaign_name', ''),
@@ -744,11 +780,15 @@ async def get_dashboard_data(
             if view_mode == "ecommerce":
                 ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
                 tlc = (purchases / results * 100) if results > 0 else 0
+                cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
+                cost_per_purchase = (spend / purchases) if purchases > 0 else 0
                 row_data.update({
                     "%ads": round(ads_percent, 2),
                     "data_cost": round(gia_data, 2),
                     "tlc": round(tlc, 2),
+                    "cost_per_checkout_initiated": round(cost_per_checkout_start, 2),
                     "initiated_checkout": checkout_starts,
+                    "cost_per_purchase": round(cost_per_purchase, 2),
                     "purchases": purchases,
                     "purchase_value": round(purchase_value, 2)
                 })
@@ -763,7 +803,16 @@ async def get_dashboard_data(
             
             rows.append(row_data)
         
-        # Pagination
+        # Sort toàn bộ rows trước khi paginate
+        if sort_by:
+            reverse_order = (sort_order or 'desc').lower() == 'desc'
+            try:
+                rows.sort(key=lambda x: x.get(sort_by, 0) or 0, reverse=reverse_order)
+                logger.info(f"   📊 Đã sắp xếp {len(rows)} rows theo {sort_by} ({sort_order})")
+            except Exception as e:
+                logger.warning(f"   ⚠️ Lỗi khi sắp xếp theo {sort_by}: {e}")
+        
+        # Pagination (sau khi sort)
         total_rows = len(rows)
         total_pages = ((total_rows - 1) // pageSize) + 1 if total_rows > 0 else 0
         offset = (page - 1) * pageSize
@@ -951,12 +1000,25 @@ async def update_budget_endpoint(
         
         for op in payload.operations:
             try:
+                # Kiểm tra budget_level trước khi update
+                # Nếu level = "ADSET" nhưng budget_level = "CAMPAIGN" → không thể update
+                # Cần fetch budget_level từ cache hoặc API
                 if op.level == "ADSET":
+                    # Kiểm tra xem adset có budget riêng không (hay budget ở cấp campaign)
+                    # Tạm thời thử update, nếu lỗi thì sẽ bắt được
                     result = update_adset_budget(
                         adset_id=op.id,
                         access_token=access_token,
                         new_budget=op.new_budget
                     )
+                    # Nếu lỗi 400, có thể do budget ở cấp campaign
+                    if not result.get("success") and "400" in str(result.get("error", "")):
+                        errors.append({
+                            "id": op.id,
+                            "level": op.level,
+                            "error": f"Không thể cập nhật ngân sách: Ngân sách đang ở cấp chiến dịch. Vui lòng cập nhật ở tab 'Chiến Dịch'."
+                        })
+                        continue
                 elif op.level == "CAMPAIGN":
                     result = update_campaign_budget(
                         campaign_id=op.id,

@@ -16,6 +16,7 @@ export interface AdsetRow {
   campaign_id: string;
   campaign_name: string;
   ad_id?: string;  // Ad ID (when level is 'ad')
+  ad_name?: string;  // Ad name (when level is 'ad')
   account_id: string;
   account_name?: string;  // Account name for display
   prefix?: string;
@@ -140,6 +141,8 @@ export interface DashboardFilters {
   page?: number;
   pageSize?: number;
   force_refresh?: 0 | 1;  // 0=cache, 1=refresh
+  sort_by?: string;  // Column to sort by (e.g., 'data_cost', 'spend', 'results')
+  sort_order?: 'asc' | 'desc';  // Sort order
   // Additional filters for UI
   prefix_filter?: string;
   status_filter?: string;  // 'ran_today' | 'ACTIVE' | 'PAUSED'
@@ -221,6 +224,7 @@ export interface SummaryCardsProps {
 export interface AdsetTableProps {
   rows: AdsetRow[];
   viewMode: ViewMode;
+  currentLevel?: 'campaign' | 'adset' | 'ad';  // Current tab level
   loading?: boolean;
   onSort?: (column: SortableColumn) => void;
   sortConfig?: SortConfig;

@@ -86,6 +86,10 @@ export async function getDashboardData(
   if (filters.search) params.search = filters.search;
   if (filters.campaign_id) params.campaign_id = filters.campaign_id;
   if (filters.adset_id) params.adset_id = filters.adset_id;
+  
+  // Add sort parameters
+  if (filters.sort_by) params.sort_by = filters.sort_by;
+  if (filters.sort_order) params.sort_order = filters.sort_order;
 
   const response = await api.get<DashboardDataResponse>('/dashboard/data', { params });
   return response.data;

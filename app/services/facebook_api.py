@@ -862,6 +862,18 @@ def update_adset_budget(
         }
         
         update_response = requests.post(update_url, params=update_params, data=update_data, timeout=30)
+        
+        # Kiểm tra lỗi 400 trước khi raise_for_status
+        if update_response.status_code == 400:
+            error_data = update_response.json()
+            error_msg = error_data.get('error', {}).get('message', 'Bad Request')
+            return {
+                "success": False,
+                "adset_id": adset_id,
+                "old_budget": current_budget,
+                "error": f"400: {error_msg}"
+            }
+        
         update_response.raise_for_status()
         
         result = update_response.json()
@@ -1461,13 +1473,22 @@ def pull_facebook_data(
                     
                     # Xác định budget_level từ campaign info
                     campaign_info = campaign_budgets_cache.get(campaign_id, {})
-                    budget_level = campaign_info.get('budget_level', 'ADSET')  # Default: ADSET
+                    campaign_has_budget = campaign_info.get('budget_level', 'ADSET') == 'CAMPAIGN'
+                    campaign_budget = campaign_info.get('daily_budget', 0.0) or campaign_info.get('lifetime_budget', 0.0) or 0.0
+                    adset_budget = adset_budgets_cache.get(adset_id, 0.0)
+                    
+                    # Xác định budget_level: nếu campaign có budget → CAMPAIGN, nếu không → ADSET
+                    budget_level = 'CAMPAIGN' if campaign_has_budget else 'ADSET'
                     
                     # Lấy budget: nếu campaign có budget → dùng campaign budget, nếu không → dùng adset budget
                     if budget_level == 'CAMPAIGN':
-                        budget = campaign_info.get('daily_budget', 0.0) or campaign_info.get('lifetime_budget', 0.0) or 0.0
+                        budget = campaign_budget
                     else:
-                        budget = adset_budgets_cache.get(adset_id, 0.0)
+                        budget = adset_budget
+                    
+                    # Lưu cả campaign và adset budget để dùng sau này khi group theo level
+                    campaign_budget_value = campaign_budget if campaign_has_budget else 0.0
+                    adset_budget_value = adset_budget if not campaign_has_budget else 0.0
                     
                     # Tạo row data
                     row = {
@@ -1487,6 +1508,8 @@ def pull_facebook_data(
                         'budget': budget,
                         'daily_budget': budget,  # Alias
                         'budget_level': budget_level,  # CAMPAIGN hoặc ADSET
+                        'campaign_budget': campaign_budget_value,  # Campaign budget (nếu có)
+                        'adset_budget': adset_budget_value,  # Adset budget (nếu có)
                         'spend': spend,
                         'amount_spent': spend,
                         'results': results,

@@ -119,36 +119,26 @@ function App() {
     setSelectedIds(new Set());
   };
 
-  // Handle sort
+  // Handle sort - gửi sort request lên backend
   const handleSort = (column: SortableColumn) => {
-    setSortConfig(prev => ({
+    const newDirection = sortConfig.column === column && sortConfig.direction === 'asc' ? 'desc' : 'asc';
+    setSortConfig({
       column,
-      direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc',
+      direction: newDirection,
+    });
+    // Update filters để trigger fetchData với sort mới
+    setFilters(prev => ({
+      ...prev,
+      sort_by: column,
+      sort_order: newDirection,
+      page: 1,  // Reset về trang 1 khi sort
     }));
   };
 
-  // Sort rows client-side
+  // Rows đã được sort ở backend, không cần sort client-side nữa
   const sortedRows = React.useMemo(() => {
-    if (!data?.details.rows || !sortConfig.column) {
-      return data?.details.rows || [];
-    }
-
-    const sorted = [...data.details.rows].sort((a, b) => {
-      const aVal = a[sortConfig.column!];
-      const bVal = b[sortConfig.column!];
-      
-      if (aVal === null || aVal === undefined) return 1;
-      if (bVal === null || bVal === undefined) return -1;
-      
-      if (sortConfig.direction === 'asc') {
-        return aVal > bVal ? 1 : -1;
-      } else {
-        return aVal < bVal ? 1 : -1;
-      }
-    });
-
-    return sorted;
-  }, [data?.details.rows, sortConfig]);
+    return data?.details.rows || [];
+  }, [data?.details.rows]);
 
   // Handle force refresh
   const handleRefresh = () => {
@@ -297,7 +287,7 @@ function App() {
     }
   };
 
-  // Handle budget update - single row
+  // Handle budget update - single row (chỉ update row đó, không reload toàn bộ)
   const handleBudgetUpdateSingle = async (row: any, newBudget: number) => {
     try {
       setLoading(true);
@@ -309,8 +299,29 @@ function App() {
         }],
         view_mode: viewMode,
       });
-      // Refresh data after budget update
-      await fetchData();
+      // Chỉ update row đó trong state, không reload toàn bộ
+      setData(prev => {
+        if (!prev) return prev;
+        const updatedRows = prev.details.rows.map(r => {
+          const rowId = r.id || r.adset_id || r.campaign_id || r.ad_id || '';
+          const targetId = row.id || row.adset_id || row.campaign_id || row.ad_id || '';
+          if (rowId === targetId) {
+            return { ...r, budget: newBudget };
+          }
+          return r;
+        });
+        return {
+          ...prev,
+          details: {
+            ...prev.details,
+            rows: updatedRows
+          }
+        };
+      });
+      // Refresh data ở background (không block UI)
+      fetchData().catch(err => {
+        console.error('Background refresh failed:', err);
+      });
     } catch (err) {
       setError(getErrorMessage(err));
       throw err; // Re-throw để BudgetEditor hiển thị error
@@ -598,6 +609,7 @@ function App() {
         <AdsetTable
           rows={sortedRows}
           viewMode={viewMode}
+          currentLevel={currentLevel}
           loading={loading}
           onSort={handleSort}
           sortConfig={sortConfig}
