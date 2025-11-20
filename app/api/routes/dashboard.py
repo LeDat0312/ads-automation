@@ -1318,11 +1318,15 @@ async def get_dashboard_data(
                     "purchase_value": total_purchase_value_ecom,
                 })
             else:  # lead
+                # 🔹 FIX: Tính totals cho Lead Gen - cost_per_purchase = tổng spend / tổng purchases (KHÔNG phải trung bình)
+                total_spend_lead = sum(r.get('spend', 0) or 0 for r in rows)
+                total_purchases_lead = sum(r.get('purchases', 0) or 0 for r in rows)
+                total_checkouts_lead = sum(r.get('initiated_checkout', 0) or r.get('checkouts_initiated', 0) or 0 for r in rows)
                 totals.update({
-                    "cost_per_checkout_initiated": sum(r.get('cost_per_checkout_initiated', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "cost_per_checkout_initiated": (total_spend_lead / total_checkouts_lead) if total_checkouts_lead > 0 else 0,
                     "initiated_checkout": sum(r.get('initiated_checkout', 0) or r.get('checkouts_initiated', 0) or 0 for r in rows),
                     "checkouts_initiated": sum(r.get('checkouts_initiated', 0) or r.get('initiated_checkout', 0) or 0 for r in rows),
-                    "cost_per_purchase": sum(r.get('cost_per_purchase', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "cost_per_purchase": (total_spend_lead / total_purchases_lead) if total_purchases_lead > 0 else 0,
                     "purchases": sum(r.get('purchases', 0) or 0 for r in rows),
                 })
             
