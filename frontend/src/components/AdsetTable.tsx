@@ -401,7 +401,8 @@ const TableRow: React.FC<TableRowProps> = ({
             fontSize: '14px',
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
-            maxWidth: '200px'
+            width: `${getColumnWidth('name')}px`,
+            minWidth: `${getColumnWidth('name')}px`
           }}
         >
           <div className="font-semibold" style={{ fontSize: '14px', lineHeight: '1.4', fontWeight: 600 }}>
@@ -415,7 +416,7 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Delivery Status - chỉ icon tròn */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('delivery')}px`, minWidth: `${getColumnWidth('delivery')}px` }}>
           <span 
             className="inline-block rounded-full"
             style={{
@@ -428,7 +429,7 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Budget */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('budget')}px`, minWidth: `${getColumnWidth('budget')}px` }}>
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
             let budgetDisplay: string;
@@ -485,72 +486,72 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Spend */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('spend')}px`, minWidth: `${getColumnWidth('spend')}px` }}>
           {formatCurrency(row.spend, row.currency || 'VND')}
         </td>
 
         {/* Results (DATA) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('results')}px`, minWidth: `${getColumnWidth('results')}px` }}>
           {formatNumber(row.results)}
         </td>
 
         {/* Cost per DATA */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('data_cost')}px`, minWidth: `${getColumnWidth('data_cost')}px` }}>
           {formatCurrency(row.data_cost, row.currency || 'VND')}
         </td>
 
         {/* Cost per Checkout Initiated (Chi Phí/BĐTT) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cost_per_checkout_initiated')}px`, minWidth: `${getColumnWidth('cost_per_checkout_initiated')}px` }}>
           {formatCurrency(row.cost_per_checkout_initiated || 0, row.currency || 'VND')}
         </td>
 
         {/* Checkouts Initiated (Bắt Đầu TT) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('checkouts_initiated')}px`, minWidth: `${getColumnWidth('checkouts_initiated')}px` }}>
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
         {/* Cost per Purchase (Chi phí / LM) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cost_per_purchase')}px`, minWidth: `${getColumnWidth('cost_per_purchase')}px` }}>
           {formatCurrency(row.cost_per_purchase || 0, row.currency || 'VND')}
         </td>
 
         {/* Purchases (Lượt Mua) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('purchases')}px`, minWidth: `${getColumnWidth('purchases')}px` }}>
           {formatNumber(row.purchases)}
         </td>
 
         {/* CPM */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cpm')}px`, minWidth: `${getColumnWidth('cpm')}px` }}>
           {formatCurrency(row.cpm || 0, row.currency || 'VND')}
         </td>
 
         {/* Impressions */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('impressions')}px`, minWidth: `${getColumnWidth('impressions')}px` }}>
           {formatNumber(row.impressions)}
         </td>
 
         {/* Reach */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('reach')}px`, minWidth: `${getColumnWidth('reach')}px` }}>
           {formatNumber(row.reach || 0)}
         </td>
 
         {/* Frequency */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('frequency')}px`, minWidth: `${getColumnWidth('frequency')}px` }}>
           {(row.frequency || 0).toFixed(2)}
         </td>
 
         {/* Clicks */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('clicks')}px`, minWidth: `${getColumnWidth('clicks')}px` }}>
           {formatNumber(row.clicks || 0)}
         </td>
 
         {/* CTR */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('ctr')}px`, minWidth: `${getColumnWidth('ctr')}px` }}>
           {formatPercentage(row.ctr || 0)}%
         </td>
 
         {/* CPC */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cpc')}px`, minWidth: `${getColumnWidth('cpc')}px` }}>
           {formatCurrency(row.cpc || 0, row.currency || 'VND')}
         </td>
       </tr>
@@ -622,7 +623,8 @@ const TableRow: React.FC<TableRowProps> = ({
             fontSize: '14px',
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
-            maxWidth: '200px'
+            width: `${getColumnWidth('name')}px`,
+            minWidth: `${getColumnWidth('name')}px`
           }}
         >
           <div className="font-semibold" style={{ fontSize: '14px', lineHeight: '1.4', fontWeight: 600 }}>
@@ -636,7 +638,7 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Delivery Status - chỉ icon tròn */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('delivery')}px`, minWidth: `${getColumnWidth('delivery')}px` }}>
           <span 
             className="inline-block rounded-full"
             style={{
@@ -649,7 +651,7 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Budget */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('budget')}px`, minWidth: `${getColumnWidth('budget')}px` }}>
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
             let budgetDisplay: string;
@@ -706,87 +708,87 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Spend */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('spend')}px`, minWidth: `${getColumnWidth('spend')}px` }}>
           {formatCurrency(row.spend, row.currency || 'VND')}
         </td>
 
         {/* % ADS */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#ef4444', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#ef4444', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('ads_percent')}px`, minWidth: `${getColumnWidth('ads_percent')}px` }}>
           {formatPercentage(row.ads_percent || 0)}%
         </td>
 
         {/* Results (Kết quả) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('results')}px`, minWidth: `${getColumnWidth('results')}px` }}>
           {formatNumber(row.results)}
         </td>
 
         {/* Cost per DATA */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('data_cost')}px`, minWidth: `${getColumnWidth('data_cost')}px` }}>
           {formatCurrency(row.data_cost, row.currency || 'VND')}
         </td>
 
         {/* TLC (Tỷ lệ chuyển đổi) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('tlc')}px`, minWidth: `${getColumnWidth('tlc')}px` }}>
           {formatPercentage(row.tlc || (row.initiated_checkout && row.impressions ? (row.initiated_checkout / row.impressions) * 100 : 0))}%
         </td>
 
         {/* Cost per Checkout Initiated */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cost_per_checkout_initiated')}px`, minWidth: `${getColumnWidth('cost_per_checkout_initiated')}px` }}>
           {formatCurrency(row.cost_per_checkout_initiated || 0, row.currency || 'VND')}
         </td>
 
         {/* Checkouts Initiated */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('checkouts_initiated')}px`, minWidth: `${getColumnWidth('checkouts_initiated')}px` }}>
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
         {/* Cost per Purchase */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cost_per_purchase')}px`, minWidth: `${getColumnWidth('cost_per_purchase')}px` }}>
           {formatCurrency(row.cost_per_purchase || 0, row.currency || 'VND')}
         </td>
 
         {/* Purchases */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('purchases')}px`, minWidth: `${getColumnWidth('purchases')}px` }}>
           {formatNumber(row.purchases)}
         </td>
 
         {/* Purchase Value */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('purchase_value')}px`, minWidth: `${getColumnWidth('purchase_value')}px` }}>
           {formatCurrency(row.purchase_value, row.currency || 'VND')}
         </td>
 
         {/* CPM */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cpm')}px`, minWidth: `${getColumnWidth('cpm')}px` }}>
           {formatCurrency(row.cpm || 0, row.currency || 'VND')}
         </td>
 
         {/* Impressions */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('impressions')}px`, minWidth: `${getColumnWidth('impressions')}px` }}>
           {formatNumber(row.impressions)}
         </td>
 
         {/* Reach */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('reach')}px`, minWidth: `${getColumnWidth('reach')}px` }}>
           {formatNumber(row.reach || 0)}
         </td>
 
         {/* Frequency */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('frequency')}px`, minWidth: `${getColumnWidth('frequency')}px` }}>
           {(row.frequency || 0).toFixed(2)}
         </td>
 
         {/* Clicks */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('clicks')}px`, minWidth: `${getColumnWidth('clicks')}px` }}>
           {formatNumber(row.clicks || 0)}
         </td>
 
         {/* CTR */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('ctr')}px`, minWidth: `${getColumnWidth('ctr')}px` }}>
           {formatPercentage(row.ctr || 0)}%
         </td>
 
         {/* CPC */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cpc')}px`, minWidth: `${getColumnWidth('cpc')}px` }}>
           {formatCurrency(row.cpc || 0, row.currency || 'VND')}
         </td>
       </tr>
