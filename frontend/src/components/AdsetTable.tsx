@@ -499,7 +499,7 @@ const TableRow: React.FC<TableRowProps> = ({
         <td 
           className="sticky z-10 bg-white" 
           style={{ 
-            left: '3rem',
+            left: `${getColumnWidth('select')}px`,
             padding: '8px',
             fontSize: '14px',
             color: '#1f2937',
@@ -524,14 +524,14 @@ const TableRow: React.FC<TableRowProps> = ({
         <td 
           className="sticky z-10 bg-white" 
           style={{ 
-            left: '5.5rem',
+            left: `${getColumnWidth('select') + getColumnWidth('status')}px`,
             padding: '8px 12px',
             fontSize: '14px',
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
             width: `${getColumnWidth('name')}px`,
             minWidth: `${getColumnWidth('name')}px`,
-            maxWidth: '150px'
+            maxWidth: `${getColumnWidth('name')}px`
           }}
         >
           <div className="font-semibold truncate" style={{ fontSize: '14px', lineHeight: '1.3', fontWeight: 600 }}>
@@ -545,7 +545,7 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Delivery Status - chỉ icon tròn */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('delivery')}px`, minWidth: `${getColumnWidth('delivery')}px` }}>
+        <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('delivery')}px`, minWidth: `${getColumnWidth('delivery')}px` }}>
           <span 
             className="inline-block rounded-full"
             style={{
@@ -722,7 +722,7 @@ const TableRow: React.FC<TableRowProps> = ({
         <td 
           className="sticky z-10 bg-white" 
           style={{ 
-            left: '3rem',
+            left: `${getColumnWidth('select')}px`,
             padding: '8px',
             fontSize: '14px',
             color: '#1f2937',
@@ -747,14 +747,14 @@ const TableRow: React.FC<TableRowProps> = ({
         <td 
           className="sticky z-10 bg-white" 
           style={{ 
-            left: '5.5rem',
+            left: `${getColumnWidth('select') + getColumnWidth('status')}px`,
             padding: '8px 12px',
             fontSize: '14px',
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
             width: `${getColumnWidth('name')}px`,
             minWidth: `${getColumnWidth('name')}px`,
-            maxWidth: '150px'
+            maxWidth: `${getColumnWidth('name')}px`
           }}
         >
           <div className="font-semibold truncate" style={{ fontSize: '14px', lineHeight: '1.3', fontWeight: 600 }}>
@@ -768,7 +768,7 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Delivery Status - chỉ icon tròn */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('delivery')}px`, minWidth: `${getColumnWidth('delivery')}px` }}>
+        <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('delivery')}px`, minWidth: `${getColumnWidth('delivery')}px` }}>
           <span 
             className="inline-block rounded-full"
             style={{

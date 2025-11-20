@@ -862,11 +862,13 @@ async def get_dashboard_data(
                 cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
                 cost_per_purchase = (spend / purchases) if purchases > 0 else 0
                 row_data.update({
-                    "%ads": round(ads_percent, 2),
+                    "ads_percent": round(ads_percent, 2),  # % ADS (chỉ Ecom) - dùng ads_percent thay vì %ads
+                    "%ads": round(ads_percent, 2),  # Giữ lại để backward compatibility
                     "data_cost": round(gia_data, 2),
                     "tlc": round(tlc, 2),
                     "cost_per_checkout_initiated": round(cost_per_checkout_start, 2),
                     "initiated_checkout": checkout_starts,
+                    "checkouts_initiated": checkout_starts,  # Alias
                     "cost_per_purchase": round(cost_per_purchase, 2),
                     "purchases": purchases,
                     "purchase_value": round(purchase_value, 2)
@@ -898,7 +900,7 @@ async def get_dashboard_data(
                     'results': 'results',
                     'purchases': 'purchases',
                     'purchase_value': 'purchase_value',
-                    'ads_percent': '%ads',
+                    'ads_percent': 'ads_percent',  # Sửa: dùng ads_percent thay vì %ads
                     'tlc': 'tlc',
                     'impressions': 'impressions',
                     'clicks': 'clicks',
@@ -948,13 +950,22 @@ async def get_dashboard_data(
             
             if view_mode == "ecommerce":
                 totals.update({
-                    "ads_percent": sum(r.get('%ads', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "ads_percent": sum(r.get('ads_percent', 0) or r.get('%ads', 0) or 0 for r in rows) / len(rows) if rows else 0,
                     "tlc": sum(r.get('tlc', 0) or 0 for r in rows) / len(rows) if rows else 0,
                     "cost_per_checkout_initiated": sum(r.get('cost_per_checkout_initiated', 0) or 0 for r in rows) / len(rows) if rows else 0,
-                    "initiated_checkout": sum(r.get('initiated_checkout', 0) or 0 for r in rows),
+                    "initiated_checkout": sum(r.get('initiated_checkout', 0) or r.get('checkouts_initiated', 0) or 0 for r in rows),
+                    "checkouts_initiated": sum(r.get('checkouts_initiated', 0) or r.get('initiated_checkout', 0) or 0 for r in rows),
                     "cost_per_purchase": sum(r.get('cost_per_purchase', 0) or 0 for r in rows) / len(rows) if rows else 0,
                     "purchases": sum(r.get('purchases', 0) or 0 for r in rows),
                     "purchase_value": sum(r.get('purchase_value', 0) or 0 for r in rows),
+                })
+            else:  # lead
+                totals.update({
+                    "cost_per_checkout_initiated": sum(r.get('cost_per_checkout_initiated', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "initiated_checkout": sum(r.get('initiated_checkout', 0) or r.get('checkouts_initiated', 0) or 0 for r in rows),
+                    "checkouts_initiated": sum(r.get('checkouts_initiated', 0) or r.get('initiated_checkout', 0) or 0 for r in rows),
+                    "cost_per_purchase": sum(r.get('cost_per_purchase', 0) or 0 for r in rows) / len(rows) if rows else 0,
+                    "purchases": sum(r.get('purchases', 0) or 0 for r in rows),
                 })
             else:  # lead
                 totals.update({
