@@ -879,9 +879,11 @@ async def get_dashboard_data(
                     "purchases": purchases,
                     "purchase_value": round(purchase_value, 2)
                 })
-                # Debug log để kiểm tra % ADS
+                # Debug log để kiểm tra % ADS - log cả khi purchase_value = 0 để debug
                 if spend > 0:
-                    logger.debug(f"   🔍 Row {group.get('name', 'N/A')}: spend={spend}, purchase_value={purchase_value}, ads_percent={ads_percent}")
+                    logger.info(f"   🔍 Row {group.get('name', 'N/A')}: spend={spend:.2f}, purchase_value={purchase_value:.2f}, purchases={purchases}, ads_percent={ads_percent:.2f}%")
+                    if purchase_value == 0 and purchases > 0:
+                        logger.warning(f"   ⚠️ Row {group.get('name', 'N/A')}: purchase_value=0 nhưng purchases={purchases} - có thể do Facebook API không trả về action_values")
             else:  # lead
                 cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
                 cost_per_purchase = (spend / purchases) if purchases > 0 else 0
