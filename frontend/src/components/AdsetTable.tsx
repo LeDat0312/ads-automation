@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { AdsetTableProps, AdsetRow, SortableColumn, ViewMode } from '@/types/dashboard';
 import { formatCurrency, formatNumber, formatPercentage } from '@/utils/formatters';
 import BudgetEditor from './BudgetEditor';
@@ -19,8 +19,6 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
 }) => {
   const [budgetEditorRow, setBudgetEditorRow] = useState<AdsetRow | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const [resizingColumn, setResizingColumn] = useState<string | null>(null);
-  const tableRef = useRef<HTMLTableElement>(null);
   
   // Helper function to check if budget can be edited
   const canEditBudget = (row: AdsetRow, level: 'campaign' | 'adset' | 'ad'): boolean => {

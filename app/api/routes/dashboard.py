@@ -476,9 +476,11 @@ async def get_dashboard_data(
         
         # Lấy status của adsets từ Facebook API
         adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
+        adset_statuses_map = {}
         if adset_ids:
             logger.info(f"📊 Đang lấy status cho {len(adset_ids)} adsets...")
             adset_statuses_map = fetch_adset_statuses(adset_ids, access_token, use_cache=use_cache)
+            logger.info(f"   ✅ Đã lấy status cho {len(adset_statuses_map)} adsets từ Facebook API")
             # Update status trong data
             for row in all_data:
                 row_adset_id = row.get('adset_id')
@@ -489,6 +491,8 @@ async def get_dashboard_data(
                 else:
                     row['effective_status'] = 'UNKNOWN'
                     row['delivery'] = 'UNKNOWN'
+        else:
+            logger.warning(f"⚠️ Không có adset_id nào trong data để lấy status")
         
         # ===== BUILD SUMMARY =====
         # Tổng chi tiêu và adsets count: tính từ TẤT CẢ data (không filter impressions>0)
@@ -515,17 +519,30 @@ async def get_dashboard_data(
         )
         
         # Count unique adsets by status - từ TẤT CẢ data (không filter impressions>0)
+        # Ưu tiên dùng adset_statuses_map (realtime từ Facebook API)
         adset_statuses = {}
-        for row in all_data:
-            row_adset_id = row.get('adset_id')
-            if row_adset_id:
-                row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
-                if row_adset_id not in adset_statuses:
-                    adset_statuses[row_adset_id] = row_status
+        
+        # Nếu có adset_statuses_map, dùng trực tiếp từ đó (realtime, chính xác hơn)
+        if adset_statuses_map:
+            for adset_id, status_info in adset_statuses_map.items():
+                effective_status = status_info.get('effective_status', 'UNKNOWN').upper()
+                adset_statuses[adset_id] = effective_status
+            logger.info(f"   📊 Đếm adsets từ adset_statuses_map: {len(adset_statuses)} adsets")
+        else:
+            # Fallback: đếm từ all_data nếu không có status map
+            for row in all_data:
+                row_adset_id = row.get('adset_id')
+                if row_adset_id:
+                    row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
+                    if row_adset_id not in adset_statuses:
+                        adset_statuses[row_adset_id] = row_status
+            logger.info(f"   📊 Đếm adsets từ all_data (fallback): {len(adset_statuses)} adsets")
         
         active_adsets = len([s for s in adset_statuses.values() if normalize_status(s) == "ACTIVE"])
         paused_adsets = len([s for s in adset_statuses.values() if normalize_status(s) == "PAUSED"])
         total_adsets = len(adset_statuses)
+        
+        logger.info(f"   📊 Adsets count: {total_adsets} total, {active_adsets} active, {paused_adsets} paused")
         
         # Build summary response
         if view_mode == "ecommerce":
@@ -585,7 +602,9 @@ async def get_dashboard_data(
             all_data = [row for row in all_data if row.get('adset_id') == filter_adset_id_value]
             logger.info(f"   📊 Sau filter adset_id ({filter_adset_id_value}): {len(all_data)} rows")
         
-        # ===== FILTER IMPRESSIONS + STATUS (optional) =====
+        # ===== FILTER STATUS (optional) =====
+        # KHÔNG filter impressions>0 ở đây - để hiển thị tất cả adsets kể cả chưa có impressions
+        # Chỉ filter theo status nếu user chọn
         status_filter = None
         if status and isinstance(status, str) and status.strip():
             status_upper = status.upper().strip()
@@ -594,7 +613,7 @@ async def get_dashboard_data(
                 status_filter = status_upper
                 logger.info(f"   🔍 DEBUG - Sẽ filter theo status: {status_filter}")
         
-        # Filter chỉ theo impressions>0 (và status nếu có)
+        # Filter chỉ theo status nếu có (KHÔNG filter impressions>0)
         before_filter = len(all_data)
         filtered_data = []
         status_count = {}
@@ -605,10 +624,7 @@ async def get_dashboard_data(
             normalized_status = normalize_status(original_status)
             status_count[normalized_status] = status_count.get(normalized_status, 0) + 1
             
-            impressions = int(row.get('impressions', 0) or 0)
-            if impressions == 0:
-                continue
-            
+            # Chỉ filter theo status nếu có, KHÔNG filter impressions>0
             if status_filter is not None:
                 # So sánh với original status để filter chính xác ARCHIVED/DELETED
                 if original_status != status_filter:
@@ -618,9 +634,9 @@ async def get_dashboard_data(
         
         logger.info(f"   🔍 DEBUG - Status distribution: {status_count}")
         if status_filter:
-            logger.info(f"   📊 Sau filter impressions>0 + status={status_filter}: {len(filtered_data)}/{before_filter} rows")
+            logger.info(f"   📊 Sau filter status={status_filter}: {len(filtered_data)}/{before_filter} rows")
         else:
-            logger.info(f"   📊 Sau filter impressions>0 (TẤT CẢ status): {len(filtered_data)}/{before_filter} rows")
+            logger.info(f"   📊 Không filter status (TẤT CẢ status, kể cả chưa có impressions): {len(filtered_data)}/{before_filter} rows")
         
         all_data = filtered_data
         
