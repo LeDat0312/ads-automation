@@ -421,7 +421,7 @@ const TableRow: React.FC<TableRowProps> = ({
 
         {/* Cost per Checkout Initiated (Chi Phi/BĐTT) */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.cost_per_checkout_initiated || ((row.initiated_checkout || row.checkouts_initiated) && (row.initiated_checkout || row.checkouts_initiated) > 0) ? row.spend / (row.initiated_checkout || row.checkouts_initiated || 1) : 0, row.currency)}
+          {formatCurrency(row.cost_per_checkout_initiated || ((row.initiated_checkout || row.checkouts_initiated) && (row.initiated_checkout || row.checkouts_initiated) > 0) ? row.spend / (row.initiated_checkout || row.checkouts_initiated || 1) : 0, row.currency || 'VND')}
         </td>
 
         {/* Checkouts Initiated (Bắt Đầu TT) */}
@@ -431,7 +431,7 @@ const TableRow: React.FC<TableRowProps> = ({
 
         {/* Cost per Purchase (Chi phí / LM) */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.cost_per_purchase || (row.purchases && row.purchases > 0 ? row.spend / row.purchases : 0), row.currency)}
+          {formatCurrency(row.cost_per_purchase || (row.purchases && row.purchases > 0 ? row.spend / row.purchases : 0), row.currency || 'VND')}
         </td>
 
         {/* Purchases (Lượt Mua) */}
