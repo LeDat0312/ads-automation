@@ -854,13 +854,20 @@ async def get_dashboard_data(
                 backend_field = column_map.get(sort_by, sort_by)
                 
                 def get_sort_value(row):
-                    value = row.get(backend_field, 0) or 0
+                    value = row.get(backend_field)
+                    # Handle None, empty, or zero values
+                    if value is None or value == '' or value == 0:
+                        return (1, 0)  # (priority, value) - 1 = invalid/zero, sort to end for desc, start for asc
                     # Convert to number if possible
                     try:
-                        return float(value) if value else 0
+                        num_value = float(value)
+                        return (0, num_value)  # (priority, value) - 0 = valid number
                     except (ValueError, TypeError):
-                        return 0
+                        return (1, 0)  # (priority, value) - 1 = invalid, sort to end
                 
+                # Sort: priority 0 (valid numbers) first, then priority 1 (zeros/invalid)
+                # For desc: reverse=True means (0, high) > (0, low) > (1, 0)
+                # For asc: reverse=False means (0, low) < (0, high) < (1, 0)
                 rows.sort(key=get_sort_value, reverse=reverse_order)
                 logger.info(f"   📊 Đã sắp xếp {len(rows)} rows theo {sort_by} -> {backend_field} ({sort_order})")
             except Exception as e:

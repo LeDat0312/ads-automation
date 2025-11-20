@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import type { AdsetTableProps, AdsetRow, SortableColumn, ViewMode } from '@/types/dashboard';
 import { formatCurrency, formatNumber, formatPercentage } from '@/utils/formatters';
 import BudgetEditor from './BudgetEditor';
@@ -433,11 +433,7 @@ const TableRow: React.FC<TableRowProps> = ({
 
         {/* Cost per Checkout Initiated (Chi Phí/BĐTT) */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
-          {(() => {
-            const checkoutCount = (row.initiated_checkout || row.checkouts_initiated || 0) as number;
-            const costPerCheckout = row.cost_per_checkout_initiated || (checkoutCount > 0 ? row.spend / checkoutCount : 0);
-            return formatCurrency(costPerCheckout, row.currency || 'VND');
-          })()}
+          {formatCurrency(row.cost_per_checkout_initiated || 0, row.currency || 'VND')}
         </td>
 
         {/* Checkouts Initiated (Bắt Đầu TT) */}
@@ -447,7 +443,7 @@ const TableRow: React.FC<TableRowProps> = ({
 
         {/* Cost per Purchase (Chi phí / LM) */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.cost_per_purchase || (row.purchases && row.purchases > 0 ? row.spend / row.purchases : 0), row.currency || 'VND')}
+          {formatCurrency(row.cost_per_purchase || 0, row.currency || 'VND')}
         </td>
 
         {/* Purchases (Lượt Mua) */}

@@ -184,10 +184,7 @@ function App() {
         };
       });
       setSelectedIds(new Set());
-      // Refresh data ở background (không block UI)
-      fetchData().catch(err => {
-        console.error('Background refresh failed:', err);
-      });
+      // KHÔNG gọi fetchData - chỉ update số tiền ngân sách
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -344,10 +341,7 @@ function App() {
           }
         };
       });
-      // Refresh data ở background (không block UI)
-      fetchData().catch(err => {
-        console.error('Background refresh failed:', err);
-      });
+      // KHÔNG gọi fetchData - chỉ update số tiền ngân sách
     } catch (err) {
       setError(getErrorMessage(err));
       throw err; // Re-throw để BudgetEditor hiển thị error
