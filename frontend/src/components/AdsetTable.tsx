@@ -18,6 +18,9 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   currency = 'VND',
 }) => {
   const [budgetEditorRow, setBudgetEditorRow] = useState<AdsetRow | null>(null);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   
   // Helper function to check if budget can be edited
   const canEditBudget = (row: AdsetRow, level: 'campaign' | 'adset' | 'ad'): boolean => {
@@ -33,58 +36,84 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   };
 
   // ✅ COMPLETELY DIFFERENT columns for Lead vs Ecom (per old dashboard)
+  // Default column widths
+  const defaultWidths: Record<string, number> = {
+    select: 48,
+    status: 80,
+    name: 300,
+    delivery: 96,
+    budget: 128,
+    spend: 128,
+    results: 112,
+    data_cost: 128,
+    cost_per_checkout_initiated: 128,
+    checkouts_initiated: 128,
+    cost_per_purchase: 128,
+    purchases: 112,
+    cpm: 112,
+    impressions: 128,
+    reach: 128,
+    frequency: 112,
+    clicks: 112,
+    ctr: 96,
+    cpc: 112,
+    ads_percent: 112,
+    tlc: 96,
+    purchase_value: 144,
+  };
+
   const columns = useMemo(() => {
     if (viewMode === 'lead') {
       // Lead columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, Kết Quả, Giá DATA, Chi Phi/BĐTT, Bắt Đầu TT, Chi phí / LM, Lượt Mua, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
       return [
-        { key: 'select', label: 'Chọn', sortable: false, width: 'w-12', fixed: true },
-        { key: 'status', label: 'Bật/Tắt', sortable: false, width: 'w-20', fixed: true },
-        { key: 'name', label: 'Tên', sortable: false, width: 'min-w-[300px]', fixed: true },
-        { key: 'delivery', label: 'Phân Phối', sortable: false, width: 'w-24' },
-        { key: 'budget', label: 'Ngân Sách', sortable: false, width: 'w-32' },
-        { key: 'spend', label: 'Chi Tiêu', sortable: true, width: 'w-32' },
-        { key: 'results', label: 'Kết Quả', sortable: true, width: 'w-28' },
-        { key: 'data_cost', label: 'Giá DATA', sortable: true, width: 'w-32' },
-        { key: 'cost_per_checkout_initiated', label: 'Chi Phí/BĐTT', sortable: true, width: 'w-32' },
-        { key: 'checkouts_initiated', label: 'Bắt Đầu TT', sortable: true, width: 'w-32' },
-        { key: 'cost_per_purchase', label: 'Chi phí / LM', sortable: true, width: 'w-32' },
-        { key: 'purchases', label: 'Lượt Mua', sortable: true, width: 'w-28' },
-        { key: 'cpm', label: 'CPM', sortable: true, width: 'w-28' },
-        { key: 'impressions', label: 'Hiển Thị', sortable: true, width: 'w-32' },
-        { key: 'reach', label: 'Tiếp Cận', sortable: true, width: 'w-32' },
-        { key: 'frequency', label: 'Tần Suất', sortable: true, width: 'w-28' },
-        { key: 'clicks', label: 'Nhấp', sortable: true, width: 'w-28' },
-        { key: 'ctr', label: 'CTR', sortable: true, width: 'w-24' },
-        { key: 'cpc', label: 'CPC', sortable: true, width: 'w-28' },
+        { key: 'select', label: 'Chọn', sortable: false, width: columnWidths.select || defaultWidths.select, fixed: true },
+        { key: 'status', label: 'Bật/Tắt', sortable: false, width: columnWidths.status || defaultWidths.status, fixed: true },
+        { key: 'name', label: 'Tên', sortable: false, width: columnWidths.name || defaultWidths.name, fixed: true },
+        { key: 'delivery', label: 'Phân Phối', sortable: false, width: columnWidths.delivery || defaultWidths.delivery },
+        { key: 'budget', label: 'Ngân Sách', sortable: false, width: columnWidths.budget || defaultWidths.budget },
+        { key: 'spend', label: 'Chi Tiêu', sortable: true, width: columnWidths.spend || defaultWidths.spend },
+        { key: 'results', label: 'Kết Quả', sortable: true, width: columnWidths.results || defaultWidths.results },
+        { key: 'data_cost', label: 'Giá DATA', sortable: true, width: columnWidths.data_cost || defaultWidths.data_cost },
+        { key: 'cost_per_checkout_initiated', label: 'Chi Phí/BĐTT', sortable: true, width: columnWidths.cost_per_checkout_initiated || defaultWidths.cost_per_checkout_initiated },
+        { key: 'checkouts_initiated', label: 'Bắt Đầu TT', sortable: true, width: columnWidths.checkouts_initiated || defaultWidths.checkouts_initiated },
+        { key: 'cost_per_purchase', label: 'Chi phí / LM', sortable: true, width: columnWidths.cost_per_purchase || defaultWidths.cost_per_purchase },
+        { key: 'purchases', label: 'Lượt Mua', sortable: true, width: columnWidths.purchases || defaultWidths.purchases },
+        { key: 'cpm', label: 'CPM', sortable: true, width: columnWidths.cpm || defaultWidths.cpm },
+        { key: 'impressions', label: 'Hiển Thị', sortable: true, width: columnWidths.impressions || defaultWidths.impressions },
+        { key: 'reach', label: 'Tiếp Cận', sortable: true, width: columnWidths.reach || defaultWidths.reach },
+        { key: 'frequency', label: 'Tần Suất', sortable: true, width: columnWidths.frequency || defaultWidths.frequency },
+        { key: 'clicks', label: 'Nhấp', sortable: true, width: columnWidths.clicks || defaultWidths.clicks },
+        { key: 'ctr', label: 'CTR', sortable: true, width: columnWidths.ctr || defaultWidths.ctr },
+        { key: 'cpc', label: 'CPC', sortable: true, width: columnWidths.cpc || defaultWidths.cpc },
       ];
     } else {
       // Ecom columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, % ADS, Kết Quả, Giá DATA, TLC, Chi Phí/Bắt Đầu TT, Bắt Đầu TT, Chi Phí/Lượt Mua, Lượt Mua, Giá Trị CĐ, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
       return [
-        { key: 'select', label: 'Chọn', sortable: false, width: 'w-12', fixed: true },
-        { key: 'status', label: 'Bật/Tắt', sortable: false, width: 'w-20', fixed: true },
-        { key: 'name', label: 'Tên', sortable: false, width: 'min-w-[300px]', fixed: true },
-        { key: 'delivery', label: 'Phân Phối', sortable: false, width: 'w-24' },
-        { key: 'budget', label: 'Ngân Sách', sortable: false, width: 'w-32' },
-        { key: 'spend', label: 'Chi Tiêu', sortable: true, width: 'w-32' },
-        { key: 'ads_percent', label: '% ADS', sortable: true, width: 'w-28' },
-        { key: 'results', label: 'Kết Quả', sortable: true, width: 'w-28' },
-        { key: 'data_cost', label: 'Giá DATA', sortable: true, width: 'w-32' },
-        { key: 'tlc', label: 'TLC', sortable: true, width: 'w-24' },
-        { key: 'cost_per_checkout_initiated', label: 'Chi Phí/Bắt Đầu TT', sortable: true, width: 'w-40' },
-        { key: 'checkouts_initiated', label: 'Bắt Đầu TT', sortable: true, width: 'w-32' },
-        { key: 'cost_per_purchase', label: 'Chi Phí/Lượt Mua', sortable: true, width: 'w-36' },
-        { key: 'purchases', label: 'Lượt Mua', sortable: true, width: 'w-28' },
-        { key: 'purchase_value', label: 'Giá Trị CĐ', sortable: true, width: 'w-36' },
-        { key: 'cpm', label: 'CPM', sortable: true, width: 'w-28' },
-        { key: 'impressions', label: 'Hiển Thị', sortable: true, width: 'w-32' },
-        { key: 'reach', label: 'Tiếp Cận', sortable: true, width: 'w-32' },
-        { key: 'frequency', label: 'Tần Suất', sortable: true, width: 'w-28' },
-        { key: 'clicks', label: 'Nhấp', sortable: true, width: 'w-28' },
-        { key: 'ctr', label: 'CTR', sortable: true, width: 'w-24' },
-        { key: 'cpc', label: 'CPC', sortable: true, width: 'w-28' },
+        { key: 'select', label: 'Chọn', sortable: false, width: columnWidths.select || defaultWidths.select, fixed: true },
+        { key: 'status', label: 'Bật/Tắt', sortable: false, width: columnWidths.status || defaultWidths.status, fixed: true },
+        { key: 'name', label: 'Tên', sortable: false, width: columnWidths.name || defaultWidths.name, fixed: true },
+        { key: 'delivery', label: 'Phân Phối', sortable: false, width: columnWidths.delivery || defaultWidths.delivery },
+        { key: 'budget', label: 'Ngân Sách', sortable: false, width: columnWidths.budget || defaultWidths.budget },
+        { key: 'spend', label: 'Chi Tiêu', sortable: true, width: columnWidths.spend || defaultWidths.spend },
+        { key: 'ads_percent', label: '% ADS', sortable: true, width: columnWidths.ads_percent || defaultWidths.ads_percent },
+        { key: 'results', label: 'Kết Quả', sortable: true, width: columnWidths.results || defaultWidths.results },
+        { key: 'data_cost', label: 'Giá DATA', sortable: true, width: columnWidths.data_cost || defaultWidths.data_cost },
+        { key: 'tlc', label: 'TLC', sortable: true, width: columnWidths.tlc || defaultWidths.tlc },
+        { key: 'cost_per_checkout_initiated', label: 'Chi Phí/Bắt Đầu TT', sortable: true, width: columnWidths.cost_per_checkout_initiated || defaultWidths.cost_per_checkout_initiated },
+        { key: 'checkouts_initiated', label: 'Bắt Đầu TT', sortable: true, width: columnWidths.checkouts_initiated || defaultWidths.checkouts_initiated },
+        { key: 'cost_per_purchase', label: 'Chi Phí/Lượt Mua', sortable: true, width: columnWidths.cost_per_purchase || defaultWidths.cost_per_purchase },
+        { key: 'purchases', label: 'Lượt Mua', sortable: true, width: columnWidths.purchases || defaultWidths.purchases },
+        { key: 'purchase_value', label: 'Giá Trị CĐ', sortable: true, width: columnWidths.purchase_value || defaultWidths.purchase_value },
+        { key: 'cpm', label: 'CPM', sortable: true, width: columnWidths.cpm || defaultWidths.cpm },
+        { key: 'impressions', label: 'Hiển Thị', sortable: true, width: columnWidths.impressions || defaultWidths.impressions },
+        { key: 'reach', label: 'Tiếp Cận', sortable: true, width: columnWidths.reach || defaultWidths.reach },
+        { key: 'frequency', label: 'Tần Suất', sortable: true, width: columnWidths.frequency || defaultWidths.frequency },
+        { key: 'clicks', label: 'Nhấp', sortable: true, width: columnWidths.clicks || defaultWidths.clicks },
+        { key: 'ctr', label: 'CTR', sortable: true, width: columnWidths.ctr || defaultWidths.ctr },
+        { key: 'cpc', label: 'CPC', sortable: true, width: columnWidths.cpc || defaultWidths.cpc },
       ];
     }
-  }, [viewMode]);
+  }, [viewMode, columnWidths]);
 
   const handleSelectAll = () => {
     if (!onSelectionChange) return;
@@ -179,8 +208,10 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                     position: col.fixed ? 'sticky' : 'relative',
                     top: 0,
                     zIndex: col.fixed ? 10 : 1,
-                    ...(col.key === 'select' ? { left: 0, width: '48px', padding: '8px' } :
-                        col.key === 'status' ? { left: '3rem', width: '80px', padding: '8px' } :
+                    width: typeof col.width === 'number' ? `${col.width}px` : undefined,
+                    minWidth: typeof col.width === 'number' ? `${col.width}px` : undefined,
+                    ...(col.key === 'select' ? { left: 0, padding: '8px' } :
+                        col.key === 'status' ? { left: '3rem', padding: '8px' } :
                         col.key === 'name' ? { left: '5.5rem', padding: '12px' } :
                         { padding: '12px' }),
                     textAlign: (col.key === 'select' || col.key === 'status' || col.key === 'delivery') ? 'center' :
@@ -189,7 +220,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                   }}
                   onClick={() => col.sortable && handleSort(col.key)}
                 >
-                  <div className={`flex items-center gap-1 ${(col.key === 'select' || col.key === 'status' || col.key === 'delivery' || (col.sortable && col.key !== 'name')) ? 'justify-center' : 'justify-start'}`}>
+                  <div className={`flex items-center gap-1 ${(col.key === 'select' || col.key === 'status' || col.key === 'delivery' || (col.sortable && col.key !== 'name')) ? 'justify-center' : 'justify-start'}`} style={{ position: 'relative' }}>
                     {col.key === 'select' ? (
                       <input
                         type="checkbox"
@@ -202,6 +233,34 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                         <span>{col.label}</span>
                         {col.sortable && <span className="text-gray-400">{getSortIcon(col.key)}</span>}
                       </>
+                    )}
+                    {!col.fixed && (
+                      <div
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-indigo-400 bg-transparent"
+                        style={{ width: '4px', marginRight: '-2px' }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setResizingColumn(col.key);
+                          const startX = e.clientX;
+                          const startWidth = col.width;
+                          
+                          const handleMouseMove = (e: MouseEvent) => {
+                            const diff = e.clientX - startX;
+                            const newWidth = Math.max(50, startWidth + diff);
+                            setColumnWidths(prev => ({ ...prev, [col.key]: newWidth }));
+                          };
+                          
+                          const handleMouseUp = () => {
+                            setResizingColumn(null);
+                            document.removeEventListener('mousemove', handleMouseMove);
+                            document.removeEventListener('mouseup', handleMouseUp);
+                          };
+                          
+                          document.addEventListener('mousemove', handleMouseMove);
+                          document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                      />
                     )}
                   </div>
                 </th>
@@ -223,6 +282,8 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                   onDrillDown={onDrillDown}
                   onOpenBudgetEditor={setBudgetEditorRow}
                   canEditBudget={canEditBudget}
+                  columnWidths={columnWidths}
+                  defaultWidths={defaultWidths}
                 />
               );
             })}
@@ -257,6 +318,8 @@ interface TableRowProps {
   onDrillDown?: (level: 'campaign' | 'adset', id: string, name: string) => void;
   onOpenBudgetEditor?: (row: AdsetRow) => void;
   canEditBudget: (row: AdsetRow, level: 'campaign' | 'adset' | 'ad') => boolean;
+  columnWidths: Record<string, number>;
+  defaultWidths: Record<string, number>;
 }
 
 const TableRow: React.FC<TableRowProps> = ({ 
@@ -268,7 +331,10 @@ const TableRow: React.FC<TableRowProps> = ({
   onStatusToggle,
   onOpenBudgetEditor,
   canEditBudget,
+  columnWidths,
+  defaultWidths,
 }) => {
+  const getColumnWidth = (key: string) => columnWidths[key] || defaultWidths[key] || 128;
   if (viewMode === 'lead') {
     return (
       <tr 
@@ -289,7 +355,8 @@ const TableRow: React.FC<TableRowProps> = ({
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
             textAlign: 'center',
-            width: '48px'
+            width: `${getColumnWidth('select')}px`,
+            minWidth: `${getColumnWidth('select')}px`
           }}
         >
           <input
@@ -310,7 +377,8 @@ const TableRow: React.FC<TableRowProps> = ({
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
             textAlign: 'center',
-            width: '80px'
+            width: `${getColumnWidth('status')}px`,
+            minWidth: `${getColumnWidth('status')}px`
           }}
         >
           <label className="relative inline-flex items-center cursor-pointer">
@@ -508,7 +576,8 @@ const TableRow: React.FC<TableRowProps> = ({
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
             textAlign: 'center',
-            width: '48px'
+            width: `${getColumnWidth('select')}px`,
+            minWidth: `${getColumnWidth('select')}px`
           }}
         >
           <input
@@ -529,7 +598,8 @@ const TableRow: React.FC<TableRowProps> = ({
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
             textAlign: 'center',
-            width: '80px'
+            width: `${getColumnWidth('status')}px`,
+            minWidth: `${getColumnWidth('status')}px`
           }}
         >
           <label className="relative inline-flex items-center cursor-pointer">
