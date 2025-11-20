@@ -494,6 +494,18 @@ async def get_dashboard_data(
         else:
             logger.warning(f"⚠️ Không có adset_id nào trong data để lấy status")
         
+        # Fetch TẤT CẢ adsets từ accounts (không chỉ từ insights) để đếm đúng
+        from app.services.facebook_api import fetch_all_adsets_from_accounts
+        logger.info(f"📊 Đang fetch tất cả adsets từ {len(user_account_ids)} accounts để đếm đúng...")
+        all_adsets_from_accounts = fetch_all_adsets_from_accounts(
+            user_account_ids,
+            access_token,
+            view_mode=view_mode,
+            account_type_map=account_type_map,
+            use_cache=use_cache
+        )
+        logger.info(f"   ✅ Đã fetch {len(all_adsets_from_accounts)} adsets từ accounts")
+        
         # ===== BUILD SUMMARY =====
         # Tổng chi tiêu và adsets count: tính từ TẤT CẢ data (không filter impressions>0)
         # Metrics khác (total_data, total_checkouts): chỉ tính từ data có impressions>0
@@ -518,25 +530,31 @@ async def get_dashboard_data(
             for row in all_data_for_metrics
         )
         
-        # Count unique adsets by status - từ TẤT CẢ data (không filter impressions>0)
-        # Ưu tiên dùng adset_statuses_map (realtime từ Facebook API)
+        # Count unique adsets by status - từ TẤT CẢ adsets trong accounts (không chỉ từ insights)
+        # Ưu tiên dùng all_adsets_from_accounts (đầy đủ nhất)
         adset_statuses = {}
         
-        # Nếu có adset_statuses_map, dùng trực tiếp từ đó (realtime, chính xác hơn)
-        if adset_statuses_map:
+        # Nếu có all_adsets_from_accounts, dùng trực tiếp từ đó (đầy đủ nhất, kể cả chưa có insights)
+        if all_adsets_from_accounts:
+            for adset_id, adset_info in all_adsets_from_accounts.items():
+                effective_status = adset_info.get('effective_status', 'UNKNOWN').upper()
+                adset_statuses[adset_id] = effective_status
+            logger.info(f"   📊 Đếm adsets từ all_adsets_from_accounts: {len(adset_statuses)} adsets")
+        elif adset_statuses_map:
+            # Fallback: dùng adset_statuses_map nếu không có all_adsets_from_accounts
             for adset_id, status_info in adset_statuses_map.items():
                 effective_status = status_info.get('effective_status', 'UNKNOWN').upper()
                 adset_statuses[adset_id] = effective_status
-            logger.info(f"   📊 Đếm adsets từ adset_statuses_map: {len(adset_statuses)} adsets")
+            logger.info(f"   📊 Đếm adsets từ adset_statuses_map (fallback): {len(adset_statuses)} adsets")
         else:
-            # Fallback: đếm từ all_data nếu không có status map
+            # Fallback cuối: đếm từ all_data nếu không có cả 2
             for row in all_data:
                 row_adset_id = row.get('adset_id')
                 if row_adset_id:
                     row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
                     if row_adset_id not in adset_statuses:
                         adset_statuses[row_adset_id] = row_status
-            logger.info(f"   📊 Đếm adsets từ all_data (fallback): {len(adset_statuses)} adsets")
+            logger.info(f"   📊 Đếm adsets từ all_data (fallback cuối): {len(adset_statuses)} adsets")
         
         active_adsets = len([s for s in adset_statuses.values() if normalize_status(s) == "ACTIVE"])
         paused_adsets = len([s for s in adset_statuses.values() if normalize_status(s) == "PAUSED"])

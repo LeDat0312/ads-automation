@@ -598,6 +598,83 @@ def get_campaign_adsets_count(
         return 0
 
 
+def fetch_all_adsets_from_accounts(
+    ad_account_ids: List[str],
+    access_token: str,
+    view_mode: str = "ecommerce",
+    account_type_map: Optional[Dict[str, str]] = None,
+    use_cache: bool = True
+) -> Dict[str, Dict[str, str]]:
+    """
+    Fetch tất cả adsets từ accounts (không chỉ từ insights) để đếm đúng số lượng
+    Returns: { adset_id: { effective_status, campaign_id, ... } }
+    """
+    if not ad_account_ids:
+        return {}
+    
+    all_adsets_map = {}
+    
+    for account_id in ad_account_ids:
+        try:
+            # Đảm bảo account_id có prefix "act_"
+            if not account_id.startswith("act_"):
+                account_id_formatted = f"act_{account_id}"
+            else:
+                account_id_formatted = account_id
+            
+            # Filter theo account_type nếu có
+            if account_type_map:
+                clean_id = account_id.replace('act_', '')
+                account_type = account_type_map.get(clean_id)
+                if view_mode == "ecommerce" and account_type != "E-COMMERCE":
+                    continue
+                elif view_mode == "lead" and account_type != "LEAD_GENERATION":
+                    continue
+            
+            # Fetch tất cả adsets từ account
+            url = f"{FB_GRAPH_API_BASE}/{account_id_formatted}/adsets"
+            params = {
+                'access_token': access_token,
+                'fields': 'id,effective_status,status,campaign{id}',
+                'limit': 100
+            }
+            
+            account_adsets_count = 0
+            while url:
+                response = requests.get(url, params=params, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                
+                if 'data' in data:
+                    for adset in data['data']:
+                        adset_id = adset.get('id')
+                        if adset_id:
+                            campaign = adset.get('campaign', {})
+                            campaign_id = campaign.get('id') if isinstance(campaign, dict) else None
+                            
+                            all_adsets_map[adset_id] = {
+                                'effective_status': adset.get('effective_status', 'UNKNOWN'),
+                                'status': adset.get('status', 'UNKNOWN'),
+                                'campaign_id': campaign_id
+                            }
+                            account_adsets_count += 1
+                
+                # Check for next page
+                if 'paging' in data and 'next' in data['paging']:
+                    url = data['paging']['next']
+                    params = {}  # URL đã có params
+                else:
+                    url = None
+            
+            logger.info(f"   ✅ Đã fetch {account_adsets_count} adsets từ account {account_id_formatted}")
+        except Exception as e:
+            logger.error(f"🚨 Lỗi fetch adsets từ account {account_id}: {e}")
+            continue
+    
+    logger.info(f"📊 Tổng cộng fetch được {len(all_adsets_map)} adsets từ tất cả accounts")
+    return all_adsets_map
+
+
 def resume_adsets(
     adset_id_list: List[str],
     access_token: str,

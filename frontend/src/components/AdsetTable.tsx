@@ -393,20 +393,21 @@ const TableRow: React.FC<TableRowProps> = ({
           className="sticky z-10 bg-white" 
           style={{ 
             left: '5.5rem',
-            padding: '12px',
+            padding: '8px 12px',
             fontSize: '14px',
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
             width: `${getColumnWidth('name')}px`,
-            minWidth: `${getColumnWidth('name')}px`
+            minWidth: `${getColumnWidth('name')}px`,
+            maxWidth: '150px'
           }}
         >
-          <div className="font-semibold" style={{ fontSize: '14px', lineHeight: '1.4', fontWeight: 600 }}>
+          <div className="font-semibold truncate" style={{ fontSize: '14px', lineHeight: '1.3', fontWeight: 600 }}>
             {row.adset_name || row.campaign_name || row.ad_name || '-'}
           </div>
           {row.adset_id && (
-            <div style={{ fontSize: '12px', marginTop: '2px', color: '#6b7280' }}>
-              ID: {row.adset_id}
+            <div className="truncate" style={{ fontSize: '11px', marginTop: '1px', color: '#6b7280' }}>
+              {row.adset_id}
             </div>
           )}
         </td>
@@ -444,11 +445,11 @@ const TableRow: React.FC<TableRowProps> = ({
               else if (row.budget && row.budget > 0) {
                 budgetDisplay = formatCurrency(row.budget, row.currency || 'VND');
               } else {
-                // Nếu budget = 0 và không thể edit, hiển thị text tương ứng
+                // Nếu budget = 0 và không thể edit, hiển thị text tương ứng (KHÔNG hiện 0)
                 if (row.budget_level === 'CAMPAIGN') {
-                  budgetDisplay = currentLevel === 'campaign' ? formatCurrency(row.budget || 0, row.currency || 'VND') : 'Ngân sách chiến dịch';
+                  budgetDisplay = currentLevel === 'campaign' ? (row.budget && row.budget > 0 ? formatCurrency(row.budget, row.currency || 'VND') : '0') : 'Ngân sách chiến dịch';
                 } else {
-                  budgetDisplay = currentLevel === 'adset' ? formatCurrency(row.budget || 0, row.currency || 'VND') : 'Ngân sách nhóm QC';
+                  budgetDisplay = currentLevel === 'adset' ? (row.budget && row.budget > 0 ? formatCurrency(row.budget, row.currency || 'VND') : '0') : 'Ngân sách nhóm QC';
                 }
               }
             }
@@ -615,20 +616,21 @@ const TableRow: React.FC<TableRowProps> = ({
           className="sticky z-10 bg-white" 
           style={{ 
             left: '5.5rem',
-            padding: '12px',
+            padding: '8px 12px',
             fontSize: '14px',
             color: '#1f2937',
             borderBottom: '1px solid #f3f4f6',
             width: `${getColumnWidth('name')}px`,
-            minWidth: `${getColumnWidth('name')}px`
+            minWidth: `${getColumnWidth('name')}px`,
+            maxWidth: '150px'
           }}
         >
-          <div className="font-semibold" style={{ fontSize: '14px', lineHeight: '1.4', fontWeight: 600 }}>
+          <div className="font-semibold truncate" style={{ fontSize: '14px', lineHeight: '1.3', fontWeight: 600 }}>
             {row.adset_name || row.campaign_name || row.ad_name || '-'}
           </div>
           {row.adset_id && (
-            <div style={{ fontSize: '12px', marginTop: '2px', color: '#6b7280' }}>
-              ID: {row.adset_id}
+            <div className="truncate" style={{ fontSize: '11px', marginTop: '1px', color: '#6b7280' }}>
+              {row.adset_id}
             </div>
           )}
         </td>
@@ -666,11 +668,11 @@ const TableRow: React.FC<TableRowProps> = ({
               else if (row.budget && row.budget > 0) {
                 budgetDisplay = formatCurrency(row.budget, row.currency || 'VND');
               } else {
-                // Nếu budget = 0 và không thể edit, hiển thị text tương ứng
+                // Nếu budget = 0 và không thể edit, hiển thị text tương ứng (KHÔNG hiện 0)
                 if (row.budget_level === 'CAMPAIGN') {
-                  budgetDisplay = currentLevel === 'campaign' ? formatCurrency(row.budget || 0, row.currency || 'VND') : 'Ngân sách chiến dịch';
+                  budgetDisplay = currentLevel === 'campaign' ? (row.budget && row.budget > 0 ? formatCurrency(row.budget, row.currency || 'VND') : '0') : 'Ngân sách chiến dịch';
                 } else {
-                  budgetDisplay = currentLevel === 'adset' ? formatCurrency(row.budget || 0, row.currency || 'VND') : 'Ngân sách nhóm QC';
+                  budgetDisplay = currentLevel === 'adset' ? (row.budget && row.budget > 0 ? formatCurrency(row.budget, row.currency || 'VND') : '0') : 'Ngân sách nhóm QC';
                 }
               }
             }
