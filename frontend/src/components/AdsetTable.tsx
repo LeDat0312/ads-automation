@@ -60,10 +60,10 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
     } else {
       // Ecom columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, % ADS, Kết Quả, Giá DATA, TLC, Chi Phí/Bắt Đầu TT, Bắt Đầu TT, Chi Phí/Lượt Mua, Lượt Mua, Giá Trị CĐ, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
       return [
-        { key: 'select', label: 'Chọn', sortable: false, width: 'w-16', fixed: true },
-        { key: 'status', label: 'Bật/Tắt', sortable: false, width: 'w-24', fixed: true },
-        { key: 'name', label: 'Tên', sortable: false, width: 'min-w-[200px]', fixed: true },
-        { key: 'delivery', label: 'Phân Phối', sortable: false, width: 'w-20' },
+        { key: 'select', label: 'Chọn', sortable: false, width: 'w-12', fixed: true },
+        { key: 'status', label: 'Bật/Tắt', sortable: false, width: 'w-20', fixed: true },
+        { key: 'name', label: 'Tên', sortable: false, width: 'min-w-[300px]', fixed: true },
+        { key: 'delivery', label: 'Phân Phối', sortable: false, width: 'w-24' },
         { key: 'budget', label: 'Ngân Sách', sortable: false, width: 'w-32' },
         { key: 'spend', label: 'Chi Tiêu', sortable: true, width: 'w-32' },
         { key: 'ads_percent', label: '% ADS', sortable: true, width: 'w-28' },
@@ -642,88 +642,88 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Spend */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.spend, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.spend, row.currency || 'VND')}
         </td>
 
         {/* % ADS */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#ef4444', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#ef4444', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
           {formatPercentage(row.ads_percent || 0)}%
         </td>
 
         {/* Results (Kết quả) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.results)}
         </td>
 
         {/* Cost per DATA */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.data_cost, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#9333ea', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.data_cost, row.currency || 'VND')}
         </td>
 
         {/* TLC (Tỷ lệ chuyển đổi) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatPercentage(row.tlc || (row.initiated_checkout && row.impressions ? (row.initiated_checkout / row.impressions) * 100 : 0))}%
         </td>
 
         {/* Cost per Checkout Initiated */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.cost_per_checkout_initiated || 0, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cost_per_checkout_initiated || 0, row.currency || 'VND')}
         </td>
 
         {/* Checkouts Initiated */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
         {/* Cost per Purchase */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.cost_per_purchase || 0, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cost_per_purchase || 0, row.currency || 'VND')}
         </td>
 
         {/* Purchases */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.purchases)}
         </td>
 
         {/* Purchase Value */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.purchase_value, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#22c55e', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.purchase_value, row.currency || 'VND')}
         </td>
 
         {/* CPM */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.cpm || 0, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cpm || 0, row.currency || 'VND')}
         </td>
 
         {/* Impressions */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.impressions)}
         </td>
 
         {/* Reach */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.reach || 0)}
         </td>
 
         {/* Frequency */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {(row.frequency || 0).toFixed(2)}
         </td>
 
         {/* Clicks */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.clicks || 0)}
         </td>
 
         {/* CTR */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
           {formatPercentage(row.ctr || 0)}%
         </td>
 
         {/* CPC */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency(row.cpc || 0, row.currency)}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cpc || 0, row.currency || 'VND')}
         </td>
       </tr>
     );

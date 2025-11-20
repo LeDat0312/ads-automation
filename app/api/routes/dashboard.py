@@ -842,6 +842,7 @@ async def get_dashboard_data(
                     'purchases': 'purchases',
                     'purchase_value': 'purchase_value',
                     'ads_percent': '%ads',
+                    'tlc': 'tlc',
                     'impressions': 'impressions',
                     'clicks': 'clicks',
                     'cpm': 'cpm',
