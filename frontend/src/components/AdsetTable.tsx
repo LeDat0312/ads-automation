@@ -284,7 +284,8 @@ const TableRow: React.FC<TableRowProps> = ({
             left: 0,
             padding: '12px',
             fontSize: '14px',
-            color: '#1f2937'
+            color: '#1f2937',
+            borderBottom: '1px solid #f3f4f6'
           }}
         >
           <input
@@ -302,7 +303,8 @@ const TableRow: React.FC<TableRowProps> = ({
             left: '4rem',
             padding: '12px',
             fontSize: '14px',
-            color: '#1f2937'
+            color: '#1f2937',
+            borderBottom: '1px solid #f3f4f6'
           }}
         >
           <label className="relative inline-flex items-center cursor-pointer">
@@ -324,21 +326,22 @@ const TableRow: React.FC<TableRowProps> = ({
             padding: '12px',
             fontSize: '14px',
             color: '#1f2937',
+            borderBottom: '1px solid #f3f4f6',
             maxWidth: '200px'
           }}
         >
-          <div className="font-semibold text-gray-900 truncate" title={row.adset_name || row.campaign_name || row.ad_name || ''} style={{ fontSize: '14px', lineHeight: '1.4' }}>
+          <div className="font-semibold" style={{ fontSize: '14px', lineHeight: '1.4', fontWeight: 600 }}>
             {row.adset_name || row.campaign_name || row.ad_name || '-'}
           </div>
           {row.adset_id && (
-            <div className="text-gray-400" style={{ fontSize: '12px', marginTop: '2px' }}>
+            <div style={{ fontSize: '12px', marginTop: '2px', color: '#6b7280' }}>
               ID: {row.adset_id}
             </div>
           )}
         </td>
 
         {/* Delivery Status - chỉ icon tròn */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'left', borderBottom: '1px solid #f3f4f6' }}>
           <span 
             className="inline-block rounded-full"
             style={{
@@ -351,7 +354,7 @@ const TableRow: React.FC<TableRowProps> = ({
         </td>
 
         {/* Budget */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right' }}>
+        <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
             const budgetDisplay = canEdit 
