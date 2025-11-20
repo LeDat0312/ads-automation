@@ -171,8 +171,6 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                     ${col.sortable ? 'cursor-pointer hover:bg-gray-100 select-none' : ''}
                   `}
                   style={{
-                    padding: '12px',
-                    textAlign: 'left',
                     borderBottom: '1px solid #f3f4f6',
                     background: col.fixed ? '#f9fafb' : '#f9fafb',
                     fontWeight: 600,
@@ -183,8 +181,8 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                     zIndex: col.fixed ? 10 : 1,
                     ...(col.key === 'select' ? { left: 0, width: '48px', padding: '8px' } :
                         col.key === 'status' ? { left: '3rem', width: '80px', padding: '8px' } :
-                        col.key === 'name' ? { left: '5.5rem' } :
-                        {}),
+                        col.key === 'name' ? { left: '5.5rem', padding: '12px' } :
+                        { padding: '12px' }),
                     textAlign: (col.key === 'select' || col.key === 'status' || col.key === 'delivery') ? 'center' :
                                (col.key === 'name') ? 'left' :
                                (col.sortable || ['spend', 'results', 'data_cost', 'cost_per_checkout_initiated', 'checkouts_initiated', 'cost_per_purchase', 'purchases', 'cpm', 'impressions', 'reach', 'frequency', 'clicks', 'ctr', 'cpc', 'budget'].includes(col.key)) ? 'center' : 'left'
