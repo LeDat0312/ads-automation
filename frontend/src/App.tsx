@@ -4,6 +4,7 @@ import SummaryCards from './components/SummaryCards';
 import AdsetTable from './components/AdsetTable';
 import FiltersBar from './components/FiltersBar';
 import BudgetModal from './components/BudgetModal';
+import ConfirmModal from './components/ConfirmModal';
 import { Level } from './components/LevelTabs';
 import PaginationControls from './components/PaginationControls';
 import { getDashboardData, getErrorMessage, updateBudget, updateStatus } from './services/api';
@@ -30,6 +31,9 @@ function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: null, direction: 'desc' });
   const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'pause' | 'resume' | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
   const [currentLevel, setCurrentLevel] = useState<Level>('adset');
   const [drillDownPath, setDrillDownPath] = useState<{
     campaignId?: string;
@@ -299,21 +303,41 @@ function App() {
     }
   };
 
-  // Handle status update (pause/resume) - bulk
+  // 🔹 FIX: Thêm confirm modal và progress bar cho bulk actions
+  const handleStatusUpdateClick = (action: 'pause' | 'resume') => {
+    setConfirmAction(action);
+    setShowConfirmModal(true);
+  };
+
   const handleStatusUpdate = async (action: 'pause' | 'resume') => {
     try {
       setLoading(true);
+      setBulkProgress({ current: 0, total: selectedIds.size });
+      
+      const selectedIdsArray = Array.from(selectedIds);
+      const items = selectedIdsArray.map(id => ({
+        id,
+        new_status: action === 'pause' ? 'PAUSED' : 'ACTIVE',
+      }));
+
+      // Gọi API update status
       await updateStatus({
         level: currentLevel.toUpperCase() as 'CAMPAIGN' | 'ADSET' | 'AD',
-        items: Array.from(selectedIds).map(id => ({
-          id,
-          new_status: action === 'pause' ? 'PAUSED' : 'ACTIVE',
-        })),
+        items,
       });
+
+      // Update progress
+      setBulkProgress({ current: selectedIdsArray.length, total: selectedIdsArray.length });
+      
+      // Đợi một chút để user thấy progress 100%
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       await fetchData();
       setSelectedIds(new Set());
+      setBulkProgress(null);
     } catch (err) {
       setError(getErrorMessage(err));
+      setBulkProgress(null);
     } finally {
       setLoading(false);
     }
@@ -596,49 +620,71 @@ function App() {
           </div>
         </div>
 
-        {/* Bulk Actions Bar - Beautiful Design */}
+        {/* Bulk Actions Bar - Di chuyển xuống dưới header "Chi Tiết Quảng Cáo" */}
         {selectedIds.size > 0 && (
-          <div className="mb-6 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-5 shadow-xl animate-fadeIn">
+          <div className="sticky top-0 z-20 mb-4 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 shadow-xl animate-fadeIn">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="bg-white/20 rounded-lg p-2">
-                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 </div>
                 <div>
-                  <div className="text-white font-bold text-lg">
+                  <div className="text-white font-bold text-base">
                     {selectedIds.size} đã chọn
                   </div>
                   <div className="text-indigo-100 text-xs">
                     Thao tác hàng loạt
                   </div>
+                  {/* Progress Bar */}
+                  {bulkProgress && (
+                    <div className="mt-2">
+                      <div className="flex items-center gap-2 text-xs text-white/90">
+                        <span>Đang xử lý {bulkProgress.current} / {bulkProgress.total}</span>
+                        <span className="text-white/70">
+                          ({Math.round((bulkProgress.current / bulkProgress.total) * 100)}%)
+                        </span>
+                      </div>
+                      <div className="mt-1 w-full bg-white/20 rounded-full h-1.5">
+                        <div 
+                          className="bg-white rounded-full h-1.5 transition-all duration-300"
+                          style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowBudgetModal(true)}
-                  className="px-5 py-2.5 bg-white text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all shadow-lg hover:shadow-xl font-semibold transform hover:scale-105 active:scale-95"
+                  disabled={loading || !!bulkProgress}
+                  className="px-4 py-2 bg-white text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all shadow-lg hover:shadow-xl font-semibold disabled:opacity-50 transform hover:scale-105 active:scale-95 text-sm"
                 >
                   💰 Điều chỉnh NS
                 </button>
                 <button
-                  onClick={() => handleStatusUpdate('resume')}
-                  disabled={loading}
-                  className="px-5 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-lg hover:shadow-xl font-semibold disabled:opacity-50 transform hover:scale-105 active:scale-95"
+                  onClick={() => handleStatusUpdateClick('resume')}
+                  disabled={loading || !!bulkProgress}
+                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-lg hover:shadow-xl font-semibold disabled:opacity-50 transform hover:scale-105 active:scale-95 text-sm"
                 >
                   ▶️ Bật
                 </button>
                 <button
-                  onClick={() => handleStatusUpdate('pause')}
-                  disabled={loading}
-                  className="px-5 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all shadow-lg hover:shadow-xl font-semibold disabled:opacity-50 transform hover:scale-105 active:scale-95"
+                  onClick={() => handleStatusUpdateClick('pause')}
+                  disabled={loading || !!bulkProgress}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all shadow-lg hover:shadow-xl font-semibold disabled:opacity-50 transform hover:scale-105 active:scale-95 text-sm"
                 >
                   ⏸️ Tắt
                 </button>
                 <button 
-                  onClick={() => setSelectedIds(new Set())}
-                  className="px-4 py-2.5 bg-white/10 text-white border border-white/30 rounded-lg hover:bg-white/20 transition-all font-medium backdrop-blur-sm"
+                  onClick={() => {
+                    setSelectedIds(new Set());
+                    setBulkProgress(null);
+                  }}
+                  disabled={loading || !!bulkProgress}
+                  className="px-3 py-2 bg-white/10 text-white border border-white/30 rounded-lg hover:bg-white/20 transition-all font-medium backdrop-blur-sm disabled:opacity-50 text-sm"
                 >
                   ✖️ Bỏ chọn
                 </button>
@@ -688,6 +734,29 @@ function App() {
         onClose={() => setShowBudgetModal(false)}
         selectedAdsets={selectedAdsets}
         onApply={handleBudgetUpdate}
+      />
+
+      {/* Confirm Modal for Bulk Actions */}
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => {
+          setShowConfirmModal(false);
+          setConfirmAction(null);
+        }}
+        onConfirm={() => {
+          if (confirmAction) {
+            handleStatusUpdate(confirmAction);
+          }
+        }}
+        title={confirmAction === 'pause' ? 'Xác nhận tắt' : 'Xác nhận bật'}
+        message={
+          confirmAction === 'pause'
+            ? `Bạn chắc chắn muốn tắt ${selectedIds.size} ${currentLevel === 'campaign' ? 'chiến dịch' : currentLevel === 'adset' ? 'nhóm quảng cáo' : 'quảng cáo'} không?`
+            : `Bạn chắc chắn muốn bật ${selectedIds.size} ${currentLevel === 'campaign' ? 'chiến dịch' : currentLevel === 'adset' ? 'nhóm quảng cáo' : 'quảng cáo'} không?`
+        }
+        confirmText="Xác nhận"
+        cancelText="Hủy"
+        confirmColor={confirmAction === 'pause' ? 'amber' : 'green'}
       />
     </div>
   );
