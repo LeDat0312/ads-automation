@@ -463,17 +463,21 @@ async def get_dashboard_data(
         )
         logger.info(f"   ✅ Đã lấy được {len(all_data)} rows từ Facebook API")
         
-        # Filter by prefix nếu có
-        if prefix and all_data:
-            all_data = [row for row in all_data if row.get('prefix') == prefix]
-        
-        # Filter by view mode (campaign type)
+        # Filter by view mode (campaign type) - TRƯỚC KHI filter prefix
         before_view_filter = len(all_data)
         if view_mode == "ecommerce":
             all_data = [row for row in all_data if row.get('campaign_type') == 'ECOMMERCE']
         elif view_mode == "lead":
             all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD']
         logger.info(f"   📊 Sau filter view_mode ({view_mode}): {len(all_data)}/{before_view_filter} rows")
+        
+        # Lưu all_data_trước_khi_filter_prefix để tính summary (KHÔNG bị ảnh hưởng bởi prefix)
+        all_data_for_summary = all_data.copy()
+        
+        # Filter by prefix nếu có (chỉ áp dụng cho bảng, KHÔNG áp dụng cho summary)
+        if prefix and all_data:
+            all_data = [row for row in all_data if row.get('prefix') == prefix]
+            logger.info(f"   📊 Sau filter prefix ({prefix}): {len(all_data)} rows (summary vẫn dùng {len(all_data_for_summary)} rows)")
         
         # Lấy status của adsets từ Facebook API
         adset_ids = list(set([row.get('adset_id') for row in all_data if row.get('adset_id')]))
@@ -515,6 +519,132 @@ async def get_dashboard_data(
             campaign_budgets_map = fetch_campaign_budgets_batch(campaign_ids_from_struct, access_token)
             logger.info(f"   ✅ Đã fetch budgets cho {len(campaign_budgets_map)} campaigns")
         
+        # ===== TÍNH SUMMARY TỪ TOÀN BỘ ADSETS (TRƯỚC KHI FILTER) =====
+        # Summary phải tính từ TOÀN BỘ adsets của view_mode, KHÔNG bị ảnh hưởng bởi search/status/prefix/pagination
+        # Chỉ bị ảnh hưởng bởi date_from/date_to (filter thời gian hợp lệ)
+        logger.info(f"📊 TÍNH SUMMARY từ {len(struct_adsets)} struct adsets (TRƯỚC KHI FILTER)...")
+        
+        # Build adset_map_summary từ struct_adsets (toàn bộ, không filter)
+        adset_map_summary = {}
+        for struct_adset in struct_adsets:
+            adset_id = struct_adset.get('id')
+            if not adset_id:
+                continue
+            
+            campaign_id = struct_adset.get('campaign_id')
+            campaign_info = campaign_budgets_map.get(campaign_id, {}) if campaign_id else {}
+            campaign_daily_budget_raw = campaign_info.get('daily_budget') or campaign_info.get('lifetime_budget')
+            campaign_daily_budget = float(campaign_daily_budget_raw) if campaign_daily_budget_raw else None
+            
+            adset_daily_budget_raw = struct_adset.get('adset_budget') or struct_adset.get('daily_budget')
+            adset_daily_budget = float(adset_daily_budget_raw) if adset_daily_budget_raw else None
+            
+            # Khởi tạo adset trong map (chỉ structure, chưa có insights)
+            adset_map_summary[adset_id] = {
+                'adset_id': adset_id,
+                'adset_name': struct_adset.get('name', ''),
+                'campaign_id': campaign_id,
+                'campaign_name': struct_adset.get('campaign_name', ''),
+                'effective_status': struct_adset.get('effective_status', 'UNKNOWN'),
+                'spend': 0.0,
+                'impressions': 0,
+                'clicks': 0,
+                'reach': 0,
+                'post_comments': 0,
+                'messaging_conversations_started': 0,
+                'checkouts_initiated': 0,
+                'onsite_conversion_post_save': 0,
+                'purchases': 0,
+                'purchase_value': 0.0,
+            }
+        
+        # Merge insights vào adset_map_summary (từ all_data_for_summary - đã filter theo date nhưng CHƯA filter prefix/search/status)
+        # Lưu ý: all_data_for_summary đã được filter theo date_from/date_to, view_mode, nhưng CHƯA filter prefix/search/status
+        insights_count = 0
+        for row in all_data_for_summary:
+            row_adset_id = row.get('adset_id')
+            if not row_adset_id or row_adset_id not in adset_map_summary:
+                continue
+            
+            adset = adset_map_summary[row_adset_id]
+            insights_count += 1
+            
+            # Merge metrics từ insights
+            adset['spend'] += float(row.get('spend', 0) or 0)
+            adset['impressions'] += int(row.get('impressions', 0) or 0)
+            adset['clicks'] += int(row.get('clicks', 0) or 0)
+            adset['reach'] += int(row.get('reach', 0) or 0)
+            adset['post_comments'] += int(row.get('post_comments', 0) or 0)
+            adset['messaging_conversations_started'] += int(row.get('messaging_conversations_started', 0) or 0)
+            adset['checkouts_initiated'] += int(row.get('checkouts_initiated', 0) or 0)
+            adset['onsite_conversion_post_save'] += int(row.get('onsite_conversion_post_save', 0) or 0)
+            adset['purchases'] += int(row.get('purchases', 0) or 0)
+            adset['purchase_value'] += float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
+            
+            # Update status từ insights (nếu có)
+            if row.get('effective_status'):
+                adset['effective_status'] = row.get('effective_status')
+        
+        logger.info(f"   ✅ Đã merge insights vào {insights_count} adsets trong summary map")
+        
+        # Tính summary từ adset_map_summary (TOÀN BỘ adsets, không filter search/status/prefix)
+        total_spend_summary = sum(adset.get('spend', 0) or 0 for adset in adset_map_summary.values())
+        total_data_summary = sum(
+            (adset.get('post_comments', 0) or 0) + (adset.get('messaging_conversations_started', 0) or 0)
+            for adset in adset_map_summary.values()
+        )
+        # Tính total_checkouts_summary đúng theo view_mode
+        if view_mode == "lead":
+            total_checkouts_summary = sum(
+                (adset.get('onsite_conversion_post_save', 0) or 0) or 
+                (adset.get('checkouts_initiated', 0) or 0)
+                for adset in adset_map_summary.values()
+            )
+        else:
+            total_checkouts_summary = sum(adset.get('checkouts_initiated', 0) or 0 for adset in adset_map_summary.values())
+        total_purchases_summary = sum(adset.get('purchases', 0) or 0 for adset in adset_map_summary.values())
+        total_purchase_value_summary = sum(adset.get('purchase_value', 0) or 0 for adset in adset_map_summary.values())
+        
+        # Đếm adsets theo status (từ TOÀN BỘ adsets, không filter)
+        active_adsets_summary = 0
+        paused_adsets_summary = 0
+        total_adsets_summary = len(adset_map_summary)
+        
+        for adset in adset_map_summary.values():
+            effective_status = normalize_status(adset.get('effective_status', 'UNKNOWN').upper())
+            if effective_status == 'ACTIVE':
+                active_adsets_summary += 1
+            elif effective_status in ['PAUSED', 'ARCHIVED']:
+                paused_adsets_summary += 1
+        
+        # Build summary object
+        if view_mode == "ecommerce":
+            ads_percent_summary = (total_spend_summary / total_purchase_value_summary) if total_purchase_value_summary > 0 else 0
+            summary = {
+                "totalSpend": round(total_spend_summary, 2),
+                "adsPercent": round(ads_percent_summary, 2),
+                "purchaseValue": round(total_purchase_value_summary, 2),
+                "activeAdsets": active_adsets_summary,
+                "pausedAdsets": paused_adsets_summary,
+                "totalAdsets": total_adsets_summary,
+                "totalCheckouts": total_checkouts_summary,
+                "totalPurchases": total_purchases_summary
+            }
+        else:  # lead
+            avg_gia_data_summary = (total_spend_summary / total_data_summary) if total_data_summary > 0 else 0
+            summary = {
+                "totalSpend": round(total_spend_summary, 2),
+                "totalData": total_data_summary,
+                "avgGiaData": round(avg_gia_data_summary, 2),
+                "totalLead": total_checkouts_summary,  # Lead Gen: checkouts_initiated = total lead
+                "activeAdsets": active_adsets_summary,
+                "pausedAdsets": paused_adsets_summary,
+                "totalAdsets": total_adsets_summary,
+                "totalCheckouts": total_checkouts_summary
+            }
+        
+        logger.info(f"   ✅ SUMMARY: total_spend={total_spend_summary:.2f}, active={active_adsets_summary}, paused={paused_adsets_summary}, total={total_adsets_summary}, checkouts={total_checkouts_summary}")
+        
         # Fetch TẤT CẢ adsets từ accounts (không chỉ từ insights) để đếm đúng (giữ lại để backward compatibility)
         from app.services.facebook_api import fetch_all_adsets_from_accounts
         logger.info(f"📊 Đang fetch tất cả adsets từ {len(user_account_ids)} accounts để đếm đúng...")
@@ -526,10 +656,6 @@ async def get_dashboard_data(
             use_cache=use_cache
         )
         logger.info(f"   ✅ Đã fetch {len(all_adsets_from_accounts)} adsets từ accounts")
-        
-        # CHƯA tính summary ở đây - sẽ tính sau khi group theo level
-        # Summary sẽ được tính từ grouped_data (sau khi group theo level) để đảm bảo khớp với Chi Tiết Quảng Cáo
-        # Tạm thời lưu all_adsets_from_accounts và adset_statuses_map để dùng sau khi group
         
         # ===== BUILD DETAILS (filter và group theo level) =====
         # Filter campaign_id nếu có
@@ -736,70 +862,7 @@ async def get_dashboard_data(
             
             logger.info(f"   ✅ Đã tính derived metrics cho {len(adset_map)} adsets")
             
-            # ===== TÍNH SUMMARY TỪ ADSET_MAP_RAW (TRƯỚC KHI FILTER) =====
-            # Summary phải tính từ TOÀN BỘ adsets của view_mode, KHÔNG bị ảnh hưởng bởi filter
-            adset_map_raw = adset_map.copy()  # Lưu bản gốc để tính summary
-            logger.info(f"📊 TÍNH SUMMARY từ {len(adset_map_raw)} adsets (TRƯỚC KHI FILTER)...")
-            
-            # Tính tổng từ toàn bộ adset_map_raw
-            total_spend_summary = sum(adset.get('spend', 0) or 0 for adset in adset_map_raw.values())
-            total_data_summary = sum(
-                (adset.get('post_comments', 0) or 0) + (adset.get('messaging_conversations_started', 0) or 0)
-                for adset in adset_map_raw.values()
-            )
-            # 🔹 FIX: Tính total_checkouts_summary đúng theo view_mode
-            # Lead Gen: ưu tiên onsite_conversion_post_save (từ actions, không phải pixel)
-            # E-Commerce: dùng checkouts_initiated (từ actions)
-            if view_mode == "lead":
-                total_checkouts_summary = sum(
-                    (adset.get('onsite_conversion_post_save', 0) or 0) or 
-                    (adset.get('checkouts_initiated', 0) or 0)
-                    for adset in adset_map_raw.values()
-                )
-            else:
-                total_checkouts_summary = sum(adset.get('checkouts_initiated', 0) or 0 for adset in adset_map_raw.values())
-            total_purchases_summary = sum(adset.get('purchases', 0) or 0 for adset in adset_map_raw.values())
-            total_purchase_value_summary = sum(adset.get('purchase_value', 0) or 0 for adset in adset_map_raw.values())
-            
-            # Đếm adsets theo status
-            active_adsets_summary = 0
-            paused_adsets_summary = 0
-            total_adsets_summary = len(adset_map_raw)
-            
-            for adset in adset_map_raw.values():
-                effective_status = normalize_status(adset.get('effective_status', 'UNKNOWN').upper())
-                if effective_status == 'ACTIVE':
-                    active_adsets_summary += 1
-                elif effective_status in ['PAUSED', 'ARCHIVED']:
-                    paused_adsets_summary += 1
-            
-            # Build summary object
-            if view_mode == "ecommerce":
-                ads_percent_summary = (total_spend_summary / total_purchase_value_summary) if total_purchase_value_summary > 0 else 0
-                summary = {
-                    "totalSpend": round(total_spend_summary, 2),
-                    "adsPercent": round(ads_percent_summary, 2),
-                    "purchaseValue": round(total_purchase_value_summary, 2),
-                    "activeAdsets": active_adsets_summary,
-                    "pausedAdsets": paused_adsets_summary,
-                    "totalAdsets": total_adsets_summary,
-                    "totalCheckouts": total_checkouts_summary,
-                    "totalPurchases": total_purchases_summary
-                }
-            else:  # lead
-                avg_gia_data_summary = (total_spend_summary / total_data_summary) if total_data_summary > 0 else 0
-                summary = {
-                    "totalSpend": round(total_spend_summary, 2),
-                    "totalData": total_data_summary,
-                    "avgGiaData": round(avg_gia_data_summary, 2),
-                    "totalLead": total_checkouts_summary,  # Lead Gen: checkouts_initiated = total lead
-                    "activeAdsets": active_adsets_summary,
-                    "pausedAdsets": paused_adsets_summary,
-                    "totalAdsets": total_adsets_summary,
-                    "totalCheckouts": total_checkouts_summary
-                }
-            
-            logger.info(f"   ✅ SUMMARY: total_spend={total_spend_summary:.2f}, active={active_adsets_summary}, paused={paused_adsets_summary}, total={total_adsets_summary}, checkouts={total_checkouts_summary}")
+            # Summary đã được tính sớm hơn (dòng 522-640), không cần tính lại ở đây
         
         # Group by level và aggregate (dùng defaultdict để optimize)
         # Nếu level = "adset" và đã có adset_map, dùng adset_map thay vì group từ all_data
