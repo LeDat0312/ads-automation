@@ -675,6 +675,99 @@ def fetch_all_adsets_from_accounts(
     return all_adsets_map
 
 
+def fetch_struct_adsets_from_accounts(
+    ad_account_ids: List[str],
+    access_token: str,
+    view_mode: str = "ecommerce",
+    account_type_map: Optional[Dict[str, str]] = None,
+    use_cache: bool = True
+) -> List[Dict[str, Any]]:
+    """
+    Fetch TẤT CẢ adsets structure từ accounts (với đầy đủ fields: id, name, campaign, daily_budget, effective_status)
+    Dùng để build adset_map đầy đủ, kể cả adsets không có insights data
+    
+    Returns: List[Dict] - List of adset objects với đầy đủ thông tin
+    """
+    if not ad_account_ids:
+        return []
+    
+    all_struct_adsets = []
+    
+    for account_id in ad_account_ids:
+        try:
+            # Đảm bảo account_id có prefix "act_"
+            if not account_id.startswith("act_"):
+                account_id_formatted = f"act_{account_id}"
+            else:
+                account_id_formatted = account_id
+            
+            # Filter theo account_type nếu có
+            if account_type_map:
+                clean_id = account_id.replace('act_', '')
+                account_type = account_type_map.get(clean_id)
+                if view_mode == "ecommerce" and account_type != "E-COMMERCE":
+                    continue
+                elif view_mode == "lead" and account_type != "LEAD_GENERATION":
+                    continue
+            
+            # Fetch tất cả adsets từ account với đầy đủ fields
+            url = f"{FB_GRAPH_API_BASE}/{account_id_formatted}/adsets"
+            params = {
+                'access_token': access_token,
+                'fields': 'id,name,campaign{id,name},daily_budget,lifetime_budget,effective_status,configured_status',
+                'limit': 100
+            }
+            
+            account_adsets_count = 0
+            while url:
+                response = requests.get(url, params=params, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                
+                if 'data' in data:
+                    for adset in data['data']:
+                        adset_id = adset.get('id')
+                        if adset_id:
+                            campaign = adset.get('campaign', {})
+                            campaign_id = campaign.get('id') if isinstance(campaign, dict) else None
+                            campaign_name = campaign.get('name') if isinstance(campaign, dict) else None
+                            
+                            # Lấy budget: daily_budget hoặc lifetime_budget
+                            daily_budget = float(adset.get('daily_budget', 0) or 0)
+                            lifetime_budget = float(adset.get('lifetime_budget', 0) or 0)
+                            adset_budget = daily_budget if daily_budget > 0 else lifetime_budget
+                            
+                            struct_adset = {
+                                'id': adset_id,
+                                'name': adset.get('name', ''),
+                                'campaign_id': campaign_id,
+                                'campaign_name': campaign_name,
+                                'daily_budget': daily_budget,
+                                'lifetime_budget': lifetime_budget,
+                                'adset_budget': adset_budget,
+                                'effective_status': adset.get('effective_status', 'UNKNOWN'),
+                                'configured_status': adset.get('configured_status', 'UNKNOWN'),
+                                'account_id': account_id_formatted
+                            }
+                            all_struct_adsets.append(struct_adset)
+                            account_adsets_count += 1
+                
+                # Check for next page
+                if 'paging' in data and 'next' in data['paging']:
+                    url = data['paging']['next']
+                    params = {}  # URL đã có params
+                else:
+                    url = None
+            
+            logger.info(f"   ✅ Đã fetch {account_adsets_count} struct adsets từ account {account_id_formatted}")
+        except Exception as e:
+            logger.error(f"🚨 Lỗi fetch struct adsets từ account {account_id}: {e}")
+            continue
+    
+    logger.info(f"📊 Tổng cộng fetch được {len(all_struct_adsets)} struct adsets từ tất cả accounts")
+    return all_struct_adsets
+
+
 def resume_adsets(
     adset_id_list: List[str],
     access_token: str,
