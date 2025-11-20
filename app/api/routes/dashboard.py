@@ -490,31 +490,33 @@ async def get_dashboard_data(
                     row['effective_status'] = 'UNKNOWN'
                     row['delivery'] = 'UNKNOWN'
         
-        # ===== BUILD SUMMARY (dùng data có impressions>0) =====
-        all_data_for_summary = [row for row in all_data if int(row.get('impressions', 0) or 0) > 0]
-        logger.info(f"   📊 Summary sẽ tổng kết {len(all_data_for_summary)} rows (impressions>0)")
+        # ===== BUILD SUMMARY =====
+        # Tổng chi tiêu và adsets count: tính từ TẤT CẢ data (không filter impressions>0)
+        # Metrics khác (total_data, total_checkouts): chỉ tính từ data có impressions>0
+        all_data_for_metrics = [row for row in all_data if int(row.get('impressions', 0) or 0) > 0]
+        logger.info(f"   📊 Summary: {len(all_data)} rows tổng, {len(all_data_for_metrics)} rows có impressions>0")
         
-        # Aggregate metrics for summary
-        total_spend = sum(float(row.get('spend', 0) or 0) for row in all_data_for_summary)
-        total_purchases = sum(int(row.get('purchases', 0) or 0) for row in all_data_for_summary)
-        total_purchase_value = sum(float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0) for row in all_data_for_summary)
+        # Aggregate metrics for summary - TỔNG CHI TIÊU từ TẤT CẢ data
+        total_spend = sum(float(row.get('spend', 0) or 0) for row in all_data)
+        total_purchases = sum(int(row.get('purchases', 0) or 0) for row in all_data_for_metrics)
+        total_purchase_value = sum(float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0) for row in all_data_for_metrics)
         
-        # Metrics cho Lead Generation
+        # Metrics cho Lead Generation - chỉ tính từ data có impressions>0
         total_data = sum(
             int(row.get('post_comments', 0) or 0) + int(row.get('messaging_conversations_started', 0) or 0)
-            for row in all_data_for_summary
+            for row in all_data_for_metrics
         )
-        # Tính total_checkouts: ưu tiên checkouts_initiated, fallback onsite_conversion_post_save (Lead Gen)
+        # Tính total_checkouts: ưu tiên checkouts_initiated (từ actions, không phải pixel)
         total_checkouts = sum(
             int(row.get('checkouts_initiated', 0) or 0) or 
             int(row.get('checkout_initiated', 0) or 0) or 
             int(row.get('onsite_conversion_post_save', 0) or 0)
-            for row in all_data_for_summary
+            for row in all_data_for_metrics
         )
         
-        # Count unique adsets by status
+        # Count unique adsets by status - từ TẤT CẢ data (không filter impressions>0)
         adset_statuses = {}
-        for row in all_data_for_summary:
+        for row in all_data:
             row_adset_id = row.get('adset_id')
             if row_adset_id:
                 row_status = (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()
@@ -814,10 +816,12 @@ async def get_dashboard_data(
                 })
             else:  # lead
                 cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
+                cost_per_purchase = (spend / purchases) if purchases > 0 else 0
                 row_data.update({
                     "data_cost": round(gia_data, 2),
                     "cost_per_checkout_initiated": round(cost_per_checkout_start, 2),
                     "initiated_checkout": checkout_starts,
+                    "cost_per_purchase": round(cost_per_purchase, 2),
                     "purchases": purchases
                 })
             
@@ -827,8 +831,35 @@ async def get_dashboard_data(
         if sort_by:
             reverse_order = (sort_order or 'desc').lower() == 'desc'
             try:
-                rows.sort(key=lambda x: x.get(sort_by, 0) or 0, reverse=reverse_order)
-                logger.info(f"   📊 Đã sắp xếp {len(rows)} rows theo {sort_by} ({sort_order})")
+                # Map frontend column names to backend field names
+                column_map = {
+                    'checkouts_initiated': 'initiated_checkout',
+                    'cost_per_checkout_initiated': 'cost_per_checkout_initiated',
+                    'cost_per_purchase': 'cost_per_purchase',
+                    'data_cost': 'data_cost',
+                    'spend': 'spend',
+                    'results': 'results',
+                    'purchases': 'purchases',
+                    'purchase_value': 'purchase_value',
+                    'ads_percent': '%ads',
+                    'impressions': 'impressions',
+                    'clicks': 'clicks',
+                    'cpm': 'cpm',
+                    'ctr': 'ctr',
+                    'cpc': 'cpc',
+                }
+                backend_field = column_map.get(sort_by, sort_by)
+                
+                def get_sort_value(row):
+                    value = row.get(backend_field, 0) or 0
+                    # Convert to number if possible
+                    try:
+                        return float(value) if value else 0
+                    except (ValueError, TypeError):
+                        return 0
+                
+                rows.sort(key=get_sort_value, reverse=reverse_order)
+                logger.info(f"   📊 Đã sắp xếp {len(rows)} rows theo {sort_by} -> {backend_field} ({sort_order})")
             except Exception as e:
                 logger.warning(f"   ⚠️ Lỗi khi sắp xếp theo {sort_by}: {e}")
         

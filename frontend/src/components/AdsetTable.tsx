@@ -35,7 +35,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   // ✅ COMPLETELY DIFFERENT columns for Lead vs Ecom (per old dashboard)
   const columns = useMemo(() => {
     if (viewMode === 'lead') {
-      // Lead columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, Kết Quả, Giá DATA, Chi Phí Bắt Đầu TT, Bắt Đầu TT, Lượt Mua, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
+      // Lead columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, Kết Quả, Giá DATA, Chi Phi/BĐTT, Bắt Đầu TT, Chi phí / LM, Lượt Mua, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
       return [
         { key: 'select', label: 'Chọn', sortable: false, width: 'w-16', fixed: true },
         { key: 'status', label: 'Bật/Tắt', sortable: false, width: 'w-24', fixed: true },
@@ -45,8 +45,9 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
         { key: 'spend', label: 'Chi Tiêu', sortable: true, width: 'w-32' },
         { key: 'results', label: 'Kết Quả', sortable: true, width: 'w-28' },
         { key: 'data_cost', label: 'Giá DATA', sortable: true, width: 'w-32' },
-        { key: 'cost_per_checkout', label: 'Chi Phí/Bắt Đầu TT', sortable: true, width: 'w-40' },
+        { key: 'cost_per_checkout_initiated', label: 'Chi Phi/BĐTT', sortable: true, width: 'w-32' },
         { key: 'checkouts_initiated', label: 'Bắt Đầu TT', sortable: true, width: 'w-32' },
+        { key: 'cost_per_purchase', label: 'Chi phí / LM', sortable: true, width: 'w-32' },
         { key: 'purchases', label: 'Lượt Mua', sortable: true, width: 'w-28' },
         { key: 'cpm', label: 'CPM', sortable: true, width: 'w-28' },
         { key: 'impressions', label: 'Hiển Thị', sortable: true, width: 'w-32' },
@@ -357,11 +358,23 @@ const TableRow: React.FC<TableRowProps> = ({
         <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
-            const budgetDisplay = canEdit 
-              ? formatCurrency(row.budget, row.currency)
-              : (row.budget_level === 'CAMPAIGN' 
-                ? (currentLevel === 'campaign' ? 'Theo ngân sách nhóm' : 'Ngân sách chiến dịch')
-                : (currentLevel === 'campaign' ? 'Ngân sách chiến dịch' : 'Theo ngân sách nhóm'));
+            let budgetDisplay: string;
+            if (canEdit) {
+              budgetDisplay = formatCurrency(row.budget, row.currency);
+            } else {
+              // Nếu budget_level === 'CAMPAIGN' và đang ở tab 'adset' → hiển thị "Ngân sách chiến dịch"
+              if (row.budget_level === 'CAMPAIGN' && currentLevel === 'adset') {
+                budgetDisplay = 'Ngân sách chiến dịch';
+              }
+              // Nếu budget_level === 'ADSET' và đang ở tab 'campaign' → hiển thị "Ngân sách nhóm QC"
+              else if (row.budget_level === 'ADSET' && currentLevel === 'campaign') {
+                budgetDisplay = 'Ngân sách nhóm QC';
+              }
+              // Trường hợp khác: hiển thị số tiền
+              else {
+                budgetDisplay = formatCurrency(row.budget, row.currency);
+              }
+            }
             const budgetTitle = canEdit 
               ? 'Click để chỉnh sửa ngân sách'
               : `Ngân sách đang ở cấp ${row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}. Chỉnh ở tab ${row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}`;
@@ -406,17 +419,22 @@ const TableRow: React.FC<TableRowProps> = ({
           {formatCurrency(row.data_cost, row.currency)}
         </td>
 
-        {/* Cost per Checkout */}
+        {/* Cost per Checkout Initiated (Chi Phi/BĐTT) */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
-          {formatCurrency((row.initiated_checkout && row.initiated_checkout > 0) ? row.spend / row.initiated_checkout : 0, row.currency)}
+          {formatCurrency(row.cost_per_checkout_initiated || ((row.initiated_checkout || row.checkouts_initiated) && (row.initiated_checkout || row.checkouts_initiated) > 0) ? row.spend / (row.initiated_checkout || row.checkouts_initiated || 1) : 0, row.currency)}
         </td>
 
-        {/* Checkouts Initiated */}
+        {/* Checkouts Initiated (Bắt Đầu TT) */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
-        {/* Purchases */}
+        {/* Cost per Purchase (Chi phí / LM) */}
+        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
+          {formatCurrency(row.cost_per_purchase || (row.purchases && row.purchases > 0 ? row.spend / row.purchases : 0), row.currency)}
+        </td>
+
+        {/* Purchases (Lượt Mua) */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
           {formatNumber(row.purchases)}
         </td>
@@ -548,11 +566,23 @@ const TableRow: React.FC<TableRowProps> = ({
         <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'right', borderBottom: '1px solid #f3f4f6' }}>
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
-            const budgetDisplay = canEdit 
-              ? formatCurrency(row.budget, row.currency)
-              : (row.budget_level === 'CAMPAIGN' 
-                ? (currentLevel === 'campaign' ? 'Theo ngân sách nhóm' : 'Ngân sách chiến dịch')
-                : (currentLevel === 'campaign' ? 'Ngân sách chiến dịch' : 'Theo ngân sách nhóm'));
+            let budgetDisplay: string;
+            if (canEdit) {
+              budgetDisplay = formatCurrency(row.budget, row.currency);
+            } else {
+              // Nếu budget_level === 'CAMPAIGN' và đang ở tab 'adset' → hiển thị "Ngân sách chiến dịch"
+              if (row.budget_level === 'CAMPAIGN' && currentLevel === 'adset') {
+                budgetDisplay = 'Ngân sách chiến dịch';
+              }
+              // Nếu budget_level === 'ADSET' và đang ở tab 'campaign' → hiển thị "Ngân sách nhóm QC"
+              else if (row.budget_level === 'ADSET' && currentLevel === 'campaign') {
+                budgetDisplay = 'Ngân sách nhóm QC';
+              }
+              // Trường hợp khác: hiển thị số tiền
+              else {
+                budgetDisplay = formatCurrency(row.budget, row.currency);
+              }
+            }
             const budgetTitle = canEdit 
               ? 'Click để chỉnh sửa ngân sách'
               : `Ngân sách đang ở cấp ${row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}. Chỉnh ở tab ${row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}`;
