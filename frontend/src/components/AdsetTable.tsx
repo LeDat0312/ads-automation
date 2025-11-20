@@ -239,7 +239,6 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                         onMouseDown={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          setResizingColumn(col.key);
                           const startX = e.clientX;
                           const startWidth = col.width;
                           
@@ -250,7 +249,6 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                           };
                           
                           const handleMouseUp = () => {
-                            setResizingColumn(null);
                             document.removeEventListener('mousemove', handleMouseMove);
                             document.removeEventListener('mouseup', handleMouseUp);
                           };
