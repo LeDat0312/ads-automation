@@ -710,14 +710,14 @@ async def get_dashboard_data(
             if entity_key not in grouped_data or 'id' not in grouped_data[entity_key]:
                 # Xác định budget và budget_level dựa trên level hiện tại
                 # Lấy cả campaign và adset budget từ row (nếu có)
-                campaign_budget = row.get('campaign_budget', 0.0) or 0.0
-                adset_budget = row.get('adset_budget', 0.0) or 0.0
+                campaign_budget = float(row.get('campaign_budget', 0) or 0)
+                adset_budget = float(row.get('adset_budget', 0) or 0)
                 row_budget_level = row.get('budget_level', 'ADSET')
                 
                 if level == "campaign":
                     # Ở level campaign: 
                     # - Nếu campaign có budget → hiển thị campaign budget, budget_level = 'CAMPAIGN'
-                    # - Nếu không → budget_level = 'ADSET', budget = 0 (vì không có campaign budget)
+                    # - Nếu không (campaign_budget = 0) → budget_level = 'ADSET', budget = 0 (vì budget ở cấp adset)
                     if campaign_budget > 0:
                         budget = campaign_budget
                         budget_level = 'CAMPAIGN'
@@ -728,15 +728,19 @@ async def get_dashboard_data(
                 elif level == "adset":
                     # Ở level adset: 
                     # - Nếu adset có budget → hiển thị adset budget, budget_level = 'ADSET'
-                    # - Nếu không (campaign có budget) → budget_level = 'CAMPAIGN', budget = 0
+                    # - Nếu không (adset_budget = 0) nhưng campaign có budget → budget_level = 'CAMPAIGN', budget = campaign_budget (KHÔNG phải 0)
                     if adset_budget > 0:
                         # Adset có budget riêng
                         budget = adset_budget
                         budget_level = 'ADSET'
-                    else:
-                        # Campaign có budget, adset không có budget riêng
-                        budget = 0.0
+                    elif campaign_budget > 0:
+                        # Campaign có budget, adset không có budget riêng → hiển thị campaign budget
+                        budget = campaign_budget
                         budget_level = 'CAMPAIGN'
+                    else:
+                        # Cả 2 đều = 0
+                        budget = 0.0
+                        budget_level = 'ADSET'
                 else:  # ad
                     # Ở level ad: budget_level và budget lấy từ adset (vì ad không có budget riêng)
                     budget = adset_budget if adset_budget > 0 else campaign_budget

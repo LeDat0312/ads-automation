@@ -575,23 +575,27 @@ const TableRow: React.FC<TableRowProps> = ({
             if (canEdit) {
               budgetDisplay = formatCurrency(row.budget || 0, row.currency || 'VND');
             } else {
-              // Nếu budget_level === 'CAMPAIGN' và đang ở tab 'adset' → hiển thị "Ngân sách chiến dịch"
+              // Logic hiển thị budget dựa trên budget_level và currentLevel
               if (row.budget_level === 'CAMPAIGN' && currentLevel === 'adset') {
-                budgetDisplay = 'Ngân sách chiến dịch';
-              }
-              // Nếu budget_level === 'ADSET' và đang ở tab 'campaign' → hiển thị "Ngân sách nhóm QC"
-              else if (row.budget_level === 'ADSET' && currentLevel === 'campaign') {
-                budgetDisplay = 'Ngân sách nhóm QC';
-              }
-              // Trường hợp khác: hiển thị số tiền (nếu có)
-              else if (row.budget && row.budget > 0) {
-                budgetDisplay = formatCurrency(row.budget, row.currency || 'VND');
-              } else {
-                // Nếu budget = 0 và không thể edit, hiển thị text tương ứng (KHÔNG hiện 0)
-                if (row.budget_level === 'CAMPAIGN') {
-                  budgetDisplay = currentLevel === 'campaign' ? (row.budget && row.budget > 0 ? formatCurrency(row.budget, row.currency || 'VND') : '0') : 'Ngân sách chiến dịch';
+                // Campaign có budget, đang ở tab adset → hiển thị "Ngân sách chiến dịch" + số tiền
+                if (row.budget && row.budget > 0) {
+                  budgetDisplay = `Ngân sách chiến dịch (${formatCurrency(row.budget, row.currency || 'VND')})`;
                 } else {
-                  budgetDisplay = currentLevel === 'adset' ? (row.budget && row.budget > 0 ? formatCurrency(row.budget, row.currency || 'VND') : '0') : 'Ngân sách nhóm QC';
+                  budgetDisplay = 'Ngân sách chiến dịch';
+                }
+              } else if (row.budget_level === 'ADSET' && currentLevel === 'campaign') {
+                // Adset có budget, đang ở tab campaign → hiển thị "Ngân sách nhóm QC" + số tiền
+                if (row.budget && row.budget > 0) {
+                  budgetDisplay = `Ngân sách nhóm QC (${formatCurrency(row.budget, row.currency || 'VND')})`;
+                } else {
+                  budgetDisplay = 'Ngân sách nhóm QC';
+                }
+              } else {
+                // Trường hợp khác: hiển thị số tiền (nếu có)
+                if (row.budget && row.budget > 0) {
+                  budgetDisplay = formatCurrency(row.budget, row.currency || 'VND');
+                } else {
+                  budgetDisplay = '0';
                 }
               }
             }
@@ -806,23 +810,27 @@ const TableRow: React.FC<TableRowProps> = ({
             if (canEdit) {
               budgetDisplay = formatCurrency(row.budget || 0, row.currency || 'VND');
             } else {
-              // Nếu budget_level === 'CAMPAIGN' và đang ở tab 'adset' → hiển thị "Ngân sách chiến dịch"
+              // Logic hiển thị budget dựa trên budget_level và currentLevel
               if (row.budget_level === 'CAMPAIGN' && currentLevel === 'adset') {
-                budgetDisplay = 'Ngân sách chiến dịch';
-              }
-              // Nếu budget_level === 'ADSET' và đang ở tab 'campaign' → hiển thị "Ngân sách nhóm QC"
-              else if (row.budget_level === 'ADSET' && currentLevel === 'campaign') {
-                budgetDisplay = 'Ngân sách nhóm QC';
-              }
-              // Trường hợp khác: hiển thị số tiền (nếu có)
-              else if (row.budget && row.budget > 0) {
-                budgetDisplay = formatCurrency(row.budget, row.currency || 'VND');
-              } else {
-                // Nếu budget = 0 và không thể edit, hiển thị text tương ứng (KHÔNG hiện 0)
-                if (row.budget_level === 'CAMPAIGN') {
-                  budgetDisplay = currentLevel === 'campaign' ? (row.budget && row.budget > 0 ? formatCurrency(row.budget, row.currency || 'VND') : '0') : 'Ngân sách chiến dịch';
+                // Campaign có budget, đang ở tab adset → hiển thị "Ngân sách chiến dịch" + số tiền
+                if (row.budget && row.budget > 0) {
+                  budgetDisplay = `Ngân sách chiến dịch (${formatCurrency(row.budget, row.currency || 'VND')})`;
                 } else {
-                  budgetDisplay = currentLevel === 'adset' ? (row.budget && row.budget > 0 ? formatCurrency(row.budget, row.currency || 'VND') : '0') : 'Ngân sách nhóm QC';
+                  budgetDisplay = 'Ngân sách chiến dịch';
+                }
+              } else if (row.budget_level === 'ADSET' && currentLevel === 'campaign') {
+                // Adset có budget, đang ở tab campaign → hiển thị "Ngân sách nhóm QC" + số tiền
+                if (row.budget && row.budget > 0) {
+                  budgetDisplay = `Ngân sách nhóm QC (${formatCurrency(row.budget, row.currency || 'VND')})`;
+                } else {
+                  budgetDisplay = 'Ngân sách nhóm QC';
+                }
+              } else {
+                // Trường hợp khác: hiển thị số tiền (nếu có)
+                if (row.budget && row.budget > 0) {
+                  budgetDisplay = formatCurrency(row.budget, row.currency || 'VND');
+                } else {
+                  budgetDisplay = '0';
                 }
               }
             }
