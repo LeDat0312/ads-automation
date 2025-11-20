@@ -1175,6 +1175,19 @@ async def get_dashboard_data(
         
         # ===== BUILD SUMMARY từ grouped_data hoặc adset_map =====
         # Summary phải được tính từ grouped_data (sau khi filter) để đảm bảo khớp với Chi Tiết Quảng Cáo
+        # Khởi tạo summary với giá trị mặc định để tránh lỗi nếu có exception
+        summary = {
+            "totalSpend": 0,
+            "totalData": 0 if view_mode == "lead" else None,
+            "avgGiaData": 0 if view_mode == "lead" else None,
+            "totalLead": 0 if view_mode == "lead" else None,
+            "adsPercent": 0 if view_mode == "ecommerce" else None,
+            "purchaseValue": 0 if view_mode == "ecommerce" else None,
+            "activeAdsets": 0,
+            "pausedAdsets": 0,
+            "totalAdsets": 0
+        }
+        
         total_spend = sum(r.get('spend', 0) or 0 for r in rows)
         total_data = sum(r.get('results', 0) or 0 for r in rows)  # comments + messages
         total_lead = sum(r.get('initiated_checkout', 0) or r.get('checkouts_initiated', 0) or 0 for r in rows)
