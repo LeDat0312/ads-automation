@@ -348,7 +348,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                 {/* % ADS (chỉ Ecommerce) */}
                 {viewMode === 'ecommerce' && (
                   <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#ef4444', fontWeight: 600 }}>
-                    {formatPercentage(totals.ads_percent || 0)}%
+                    {formatPercentage((totals.ads_percent || 0) * 100)}%
                   </td>
                 )}
                 {/* Kết Quả */}
@@ -894,7 +894,7 @@ const TableRow: React.FC<TableRowProps> = ({
 
         {/* % ADS */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#ef4444', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('ads_percent')}px`, minWidth: `${getColumnWidth('ads_percent')}px` }}>
-          {formatPercentage(row.ads_percent || 0)}%
+          {formatPercentage((row.ads_percent || 0) * 100)}%
         </td>
 
         {/* Results (Kết quả) */}
