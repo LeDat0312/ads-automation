@@ -1157,13 +1157,14 @@ def pull_facebook_data(
     Returns:
         List of ad metrics dictionaries
     """
-    # Fields hợp lệ cho insights
+    # 🔹 TỐI ƯU: Chỉ fetch những fields cần thiết (theo yêu cầu)
+    # Fields hợp lệ cho insights - chỉ lấy những fields thực sự dùng
     fields = [
         'account_name', 'account_id', 'campaign_name', 'campaign_id',
         'adset_id', 'adset_name',
         'ad_id', 'ad_name',
         'spend', 'impressions', 'reach', 'frequency', 'clicks', 'ctr', 'cpc',
-        'cost_per_initiate_checkout', 'cost_per_purchase',
+        # cost_per_initiate_checkout và cost_per_purchase có thể tính từ cost_per_action_type, nhưng giữ lại để đảm bảo tương thích
         'cost_per_action_type', 'actions', 'action_values'
     ]
     fields_string = ','.join(fields)

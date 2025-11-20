@@ -845,32 +845,9 @@ async def get_dashboard_data(
         if level == "adset" and adset_map:
             logger.info(f"📊 Dùng adset_map ({len(adset_map)} adsets) thay vì group từ all_data")
             # Convert adset_map thành grouped_data format
+            # 🔹 LƯU Ý: adset_map đã được build từ rows_for_table (đã filter prefix/status/search), nên KHÔNG cần filter lại
             grouped_data = {}
             for adset_id, adset in adset_map.items():
-                # Apply filters (status, search) nếu có
-                should_include = True
-                
-                # Filter by status
-                if status_filter:
-                    effective_status = adset.get('effective_status', 'UNKNOWN').upper()
-                    if effective_status != status_filter:
-                        should_include = False
-                
-                # Filter by search
-                if search and should_include:
-                    search_lower = search.lower()
-                    adset_name = (adset.get('adset_name', '') or '').lower()
-                    campaign_name = (adset.get('campaign_name', '') or '').lower()
-                    adset_id_str = (adset_id or '').lower()
-                    campaign_id = (adset.get('campaign_id', '') or '').lower()
-                    if (search_lower not in adset_name and 
-                        search_lower not in campaign_name and 
-                        search_lower not in adset_id_str and 
-                        search_lower not in campaign_id):
-                        should_include = False
-                
-                if not should_include:
-                    continue
                 
                 # Convert adset_map entry thành grouped_data format
                 grouped_data[adset_id] = {
@@ -1097,15 +1074,19 @@ async def get_dashboard_data(
             cpc = (spend / clicks) if clicks > 0 else 0
             frequency = (impressions / reach) if reach > 0 else 0
             
-            # Lấy budget info từ group (nếu có từ adset_map)
-            adset_daily_budget = group.get('adset_daily_budget')
-            campaign_daily_budget = group.get('campaign_daily_budget')
-            using_campaign_budget = group.get('using_campaign_budget', False)
-            
             # Lấy cost metrics từ group (nếu có từ adset_map hoặc từ row aggregation)
             cost_per_checkout_from_group = group.get('cost_per_checkout') or group.get('cost_per_checkout_initiated')
             cost_per_purchase_from_group = group.get('cost_per_purchase')
             ads_ratio = group.get('ads_ratio')
+            
+            # 🔹 FIX CBO BUDGET: Đảm bảo budget không hiển thị 0 khi có campaign budget
+            # Nếu using_campaign_budget = True → budget phải là campaign_daily_budget (không phải 0)
+            final_budget = budget
+            if using_campaign_budget and campaign_daily_budget and campaign_daily_budget > 0:
+                final_budget = campaign_daily_budget
+            elif budget is None or budget == 0:
+                # Nếu budget = None hoặc 0 → set None để frontend hiển thị "-"
+                final_budget = None
             
             row_data = {
                 "level": level,  # ← Thêm level để frontend biết đây là campaign/adset/ad
@@ -1118,7 +1099,7 @@ async def get_dashboard_data(
                 "id": group['id'],
                 "name": group['name'] or "-",
                 "delivery": group['delivery'],
-                "budget": round(budget, 2),
+                "budget": round(final_budget, 2) if final_budget is not None else None,  # 🔹 FIX: Không hiển thị 0
                 "budget_level": budget_level,
                 "adset_daily_budget": round(adset_daily_budget, 2) if adset_daily_budget is not None else None,
                 "campaign_daily_budget": round(campaign_daily_budget, 2) if campaign_daily_budget is not None else None,
@@ -1137,10 +1118,7 @@ async def get_dashboard_data(
                 "view_mode": view_mode
             }
             
-            # Lấy budget info và cost metrics từ group (nếu có từ adset_map hoặc từ row aggregation)
-            adset_daily_budget = group.get('adset_daily_budget')
-            campaign_daily_budget = group.get('campaign_daily_budget')
-            using_campaign_budget = group.get('using_campaign_budget', False)
+            # Lấy cost metrics từ group (nếu có từ adset_map hoặc từ row aggregation)
             cost_per_checkout_from_map = group.get('cost_per_checkout') or group.get('cost_per_checkout_initiated')
             cost_per_purchase_from_map = group.get('cost_per_purchase')
             ads_ratio_from_map = group.get('ads_ratio')
