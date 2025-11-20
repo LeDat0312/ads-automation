@@ -857,6 +857,22 @@ async def get_dashboard_data(
                         budget = adset_budget if adset_budget > 0 else campaign_budget
                         budget_level = row_budget_level
                     
+                    # Xác định adset_daily_budget, campaign_daily_budget, using_campaign_budget
+                    # Lấy từ row hoặc campaign_budgets_map
+                    adset_daily_budget_val = adset_budget if adset_budget > 0 else None
+                    campaign_daily_budget_val = campaign_budget if campaign_budget > 0 else None
+                    # Nếu không có trong row, thử lấy từ campaign_budgets_map
+                    if not campaign_daily_budget_val and row.get('campaign_id'):
+                        campaign_info = campaign_budgets_map.get(row.get('campaign_id'), {}) if campaign_budgets_map else {}
+                        if campaign_info:
+                            campaign_daily_budget_val = float(campaign_info.get('daily_budget', 0) or campaign_info.get('lifetime_budget', 0) or 0)
+                            if campaign_daily_budget_val == 0:
+                                campaign_daily_budget_val = None
+                    
+                    using_campaign_budget_val = False
+                    if adset_daily_budget_val is None and campaign_daily_budget_val is not None:
+                        using_campaign_budget_val = True
+                    
                     # Chỉ set metadata lần đầu
                     grouped_data[entity_key].update({
                         'id': entity_id,
@@ -868,6 +884,9 @@ async def get_dashboard_data(
                         'delivery': normalize_status((row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper()),
                         'budget': budget,
                         'budget_level': budget_level,
+                        'adset_daily_budget': adset_daily_budget_val,
+                        'campaign_daily_budget': campaign_daily_budget_val,
+                        'using_campaign_budget': using_campaign_budget_val,
                         'currency': 'VND',
                         'campaign_id': row.get('campaign_id', ''),
                         'campaign_name': row.get('campaign_name', ''),
