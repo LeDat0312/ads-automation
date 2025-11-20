@@ -210,12 +210,31 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                     position: col.fixed ? 'sticky' : 'relative',
                     top: 0,
                     zIndex: col.fixed ? 10 : 1,
-                    width: typeof col.width === 'number' ? `${col.width}px` : undefined,
-                    minWidth: typeof col.width === 'number' ? `${col.width}px` : undefined,
-                    ...(col.key === 'select' ? { left: 0, padding: '8px' } :
-                        col.key === 'status' ? { left: '3rem', padding: '8px' } :
-                        col.key === 'name' ? { left: '5.5rem', padding: '12px' } :
-                        { padding: '12px' }),
+                    width: `${getColumnWidth(col.key)}px`,
+                    minWidth: `${getColumnWidth(col.key)}px`,
+                    ...(col.key === 'select' ? { 
+                        left: 0, 
+                        padding: '8px',
+                        width: `${getColumnWidth('select')}px`,
+                        minWidth: `${getColumnWidth('select')}px`
+                      } :
+                        col.key === 'status' ? { 
+                        left: `${getColumnWidth('select')}px`, 
+                        padding: '8px',
+                        width: `${getColumnWidth('status')}px`,
+                        minWidth: `${getColumnWidth('status')}px`
+                      } :
+                        col.key === 'name' ? { 
+                        left: `${getColumnWidth('select') + getColumnWidth('status')}px`, 
+                        padding: '8px 12px',
+                        width: `${getColumnWidth('name')}px`,
+                        minWidth: `${getColumnWidth('name')}px`
+                      } :
+                        { 
+                        padding: '12px',
+                        width: `${getColumnWidth(col.key)}px`,
+                        minWidth: `${getColumnWidth(col.key)}px`
+                      }),
                     textAlign: (col.key === 'select' || col.key === 'status' || col.key === 'delivery') ? 'center' :
                                (col.key === 'name') ? 'left' :
                                (col.sortable || ['spend', 'results', 'data_cost', 'cost_per_checkout_initiated', 'checkouts_initiated', 'cost_per_purchase', 'purchases', 'cpm', 'impressions', 'reach', 'frequency', 'clicks', 'ctr', 'cpc', 'budget'].includes(col.key)) ? 'center' : 'left'
@@ -249,7 +268,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                           e.stopPropagation();
                           const startX = e.clientX;
                           // Lấy width hiện tại từ state hoặc default
-                          const currentWidth = columnWidths[col.key] || col.width || defaultWidths[col.key] || 128;
+                          const currentWidth = getColumnWidth(col.key);
                           let lastWidth = currentWidth;
                           
                           const handleMouseMove = (e: MouseEvent) => {
