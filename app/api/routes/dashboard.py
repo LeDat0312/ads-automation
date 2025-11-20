@@ -863,7 +863,7 @@ async def get_dashboard_data(
                     'gia_tri_chuyen_doi_tu_luot_mua': adset.get('purchase_value', 0.0),
                     'checkouts_initiated': adset.get('checkouts_initiated', 0),
                     'checkout_initiated': adset.get('checkouts_initiated', 0),  # Alias
-                    'onsite_conversion_post_save': 0,  # Sẽ tính từ insights nếu cần
+                    'onsite_conversion_post_save': adset.get('onsite_conversion_post_save', 0),  # Lead Gen: từ actions
                     'cost_per_checkout': adset.get('cost_per_checkout'),
                     'cost_per_purchase': adset.get('cost_per_purchase'),
                     'ads_ratio': adset.get('ads_ratio')
