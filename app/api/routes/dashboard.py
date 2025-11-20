@@ -857,6 +857,8 @@ async def get_dashboard_data(
             }
             
             if view_mode == "ecommerce":
+                # Tính % ADS: spend / purchase_value * 100
+                # Nếu purchase_value = 0 nhưng có purchases > 0, có thể là do chưa có giá trị conversion
                 ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
                 tlc = (purchases / results * 100) if results > 0 else 0
                 cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
@@ -873,6 +875,9 @@ async def get_dashboard_data(
                     "purchases": purchases,
                     "purchase_value": round(purchase_value, 2)
                 })
+                # Debug log để kiểm tra % ADS
+                if spend > 0:
+                    logger.debug(f"   🔍 Row {group.get('name', 'N/A')}: spend={spend}, purchase_value={purchase_value}, ads_percent={ads_percent}")
             else:  # lead
                 cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
                 cost_per_purchase = (spend / purchases) if purchases > 0 else 0
@@ -889,6 +894,7 @@ async def get_dashboard_data(
         # Sort toàn bộ rows trước khi paginate
         if sort_by:
             reverse_order = (sort_order or 'desc').lower() == 'desc'
+            logger.info(f"   📊 Bắt đầu sắp xếp: sort_by={sort_by}, sort_order={sort_order}, reverse_order={reverse_order}")
             try:
                 # Map frontend column names to backend field names
                 column_map = {
@@ -909,8 +915,10 @@ async def get_dashboard_data(
                     'cpc': 'cpc',
                     'reach': 'reach',
                     'frequency': 'frequency',
+                    'budget': 'budget',
                 }
                 backend_field = column_map.get(sort_by, sort_by)
+                logger.info(f"   📊 Mapped {sort_by} -> {backend_field}")
                 
                 def get_sort_value_safe(row):
                     value = row.get(backend_field)
@@ -929,8 +937,12 @@ async def get_dashboard_data(
                 # Sort: valid numbers trước, zeros/invalid ở cuối
                 rows.sort(key=get_sort_value_safe, reverse=reverse_order)
                 logger.info(f"   📊 Đã sắp xếp {len(rows)} rows theo {sort_by} -> {backend_field} ({sort_order})")
+                # Log một vài giá trị đầu tiên để debug
+                if rows:
+                    sample_values = [row.get(backend_field, 'N/A') for row in rows[:3]]
+                    logger.info(f"   📊 Sample values sau sort: {sample_values}")
             except Exception as e:
-                logger.warning(f"   ⚠️ Lỗi khi sắp xếp theo {sort_by}: {e}")
+                logger.error(f"   ⚠️ Lỗi khi sắp xếp theo {sort_by}: {e}", exc_info=True)
         
         # Tính tổng kết và trung bình từ TẤT CẢ rows (trước khi paginate)
         totals = {}
