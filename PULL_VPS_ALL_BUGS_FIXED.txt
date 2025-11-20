@@ -1,0 +1,94 @@
+# Hướng dẫn Pull Code Mới Về VPS - Fix Tất Cả Bugs (BUG 1, 2, 3, 4, 5)
+
+## Cách 1: Sử dụng script tự động (Khuyến nghị)
+
+```bash
+cd ~/ads-automation
+chmod +x PULL_VPS_ALL_BUGS_FIXED.sh
+./PULL_VPS_ALL_BUGS_FIXED.sh
+```
+
+## Cách 2: Thực hiện thủ công từng bước
+
+```bash
+# 1. Dừng service và kill process trên port 8000
+sudo lsof -ti:8000 | xargs sudo kill -9 2>/dev/null
+sudo supervisorctl stop ads-automation
+sudo supervisorctl stop ads-worker
+sleep 2
+
+# 2. Pull code mới từ GitHub
+cd ~/ads-automation
+git pull origin main
+
+# 3. Build frontend (nếu có thay đổi)
+cd frontend
+npm install  # Chỉ cần chạy nếu chưa có node_modules
+npm run build
+sudo chown -R www-data:www-data dist
+sudo chmod -R 755 dist
+cd ..
+
+# 4. Restart services
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl restart ads-automation
+sudo supervisorctl restart ads-worker
+
+# 5. Kiểm tra status
+sleep 5
+sudo supervisorctl status
+sudo tail -20 /var/log/ads-automation.log
+```
+
+## Thay đổi chính trong lần update này:
+
+### ✅ BUG 1: Fix budget display for CBO
+- Backend: Thêm `adset_daily_budget`, `campaign_daily_budget`, `using_campaign_budget` fields
+- Frontend: Hiển thị đúng campaign budget khi `using_campaign_budget` is true
+- Kết quả: Khi campaign có budget (CBO) và đang ở tab "Nhóm quảng cáo", hiển thị "Ngân sách chiến dịch (xxx.xxx ₫)" thay vì "0"
+
+### ✅ BUG 2: Fix sorting, cost metrics mapping, resize & sticky columns
+- Backend: Đã map đúng `omni_initiated_checkout` và `omni_purchase` từ Facebook API
+- Frontend: Tất cả các cột số đều sortable (bao gồm budget)
+- Frontend: Resize columns và sticky columns (select, status, name) đã hoạt động
+
+### ✅ BUG 3: Fix E-Commerce view - Add % ADS and cost/checkouts/purchases metrics
+- Backend: Đã tính `ads_ratio`, `cost_per_checkout`, `cost_per_purchase`, `tlc`
+- Frontend: Hiển thị đầy đủ các metrics (% ADS, TLC, Cost per Checkout, Checkouts Initiated, Cost per Purchase, Purchases, Purchase Value)
+- Frontend: Sửa TLC calculation để dùng `row.tlc` trực tiếp từ backend
+
+### ✅ BUG 4: Fix totals/averages footer row
+- Backend: Đã tính `totals` từ tất cả rows (trước khi paginate)
+- Frontend: Totals row hiển thị đầy đủ các metrics cho cả Lead và E-Commerce view
+- Frontend: Sửa `ads_percent` display (nhân 100 từ ratio) trong totals row và table row
+- Frontend: Sửa `adsPercent` display trong SummaryCards
+
+### ✅ BUG 5: Fix adset counting
+- Backend: Fetch `struct_adsets` từ Graph API, build `adset_map` từ `struct_adsets` trước, sau đó merge insights
+- Backend: Tính `summary` từ `grouped_data`/`adset_map` (sau khi filter) để đảm bảo khớp với bảng "Chi Tiết Quảng Cáo"
+- Kết quả: Đếm đúng tổng, active, paused adsets, dẫn đến tổng chi tiêu chính xác
+
+## Kiểm tra sau khi update:
+
+1. **Budget Display:**
+   - Kiểm tra khi campaign có budget (CBO) và đang ở tab "Nhóm quảng cáo", budget có hiển thị "Ngân sách chiến dịch (xxx.xxx ₫)" không
+   - Kiểm tra khi adset có budget và đang ở tab "Chiến dịch", budget có hiển thị "Ngân sách nhóm QC (xxx.xxx ₫)" không
+
+2. **Sorting:**
+   - Kiểm tra tất cả các cột số có thể sort được không (click header để sort)
+   - Kiểm tra sorting có áp dụng cho toàn bộ dataset (không chỉ trang hiện tại) không
+
+3. **E-Commerce Metrics:**
+   - Kiểm tra % ADS có hiển thị đúng không (ví dụ: 15% thay vì 0.15%)
+   - Kiểm tra TLC, Cost per Checkout, Checkouts Initiated, Cost per Purchase, Purchases, Purchase Value có hiển thị đúng không
+
+4. **Totals Row:**
+   - Kiểm tra totals row có hiển thị đầy đủ các metrics không
+   - Kiểm tra % ADS trong totals row có hiển thị đúng không (nhân 100)
+
+5. **Adset Counting:**
+   - Kiểm tra số lượng adsets trong summary cards có khớp với bảng "Chi Tiết Quảng Cáo" không
+   - Kiểm tra tổng chi tiêu có chính xác không
+   - Kiểm tra khi filter theo status, số lượng adsets có thay đổi đúng không
+
