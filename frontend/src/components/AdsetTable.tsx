@@ -284,6 +284,98 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                 />
               );
             })}
+            
+            {/* Tổng kết row */}
+            {totals && (
+              <tr style={{ 
+                background: '#f9fafb', 
+                borderTop: '2px solid #e5e7eb',
+                fontWeight: 600
+              }}>
+                {/* Chọn, Bật/Tắt, Tên - 3 cột đầu */}
+                <td colSpan={3} style={{ padding: '12px', textAlign: 'left', fontSize: '14px', color: '#1f2937', fontWeight: 600 }}>
+                  Tổng
+                </td>
+                {/* Phân Phối */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#1f2937' }}></td>
+                {/* Ngân Sách */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#1f2937' }}></td>
+                {/* Chi Tiêu */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#1f2937', fontWeight: 600 }}>
+                  {formatCurrency(totals.spend || 0, currency)}
+                </td>
+                {/* % ADS (chỉ Ecommerce) */}
+                {viewMode === 'ecommerce' && (
+                  <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#ef4444', fontWeight: 600 }}>
+                    {formatPercentage(totals.ads_percent || 0)}%
+                  </td>
+                )}
+                {/* Kết Quả */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#22c55e', fontWeight: 600 }}>
+                  {formatNumber(totals.results || 0)}
+                </td>
+                {/* Giá DATA */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#9333ea', fontWeight: 600 }}>
+                  {formatCurrency(totals.data_cost || 0, currency)}
+                </td>
+                {/* TLC (chỉ Ecommerce) */}
+                {viewMode === 'ecommerce' && (
+                  <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                    {formatPercentage(totals.tlc || 0)}%
+                  </td>
+                )}
+                {/* Chi Phí/BĐTT */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  {formatCurrency(totals.cost_per_checkout_initiated || 0, currency)}
+                </td>
+                {/* Bắt Đầu TT */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  {formatNumber(totals.initiated_checkout || 0)}
+                </td>
+                {/* Chi phí / LM */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  {formatCurrency(totals.cost_per_purchase || 0, currency)}
+                </td>
+                {/* Lượt Mua */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: viewMode === 'ecommerce' ? '#ec4899' : '#22c55e', fontWeight: 600 }}>
+                  {formatNumber(totals.purchases || 0)}
+                </td>
+                {/* Giá Trị CĐ (chỉ Ecommerce) */}
+                {viewMode === 'ecommerce' && (
+                  <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#22c55e', fontWeight: 600 }}>
+                    {formatCurrency(totals.purchase_value || 0, currency)}
+                  </td>
+                )}
+                {/* CPM */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  {formatCurrency(totals.cpm || 0, currency)}
+                </td>
+                {/* Hiển Thị */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  {formatNumber(totals.impressions || 0)}
+                </td>
+                {/* Tiếp Cận */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  {formatNumber(totals.reach || 0)}
+                </td>
+                {/* Tần Suất */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  {(totals.frequency || 0).toFixed(2)}
+                </td>
+                {/* Nhấp */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  {formatNumber(totals.clicks || 0)}
+                </td>
+                {/* CTR */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  {formatPercentage(totals.ctr || 0)}%
+                </td>
+                {/* CPC */}
+                <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  {formatCurrency(totals.cpc || 0, currency)}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
