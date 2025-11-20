@@ -3,14 +3,32 @@ import axios from 'axios';
 
 interface CompetitorAd {
   id: string;
+  ad_id?: string;
   title: string;
   description: string;
+  ad_text?: string;
   image_url?: string;
   video_url?: string;
+  ad_image_url?: string;
+  ad_video_url?: string;
   page_name?: string;
   page_id?: string;
   ad_url?: string;
   scraped_at: string;
+}
+
+interface MediaDownloadResult {
+  ad_id: string;
+  image?: {
+    filename: string;
+    path: string;
+    size_mb: number;
+  };
+  video?: {
+    filename: string;
+    path: string;
+    size_mb: number;
+  };
 }
 
 interface SearchResult {
@@ -24,21 +42,24 @@ const CompetitorResearch: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<CompetitorAd[]>([]);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Search state
   const [keyword, setKeyword] = useState('');
   const [searchLimit, setSearchLimit] = useState(20);
-  
+
   // Scrape state
   const [adUrl, setAdUrl] = useState('');
-  
+
   // Competitor state
   const [pageId, setPageId] = useState('');
   const [competitorLimit, setCompetitorLimit] = useState(50);
-  
+
   // Analytics state
   const [selectedAds, setSelectedAds] = useState<Set<string>>(new Set());
-  // const [analyticsData, setAnalyticsData] = useState<any[]>([]); // TODO: implement analytics
+
+  // Media download state
+  const [downloading, setDownloading] = useState<Set<string>>(new Set());
+  const [downloadResults, setDownloadResults] = useState<Map<string, MediaDownloadResult>>(new Map());
 
   useEffect(() => {
     // Check API key status
@@ -190,6 +211,87 @@ const CompetitorResearch: React.FC = () => {
     link.click();
   };
 
+  // Media download functions
+  const handleDownloadMedia = async (ad: CompetitorAd) => {
+    const adId = ad.ad_id || ad.id;
+
+    // Prevent duplicate downloads
+    if (downloading.has(adId)) {
+      return;
+    }
+
+    setDownloading(prev => new Set(prev).add(adId));
+
+    try {
+      const response = await axios.post('/competitor/media/download', {
+        ad_id: adId,
+        ad_image_url: ad.ad_image_url || ad.image_url,
+        ad_video_url: ad.ad_video_url || ad.video_url,
+        page_name: ad.page_name || 'unknown',
+        force_redownload: false
+      });
+
+      if (response.data.success) {
+        const newResults = new Map(downloadResults);
+        newResults.set(adId, response.data);
+        setDownloadResults(newResults);
+
+        // Show success message
+        console.log(`✅ Downloaded media for ad ${adId}`);
+      } else {
+        console.error(`Failed to download media: ${response.data.message}`);
+      }
+    } catch (error: any) {
+      console.error(`Error downloading media: ${error.message}`);
+    } finally {
+      setDownloading(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(adId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleBatchDownloadSelected = async () => {
+    const selectedAdsList = results.filter(ad => selectedAds.has(ad.id));
+
+    if (selectedAdsList.length === 0) {
+      alert('Please select ads to download');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const adsPayload = selectedAdsList.map(ad => ({
+        ad_id: ad.ad_id || ad.id,
+        ad_image_url: ad.ad_image_url || ad.image_url,
+        ad_video_url: ad.ad_video_url || ad.video_url,
+        page_name: ad.page_name || 'unknown'
+      }));
+
+      const response = await axios.post('/competitor/media/batch-download', {
+        ads: adsPayload,
+        concurrent_limit: 3
+      });
+
+      if (response.data.success) {
+        alert(`✅ Downloaded media for ${response.data.downloaded}/${response.data.total_ads} ads`);
+
+        // Update download results
+        const newResults = new Map(downloadResults);
+        response.data.results.forEach((result: MediaDownloadResult) => {
+          newResults.set(result.ad_id, result);
+        });
+        setDownloadResults(newResults);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 p-4">
       <div className="max-w-7xl mx-auto">
@@ -210,41 +312,37 @@ const CompetitorResearch: React.FC = () => {
           <div className="flex border-b">
             <button
               onClick={() => setActiveTab('search')}
-              className={`px-6 py-4 font-semibold transition-colors ${
-                activeTab === 'search'
-                  ? 'border-b-2 border-purple-500 text-purple-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`px-6 py-4 font-semibold transition-colors ${activeTab === 'search'
+                ? 'border-b-2 border-purple-500 text-purple-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               🔎 Tìm kiếm
             </button>
             <button
               onClick={() => setActiveTab('scrape')}
-              className={`px-6 py-4 font-semibold transition-colors ${
-                activeTab === 'scrape'
-                  ? 'border-b-2 border-purple-500 text-purple-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`px-6 py-4 font-semibold transition-colors ${activeTab === 'scrape'
+                ? 'border-b-2 border-purple-500 text-purple-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               📄 Scrape Ad
             </button>
             <button
               onClick={() => setActiveTab('competitor')}
-              className={`px-6 py-4 font-semibold transition-colors ${
-                activeTab === 'competitor'
-                  ? 'border-b-2 border-purple-500 text-purple-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`px-6 py-4 font-semibold transition-colors ${activeTab === 'competitor'
+                ? 'border-b-2 border-purple-500 text-purple-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               👤 Đối thủ
             </button>
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`px-6 py-4 font-semibold transition-colors ${
-                activeTab === 'analytics'
-                  ? 'border-b-2 border-purple-500 text-purple-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`px-6 py-4 font-semibold transition-colors ${activeTab === 'analytics'
+                ? 'border-b-2 border-purple-500 text-purple-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               📊 Phân tích ({results.length})
             </button>
@@ -369,12 +467,22 @@ const CompetitorResearch: React.FC = () => {
               <h2 className="text-2xl font-bold">📊 Kết quả phân tích ({results.length} ads)</h2>
               <div className="flex gap-2">
                 {selectedAds.size > 0 && (
-                  <button
-                    onClick={exportSelectedAds}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    📥 Export {selectedAds.size} ads (JSON)
-                  </button>
+                  <>
+                    <button
+                      onClick={handleBatchDownloadSelected}
+                      disabled={loading}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                    >
+                      <span>📥</span>
+                      <span>Download {selectedAds.size} media</span>
+                    </button>
+                    <button
+                      onClick={exportSelectedAds}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      📥 Export {selectedAds.size} ads (JSON)
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={exportToCSV}
@@ -396,47 +504,99 @@ const CompetitorResearch: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {results.map((ad) => (
-                  <div
-                    key={ad.id}
-                    className={`border-2 rounded-lg p-4 transition-all ${
-                      selectedAds.has(ad.id)
-                        ? 'border-purple-500 bg-purple-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-start gap-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedAds.has(ad.id)}
-                        onChange={() => toggleAdSelection(ad.id)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg mb-2">{ad.title || 'Không có tiêu đề'}</h3>
-                        <p className="text-gray-600 mb-2">{ad.description || 'Không có mô tả'}</p>
-                        <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                          {ad.page_name && <span>📄 {ad.page_name}</span>}
-                          {ad.page_id && <span>🆔 {ad.page_id}</span>}
-                          {ad.scraped_at && <span>🕒 {new Date(ad.scraped_at).toLocaleString('vi-VN')}</span>}
+                {results.map((ad) => {
+                  const adId = ad.ad_id || ad.id;
+                  const isDownloading = downloading.has(adId);
+                  const downloadResult = downloadResults.get(adId);
+
+                  return (
+                    <div
+                      key={ad.id}
+                      className={`border-2 rounded-lg p-4 transition-all ${selectedAds.has(ad.id)
+                          ? 'border-purple-500 bg-purple-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedAds.has(ad.id)}
+                          onChange={() => toggleAdSelection(ad.id)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start mb-2">
+                            <h3 className="font-semibold text-lg">{ad.title || ad.ad_text || 'Không có tiêu đề'}</h3>
+                            {(ad.ad_image_url || ad.image_url || ad.ad_video_url || ad.video_url) && (
+                              <button
+                                onClick={() => handleDownloadMedia(ad)}
+                                disabled={isDownloading}
+                                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${downloadResult
+                                    ? 'bg-green-100 text-green-700'
+                                    : isDownloading
+                                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                                  }`}
+                                title={downloadResult ? 'Media already downloaded' : 'Download media'}
+                              >
+                                {isDownloading ? (
+                                  <span className="flex items-center gap-1">
+                                    <span className="animate-spin">⏳</span>
+                                    <span>Downloading...</span>
+                                  </span>
+                                ) : downloadResult ? (
+                                  <span className="flex items-center gap-1">
+                                    <span>✅</span>
+                                    <span>Downloaded</span>
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1">
+                                    <span>📥</span>
+                                    <span>Download Media</span>
+                                  </span>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-gray-600 mb-2">{ad.description || 'Không có mô tả'}</p>
+
+                          {downloadResult && (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-2 text-sm">
+                              <div className="flex items-center gap-2 text-green-700">
+                                <span>✅ Downloaded:</span>
+                                {downloadResult.image && (
+                                  <span>Image ({downloadResult.image.size_mb}MB)</span>
+                                )}
+                                {downloadResult.video && (
+                                  <span>Video ({downloadResult.video.size_mb}MB)</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                            {ad.page_name && <span>📄 {ad.page_name}</span>}
+                            {ad.page_id && <span>🆔 {ad.page_id}</span>}
+                            {ad.scraped_at && <span>🕒 {new Date(ad.scraped_at).toLocaleString('vi-VN')}</span>}
+                          </div>
+                          {ad.image_url && (
+                            <img src={ad.image_url} alt={ad.title} className="mt-4 max-w-md rounded-lg" />
+                          )}
+                          {ad.ad_url && (
+                            <a
+                              href={ad.ad_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 inline-block text-purple-600 hover:underline"
+                            >
+                              🔗 Xem quảng cáo gốc
+                            </a>
+                          )}
                         </div>
-                        {ad.image_url && (
-                          <img src={ad.image_url} alt={ad.title} className="mt-4 max-w-md rounded-lg" />
-                        )}
-                        {ad.ad_url && (
-                          <a
-                            href={ad.ad_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-2 inline-block text-purple-600 hover:underline"
-                          >
-                            🔗 Xem quảng cáo gốc
-                          </a>
-                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -447,4 +607,3 @@ const CompetitorResearch: React.FC = () => {
 };
 
 export default CompetitorResearch;
-

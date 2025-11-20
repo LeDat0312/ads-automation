@@ -21,6 +21,7 @@ from app.services.scrapegraphai_service import (
     CompetitorAdData,
     get_scrapegraphai_api_key
 )
+from app.services.media_downloader import get_media_downloader
 
 logger = logging.getLogger(__name__)
 
@@ -593,7 +594,238 @@ async def search_ads_endpoint(
         raise HTTPException(status_code=500, detail=f"Error searching ads: {str(e)}")
 
 
+# ==================== MEDIA DOWNLOAD ENDPOINTS ====================
+
+class DownloadMediaRequest(BaseModel):
+    ad_id: str
+    ad_image_url: Optional[str] = None
+    ad_video_url: Optional[str] = None
+    page_name: Optional[str] = "unknown"
+    force_redownload: bool = False
+
+
+class BatchDownloadRequest(BaseModel):
+    ads: List[dict]  # List of ad dicts with ad_id, ad_image_url, ad_video_url, page_name
+    concurrent_limit: int = 3
+
+
+@router.post("/media/download")
+async def download_ad_media(
+    request: Request,
+    payload: DownloadMediaRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db = Depends(get_db)
+):
+    """
+    Download ảnh và video của một ad
+    
+    Args:
+        payload: {
+            ad_id: str,
+            ad_image_url: Optional[str],
+            ad_video_url: Optional[str],
+            page_name: Optional[str],
+            force_redownload: bool
+        }
+    
+    Returns:
+        {
+            success: bool,
+            ad_id: str,
+            image: {...} or None,
+            video: {...} or None
+        }
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        downloader = get_media_downloader()
+        
+        ad_data = {
+            "ad_id": payload.ad_id,
+            "ad_image_url": payload.ad_image_url,
+            "ad_video_url": payload.ad_video_url,
+            "page_name": payload.page_name or "unknown"
+        }
+        
+        result = await downloader.download_ad_media(ad_data, payload.force_redownload)
+        
+        return JSONResponse({
+            "success": True,
+            "ad_id": result["ad_id"],
+            "image": result["image"],
+            "video": result["video"],
+            "message": "Media downloaded successfully" if (result["image"] or result["video"]) else "No media to download"
+        })
+    
+    except Exception as e:
+        logger.error(f"Error downloading media: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error downloading media: {str(e)}")
+
+
+@router.post("/media/batch-download")
+async def batch_download_media(
+    request: Request,
+    payload: BatchDownloadRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db = Depends(get_db)
+):
+    """
+    Download media cho nhiều ads cùng lúc
+    
+    Args:
+        payload: {
+            ads: List[{ad_id, ad_image_url, ad_video_url, page_name}],
+            concurrent_limit: int (default 3)
+        }
+    
+    Returns:
+        {
+            success: bool,
+            total_ads: int,
+            downloaded: int,
+            results: [...]
+        }
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        downloader = get_media_downloader()
+        
+        results = await downloader.batch_download_ads(
+            payload.ads,
+            payload.concurrent_limit
+        )
+        
+        # Count successful downloads
+        downloaded = sum(1 for r in results if r.get('image') or r.get('video'))
+        
+        return JSONResponse({
+            "success": True,
+            "total_ads": len(payload.ads),
+            "downloaded": downloaded,
+            "results": results,
+            "message": f"Downloaded media for {downloaded}/{len(payload.ads)} ads"
+        })
+    
+    except Exception as e:
+        logger.error(f"Error batch downloading: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error batch downloading: {str(e)}")
+
+
+@router.get("/media/storage-stats")
+async def get_storage_stats(
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Lấy thống kê storage
+    
+    Returns:
+        {
+            total_images: int,
+            total_videos: int,
+            total_files: int,
+            total_size_mb: float,
+            storage_path: str
+        }
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        downloader = get_media_downloader()
+        stats = downloader.get_storage_stats()
+        
+        return JSONResponse({
+            "success": True,
+            "stats": stats
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/media/file/{ad_id}")
+async def get_media_file(
+    ad_id: str,
+    media_type: str = Query("image", regex="^(image|video)$"),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Lấy file path của media đã download
+    
+    Args:
+        ad_id: Ad ID
+        media_type: 'image' or 'video'
+    
+    Returns:
+        File info hoặc 404
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        downloader = get_media_downloader()
+        file_path = downloader.get_file_by_ad_id(ad_id, media_type)
+        
+        if not file_path:
+            raise HTTPException(status_code=404, detail=f"No {media_type} found for ad {ad_id}")
+        
+        from fastapi.responses import FileResponse
+        return FileResponse(
+            path=str(file_path),
+            media_type=f"{media_type}/{file_path.suffix[1:]}",
+            filename=file_path.name
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/media/cleanup")
+async def cleanup_old_media(
+    days: int = Query(30, ge=1, le=365),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Xóa media files cũ hơn X ngày
+    
+    Args:
+        days: Số ngày (mặc định 30)
+    
+    Returns:
+        Số files đã xóa
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Chỉ admin mới được cleanup
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    try:
+        downloader = get_media_downloader()
+        deleted_count = downloader.cleanup_old_files(days)
+        
+        return JSONResponse({
+            "success": True,
+            "deleted_count": deleted_count,
+            "message": f"Deleted {deleted_count} files older than {days} days"
+        })
+    
+    except Exception as e:
+        logger.error(f"Error cleaning up: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/health")
+
 async def competitor_research_health(
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)

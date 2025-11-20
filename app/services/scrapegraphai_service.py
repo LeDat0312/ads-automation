@@ -105,51 +105,124 @@ async def scrape_facebook_ad(
     
     try:
         async with httpx.AsyncClient(timeout=SCRAPEGRAPHAI_TIMEOUT) as client:
-            # Sử dụng SmartScraper để scrape Facebook Ad URL
-            # Documentation: https://docs.scrapegraphai.com/api-reference/endpoint/smartscraper/start
-            user_prompt = f"""Extract all information from this Facebook ad URL: {ad_url}
-            
-Please extract the following information in JSON format:
-- ad_id: The Facebook ad ID
-- ad_text: The ad text/copy
-- ad_image_url: URL of the ad image (if any)
-- ad_video_url: URL of the ad video (if any)
-- page_name: Name of the Facebook page running the ad
+            # Enhanced prompt để lấy HIGHEST QUALITY media URLs
+            user_prompt = f"""Extract ALL media information from this Facebook ad in the Ads Library: {ad_url}
+
+CRITICAL: Extract the HIGHEST QUALITY media URLs available.
+
+Required information:
+
+1. AD IDENTIFICATION:
+- ad_id: The unique Facebook ad ID (found in URL or ad details)
+- ad_text: Complete ad copy/text (headline + primary text + description)
+- page_name: Name of the Facebook page
 - page_id: Facebook page ID
-- landing_page_url: The landing page URL the ad links to
-- ad_type: Type of ad (IMAGE, VIDEO, CAROUSEL, etc.)
-- impressions: Number of impressions (if available)
-- engagement: Number of engagements (if available)
-- created_time: When the ad was created (if available)"""
-            
+
+2. MEDIA URLS (HIGHEST QUALITY):
+For IMAGES:
+- ad_image_url: The FULL-SIZE original quality image URL
+- Look for URLs ending with '_o.jpg' or '_o.png' (original quality)
+- If carousel, extract ALL image URLs as array: ad_image_urls
+
+For VIDEOS:
+- ad_video_url: The HD video URL (look for _hd.mp4 or highest bitrate)
+- video_thumbnail_url: Video thumbnail/poster image
+- video_duration: Duration in seconds if available
+
+For CAROUSEL ads:
+- carousel_items: Array of {image_url, video_url, headline} for each card
+
+3. LANDING PAGE:
+- landing_page_url: The destination URL when clicking the ad
+- cta_text: Call-to-action button text (Shop Now, Learn More, etc.)
+
+4. AD TYPE & FORMAT:
+- ad_type: IMAGE, VIDEO, CAROUSEL, COLLECTION, SLIDESHOW
+- platform: Facebook, Instagram, Messenger, Audience Network
+
+5. PERFORMANCE DATA (if visible):
+- impressions_min: Minimum impressions
+- impressions_max: Maximum impressions  
+- spend_min: Minimum spend amount
+- spend_max: Maximum spend amount
+- currency: USD, EUR, VND, etc.
+
+6. TIMELINE:
+- start_date: When ad started running (YYYY-MM-DD)
+- end_date: When ad stopped (YYYY-MM-DD) or null if active
+- is_active: true/false
+
+IMPORTANT NOTES:
+- For images, prioritize URLs with '_o' suffix (original quality)
+- For videos, prioritize '_hd' or highest resolution URLs
+- Extract ALL media URLs if carousel/multiple items
+- Include video thumbnails separately"""
+
             output_schema = {
                 "type": "object",
                 "properties": {
+                    # Basic info
                     "ad_id": {"type": "string"},
                     "ad_text": {"type": "string"},
-                    "ad_image_url": {"type": "string"},
-                    "ad_video_url": {"type": "string"},
                     "page_name": {"type": "string"},
                     "page_id": {"type": "string"},
-                    "landing_page_url": {"type": "string"},
+                    
+                    # Media URLs - Single items
+                    "ad_image_url": {"type": ["string", "null"]},
+                    "ad_video_url": {"type": ["string", "null"]},
+                    "video_thumbnail_url": {"type": ["string", "null"]},
+                    "video_duration": {"type": ["integer", "null"]},
+                    
+                    # Media URLs - Multiple items (carousel)
+                    "ad_image_urls": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "carousel_items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "image_url": {"type": "string"},
+                                "video_url": {"type": "string"},
+                                "headline": {"type": "string"}
+                            }
+                        }
+                    },
+                    
+                    # Landing page
+                    "landing_page_url": {"type": ["string", "null"]},
+                    "cta_text": {"type": ["string", "null"]},
+                    
+                    # Ad type
                     "ad_type": {"type": "string"},
-                    "impressions": {"type": "integer"},
-                    "engagement": {"type": "integer"},
-                    "created_time": {"type": "string"}
+                    "platform": {"type": ["string", "array"]},
+                    
+                    # Performance
+                    "impressions_min": {"type": ["integer", "null"]},
+                    "impressions_max": {"type": ["integer", "null"]},
+                    "spend_min": {"type": ["number", "null"]},
+                    "spend_max": {"type": ["number", "null"]},
+                    "currency": {"type": ["string", "null"]},
+                    
+                    # Timeline
+                    "start_date": {"type": ["string", "null"]},
+                    "end_date": {"type": ["string", "null"]},
+                    "is_active": {"type": ["boolean", "null"]}
                 }
             }
             
             response = await client.post(
                 f"{SCRAPEGRAPHAI_BASE_URL}/smartscraper",
                 headers={
-                    "SGAI-APIKEY": api_key,  # Đúng format theo documentation
+                    "SGAI-APIKEY": api_key,
                     "Content-Type": "application/json"
                 },
                 json={
                     "url": ad_url,
                     "user_prompt": user_prompt,
                     "output_schema": output_schema,
-                    "stealth": True  # Bypass bot protection
+                    "stealth": True
                 }
             )
             
