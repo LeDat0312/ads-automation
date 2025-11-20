@@ -1056,6 +1056,16 @@ async def get_dashboard_data(
                 group['messaging_conversations_started'] += int(row.get('messaging_conversations_started', 0) or 0)
                 group['purchases'] += int(row.get('purchases', 0) or 0)
                 group['gia_tri_chuyen_doi_tu_luot_mua'] += float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0)
+                # Lưu cost metrics từ row (đã parse từ cost_per_action_type trong facebook_api.py)
+                # Chỉ lưu nếu chưa có hoặc nếu row có giá trị hợp lệ
+                if 'cost_per_checkout_initiated' not in group or group.get('cost_per_checkout_initiated') is None:
+                    cost_checkout = row.get('cost_per_checkout_initiated') or row.get('cost_per_checkout')
+                    if cost_checkout and cost_checkout > 0:
+                        group['cost_per_checkout_initiated'] = float(cost_checkout)
+                if 'cost_per_purchase' not in group or group.get('cost_per_purchase') is None:
+                    cost_purchase = row.get('cost_per_purchase')
+                    if cost_purchase and cost_purchase > 0:
+                        group['cost_per_purchase'] = float(cost_purchase)
                 # Tổng hợp checkout: ưu tiên checkouts_initiated (từ actions), fallback checkout_initiated, onsite_conversion_post_save (cho Lead Gen)
                 # QUAN TRỌNG: Với Lead Gen, dùng onsite_conversion_post_save (không dùng pixel checkouts_initiated)
                 checkout_val = 0
@@ -1125,9 +1135,9 @@ async def get_dashboard_data(
             campaign_daily_budget = group.get('campaign_daily_budget')
             using_campaign_budget = group.get('using_campaign_budget', False)
             
-            # Lấy cost metrics từ group (nếu có từ adset_map)
-            cost_per_checkout = group.get('cost_per_checkout')
-            cost_per_purchase = group.get('cost_per_purchase')
+            # Lấy cost metrics từ group (nếu có từ adset_map hoặc từ row aggregation)
+            cost_per_checkout_from_group = group.get('cost_per_checkout') or group.get('cost_per_checkout_initiated')
+            cost_per_purchase_from_group = group.get('cost_per_purchase')
             ads_ratio = group.get('ads_ratio')
             
             row_data = {
@@ -1160,11 +1170,11 @@ async def get_dashboard_data(
                 "view_mode": view_mode
             }
             
-            # Lấy budget info và cost metrics từ group (nếu có từ adset_map)
+            # Lấy budget info và cost metrics từ group (nếu có từ adset_map hoặc từ row aggregation)
             adset_daily_budget = group.get('adset_daily_budget')
             campaign_daily_budget = group.get('campaign_daily_budget')
             using_campaign_budget = group.get('using_campaign_budget', False)
-            cost_per_checkout_from_map = group.get('cost_per_checkout')
+            cost_per_checkout_from_map = group.get('cost_per_checkout') or group.get('cost_per_checkout_initiated')
             cost_per_purchase_from_map = group.get('cost_per_purchase')
             ads_ratio_from_map = group.get('ads_ratio')
             
@@ -1175,13 +1185,13 @@ async def get_dashboard_data(
                 else:
                     ads_percent = (spend / purchase_value) if purchase_value > 0 else 0
                 tlc = (purchases / results * 100) if results > 0 else 0
-                # Dùng cost_per_checkout từ adset_map nếu có, nếu không thì tính từ spend/checkout_starts
-                if cost_per_checkout_from_map is not None:
+                # Dùng cost_per_checkout từ adset_map/group nếu có, nếu không thì tính từ spend/checkout_starts
+                if cost_per_checkout_from_map is not None and cost_per_checkout_from_map > 0:
                     cost_per_checkout_start = cost_per_checkout_from_map
                 else:
                     cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else 0
-                # Dùng cost_per_purchase từ adset_map nếu có, nếu không thì tính từ spend/purchases
-                if cost_per_purchase_from_map is not None:
+                # Dùng cost_per_purchase từ adset_map/group nếu có, nếu không thì tính từ spend/purchases
+                if cost_per_purchase_from_map is not None and cost_per_purchase_from_map > 0:
                     cost_per_purchase = cost_per_purchase_from_map
                 else:
                     cost_per_purchase = (spend / purchases) if purchases > 0 else 0
@@ -1205,14 +1215,14 @@ async def get_dashboard_data(
                     if purchase_value == 0 and purchases > 0:
                         logger.warning(f"   ⚠️ Row {group.get('name', 'N/A')}: purchase_value=0 nhưng purchases={purchases} - có thể do Facebook API không trả về action_values")
             else:  # lead
-                # Dùng cost_per_checkout từ adset_map nếu có, nếu không thì tính từ spend/checkout_starts
-                if cost_per_checkout_from_map is not None:
+                # Dùng cost_per_checkout từ adset_map/group nếu có, nếu không thì tính từ spend/checkout_starts
+                if cost_per_checkout_from_map is not None and cost_per_checkout_from_map > 0:
                     cost_per_checkout_start = cost_per_checkout_from_map
                 else:
                     cost_per_checkout_start = (spend / checkout_starts) if checkout_starts > 0 else None
-                # 🔹 FIX: Dùng cost_per_purchase từ adset_map nếu có, nếu không thì tính từ spend/purchases
+                # 🔹 FIX: Dùng cost_per_purchase từ adset_map/group nếu có, nếu không thì tính từ spend/purchases
                 # KHÔNG set default là 0 nếu không có dữ liệu; dùng None để frontend hiển thị "0 đ"/"-" cho đẹp
-                if cost_per_purchase_from_map is not None:
+                if cost_per_purchase_from_map is not None and cost_per_purchase_from_map > 0:
                     cost_per_purchase = cost_per_purchase_from_map
                 else:
                     cost_per_purchase = (spend / purchases) if purchases > 0 else None

@@ -1586,12 +1586,41 @@ def pull_facebook_data(
                         return value_map
                     
                     val_map = build_value_map(action_values)
-                    purchase_value = pick_first_variant(val_map, bases_pur)
+                    # Purchase value: ưu tiên offsite_conversion.fb_pixel_purchase theo spec
+                    bases_pur_value = ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 
+                                      'purchase', 'offsite_conversion.fb_pixel_purchase']
+                    purchase_value = pick_first_variant(val_map, bases_pur_value)
                     
-                    # Tính % ADS và các metrics khác
-                    percent_ads = (spend / purchase_value * 100) if purchase_value > 0 else 0
-                    cost_per_checkout = float(item.get('cost_per_initiate_checkout', 0) or 0)
-                    cost_per_purchase = float(item.get('cost_per_purchase', 0) or 0)
+                    # Parse cost_per_action_type để lấy cost metrics đúng theo spec
+                    # cost_per_action_type là array giống actions, có action_type và value
+                    cost_per_action_type_list = item.get('cost_per_action_type', [])
+                    cost_per_action_map = {}
+                    if cost_per_action_type_list and isinstance(cost_per_action_type_list, list):
+                        for cost_item in cost_per_action_type_list:
+                            if not cost_item:
+                                continue
+                            action_type = str(cost_item.get('action_type', ''))
+                            value = float(cost_item.get('value', 0) or 0)
+                            if action_type:
+                                if action_type in cost_per_action_map:
+                                    cost_per_action_map[action_type] += value
+                                else:
+                                    cost_per_action_map[action_type] = value
+                    
+                    # Cost per checkout initiated: cost_per_action_type; action_type="omni_initiated_checkout"
+                    cost_per_checkout = pick_first_variant(cost_per_action_map, bases_ic)
+                    if cost_per_checkout == 0 and checkouts > 0:
+                        # Fallback: tính từ spend / checkouts
+                        cost_per_checkout = spend / checkouts
+                    
+                    # Cost per purchase: cost_per_action_type; action_type="omni_purchase"
+                    cost_per_purchase = pick_first_variant(cost_per_action_map, bases_pur)
+                    if cost_per_purchase == 0 and purchases > 0:
+                        # Fallback: tính từ spend / purchases
+                        cost_per_purchase = spend / purchases
+                    
+                    # Tính % ADS (KHÔNG nhân 100, giống Google Script)
+                    percent_ads = (spend / purchase_value) if purchase_value > 0 else 0
                     
                     # Tính CPM
                     cpm = (spend / impressions * 1000) if impressions > 0 else 0
