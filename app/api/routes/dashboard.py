@@ -506,40 +506,6 @@ async def get_dashboard_data(
         )
         logger.info(f"   ✅ Đã fetch {len(all_adsets_from_accounts)} adsets từ accounts")
         
-        # ===== BUILD SUMMARY =====
-        # Tổng chi tiêu và adsets count: tính từ TẤT CẢ data (không filter impressions>0)
-        # Metrics khác (total_data, total_checkouts): chỉ tính từ data có impressions>0
-        all_data_for_metrics = [row for row in all_data if int(row.get('impressions', 0) or 0) > 0]
-        logger.info(f"   📊 Summary: {len(all_data)} rows tổng, {len(all_data_for_metrics)} rows có impressions>0")
-        
-        # Aggregate metrics for summary - TỔNG CHI TIÊU từ TẤT CẢ data
-        total_spend = sum(float(row.get('spend', 0) or 0) for row in all_data)
-        total_purchases = sum(int(row.get('purchases', 0) or 0) for row in all_data_for_metrics)
-        total_purchase_value = sum(float(row.get('gia_tri_chuyen_doi_tu_luot_mua', 0) or 0) for row in all_data_for_metrics)
-        
-        # Metrics cho Lead Generation - chỉ tính từ data có impressions>0
-        total_data = sum(
-            int(row.get('post_comments', 0) or 0) + int(row.get('messaging_conversations_started', 0) or 0)
-            for row in all_data_for_metrics
-        )
-        # Tính total_checkouts: tùy theo view_mode
-        if view_mode == "lead":
-            # Lead Gen: ưu tiên onsite_conversion_post_save (từ actions, không phải pixel)
-            total_checkouts = sum(
-                int(row.get('onsite_conversion_post_save', 0) or 0) or 
-                int(row.get('checkouts_initiated', 0) or 0) or 
-                int(row.get('checkout_initiated', 0) or 0)
-                for row in all_data_for_metrics
-            )
-        else:
-            # Ecommerce: ưu tiên checkouts_initiated (từ actions)
-            total_checkouts = sum(
-                int(row.get('checkouts_initiated', 0) or 0) or 
-                int(row.get('checkout_initiated', 0) or 0) or 
-                int(row.get('onsite_conversion_post_save', 0) or 0)
-                for row in all_data_for_metrics
-            )
-        
         # CHƯA tính summary ở đây - sẽ tính sau khi group theo level
         # Summary sẽ được tính từ grouped_data (sau khi group theo level) để đảm bảo khớp với Chi Tiết Quảng Cáo
         # Tạm thời lưu all_adsets_from_accounts và adset_statuses_map để dùng sau khi group
@@ -865,16 +831,17 @@ async def get_dashboard_data(
                 
                 def get_sort_value_safe(row):
                     value = row.get(backend_field)
-                    # Handle None, empty, or zero values - đặt ở cuối cho cả desc và asc
-                    if value is None or value == '' or value == 0:
+                    # Handle None hoặc empty string - đặt ở cuối
+                    if value is None or value == '':
                         # Dùng một giá trị rất nhỏ (cho desc) hoặc rất lớn (cho asc) để đặt ở cuối
                         return float('-inf') if reverse_order else float('inf')
                     # Convert to number if possible
                     try:
                         num_value = float(value)
+                        # Giá trị 0 là hợp lệ, không đặt ở cuối (cho phép sort 0 bình thường)
                         return num_value
                     except (ValueError, TypeError):
-                        # Invalid value - đặt ở cuối
+                        # Invalid value (không phải số) - đặt ở cuối
                         return float('-inf') if reverse_order else float('inf')
                 
                 # Sort: valid numbers trước, zeros/invalid ở cuối
