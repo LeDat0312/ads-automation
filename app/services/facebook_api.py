@@ -1037,6 +1037,14 @@ def update_adset_budget(
         current_budget = float(adset_data.get('daily_budget') or adset_data.get('lifetime_budget') or 0)
         budget_type = 'daily_budget' if adset_data.get('daily_budget') else 'lifetime_budget'
         
+        # ✅ DEBUG LOG: Kiểm tra budget scope
+        logger.debug(
+            f"DEBUG_BUDGET_SCOPE | adset_id={adset_id}, "
+            f"daily_budget={adset_data.get('daily_budget')}, "
+            f"lifetime_budget={adset_data.get('lifetime_budget')}, "
+            f"current_budget={current_budget}, budget_type={budget_type}"
+        )
+        
         # Tính toán budget mới
         # Nếu có new_budget (absolute value), dùng trực tiếp
         if new_budget is not None:

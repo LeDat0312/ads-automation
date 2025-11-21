@@ -1218,14 +1218,28 @@ async def update_budget_endpoint(
                             op.new_budget
                         )
                         
-                        # Nếu lỗi 400, có thể do budget ở cấp campaign
-                        if not result.get("success") and "400" in str(result.get("error", "")):
-                            return {
-                                "id": op.id,
-                                "level": op.level,
-                                "status": "error",
-                                "error": "Không thể cập nhật ngân sách: Ngân sách đang ở cấp chiến dịch. Vui lòng cập nhật ở tab 'Chiến Dịch'."
-                            }
+                        # ✅ FIX: Chỉ báo lỗi CBO khi thực sự là lỗi CBO từ Facebook
+                        if not result.get("success"):
+                            error_msg = result.get("error", "")
+                            # Kiểm tra message có chứa từ khoá CBO
+                            is_cbo_error = (
+                                "campaign budget optimization" in error_msg.lower() or
+                                "campaign_budget_optimization" in error_msg.lower() or
+                                "cbo" in error_msg.lower()
+                            )
+                            
+                            if is_cbo_error:
+                                return {
+                                    "id": op.id,
+                                    "level": op.level,
+                                    "status": "error",
+                                    "error": "Không thể cập nhật ngân sách: Ngân sách đang ở cấp chiến dịch. Vui lòng cập nhật ở tab 'Chiến Dịch'."
+                                }
+                            # Nếu không phải lỗi CBO, trả về lỗi gốc từ Facebook
+                            # (Không hardcode message, giữ nguyên lỗi thực tế)
+                            logger.warning(
+                                f"Budget update failed for adset {op.id}: {error_msg} (not CBO error)"
+                            )
                     elif op.level == "CAMPAIGN":
                         loop = asyncio.get_event_loop()
                         result = await loop.run_in_executor(
