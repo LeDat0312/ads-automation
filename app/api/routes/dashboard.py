@@ -24,6 +24,8 @@ from app.services.facebook_api import (
     fetch_adset_statuses, 
     pause_adsets, 
     resume_adsets, 
+    pause_campaign,
+    resume_campaign,
     update_adset_budget, 
     update_campaign_budget,
     normalize_status,
@@ -846,16 +848,29 @@ async def get_dashboard_data(
                 purchases = group['purchases']
                 purchase_value = group['purchase_value']
                 data = group['post_comments'] + group['messaging_conversations_started']
+                impressions = group['impressions']
+                reach = group['reach']
+                clicks = group['clicks']
                 
-                # Tính metrics
+                # 🔹 FIX E-COMMERCE METRICS: Tính đầy đủ các metrics theo spec
                 group['results'] = data
                 group['gia_data'] = (spend / data) if data > 0 else 0
-                group['cost_per_checkout'] = (spend / checkouts) if checkouts > 0 else 0
-                group['cost_per_purchase'] = (spend / purchases) if purchases > 0 else 0
+                # Cost per checkout: ưu tiên từ API (cost_per_checkout_initiated), fallback tính từ spend
+                group['cost_per_checkout_initiated'] = group.get('cost_per_checkout_initiated', 0) or ((spend / checkouts) if checkouts > 0 else 0)
+                # Cost per purchase: ưu tiên từ API (cost_per_purchase), fallback tính từ spend
+                group['cost_per_purchase'] = group.get('cost_per_purchase', 0) or ((spend / purchases) if purchases > 0 else 0)
+                # % ADS = (spend / purchase_value) * 100
                 group['ads_percent'] = (spend / purchase_value * 100) if purchase_value > 0 else 0
-                group['cpm'] = (spend / group['impressions'] * 1000) if group['impressions'] > 0 else 0
-                group['ctr'] = (group['clicks'] / group['impressions'] * 100) if group['impressions'] > 0 else 0
-                group['cpc'] = (spend / group['clicks']) if group['clicks'] > 0 else 0
+                # TLC (tỷ lệ chốt) = purchases / checkouts_initiated * 100
+                group['tlc'] = (purchases / checkouts * 100) if checkouts > 0 else 0
+                # Frequency = impressions / reach
+                group['frequency'] = (impressions / reach) if reach > 0 else 0
+                # Các metrics khác
+                group['cpm'] = (spend / impressions * 1000) if impressions > 0 else 0
+                group['ctr'] = (clicks / impressions * 100) if impressions > 0 else 0
+                group['cpc'] = (spend / clicks) if clicks > 0 else 0
+                # 🔹 FIX: Thêm alias purchase_value từ gia_tri_chuyen_doi_tu_luot_mua
+                group['purchase_value'] = purchase_value
                 
                 rows.append(group)
         
@@ -894,17 +909,46 @@ async def get_dashboard_data(
                     group['prefix'] = row.get('prefix', '')
                     group['campaign_daily_budget'] = row.get('campaign_daily_budget')
                     group['budget_type'] = 'CAMPAIGN'
+                    group['budget_level'] = 'CAMPAIGN'
+                    # 🔹 FIX: Lưu status cho campaign
+                    group['effective_status'] = row.get('effective_status', 'UNKNOWN')
+                    group['configured_status'] = row.get('configured_status', 'UNKNOWN')
+                    group['delivery'] = row.get('delivery', 'UNKNOWN')
+                    # 🔹 FIX: Lưu budget info cho campaign
+                    group['using_campaign_budget'] = True  # Campaign luôn dùng campaign budget
+                    group['adset_daily_budget'] = None  # Campaign không có adset budget
             
             # Convert to list và tính derived metrics
             rows = []
             for campaign_id, group in grouped_data.items():
                 spend = group['spend']
+                checkouts = group['checkouts_initiated']
+                purchases = group['purchases']
+                purchase_value = group['purchase_value']
                 data = group['post_comments'] + group['messaging_conversations_started']
+                impressions = group['impressions']
+                reach = group['reach']
+                clicks = group['clicks']
                 
+                # 🔹 FIX E-COMMERCE METRICS: Tính đầy đủ các metrics theo spec
                 group['results'] = data
                 group['gia_data'] = (spend / data) if data > 0 else 0
-                group['cost_per_checkout'] = (spend / group['checkouts_initiated']) if group['checkouts_initiated'] > 0 else 0
-                group['cost_per_purchase'] = (spend / group['purchases']) if group['purchases'] > 0 else 0
+                # Cost per checkout: ưu tiên từ API, fallback tính từ spend
+                group['cost_per_checkout_initiated'] = group.get('cost_per_checkout_initiated', 0) or ((spend / checkouts) if checkouts > 0 else 0)
+                # Cost per purchase: ưu tiên từ API, fallback tính từ spend
+                group['cost_per_purchase'] = group.get('cost_per_purchase', 0) or ((spend / purchases) if purchases > 0 else 0)
+                # % ADS = (spend / purchase_value) * 100
+                group['ads_percent'] = (spend / purchase_value * 100) if purchase_value > 0 else 0
+                # TLC (tỷ lệ chốt) = purchases / checkouts_initiated * 100
+                group['tlc'] = (purchases / checkouts * 100) if checkouts > 0 else 0
+                # Frequency = impressions / reach
+                group['frequency'] = (impressions / reach) if reach > 0 else 0
+                # Các metrics khác
+                group['cpm'] = (spend / impressions * 1000) if impressions > 0 else 0
+                group['ctr'] = (clicks / impressions * 100) if impressions > 0 else 0
+                group['cpc'] = (spend / clicks) if clicks > 0 else 0
+                # 🔹 FIX: Thêm alias purchase_value
+                group['purchase_value'] = purchase_value
                 
                 rows.append(group)
         
@@ -1029,11 +1073,11 @@ async def update_status_endpoint(
                         })
                         
                 elif payload.level == "CAMPAIGN":
-                    # For campaigns, use the same functions
+                    # 🔹 FIX: Dùng hàm pause_campaign/resume_campaign cho campaign
                     if item.new_status == "PAUSED":
-                        result = pause_adsets([item.id], access_token, delay_ms=0)
+                        result = pause_campaign(item.id, access_token)
                     elif item.new_status == "ACTIVE":
-                        result = resume_adsets([item.id], access_token, delay_ms=0)
+                        result = resume_campaign(item.id, access_token)
                     else:
                         errors.append({
                             "id": item.id,
@@ -1041,7 +1085,7 @@ async def update_status_endpoint(
                         })
                         continue
                     
-                    if result.get("success", 0) > 0:
+                    if result.get("success", False):
                         results.append({
                             "id": item.id,
                             "new_status": item.new_status
@@ -1053,8 +1097,7 @@ async def update_status_endpoint(
                         cache_key = f"status_{access_token[:20]}"
                         _cache_timestamps.pop(cache_key, None)
                     else:
-                        error_details = result.get('errorDetails', [])
-                        error_msg = error_details[0].get('error', 'Unknown error') if error_details else 'Unknown error'
+                        error_msg = result.get('error', 'Unknown error')
                         errors.append({
                             "id": item.id,
                             "error": error_msg

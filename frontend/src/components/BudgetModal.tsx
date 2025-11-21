@@ -7,6 +7,7 @@ interface BudgetModalProps {
   onClose: () => void;
   selectedAdsets: AdsetRow[];
   onApply: (changes: { id: string; new_budget: number }[]) => void;
+  currentLevel?: 'campaign' | 'adset' | 'ad'; // 🔹 FIX: Thêm currentLevel để xác định đúng budget
 }
 
 type BudgetMode = 'percent' | 'manual';
@@ -20,37 +21,72 @@ const percentOptions = [
   { value: 30, label: '+30%', color: 'green' },
 ];
 
-export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply }: BudgetModalProps) {
+export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply, currentLevel = 'adset' }: BudgetModalProps) {
   const [mode, setMode] = useState<BudgetMode>('percent');
   const [selectedPercent, setSelectedPercent] = useState<number | null>(null);
   const [manualBudget, setManualBudget] = useState<string>('');
   const [previewChanges, setPreviewChanges] = useState<{ id: string; current: number; new: number; currency: string }[]>([]);
 
+  // 🔹 FIX: Hàm helper để xác định budget hiện tại đúng (CBO vs ABO)
+  const getCurrentBudget = (row: AdsetRow): number => {
+    // Nếu ở tab campaign và row là campaign (budget_level = CAMPAIGN)
+    if (currentLevel === 'campaign' && row.budget_level === 'CAMPAIGN') {
+      return row.campaign_daily_budget || row.budget || 0;
+    }
+    // Nếu adset đang dùng campaign budget (CBO)
+    if (row.using_campaign_budget && row.campaign_daily_budget) {
+      return row.campaign_daily_budget;
+    }
+    // Nếu adset có budget riêng (ABO)
+    if (row.adset_daily_budget) {
+      return row.adset_daily_budget;
+    }
+    // Fallback
+    return row.budget || 0;
+  };
+
+  // 🔹 FIX: Hàm helper để xác định ID đúng (campaign_id nếu CBO, adset_id nếu ABO)
+  const getRowId = (row: AdsetRow): string => {
+    // Nếu ở tab campaign và row là campaign
+    if (currentLevel === 'campaign' && row.budget_level === 'CAMPAIGN') {
+      return row.campaign_id || row.id || '';
+    }
+    // Nếu adset đang dùng campaign budget (CBO) → dùng campaign_id
+    if (row.using_campaign_budget && row.campaign_id) {
+      return row.campaign_id;
+    }
+    // Nếu adset có budget riêng (ABO) → dùng adset_id
+    return row.adset_id || row.id || '';
+  };
+
   useEffect(() => {
     if (mode === 'percent' && selectedPercent !== null) {
-      const changes = selectedAdsets.map(adset => ({
-        id: adset.adset_id,
-        current: adset.budget || 0,
-        // ✅ FIX: Use exact original budget, don't round until display
-        new: (adset.budget || 0) * (1 + selectedPercent / 100),
-        currency: adset.currency,
-      }));
+      const changes = selectedAdsets.map(row => {
+        const currentBudget = getCurrentBudget(row);
+        return {
+          id: getRowId(row),
+          current: currentBudget,
+          // 🔹 FIX: Tính budget mới từ budget hiện tại
+          new: currentBudget * (1 + selectedPercent / 100),
+          currency: row.currency || 'VND',
+        };
+      });
       setPreviewChanges(changes);
     } else if (mode === 'manual' && manualBudget) {
       const budget = parseFloat(manualBudget);
       if (!isNaN(budget) && budget > 0) {
-        const changes = selectedAdsets.map(adset => ({
-          id: adset.adset_id,
-          current: adset.budget || 0,
+        const changes = selectedAdsets.map(row => ({
+          id: getRowId(row),
+          current: getCurrentBudget(row),
           new: budget,
-          currency: adset.currency,
+          currency: row.currency || 'VND',
         }));
         setPreviewChanges(changes);
       }
     } else {
       setPreviewChanges([]);
     }
-  }, [mode, selectedPercent, manualBudget, selectedAdsets]);
+  }, [mode, selectedPercent, manualBudget, selectedAdsets, currentLevel]);
 
   const handleApply = () => {
     const changes = previewChanges.map(change => ({
@@ -71,10 +107,11 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply }
 
   if (!isOpen) return null;
 
-  const totalCurrentBudget = selectedAdsets.reduce((sum, adset) => sum + (adset.budget || 0), 0);
+  // 🔹 FIX: Tính tổng budget hiện tại từ budget đúng (CBO/ABO)
+  const totalCurrentBudget = selectedAdsets.reduce((sum, row) => sum + getCurrentBudget(row), 0);
   const totalNewBudget = previewChanges.reduce((sum, change) => sum + change.new, 0);
   const budgetDifference = totalNewBudget - totalCurrentBudget;
-  const currency = selectedAdsets[0]?.currency || 'USD';
+  const currency = selectedAdsets[0]?.currency || 'VND';
 
   return (
     <>
@@ -238,10 +275,17 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply }
                       </tr>
                     </thead>
                     <tbody>
-                      {previewChanges.map((change, idx) => (
+                      {previewChanges.map((change, idx) => {
+                        // 🔹 FIX: Tìm row đúng dựa trên ID (có thể là campaign_id hoặc adset_id)
+                        const row = selectedAdsets.find(a => 
+                          a.adset_id === change.id || 
+                          a.campaign_id === change.id || 
+                          a.id === change.id
+                        );
+                        return (
                         <tr key={change.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                           <td className="px-4 py-2 text-gray-900 truncate max-w-[200px]">
-                            {selectedAdsets.find(a => a.adset_id === change.id)?.adset_name || change.id}
+                            {row?.adset_name || row?.campaign_name || change.id}
                           </td>
                           <td className="px-4 py-2 text-right text-gray-600">
                             {formatCurrency(change.current, change.currency as any)}
@@ -251,7 +295,8 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply }
                             {formatCurrency(change.new, change.currency as any)}
                           </td>
                         </tr>
-                      ))}
+                      );
+                      })}
                     </tbody>
                   </table>
                 </div>

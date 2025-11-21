@@ -550,6 +550,31 @@ def pause_campaign(
         return {"success": False, "campaign_id": campaign_id, "error": str(e)}
 
 
+def resume_campaign(
+    campaign_id: str,
+    access_token: str
+) -> Dict[str, Any]:
+    """
+    Bật một Campaign
+    """
+    try:
+        url = f"{FB_GRAPH_API_BASE}/{campaign_id}"
+        params = {
+            'access_token': access_token
+        }
+        data = {
+            'status': 'ACTIVE'
+        }
+        
+        response = requests.post(url, params=params, data=data, timeout=30)
+        response.raise_for_status()
+        
+        return {"success": True, "campaign_id": campaign_id}
+    except Exception as e:
+        logger.error(f"🚨 Lỗi bật Campaign {campaign_id}: {e}")
+        return {"success": False, "campaign_id": campaign_id, "error": str(e)}
+
+
 def get_campaign_adsets_count(
     campaign_id: str,
     access_token: str
@@ -1797,6 +1822,7 @@ def pull_facebook_data(
                         'purchases': purchases,  # Đã parse từ actions theo spec (omni_purchase)
                         'sdt': checkouts,  # SĐT = checkouts (alias)
                         'gia_tri_chuyen_doi_tu_luot_mua': purchase_value,  # Purchase value theo spec
+                        'purchase_value': purchase_value,  # 🔹 FIX: Thêm alias cho frontend
                         'cpm': cpm,
                         'impressions': impressions,
                         'reach': int(item.get('reach', 0) or 0),

@@ -444,6 +444,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
             setBudgetEditorRow(null);
           }}
           currency={currency}
+          currentLevel={currentLevel}
         />
       )}
     </div>
@@ -526,7 +527,11 @@ const TableRow: React.FC<TableRowProps> = ({
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={(row.effective_status || row.delivery || 'UNKNOWN') === 'ACTIVE'}
+              checked={(() => {
+                // 🔹 FIX: Ưu tiên configured_status, sau đó effective_status, cuối cùng delivery
+                const status = (row.configured_status || row.effective_status || row.delivery || 'UNKNOWN').toUpperCase();
+                return status === 'ACTIVE';
+              })()}
               onChange={() => onStatusToggle?.(row)}
               className="sr-only peer"
             />
@@ -587,10 +592,14 @@ const TableRow: React.FC<TableRowProps> = ({
             
             // 🔹 FIX CBO BUDGET DISPLAY: Hiển thị đúng campaign budget khi using_campaign_budget
             let budgetValue: number | null = null;
-            const usingCampaignBudget = row.using_campaign_budget || false;
+            const usingCampaignBudget = row.using_campaign_budget || (row.budget_level === 'CAMPAIGN');
+            const isCampaignLevel = currentLevel === 'campaign';
             
-            // Xác định budget value và source (ưu tiên using_campaign_budget)
-            if (row.using_campaign_budget && row.campaign_daily_budget) {
+            // Xác định budget value và source
+            if (isCampaignLevel && row.budget_level === 'CAMPAIGN') {
+              // Ở tab campaign, row là campaign → dùng campaign_daily_budget
+              budgetValue = row.campaign_daily_budget || row.budget || null;
+            } else if (row.using_campaign_budget && row.campaign_daily_budget) {
               // Adset đang dùng campaign budget (CBO) → dùng campaign_daily_budget
               budgetValue = row.campaign_daily_budget;
             } else if (row.adset_daily_budget) {
@@ -606,7 +615,14 @@ const TableRow: React.FC<TableRowProps> = ({
               budgetDisplay = budgetValue ? formatCurrency(budgetValue, row.currency || 'VND') : '0';
             } else {
               // Không thể edit → hiển thị text mô tả
-              if (usingCampaignBudget && budgetValue) {
+              if (isCampaignLevel && row.budget_level === 'CAMPAIGN') {
+                // Ở tab campaign, row là campaign → hiển thị "Ngân sách chiến dịch"
+                if (budgetValue) {
+                  budgetDisplay = `Ngân sách chiến dịch\n(${formatCurrency(budgetValue, row.currency || 'VND')})`;
+                } else {
+                  budgetDisplay = 'Ngân sách chiến dịch';
+                }
+              } else if (usingCampaignBudget && budgetValue) {
                 // Đang dùng campaign budget (CBO) → hiển thị "Ngân sách chiến dịch (xxx.xxx ₫)"
                 budgetDisplay = `Ngân sách chiến dịch\n(${formatCurrency(budgetValue, row.currency || 'VND')})`;
               } else if (row.budget_level === 'ADSET' && currentLevel === 'campaign' && budgetValue) {
@@ -779,7 +795,11 @@ const TableRow: React.FC<TableRowProps> = ({
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={(row.effective_status || row.delivery || 'UNKNOWN') === 'ACTIVE'}
+              checked={(() => {
+                // 🔹 FIX: Ưu tiên configured_status, sau đó effective_status, cuối cùng delivery
+                const status = (row.configured_status || row.effective_status || row.delivery || 'UNKNOWN').toUpperCase();
+                return status === 'ACTIVE';
+              })()}
               onChange={() => onStatusToggle?.(row)}
               className="sr-only peer"
             />
@@ -840,10 +860,14 @@ const TableRow: React.FC<TableRowProps> = ({
             
             // 🔹 FIX CBO BUDGET DISPLAY: Hiển thị đúng campaign budget khi using_campaign_budget
             let budgetValue: number | null = null;
-            const usingCampaignBudget = row.using_campaign_budget || false;
+            const usingCampaignBudget = row.using_campaign_budget || (row.budget_level === 'CAMPAIGN');
+            const isCampaignLevel = currentLevel === 'campaign';
             
-            // Xác định budget value và source (ưu tiên using_campaign_budget)
-            if (row.using_campaign_budget && row.campaign_daily_budget) {
+            // Xác định budget value và source
+            if (isCampaignLevel && row.budget_level === 'CAMPAIGN') {
+              // Ở tab campaign, row là campaign → dùng campaign_daily_budget
+              budgetValue = row.campaign_daily_budget || row.budget || null;
+            } else if (row.using_campaign_budget && row.campaign_daily_budget) {
               // Adset đang dùng campaign budget (CBO) → dùng campaign_daily_budget
               budgetValue = row.campaign_daily_budget;
             } else if (row.adset_daily_budget) {
@@ -859,7 +883,14 @@ const TableRow: React.FC<TableRowProps> = ({
               budgetDisplay = budgetValue ? formatCurrency(budgetValue, row.currency || 'VND') : '0';
             } else {
               // Không thể edit → hiển thị text mô tả
-              if (usingCampaignBudget && budgetValue) {
+              if (isCampaignLevel && row.budget_level === 'CAMPAIGN') {
+                // Ở tab campaign, row là campaign → hiển thị "Ngân sách chiến dịch"
+                if (budgetValue) {
+                  budgetDisplay = `Ngân sách chiến dịch\n(${formatCurrency(budgetValue, row.currency || 'VND')})`;
+                } else {
+                  budgetDisplay = 'Ngân sách chiến dịch';
+                }
+              } else if (usingCampaignBudget && budgetValue) {
                 // Đang dùng campaign budget (CBO) → hiển thị "Ngân sách chiến dịch (xxx.xxx ₫)"
                 budgetDisplay = `Ngân sách chiến dịch\n(${formatCurrency(budgetValue, row.currency || 'VND')})`;
               } else if (row.budget_level === 'ADSET' && currentLevel === 'campaign' && budgetValue) {

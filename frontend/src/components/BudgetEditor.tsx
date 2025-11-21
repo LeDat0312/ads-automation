@@ -8,6 +8,7 @@ interface BudgetEditorProps {
   onClose: () => void;
   onSave: (newBudget: number) => Promise<void>;
   currency: Currency;
+  currentLevel?: 'campaign' | 'adset' | 'ad'; // 🔹 FIX: Thêm currentLevel
 }
 
 export default function BudgetEditor({
@@ -16,17 +17,37 @@ export default function BudgetEditor({
   onClose,
   onSave,
   currency,
+  currentLevel = 'adset',
 }: BudgetEditorProps) {
-  const [draftBudget, setDraftBudget] = useState<number>(row.budget);
+  // 🔹 FIX: Xác định budget hiện tại đúng (CBO vs ABO)
+  const getCurrentBudget = (): number => {
+    // Nếu ở tab campaign và row là campaign
+    if (currentLevel === 'campaign' && row.budget_level === 'CAMPAIGN') {
+      return row.campaign_daily_budget || row.budget || 0;
+    }
+    // Nếu adset đang dùng campaign budget (CBO)
+    if (row.using_campaign_budget && row.campaign_daily_budget) {
+      return row.campaign_daily_budget;
+    }
+    // Nếu adset có budget riêng (ABO)
+    if (row.adset_daily_budget) {
+      return row.adset_daily_budget;
+    }
+    // Fallback
+    return row.budget || 0;
+  };
+  
+  const originalBudget = getCurrentBudget();
+  const [draftBudget, setDraftBudget] = useState<number>(originalBudget);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const originalBudget = row.budget;
 
   // Reset when row changes or popup opens
   useEffect(() => {
     if (isOpen) {
-      setDraftBudget(row.budget);
+      const currentBudget = getCurrentBudget();
+      setDraftBudget(currentBudget);
       setError(null);
       // Focus input after a short delay
       setTimeout(() => {
@@ -34,7 +55,7 @@ export default function BudgetEditor({
         inputRef.current?.select();
       }, 100);
     }
-  }, [isOpen, row.budget]);
+  }, [isOpen, row.budget, row.campaign_daily_budget, row.adset_daily_budget, row.using_campaign_budget, currentLevel]);
 
   // Adjust budget by percentage
   const adjustPercent = (deltaPercent: number) => {

@@ -230,47 +230,47 @@ function App() {
   };
 
   // Handle budget update - bulk
+  // 🔹 FIX: Xác định đúng level cho từng row dựa trên budget_level
   const handleBudgetUpdate = async (changes: { id: string; new_budget: number }[]) => {
     try {
-      // 🔹 OPTIMISTIC UI: Update state trước khi gọi API
-      setData(prev => {
-        if (!prev) return prev;
-        const updatedRows = prev.details.rows.map(r => {
-          const rowId = r.id || r.adset_id || r.campaign_id || r.ad_id || '';
-          const change = changes.find(c => c.id === rowId);
-          if (change) {
-            // Update đúng field dựa trên budget_level
-            const isCampaignBudget = currentLevel === 'campaign' || r.budget_level === 'CAMPAIGN';
-            if (isCampaignBudget) {
-              return { ...r, campaign_daily_budget: change.new_budget, budget: change.new_budget };
-            } else {
-              return { ...r, adset_daily_budget: change.new_budget, budget: change.new_budget };
-            }
+      setLoading(true);
+      
+      // 🔹 FIX: Xác định level đúng cho từng change dựa trên row data
+      const operations = changes.map(change => {
+        // Tìm row tương ứng để xác định budget_level
+        const row = data?.details.rows.find(r => 
+          r.id === change.id || 
+          r.adset_id === change.id || 
+          r.campaign_id === change.id
+        );
+        
+        // Xác định level: nếu row có budget_level = CAMPAIGN hoặc using_campaign_budget → CAMPAIGN
+        let opLevel: 'CAMPAIGN' | 'ADSET' = 'ADSET';
+        if (row) {
+          if (row.budget_level === 'CAMPAIGN' || row.using_campaign_budget) {
+            opLevel = 'CAMPAIGN';
           }
-          return r;
-        });
+        } else if (currentLevel === 'campaign') {
+          // Fallback: nếu ở tab campaign và không tìm thấy row → assume CAMPAIGN
+          opLevel = 'CAMPAIGN';
+        }
+        
         return {
-          ...prev,
-          details: {
-            ...prev.details,
-            rows: updatedRows
-          }
+          level: opLevel,
+          id: change.id,
+          new_budget: change.new_budget,
         };
       });
       
       // Gọi API update
       await updateBudget({
-        operations: changes.map(change => ({
-          level: currentLevel === 'campaign' ? 'CAMPAIGN' : 'ADSET',
-          id: change.id,
-          new_budget: change.new_budget,
-        })),
+        operations,
         view_mode: viewMode,
       });
       
-      // Nếu API thành công, state đã được update ở trên (optimistic)
+      // 🔹 FIX: Refresh data sau khi update để lấy budget mới từ Facebook
+      await fetchData();
       setSelectedIds(new Set());
-      // KHÔNG gọi fetchData - chỉ update số tiền ngân sách
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -357,11 +357,12 @@ function App() {
   };
 
   // Handle status update (pause/resume) - single row
-  // 🔹 FIX: Dùng effective_status thay vì delivery
+  // 🔹 FIX: Dùng configured_status hoặc effective_status để xác định status hiện tại
   const handleStatusToggle = async (row: any) => {
     try {
       setLoading(true);
-      const currentStatus = (row.effective_status || row.delivery || 'UNKNOWN').toUpperCase();
+      // Ưu tiên configured_status, sau đó effective_status, cuối cùng delivery
+      const currentStatus = (row.configured_status || row.effective_status || row.delivery || 'UNKNOWN').toUpperCase();
       const newStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
       await updateStatus({
         level: currentLevel.toUpperCase() as 'CAMPAIGN' | 'ADSET' | 'AD',
@@ -370,6 +371,7 @@ function App() {
           new_status: newStatus,
         }],
       });
+      // Refresh data sau khi update status
       await fetchData();
     } catch (err) {
       setError(getErrorMessage(err));
@@ -449,48 +451,38 @@ function App() {
     }
   };
 
-  // Handle budget update - single row (chỉ update row đó, không reload toàn bộ)
+  // Handle budget update - single row
+  // 🔹 FIX: Xác định đúng level dựa trên budget_level và using_campaign_budget
   const handleBudgetUpdateSingle = async (row: any, newBudget: number) => {
     try {
+      setLoading(true);
       const targetId = row.id || row.adset_id || row.campaign_id || row.ad_id || '';
-      const isCampaignBudget = row.budget_level === 'CAMPAIGN' || currentLevel === 'campaign';
       
-      // 🔹 OPTIMISTIC UI: Update state trước khi gọi API
-      setData(prev => {
-        if (!prev) return prev;
-        const updatedRows = prev.details.rows.map(r => {
-          const rowId = r.id || r.adset_id || r.campaign_id || r.ad_id || '';
-          if (rowId === targetId) {
-            // Update đúng field dựa trên budget_level
-            if (isCampaignBudget) {
-              return { ...r, campaign_daily_budget: newBudget, budget: newBudget };
-            } else {
-              return { ...r, adset_daily_budget: newBudget, budget: newBudget };
-            }
-          }
-          return r;
+      // 🔹 FIX: Xác định level đúng
+      if (row.budget_level === 'CAMPAIGN' || row.using_campaign_budget) {
+        // Nếu là campaign budget, dùng campaign_id
+        const campaignId = row.campaign_id || targetId;
+        await updateBudget({
+          operations: [{
+            level: 'CAMPAIGN',
+            id: campaignId,
+            new_budget: newBudget,
+          }],
+          view_mode: viewMode,
         });
-        return {
-          ...prev,
-          details: {
-            ...prev.details,
-            rows: updatedRows
-          }
-        };
-      });
+      } else {
+        await updateBudget({
+          operations: [{
+            level: 'ADSET',
+            id: targetId,
+            new_budget: newBudget,
+          }],
+          view_mode: viewMode,
+        });
+      }
       
-      // Gọi API update
-      await updateBudget({
-        operations: [{
-          level: row.budget_level || (currentLevel === 'campaign' ? 'CAMPAIGN' : 'ADSET'),
-          id: targetId,
-          new_budget: newBudget,
-        }],
-        view_mode: viewMode,
-      });
-      
-      // Nếu API thành công, state đã được update ở trên (optimistic)
-      // KHÔNG gọi fetchData - chỉ update số tiền ngân sách
+      // 🔹 FIX: Refresh data sau khi update để lấy budget mới từ Facebook
+      await fetchData();
     } catch (err) {
       setError(getErrorMessage(err));
       throw err; // Re-throw để BudgetEditor hiển thị error
@@ -840,6 +832,7 @@ function App() {
         onClose={() => setShowBudgetModal(false)}
         selectedAdsets={selectedAdsets}
         onApply={handleBudgetUpdate}
+        currentLevel={currentLevel}
       />
 
       {/* Confirm Modal for Bulk Actions */}
