@@ -557,30 +557,53 @@ function App() {
       const targetId = row.id || row.adset_id || row.campaign_id || row.ad_id || '';
       
       // 🔹 FIX: Xác định level đúng
+      let opLevel: 'CAMPAIGN' | 'ADSET' = 'ADSET';
+      let actualId = targetId;
+      
       if (row.budget_level === 'CAMPAIGN' || row.using_campaign_budget) {
         // Nếu là campaign budget, dùng campaign_id
-        const campaignId = row.campaign_id || targetId;
-        await updateBudget({
-          operations: [{
-            level: 'CAMPAIGN',
-            id: campaignId,
-            new_budget: newBudget,
-          }],
-          view_mode: viewMode,
-        });
-      } else {
-        await updateBudget({
-          operations: [{
-            level: 'ADSET',
-            id: targetId,
-            new_budget: newBudget,
-          }],
-          view_mode: viewMode,
-        });
+        opLevel = 'CAMPAIGN';
+        actualId = row.campaign_id || targetId;
       }
       
-      // 🔹 FIX: Refresh data sau khi update để lấy budget mới từ Facebook
-      await fetchData();
+      const response = await updateBudget({
+        operations: [{
+          level: opLevel,
+          id: actualId,
+          new_budget: newBudget,
+        }],
+        view_mode: viewMode,
+      });
+      
+      // FIX LỖI 2: KHÔNG reload - cập nhật local state
+      if (data && response.results && response.results.length > 0) {
+        const result = response.results[0];
+        if (result && result.status === 'ok') {
+          setData(prevData => {
+            if (!prevData) return prevData;
+            
+            const updatedRows = prevData.details.rows.map(r => {
+              if (r.id === actualId || r.adset_id === actualId || r.campaign_id === actualId) {
+                return {
+                  ...r,
+                  budget: result.new_budget,
+                  daily_budget: result.budget_type === 'daily_budget' ? result.new_budget : r.daily_budget,
+                  lifetime_budget: result.budget_type === 'lifetime_budget' ? result.new_budget : r.lifetime_budget,
+                };
+              }
+              return r;
+            });
+            
+            return {
+              ...prevData,
+              details: {
+                ...prevData.details,
+                rows: updatedRows,
+              },
+            };
+          });
+        }
+      }
     } catch (err) {
       setError(getErrorMessage(err));
       throw err; // Re-throw để BudgetEditor hiển thị error

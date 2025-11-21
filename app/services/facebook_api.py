@@ -10,12 +10,50 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
 # Facebook Graph API version
 FB_API_VERSION = "v24.0"
 FB_GRAPH_API_BASE = f"https://graph.facebook.com/{FB_API_VERSION}"
+
+
+def _normalize_budget(value) -> int:
+    """
+    Chuẩn hóa budget value thành integer để tránh lỗi:
+    "Param daily_budget must be an integer. Instead, got float."
+    
+    Args:
+        value: Có thể là str, float, int, Decimal
+    
+    Returns:
+        int: Budget value đã chuẩn hóa (>= 0)
+    """
+    if value is None:
+        return 0
+    
+    # Xử lý string
+    if isinstance(value, str):
+        # Loại bỏ dấu phân cách (99.999 hoặc 99,999)
+        clean = value.replace(".", "").replace(",", "")
+        value = clean or "0"
+        value = int(value)
+    
+    # Xử lý Decimal
+    if isinstance(value, Decimal):
+        value = float(value)
+    
+    # Xử lý float
+    if isinstance(value, float):
+        # Round để tránh 99998.9999
+        value = round(value)
+    
+    # Convert sang int và đảm bảo >= 0
+    value_int = max(int(value), 0)
+    
+    return value_int
+
 
 # Custom exceptions
 class FacebookRateLimitError(Exception):
@@ -951,13 +989,16 @@ def update_campaign_budget(
         old_budget = float(campaign_data.get('daily_budget') or campaign_data.get('lifetime_budget') or 0)
         budget_type = 'daily_budget' if campaign_data.get('daily_budget') else 'lifetime_budget'
         
+        # Normalize budget thành integer
+        new_budget_normalized = _normalize_budget(new_budget)
+        
         # Update budget
         update_url = f"{FB_GRAPH_API_BASE}/{campaign_id}"
         update_params = {
             'access_token': access_token
         }
         update_data = {
-            budget_type: round(new_budget * 100) / 100  # Round to 2 decimals
+            budget_type: new_budget_normalized
         }
         
         update_response = requests.post(update_url, params=update_params, data=update_data, timeout=30)
@@ -1088,8 +1129,8 @@ def update_adset_budget(
                     "error": "Cần cung cấp amount hoặc percent"
                 }
         
-        # Round to 2 decimals (Facebook yêu cầu)
-        new_budget = round(new_budget * 100) / 100
+        # Normalize budget thành integer (Facebook yêu cầu)
+        new_budget_normalized = _normalize_budget(new_budget)
         
         # Update budget
         update_url = f"{FB_GRAPH_API_BASE}/{adset_id}"
@@ -1097,7 +1138,7 @@ def update_adset_budget(
             'access_token': access_token
         }
         update_data = {
-            budget_type: new_budget
+            budget_type: new_budget_normalized
         }
         
         update_response = requests.post(update_url, params=update_params, data=update_data, timeout=30)
@@ -1125,13 +1166,13 @@ def update_adset_budget(
                 "error": result['error'].get('message', 'Unknown error')
             }
         
-        logger.info(f"✅ Đã cập nhật budget adset {adset_id}: {current_budget} → {new_budget}")
+        logger.info(f"✅ Đã cập nhật budget adset {adset_id}: {current_budget} → {new_budget_normalized}")
         
         return {
             "success": True,
             "adset_id": adset_id,
             "old_budget": current_budget,
-            "new_budget": new_budget,
+            "new_budget": new_budget_normalized,
             "budget_type": budget_type
         }
         

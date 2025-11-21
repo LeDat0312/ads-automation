@@ -30,7 +30,8 @@ from app.services.facebook_api import (
     update_campaign_budget,
     normalize_status,
     fetch_campaign_budgets_batch,
-    FacebookRateLimitError
+    FacebookRateLimitError,
+    _normalize_budget
 )
 from pydantic import BaseModel
 from typing import Literal
@@ -416,20 +417,16 @@ async def get_dashboard_dataset(
         rows_for_table = [row for row in rows_for_table if row.get('campaign_id') == campaign_id]
         logger.info(f"   📊 After filter campaign_id ({campaign_id}): {len(rows_for_table)} rows")
     
-    # ✅ FIX: Filter by adset_id CHỈ KHI thực sự drill-down (level=ad hoặc level=campaign)
-    # Không áp dụng khi đang ở level=adset (xem tổng quan adsets)
+    # ✅ FIX LỖI 4: Filter by adset_id CHỈ KHI drill-down từ campaign → ads
+    # KHÔNG filter khi đang ở level=adset (xem tổng quan adsets)
+    # KHÔNG log warning nữa để tránh spam log
     if adset_id and isinstance(adset_id, str):
         adset_id_clean = adset_id.strip()
-        # Chỉ filter nếu có giá trị hợp lệ VÀ không đang ở level adset
-        if adset_id_clean and adset_id_clean.lower() not in ("none", "null", "undefined", ""):
-            logger.info(f"   🔎 adset_id param received: '{adset_id_clean}' (current level: {level})")
-            # Chỉ áp dụng filter khi level != adset (tức là đang drill-down vào ads)
-            if level == "ad":
-                before_adset_filter = len(rows_for_table)
-                rows_for_table = [row for row in rows_for_table if row.get('adset_id') == adset_id_clean]
-                logger.info(f"   📊 After filter adset_id ({adset_id_clean}): {len(rows_for_table)}/{before_adset_filter} rows [level=ad, drill-down]")
-            else:
-                logger.info(f"   ⚠️ Ignoring adset_id filter because level={level} (not drilling down)")
+        # Chỉ filter nếu có giá trị hợp lệ VÀ đang drill-down vào ads
+        if adset_id_clean and adset_id_clean.lower() not in ("none", "null", "undefined", "") and level == "ad":
+            before_adset_filter = len(rows_for_table)
+            rows_for_table = [row for row in rows_for_table if row.get('adset_id') == adset_id_clean]
+            logger.info(f"   📊 Drill-down filter adset_id ({adset_id_clean}): {len(rows_for_table)}/{before_adset_filter} ads")
     
     # Filter by status (chỉ áp dụng cho bảng)
     if status and isinstance(status, str) and status.strip():
@@ -1206,6 +1203,9 @@ async def update_budget_endpoint(
             """Helper function để update 1 item với semaphore"""
             async with semaphore:
                 try:
+                    # Normalize budget trước khi gửi API
+                    normalized_budget = _normalize_budget(op.new_budget)
+                    
                     # Gọi lại hàm CŨ (giữ nguyên logic, chỉ wrap async)
                     if op.level == "ADSET":
                         # Chạy trong thread pool vì update_adset_budget là sync function
@@ -1215,7 +1215,7 @@ async def update_budget_endpoint(
                             update_adset_budget,
                             op.id,
                             access_token,
-                            op.new_budget
+                            normalized_budget
                         )
                         
                         # ✅ FIX: Chỉ báo lỗi CBO khi thực sự là lỗi CBO từ Facebook
@@ -1247,7 +1247,7 @@ async def update_budget_endpoint(
                             update_campaign_budget,
                             op.id,
                             access_token,
-                            op.new_budget
+                            normalized_budget
                         )
                     else:
                         return {
