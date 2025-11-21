@@ -210,6 +210,7 @@ async def get_dashboard_dataset(
     view_mode: str,
     date_from: str,
     date_to: str,
+    level: str,  # ✅ FIX: Thêm level parameter
     use_cache: bool = True,
     # Filters cho bảng (KHÔNG ảnh hưởng summary)
     prefix: Optional[str] = None,
@@ -221,21 +222,22 @@ async def get_dashboard_dataset(
     """
     🎯 SINGLE SOURCE OF TRUTH: Hàm trung tâm fetch và xử lý dữ liệu dashboard
     
+    ✅ FIX LOGIC:
+    - CHỈ lọc theo account_type (từ DB) - KHÔNG lọc theo view_mode từ data
+    - Tất cả ads từ E-Commerce accounts → E-Commerce view (không cần purchase > 0)
+    - Tất cả ads từ Lead Gen accounts → Lead Gen view (không cần messaging > 0)
+    - adset_id filter CHỈ áp dụng khi level='ad' (drill-down)
+    - Summary tính từ rows_base (KHÔNG bị ảnh hưởng UI filters)
+    
     Trả về:
     {
-        "rows_base": List[Dict],      # Dataset cho summary (spend>0 && impressions>0 && view_mode)
-        "rows_for_table": List[Dict],  # Dataset cho bảng (rows_base + filter prefix/status/search)
+        "rows_base": List[Dict],      # Dataset cho summary (chỉ filter spend>0 && impressions>0)
+        "rows_for_table": List[Dict],  # Dataset cho bảng (rows_base + UI filters)
         "summary": Dict,                # Summary metrics tính từ rows_base
-        "all_adsets_from_accounts": Dict  # Tất cả adsets từ accounts (để đếm đúng)
+        "all_adsets_from_accounts": Dict  # Tất cả adsets từ accounts
     }
-    
-    Theo yêu cầu:
-    - Chỉ fetch 1 lần từ Facebook API
-    - Filter spend > 0 && impressions > 0 ngay từ đầu
-    - Summary KHÔNG bị ảnh hưởng bởi prefix/status/search filters
-    - rows_base và summary luôn nhất quán
     """
-    logger.info(f"📊 get_dashboard_dataset() START | view={view_mode}, accounts={len(user_account_ids)}, date_from={date_from}, date_to={date_to}")
+    logger.info(f"📊 get_dashboard_dataset() START | view={view_mode}, level={level}, accounts={len(user_account_ids)}, date={date_from} to {date_to}")
     
     # ===== BƯỚC 1: Fetch insights từ Facebook API (1 LẦN DUY NHẤT) =====
     logger.info(f"   📥 Fetching insights from Facebook API...")
@@ -260,15 +262,14 @@ async def get_dashboard_dataset(
     logger.info(f"   📊 After filter spend>0 && impressions>0: {len(all_data)}/{before_filter} rows")
     
     # ===== BƯỚC 3: rows_base = SINGLE SOURCE OF TRUTH =====
-    # ✅ FIX: Không filter theo campaign_type nữa vì user_account_ids đã được lọc theo account_type từ DB
-    # Accounts đã được filter bởi get_user_account_prefixes_filtered_by_view_mode() theo Account.account_type
-    # Tất cả ads/adsets từ accounts E-Commerce sẽ thuộc E-Commerce view, tương tự cho Lead Gen
-    logger.info(f"   ✅ Skipping view_mode filter - accounts already filtered by account_type from DB")
+    # ✅ LOGIC MỚI: CHỈ lọc theo account_type từ DB, KHÔNG lọc theo metrics
+    # - E-Commerce accounts → trả TẤT CẢ adsets (không cần purchase > 0)
+    # - Lead Gen accounts → trả TẤT CẢ adsets (không cần messaging > 0)
+    # - user_account_ids đã được lọc theo Account.account_type từ get_user_account_prefixes_filtered_by_view_mode()
+    # - KHÔNG CẦN filter thêm theo campaign_type, objective, metrics
     
-    # rows_base = dataset sau khi filter spend>0 && impressions>0
-    # rows_base sẽ dùng để tính summary (KHÔNG bị ảnh hưởng bởi prefix/status/search)
-    rows_base = all_data.copy()
-    logger.info(f"   📊 rows_base (for summary): {len(rows_base)} rows")
+    rows_base = all_data.copy()  # Giữ TOÀN BỘ data sau filter spend>0 && impressions>0
+    logger.info(f"   ✅ rows_base created (for summary): {len(rows_base)} rows - NO view_mode filter, trust account_type from DB")
     
     # ===== BƯỚC 4: Fetch adset statuses từ Facebook API =====
     adset_ids_base = list(set([row.get('adset_id') for row in rows_base if row.get('adset_id')]))
@@ -752,8 +753,9 @@ async def get_dashboard_data(
                 view_mode=view_mode,
                 date_from=date_from or datetime.now(HCM_TZ).strftime('%Y-%m-%d'),
                 date_to=date_to or datetime.now(HCM_TZ).strftime('%Y-%m-%d'),
+                level=level,  # ✅ FIX: Truyền level parameter
                 use_cache=use_cache,
-                # Filters chỉ áp dụng cho bảng
+                # Filters chỉ áp dụng cho bảng (KHÔNG ảnh hưởng summary)
                 prefix=prefix,
                 status=status,
                 search=search,
