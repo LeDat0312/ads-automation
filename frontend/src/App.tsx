@@ -856,7 +856,7 @@ function App() {
                   <div className="text-indigo-100 text-xs">
                     Thao tác hàng loạt
                   </div>
-                  {/* Progress Bar */}
+                  {/* Progress Bar - Status Update */}
                   {bulkProgress && (
                     <div className="mt-2">
                       <div className="flex items-center gap-2 text-xs text-white/90">
@@ -873,26 +873,45 @@ function App() {
                       </div>
                     </div>
                   )}
+                  {/* Progress Bar - Budget Update */}
+                  {batchProgress && (
+                    <div className="mt-2">
+                      <div className="flex items-center gap-2 text-xs text-white/90">
+                        <span>{batchProgress.status}</span>
+                        {batchProgress.done > 0 && (
+                          <span className="text-white/70">
+                            ({Math.round((batchProgress.done / batchProgress.total) * 100)}%)
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 w-full bg-white/20 rounded-full h-1.5">
+                        <div 
+                          className="bg-white rounded-full h-1.5 transition-all duration-300"
+                          style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowBudgetModal(true)}
-                  disabled={loading || !!bulkProgress}
+                  disabled={loading || !!bulkProgress || !!batchProgress}
                   className="px-4 py-2 bg-white text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all shadow-lg hover:shadow-xl font-semibold disabled:opacity-50 transform hover:scale-105 active:scale-95 text-sm"
                 >
                   💰 Điều chỉnh NS
                 </button>
                 <button
                   onClick={() => handleStatusUpdateClick('resume')}
-                  disabled={loading || !!bulkProgress}
+                  disabled={loading || !!bulkProgress || !!batchProgress}
                   className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-lg hover:shadow-xl font-semibold disabled:opacity-50 transform hover:scale-105 active:scale-95 text-sm"
                 >
                   ▶️ Bật
                 </button>
                 <button
                   onClick={() => handleStatusUpdateClick('pause')}
-                  disabled={loading || !!bulkProgress}
+                  disabled={loading || !!bulkProgress || !!batchProgress}
                   className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all shadow-lg hover:shadow-xl font-semibold disabled:opacity-50 transform hover:scale-105 active:scale-95 text-sm"
                 >
                   ⏸️ Tắt
@@ -901,8 +920,9 @@ function App() {
                   onClick={() => {
                     setSelectedIds(new Set());
                     setBulkProgress(null);
+                    setBatchProgress(null);
                   }}
-                  disabled={loading || !!bulkProgress}
+                  disabled={loading || !!bulkProgress || !!batchProgress}
                   className="px-3 py-2 bg-white/10 text-white border border-white/30 rounded-lg hover:bg-white/20 transition-all font-medium backdrop-blur-sm disabled:opacity-50 text-sm"
                 >
                   ✖️ Bỏ chọn
