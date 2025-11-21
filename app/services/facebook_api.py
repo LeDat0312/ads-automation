@@ -1783,6 +1783,17 @@ def pull_facebook_data(
                     campaign_budget_value = campaign_budget_total
                     adset_budget_value = adset_daily_budget
                     
+                    # FIX: Tính các derived metrics đúng theo spec - Giá DATA, TLC, Frequency
+                    # Giá DATA = spend / (post_comments + messaging_conversations_started)
+                    derived_gia_data = (spend / results) if results > 0 else 0
+                    # TLC (tỷ lệ chốt) = purchases / messaging_conversations_started * 100
+                    derived_tlc = (purchases / messages * 100) if messages > 0 else 0
+                    # Frequency = impressions / reach
+                    reach_val = int(item.get('reach', 0) or 0)
+                    derived_frequency = (impressions / reach_val) if reach_val > 0 else 0
+                    # % ADS = spend / purchase_value * 100 (KHÔNG nhân 100 ở frontend nữa)
+                    derived_ads_percent = (spend / purchase_value * 100) if purchase_value > 0 else 0
+                    
                     # Tạo row data với đầy đủ fields theo spec
                     row = {
                         'account_name': item.get('account_name', ''),
@@ -1814,19 +1825,23 @@ def pull_facebook_data(
                         'amount_spent': spend,
                         'results': results,
                         'ket_qua': results,
-                        'gia_data': gia_data,
-                        'percent_ads': percent_ads,
+                        'gia_data': derived_gia_data,  # FIX: Dùng derived_gia_data
+                        'data_cost': derived_gia_data,  # FIX: Alias
+                        'percent_ads': derived_ads_percent,  # FIX: Dùng derived (đã nhân 100)
+                        'ads_percent': derived_ads_percent,  # FIX: Alias
+                        'tlc': derived_tlc,  # FIX: TLC (đã nhân 100)
                         'cost_per_checkout_initiated': cost_per_checkout,
                         'checkouts_initiated': checkouts,  # Đã parse từ actions theo spec (omni_initiated_checkout)
+                        'initiated_checkout': checkouts,  # FIX: Alias
                         'cost_per_purchase': cost_per_purchase,
                         'purchases': purchases,  # Đã parse từ actions theo spec (omni_purchase)
                         'sdt': checkouts,  # SĐT = checkouts (alias)
                         'gia_tri_chuyen_doi_tu_luot_mua': purchase_value,  # Purchase value theo spec
-                        'purchase_value': purchase_value,  # 🔹 FIX: Thêm alias cho frontend
+                        'purchase_value': purchase_value,  # FIX: Alias cho frontend
                         'cpm': cpm,
                         'impressions': impressions,
-                        'reach': int(item.get('reach', 0) or 0),
-                        'frequency': float(item.get('frequency', 0) or 0),
+                        'reach': reach_val,
+                        'frequency': derived_frequency,  # FIX: Dùng derived_frequency
                         'clicks': clicks,
                         'clicks_all': clicks,
                         'ctr': ctr,

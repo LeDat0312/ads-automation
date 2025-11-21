@@ -44,7 +44,7 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
             </div>
             <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">% ADS</h3>
             <p className="text-[32px] font-bold text-[#1f2937] leading-tight mb-2">
-              {summary.adsPercent !== undefined ? `${(summary.adsPercent * 100).toFixed(2)}%` : '0.00%'}
+              {summary.adsPercent !== undefined ? `${summary.adsPercent.toFixed(2)}%` : '0.00%'}
             </p>
             <p className="text-sm text-[#6b7280]">Chi tiêu / Giá trị chuyển đổi</p>
           </div>

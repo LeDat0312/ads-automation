@@ -376,7 +376,7 @@ async def get_dashboard_dataset(
         logger.info(f"   📊 % ADS calculation: spend={total_spend:.2f}, purchaseValue={total_purchase_value:.2f}, adsPercent={ads_percent:.2f}%")
         summary = {
             "totalSpend": round(total_spend, 2),
-            "adsPercent": round(ads_percent, 2),  # Đã nhân 100, frontend chỉ cần format
+            "adsPercent": round(ads_percent, 2),  # FIX: Đã nhân 100, frontend chỉ cần hiển thị
             "purchaseValue": round(total_purchase_value, 2),
             "totalCheckouts": total_checkouts,
             "totalPurchases": total_purchases,
@@ -854,22 +854,25 @@ async def get_dashboard_data(
                 
                 # 🔹 FIX E-COMMERCE METRICS: Tính đầy đủ các metrics theo spec
                 group['results'] = data
+                # FIX: Giá DATA = spend / (post_comments + messaging_conversations_started)
                 group['gia_data'] = (spend / data) if data > 0 else 0
-                # Cost per checkout: ưu tiên từ API (cost_per_checkout_initiated), fallback tính từ spend
+                group['data_cost'] = group['gia_data']  # Alias
+                # FIX: Cost per checkout - ưu tiên từ API, fallback tính từ spend
                 group['cost_per_checkout_initiated'] = group.get('cost_per_checkout_initiated', 0) or ((spend / checkouts) if checkouts > 0 else 0)
-                # Cost per purchase: ưu tiên từ API (cost_per_purchase), fallback tính từ spend
+                # FIX: Cost per purchase - ưu tiên từ API, fallback tính từ spend
                 group['cost_per_purchase'] = group.get('cost_per_purchase', 0) or ((spend / purchases) if purchases > 0 else 0)
-                # % ADS = (spend / purchase_value) * 100
+                # FIX: % ADS = (spend / purchase_value) * 100
                 group['ads_percent'] = (spend / purchase_value * 100) if purchase_value > 0 else 0
-                # TLC (tỷ lệ chốt) = purchases / checkouts_initiated * 100
-                group['tlc'] = (purchases / checkouts * 100) if checkouts > 0 else 0
-                # Frequency = impressions / reach
+                # FIX: TLC (tỷ lệ chốt) = (purchases / messaging_conversations_started) * 100
+                msg_started = group['messaging_conversations_started']
+                group['tlc'] = (purchases / msg_started * 100) if msg_started > 0 else 0
+                # FIX: Frequency = impressions / reach
                 group['frequency'] = (impressions / reach) if reach > 0 else 0
                 # Các metrics khác
                 group['cpm'] = (spend / impressions * 1000) if impressions > 0 else 0
                 group['ctr'] = (clicks / impressions * 100) if impressions > 0 else 0
                 group['cpc'] = (spend / clicks) if clicks > 0 else 0
-                # 🔹 FIX: Thêm alias purchase_value từ gia_tri_chuyen_doi_tu_luot_mua
+                # FIX: Thêm alias purchase_value từ gia_tri_chuyen_doi_tu_luot_mua
                 group['purchase_value'] = purchase_value
                 
                 rows.append(group)
@@ -932,22 +935,25 @@ async def get_dashboard_data(
                 
                 # 🔹 FIX E-COMMERCE METRICS: Tính đầy đủ các metrics theo spec
                 group['results'] = data
+                # FIX: Giá DATA = spend / (post_comments + messaging_conversations_started)
                 group['gia_data'] = (spend / data) if data > 0 else 0
-                # Cost per checkout: ưu tiên từ API, fallback tính từ spend
+                group['data_cost'] = group['gia_data']  # Alias
+                # FIX: Cost per checkout - ưu tiên từ API, fallback tính từ spend
                 group['cost_per_checkout_initiated'] = group.get('cost_per_checkout_initiated', 0) or ((spend / checkouts) if checkouts > 0 else 0)
-                # Cost per purchase: ưu tiên từ API, fallback tính từ spend
+                # FIX: Cost per purchase - ưu tiên từ API, fallback tính từ spend
                 group['cost_per_purchase'] = group.get('cost_per_purchase', 0) or ((spend / purchases) if purchases > 0 else 0)
-                # % ADS = (spend / purchase_value) * 100
+                # FIX: % ADS = (spend / purchase_value) * 100
                 group['ads_percent'] = (spend / purchase_value * 100) if purchase_value > 0 else 0
-                # TLC (tỷ lệ chốt) = purchases / checkouts_initiated * 100
-                group['tlc'] = (purchases / checkouts * 100) if checkouts > 0 else 0
-                # Frequency = impressions / reach
+                # FIX: TLC (tỷ lệ chốt) = (purchases / messaging_conversations_started) * 100
+                msg_started = group['messaging_conversations_started']
+                group['tlc'] = (purchases / msg_started * 100) if msg_started > 0 else 0
+                # FIX: Frequency = impressions / reach
                 group['frequency'] = (impressions / reach) if reach > 0 else 0
                 # Các metrics khác
                 group['cpm'] = (spend / impressions * 1000) if impressions > 0 else 0
                 group['ctr'] = (clicks / impressions * 100) if impressions > 0 else 0
                 group['cpc'] = (spend / clicks) if clicks > 0 else 0
-                # 🔹 FIX: Thêm alias purchase_value
+                # FIX: Thêm alias purchase_value
                 group['purchase_value'] = purchase_value
                 
                 rows.append(group)
