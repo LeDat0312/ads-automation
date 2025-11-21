@@ -15,6 +15,7 @@ import type {
   SortConfig,
   SortableColumn,
   Currency,
+  AdsetStatus,
 } from './types/dashboard';
 
 function App() {
