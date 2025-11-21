@@ -151,7 +151,7 @@ function App() {
   // 🔹 NHIỆM VỤ 3: Tính totals từ rows hiện tại (sau filter) cho footer
   const calculatedTotals = React.useMemo(() => {
     if (!sortedRows || sortedRows.length === 0) {
-      return null;
+      return undefined;
     }
 
     const totals = sortedRows.reduce(
@@ -160,11 +160,11 @@ function App() {
         acc.results += Number(row.results || 0);
         acc.checkouts_initiated += Number(row.checkouts_initiated || row.initiated_checkout || 0);
         acc.purchases += Number(row.purchases || 0);
-        acc.purchase_value += Number(row.purchase_value || row.gia_tri_chuyen_doi_tu_luot_mua || 0);
+        acc.purchase_value += Number(row.purchase_value || 0);
         acc.impressions += Number(row.impressions || 0);
         acc.reach += Number(row.reach || 0);
         acc.clicks += Number(row.clicks || 0);
-        acc.data_cost += Number(row.data_cost || row.gia_data || 0);
+        acc.data_cost += Number(row.data_cost || 0);
         acc.cost_per_checkout_initiated += Number(row.cost_per_checkout_initiated || 0);
         acc.cost_per_purchase += Number(row.cost_per_purchase || 0);
         acc.cpm += Number(row.cpm || 0);
@@ -202,7 +202,6 @@ function App() {
     );
 
     // Tính các metrics trung bình / tổng hợp
-    const rowCount = sortedRows.length;
     return {
       ...totals,
       // Trung bình cho các metrics cần chia

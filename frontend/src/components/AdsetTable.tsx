@@ -28,8 +28,8 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   // 🔹 FIX CBO: Sử dụng using_campaign_budget để xác định chính xác
   const canEditBudget = (row: AdsetRow, level: 'campaign' | 'adset' | 'ad'): boolean => {
     // Xác định budget level từ using_campaign_budget hoặc budget_level
-    const isCampaignBudget = row.using_campaign_budget || row.budget_level === 'CAMPAIGN';
-    const isAdsetBudget = !isCampaignBudget && (row.budget_level === 'ADSET' || (row.adset_daily_budget && row.adset_daily_budget > 0));
+    const isCampaignBudget = !!(row.using_campaign_budget || row.budget_level === 'CAMPAIGN');
+    const isAdsetBudget = !isCampaignBudget && !!(row.budget_level === 'ADSET' || (row.adset_daily_budget && row.adset_daily_budget > 0));
     
     if (level === 'campaign') {
       // Tab Chiến dịch: chỉ cho edit nếu đang dùng campaign budget (CBO)
