@@ -8,6 +8,7 @@ interface BudgetModalProps {
   selectedAdsets: AdsetRow[];
   onApply: (changes: { id: string; new_budget: number }[]) => void;
   currentLevel?: 'campaign' | 'adset' | 'ad'; // 🔹 FIX: Thêm currentLevel để xác định đúng budget
+  batchProgress?: { total: number; done: number; status: string } | null; // 🔹 FIX LỖI 3: Progress indicator
 }
 
 type BudgetMode = 'percent' | 'manual';
@@ -21,7 +22,7 @@ const percentOptions = [
   { value: 30, label: '+30%', color: 'green' },
 ];
 
-export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply, currentLevel = 'adset' }: BudgetModalProps) {
+export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply, currentLevel = 'adset', batchProgress }: BudgetModalProps) {
   const [mode, setMode] = useState<BudgetMode>('percent');
   const [selectedPercent, setSelectedPercent] = useState<number | null>(null);
   const [manualBudget, setManualBudget] = useState<string>('');
@@ -304,20 +305,39 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply, 
             )}
           </div>
 
+          {/* 🔹 FIX LỖI 3: Progress Indicator - Hiển thị khi đang batch update */}
+          {batchProgress && (
+            <div className="px-6 py-4 bg-indigo-50 border-t border-indigo-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-indigo-900">{batchProgress.status}</span>
+                <span className="text-sm text-indigo-600 font-semibold">
+                  {batchProgress.done}/{batchProgress.total}
+                </span>
+              </div>
+              <div className="w-full bg-indigo-200 rounded-full h-2.5 overflow-hidden">
+                <div
+                  className="bg-indigo-600 h-full transition-all duration-300 ease-out rounded-full"
+                  style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Footer */}
           <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
             <button
               onClick={handleClose}
-              className="px-6 py-2.5 text-gray-700 hover:text-gray-900 font-medium transition-colors"
+              disabled={!!batchProgress}
+              className="px-6 py-2.5 text-gray-700 hover:text-gray-900 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Hủy
             </button>
             <button
               onClick={handleApply}
-              disabled={previewChanges.length === 0}
+              disabled={previewChanges.length === 0 || !!batchProgress}
               className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
             >
-              Áp dụng thay đổi
+              {batchProgress ? 'Đang xử lý...' : 'Áp dụng thay đổi'}
             </button>
           </div>
         </div>

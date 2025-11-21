@@ -168,16 +168,22 @@ export interface BudgetUpdateRequest {
 
 export interface BudgetUpdateResponse {
   success: boolean;
+  total: number; // 🔹 FIX LỖI 1 & 3: Thêm total, success_count, failed_count
+  success_count: number;
+  failed_count: number;
   results: Array<{
     id: string;
     level: string;
-    old_budget: number;
+    old_budget?: number;
     new_budget: number;
+    budget_type?: string;
     status: string;
   }>;
   errors?: Array<{
     id: string;
+    level: string;
     error: string;
+    status: string;
   }>;
   message: string;
 }

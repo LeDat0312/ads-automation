@@ -34,6 +34,7 @@ function App() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'pause' | 'resume' | null>(null);
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; status: string } | null>(null);
   const [currentLevel, setCurrentLevel] = useState<Level>('adset');
   const [drillDownPath, setDrillDownPath] = useState<{
     campaignId?: string;
@@ -230,10 +231,13 @@ function App() {
   };
 
   // Handle budget update - bulk
-  // 🔹 FIX: Xác định đúng level cho từng row dựa trên budget_level
+  // 🔹 FIX LỖI 2 & 3: Xác định đúng level, KHÔNG reload toàn bộ, hiển thị progress
   const handleBudgetUpdate = async (changes: { id: string; new_budget: number }[]) => {
     try {
       setLoading(true);
+      
+      // FIX LỖI 3: Hiển thị progress ban đầu
+      setBatchProgress({ total: changes.length, done: 0, status: 'Đang cập nhật...' });
       
       // 🔹 FIX: Xác định level đúng cho từng change dựa trên row data
       const operations = changes.map(change => {
@@ -262,17 +266,61 @@ function App() {
         };
       });
       
-      // Gọi API update
-      await updateBudget({
+      // FIX LỖI 1: Gọi API update với batch processing (backend xử lý song song)
+      const response = await updateBudget({
         operations,
         view_mode: viewMode,
       });
       
-      // 🔹 FIX: Refresh data sau khi update để lấy budget mới từ Facebook
-      await fetchData();
+      // FIX LỖI 3: Cập nhật progress từ response (total, success_count, failed_count)
+      const successCount = response.success_count || 0;
+      const failedCount = response.failed_count || 0;
+      setBatchProgress({ 
+        total: response.total || changes.length, 
+        done: successCount, 
+        status: `Hoàn thành ${successCount}/${response.total}` + (failedCount > 0 ? ` (${failedCount} lỗi)` : '')
+      });
+      
+      // FIX LỖI 2: KHÔNG gọi fetchData() - cập nhật state trực tiếp từ response
+      if (data && response.results && response.results.length > 0) {
+        setData(prevData => {
+          if (!prevData) return prevData;
+          
+          // Map results để update budget trong rows
+          const updatedRows = prevData.details.rows.map(row => {
+            const result = response.results.find(r => 
+              r.id === row.id || r.id === row.adset_id || r.id === row.campaign_id
+            );
+            
+            if (result && result.status === 'ok') {
+              // Cập nhật budget mới từ response
+              return {
+                ...row,
+                budget: result.new_budget,
+                daily_budget: result.budget_type === 'DAILY' ? result.new_budget : row.daily_budget,
+                lifetime_budget: result.budget_type === 'LIFETIME' ? result.new_budget : row.lifetime_budget,
+              };
+            }
+            return row;
+          });
+          
+          return {
+            ...prevData,
+            details: {
+              ...prevData.details,
+              rows: updatedRows,
+            },
+          };
+        });
+      }
+      
+      // Clear selection và ẩn progress sau 1.5s
       setSelectedIds(new Set());
+      setTimeout(() => setBatchProgress(null), 1500);
+      
     } catch (err) {
       setError(getErrorMessage(err));
+      setBatchProgress(null);
     } finally {
       setLoading(false);
     }
@@ -833,6 +881,7 @@ function App() {
         selectedAdsets={selectedAdsets}
         onApply={handleBudgetUpdate}
         currentLevel={currentLevel}
+        batchProgress={batchProgress}
       />
 
       {/* Confirm Modal for Bulk Actions */}

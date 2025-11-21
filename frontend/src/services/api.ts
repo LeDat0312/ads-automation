@@ -85,7 +85,8 @@ export async function getDashboardData(
   if (filters.date_to) params.date_to = filters.date_to;
   if (filters.search) params.search = filters.search;
   if (filters.campaign_id) params.campaign_id = filters.campaign_id;
-  if (filters.adset_id) params.adset_id = filters.adset_id;
+  // FIX LỖI 4: Chỉ gửi adset_id khi level = ad (drill-down vào ads)
+  if (filters.adset_id && params.level === 'ad') params.adset_id = filters.adset_id;
   
   // Add sort parameters
   if (filters.sort_by) params.sort_by = filters.sort_by;
@@ -143,6 +144,9 @@ export async function updateBudget(
     console.log('🎭 MOCK: Budget update request:', request);
     return {
       success: true,
+      total: request.operations.length,
+      success_count: request.operations.length,
+      failed_count: 0,
       results: request.operations.map(op => ({
         id: op.id,
         level: op.level,
