@@ -432,7 +432,7 @@ function App() {
             if (rId === rowId) {
               return {
                 ...r,
-                delivery: newStatus,
+                delivery: newStatus as AdsetStatus,
                 configured_status: newStatus,
                 effective_status: newStatus,
                 is_active_now: newStatus === 'ACTIVE',
@@ -505,7 +505,7 @@ function App() {
               // Cập nhật status mới
               return {
                 ...row,
-                delivery: newStatus,
+                delivery: newStatus as AdsetStatus,
                 configured_status: newStatus,
                 effective_status: newStatus,
                 is_active_now: newStatus === 'ACTIVE',
