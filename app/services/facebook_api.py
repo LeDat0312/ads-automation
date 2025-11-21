@@ -1033,6 +1033,154 @@ def update_campaign_budget(
         }
 
 
+def update_adsets_budget_batch(
+    updates: List[Dict[str, Any]],
+    access_token: str
+) -> Dict[str, Any]:
+    """
+    Cập nhật ngân sách NHIỀU adsets bằng Graph API Batch (tối đa 50/request)
+    
+    Args:
+        updates: List of dicts với keys: id, new_budget
+        access_token: Facebook access token
+    
+    Returns:
+        Dict với keys: success_count, error_count, results, errors
+    """
+    if not updates:
+        return {"success_count": 0, "error_count": 0, "results": [], "errors": []}
+    
+    # Chunk thành nhóm 50
+    batches = chunk_list(updates, 50)
+    all_results = []
+    all_errors = []
+    
+    for batch_idx, batch_updates in enumerate(batches):
+        try:
+            # Bước 1: Lấy budget hiện tại của tất cả adsets trong batch
+            get_batch_payload = []
+            for item in batch_updates:
+                get_batch_payload.append({
+                    "method": "GET",
+                    "relative_url": f"{FB_API_VERSION}/{item['id']}?fields=daily_budget,lifetime_budget"
+                })
+            
+            # Gửi batch GET request
+            import json
+            form_data = {
+                'access_token': access_token,
+                'batch': json.dumps(get_batch_payload)
+            }
+            
+            url = f"{FB_GRAPH_API_BASE}/"
+            get_response = requests.post(url, data=form_data, timeout=60)
+            get_response.raise_for_status()
+            get_results = get_response.json()
+            
+            # Parse kết quả GET
+            adset_budgets = {}
+            for i, item in enumerate(get_results):
+                if isinstance(item, dict) and item.get('code') == 200:
+                    try:
+                        body_data = json.loads(item['body'])
+                        adset_id = batch_updates[i]['id']
+                        current_budget = float(body_data.get('daily_budget') or body_data.get('lifetime_budget') or 0)
+                        budget_type = 'daily_budget' if body_data.get('daily_budget') else 'lifetime_budget'
+                        adset_budgets[adset_id] = {
+                            'current': current_budget,
+                            'type': budget_type
+                        }
+                    except Exception as e:
+                        logger.warning(f"Failed to parse GET response for batch item {i}: {e}")
+            
+            # Bước 2: Cập nhật budget với batch POST
+            update_batch_payload = []
+            update_mapping = []  # Track mapping giữa batch index và update item
+            
+            for item in batch_updates:
+                adset_id = item['id']
+                new_budget = _normalize_budget(item['new_budget'])
+                
+                if adset_id in adset_budgets:
+                    budget_info = adset_budgets[adset_id]
+                    budget_type = budget_info['type']
+                    
+                    update_batch_payload.append({
+                        "method": "POST",
+                        "relative_url": f"{FB_API_VERSION}/{adset_id}",
+                        "body": f"{budget_type}={new_budget}"
+                    })
+                    update_mapping.append({
+                        'id': adset_id,
+                        'old_budget': budget_info['current'],
+                        'new_budget': new_budget,
+                        'budget_type': budget_type
+                    })
+                else:
+                    # Không lấy được budget hiện tại
+                    all_errors.append({
+                        'id': adset_id,
+                        'error': 'Failed to get current budget'
+                    })
+            
+            if update_batch_payload:
+                # Gửi batch UPDATE request
+                update_form_data = {
+                    'access_token': access_token,
+                    'batch': json.dumps(update_batch_payload)
+                }
+                
+                update_response = requests.post(url, data=update_form_data, timeout=60)
+                update_response.raise_for_status()
+                update_results = update_response.json()
+                
+                # Parse kết quả UPDATE
+                for i, result_item in enumerate(update_results):
+                    if i < len(update_mapping):
+                        mapping = update_mapping[i]
+                        
+                        if isinstance(result_item, dict) and result_item.get('code') == 200:
+                            all_results.append({
+                                'id': mapping['id'],
+                                'old_budget': mapping['old_budget'],
+                                'new_budget': mapping['new_budget'],
+                                'budget_type': mapping['budget_type'],
+                                'success': True
+                            })
+                            logger.info(f"✅ Đã cập nhật budget adset {mapping['id']}: {mapping['old_budget']} → {mapping['new_budget']}")
+                        else:
+                            # Parse error
+                            error_msg = "Unknown error"
+                            try:
+                                if 'body' in result_item:
+                                    body_data = json.loads(result_item['body'])
+                                    if 'error' in body_data:
+                                        error_msg = body_data['error'].get('message', error_msg)
+                            except Exception:
+                                pass
+                            
+                            all_errors.append({
+                                'id': mapping['id'],
+                                'error': error_msg
+                            })
+                            logger.warning(f"❌ Lỗi cập nhật budget adset {mapping['id']}: {error_msg}")
+        
+        except Exception as e:
+            logger.error(f"Batch budget update error for batch {batch_idx}: {e}")
+            for item in batch_updates:
+                all_errors.append({
+                    'id': item['id'],
+                    'error': f"Batch error: {str(e)}"
+                })
+    
+    return {
+        "success_count": len(all_results),
+        "error_count": len(all_errors),
+        "results": all_results,
+        "errors": all_errors
+    }
+
+
 def update_adset_budget(
     adset_id: str,
     access_token: str,
