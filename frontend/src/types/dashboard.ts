@@ -202,6 +202,24 @@ export interface StatusUpdateRequest {
   adset_ids?: string[];  // For bulk status update
 }
 
+export interface StatusUpdateResponse {
+  success: boolean;
+  total: number;
+  success_count: number;
+  failed_count: number;
+  success_ids: string[];
+  failed_ids: string[];
+  results: Array<{
+    id: string;
+    new_status: string;
+  }>;
+  errors?: Array<{
+    id: string;
+    error: string;
+  }>;
+  message: string;
+}
+
 // Sort configuration
 export type SortDirection = 'asc' | 'desc';
 export type SortableColumn = 

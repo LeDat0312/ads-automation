@@ -412,15 +412,44 @@ function App() {
       // Ưu tiên configured_status, sau đó effective_status, cuối cùng delivery
       const currentStatus = (row.configured_status || row.effective_status || row.delivery || 'UNKNOWN').toUpperCase();
       const newStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
-      await updateStatus({
+      const rowId = row.id || row.adset_id || row.campaign_id;
+      
+      const response = await updateStatus({
         level: currentLevel.toUpperCase() as 'CAMPAIGN' | 'ADSET' | 'AD',
         items: [{
-          id: row.id || row.adset_id || row.campaign_id,
+          id: rowId,
           new_status: newStatus,
         }],
       });
-      // Refresh data sau khi update status
-      await fetchData();
+      
+      // ✅ KHÔNG RELOAD - Cập nhật state trực tiếp
+      if (data && response.success_ids && response.success_ids.includes(rowId)) {
+        setData(prevData => {
+          if (!prevData) return prevData;
+          
+          const updatedRows = prevData.details.rows.map(r => {
+            const rId = r.id || r.adset_id || r.campaign_id;
+            if (rId === rowId) {
+              return {
+                ...r,
+                delivery: newStatus,
+                configured_status: newStatus,
+                effective_status: newStatus,
+                is_active_now: newStatus === 'ACTIVE',
+              };
+            }
+            return r;
+          });
+          
+          return {
+            ...prevData,
+            details: {
+              ...prevData.details,
+              rows: updatedRows,
+            },
+          };
+        });
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -443,52 +472,72 @@ function App() {
       
       const selectedIdsArray = Array.from(selectedIds);
       const total = selectedIdsArray.length;
+      const newStatus = (confirmAction === 'pause' ? 'PAUSED' : 'ACTIVE') as 'ACTIVE' | 'PAUSED';
+      
+      // ✅ Hiển thị progress ban đầu
       setBulkProgress({ current: 0, total });
       
-      // Xử lý từng item một để update progress incrementally
-      let successCount = 0;
-      let failCount = 0;
+      // ✅ GỬI 1 REQUEST DUY NHẤT với tất cả IDs
+      const response = await updateStatus({
+        level: currentLevel.toUpperCase() as 'CAMPAIGN' | 'ADSET' | 'AD',
+        items: selectedIdsArray.map(id => ({
+          id,
+          new_status: newStatus,
+        })),
+      });
       
-      for (let i = 0; i < selectedIdsArray.length; i++) {
-        const id = selectedIdsArray[i];
-        try {
-          await updateStatus({
-            level: currentLevel.toUpperCase() as 'CAMPAIGN' | 'ADSET' | 'AD',
-            items: [{
-              id,
-              new_status: (confirmAction === 'pause' ? 'PAUSED' : 'ACTIVE') as 'ACTIVE' | 'PAUSED' | 'DELETED',
-            }],
+      const successCount = response.success_count || 0;
+      const failedCount = response.failed_count || 0;
+      const successIds = response.success_ids || [];
+      
+      // ✅ Cập nhật progress
+      setBulkProgress({ current: successCount, total });
+      
+      // ✅ KHÔNG RELOAD - Cập nhật state trực tiếp
+      if (data && successIds.length > 0) {
+        setData(prevData => {
+          if (!prevData) return prevData;
+          
+          const successIdSet = new Set(successIds);
+          const updatedRows = prevData.details.rows.map(row => {
+            const rowId = row.id || row.adset_id || row.campaign_id;
+            if (successIdSet.has(rowId)) {
+              // Cập nhật status mới
+              return {
+                ...row,
+                delivery: newStatus,
+                configured_status: newStatus,
+                effective_status: newStatus,
+                is_active_now: newStatus === 'ACTIVE',
+              };
+            }
+            return row;
           });
-          successCount++;
-        } catch (err) {
-          failCount++;
-          console.error(`Failed to update ${id}:`, err);
-        }
-        
-        // Update progress sau mỗi item
-        setBulkProgress({ current: i + 1, total });
-        
-        // Thêm delay nhỏ để user thấy progress
-        if (i < selectedIdsArray.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
+          
+          return {
+            ...prevData,
+            details: {
+              ...prevData.details,
+              rows: updatedRows,
+            },
+          };
+        });
       }
       
-      // Đợi một chút để user thấy progress 100%
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Đợi 1 chút để user thấy progress 100%
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Refresh data và clear selection
-      await fetchData();
+      // Clear selection và ẩn progress
       setSelectedIds(new Set());
       setBulkProgress(null);
       setConfirmAction(null);
-      setShowConfirmModal(false);
       
-      // Show success/error message
-      if (failCount === 0) {
-        // Success - có thể show toast nếu muốn
+      // Hiển thị thông báo
+      if (failedCount === 0) {
+        // Tất cả thành công - có thể show toast
+        console.log(`✅ Đã ${confirmAction === 'pause' ? 'tắt' : 'bật'} thành công ${successCount}/${total} ${currentLevel}`);
       } else {
-        setError(`Đã xử lý ${successCount}/${total} item thành công. ${failCount} item thất bại.`);
+        setError(`Đã xử lý ${successCount}/${total} item thành công. ${failedCount} item thất bại.`);
       }
     } catch (err) {
       setError(getErrorMessage(err));

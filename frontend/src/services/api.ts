@@ -6,6 +6,7 @@ import type {
   BudgetUpdateRequest,
   BudgetUpdateResponse,
   StatusUpdateRequest,
+  StatusUpdateResponse,
 } from '@/types/dashboard';
 
 // ⚠️ MOCK MODE: Set to true to use mock data without backend
@@ -167,18 +168,27 @@ export async function updateBudget(
  */
 export async function updateStatus(
   request: StatusUpdateRequest
-): Promise<{ success: boolean; message: string }> {
+): Promise<StatusUpdateResponse> {
   // 🎭 MOCK MODE
   if (USE_MOCK_DATA) {
     await new Promise(resolve => setTimeout(resolve, 600));
     console.log('🎭 MOCK: Status update request:', request);
     return {
       success: true,
+      total: request.items.length,
+      success_count: request.items.length,
+      failed_count: 0,
+      success_ids: request.items.map(item => item.id),
+      failed_ids: [],
+      results: request.items.map(item => ({
+        id: item.id,
+        new_status: item.new_status,
+      })),
       message: `Updated ${request.items.length} items to ${request.items[0]?.new_status} (MOCK)`,
     };
   }
 
-  const response = await api.post('/dashboard/status/update', request);
+  const response = await api.post<StatusUpdateResponse>('/dashboard/status/update', request);
   return response.data;
 }
 
