@@ -89,24 +89,24 @@ export default function SummaryCards({ summary, viewMode, isLoading }: SummaryCa
       ) : (
         <>
           {/* LEAD GENERATION VIEW */}
-          {/* Card 2: TỔNG LEAD */}
+          {/* Card 2: TỔNG DATA */}
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <div className="w-10 h-10 rounded-[10px] bg-[#22c55e] flex items-center justify-center text-white text-lg">💬</div>
             </div>
-            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">TỔNG LEAD</h3>
-            <p className="text-[32px] font-bold text-[#1f2937] leading-tight mb-2">{formatNumber(summary.totalData || summary.totalLead || 0)}</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">TỔNG DATA</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight mb-2">{formatNumber(summary.totalData || 0)}</p>
             <p className="text-sm text-[#6b7280]">Bình luận + Tin nhắn</p>
           </div>
 
-          {/* Card 3: TỔNG BẮT ĐẦU TT */}
+          {/* Card 3: TỔNG LEAD (BẮT ĐẦU TT) */}
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <div className="w-10 h-10 rounded-[10px] bg-[#06b6d4] flex items-center justify-center text-white text-lg">🛒</div>
             </div>
-            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">TỔNG BẮT ĐẦU TT</h3>
-            <p className="text-[32px] font-bold text-[#1f2937] leading-tight mb-2">{formatNumber(summary.totalCheckouts || 0)}</p>
-            <p className="text-sm text-[#6b7280]">Lượt bắt đầu thanh toán</p>
+            <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-[0.5px] mb-3">TỔNG LEAD</h3>
+            <p className="text-[32px] font-bold text-[#1f2937] leading-tight mb-2">{formatNumber(summary.totalLead || 0)}</p>
+            <p className="text-sm text-[#6b7280]">Checkouts Initiated</p>
           </div>
 
           {/* Card 4: ADSETS HOẠT ĐỘNG */}

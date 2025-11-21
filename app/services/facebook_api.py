@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 FB_API_VERSION = "v24.0"
 FB_GRAPH_API_BASE = f"https://graph.facebook.com/{FB_API_VERSION}"
 
+# Custom exceptions
+class FacebookRateLimitError(Exception):
+    """Raised when Facebook API rate limit is reached"""
+    pass
+
 # Global cache cho objectives và budgets (cache lâu hơn - 5 phút)
 _objectives_cache: Dict[str, Dict[str, str]] = {}  # {access_token: {campaign_id: objective}}
 _budgets_cache: Dict[str, Dict[str, float]] = {}  # {access_token: {adset_id: budget}}
@@ -1388,11 +1393,18 @@ def pull_facebook_data(
                         error_msg = json_data['error'].get('message', 'Unknown error')
                         error_type = json_data['error'].get('type', '')
                         error_subcode = json_data['error'].get('error_subcode', '')
+                        
                         # Log response body để debug
                         response_body = response.text if hasattr(response, 'text') else str(response.content) if hasattr(response, 'content') else ""
                         logger.error(f"🚨 Facebook API Error: Code={error_code}, Type={error_type}, Subcode={error_subcode}, Message={error_msg}")
-                        logger.error(f"   URL: {url[:200]}...")  # Log một phần URL để debug
-                        logger.error(f"   Response body: {response_body[:500]}...")  # Log response body để debug
+                        logger.error(f"   URL: {url[:200]}...")
+                        logger.error(f"   Response body: {response_body[:500]}...")
+                        
+                        # 🔹 XỬ LÝ RATE LIMIT: Raise custom exception
+                        if error_code == 4 or error_code == 17 or 'rate limit' in error_msg.lower() or 'Application request limit reached' in error_msg:
+                            logger.error(f"⚠️ RATE LIMIT REACHED - Code {error_code}")
+                            raise FacebookRateLimitError(f"Facebook API rate limit reached: {error_msg}")
+                        
                         if error_code in [190, 100]:
                             raise Exception(f"Lỗi Token hoặc Quyền (Code {error_code}). Chi tiết: {error_msg}")
                         elif error_code == 200:
@@ -1402,7 +1414,9 @@ def pull_facebook_data(
                     # Nếu không parse được JSON, dùng raise_for_status
                     response.raise_for_status()
                     json_data = response.json()
-                
+                except FacebookRateLimitError:
+                    # Re-raise rate limit error để caller xử lý
+                    raise                
                 data = json_data.get('data', [])
                 
                 if not data or not isinstance(data, list) or len(data) == 0:
@@ -1461,6 +1475,11 @@ def pull_facebook_data(
                     ctr = float(item.get('ctr', 0) or 0)
                     cpc = float(item.get('cpc', 0) or 0)
                     
+                    # 🔹 TỐI ƯU: Bỏ qua adsets có spend <= 0 HOẶC impressions <= 0
+                    # Theo yêu cầu: chỉ load adsets có spend > 0 và impressions > 0
+                    if spend <= 0 or impressions <= 0:
+                        continue  # Skip adset này
+                    
                     # Parse actions với nhiều variants (giống Google Script)
                     # Tạo map từ actions array để lookup nhanh
                     def build_action_map(actions_list):
@@ -1506,18 +1525,27 @@ def pull_facebook_data(
                     # Build action map
                     act_map = build_action_map(actions)
                     
+                    # 🔹 CHUẨN HÓA METRICS MAPPING theo Facebook Ads Manager (theo spec)
                     # Danh sách các action type variants - ĐẦY ĐỦ để bắt được tất cả cách Facebook trả về
-                    # Giống Google Script (dòng 728-742)
-                    bases_ic = ['initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout', 
-                               'omni_initiated_checkout', 'onsite_conversion.initiated_checkout']
-                    bases_pur = ['purchase', 'offsite_conversion.fb_pixel_purchase', 
-                                'omni_purchase', 'onsite_conversion.purchase']
+                    # Theo yêu cầu:
+                    # - checkouts_initiated -> "omni_initiated_checkout" (ưu tiên cao nhất)
+                    # - purchases -> "omni_purchase" (ưu tiên cao nhất)
+                    # - messaging started -> "onsite_conversion.messaging_conversation_started_7d"
+                    # - comment -> "comment" hoặc "post_comment"
+                    
+                    bases_ic = ['omni_initiated_checkout', 'initiate_checkout', 
+                               'offsite_conversion.fb_pixel_initiate_checkout', 
+                               'onsite_conversion.initiated_checkout']
+                    bases_pur = ['omni_purchase', 'purchase', 
+                                'offsite_conversion.fb_pixel_purchase', 
+                                'onsite_conversion.purchase']
                     bases_cmt = ['comment', 'post_comment', 'onsite_conversion.post_comment']
-                    bases_msg = ['onsite_conversion.messaging_conversation_started', 
+                    bases_msg = ['onsite_conversion.messaging_conversation_started_7d',
+                                'onsite_conversion.messaging_conversation_started', 
                                 'messaging_conversation_started',
-                                'messaging_conversation_started_1d_click',
-                                'messaging_conversation_started_7d_click']
-                    # Thêm: onsite_conversion.post_save (Bắt đầu TT cho Lead Gen)
+                                'messaging_conversation_started_7d_click',
+                                'messaging_conversation_started_1d_click']
+                    # onsite_conversion.post_save (Bắt đầu TT cho Lead Gen)
                     bases_post_save = ['onsite_conversion.post_save', 'post_save']
                     
                     # Lấy giá trị từ các variants
@@ -1587,13 +1615,16 @@ def pull_facebook_data(
                         return value_map
                     
                     val_map = build_value_map(action_values)
-                    # Purchase value: ưu tiên offsite_conversion.fb_pixel_purchase theo spec
+                    # Purchase value (E-Commerce): ưu tiên offsite_conversion.fb_pixel_purchase theo spec
                     bases_pur_value = ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 
-                                      'purchase', 'offsite_conversion.fb_pixel_purchase']
+                                      'purchase', 'onsite_conversion.purchase']
                     purchase_value = pick_first_variant(val_map, bases_pur_value)
                     
                     # Parse cost_per_action_type để lấy cost metrics đúng theo spec
                     # cost_per_action_type là array giống actions, có action_type và value
+                    # Theo yêu cầu:
+                    # - cost_per_checkout -> cost_per_action_type; action_type="omni_initiated_checkout"
+                    # - cost_per_purchase -> cost_per_action_type; action_type="omni_purchase"
                     cost_per_action_type_list = item.get('cost_per_action_type', [])
                     cost_per_action_map = {}
                     if cost_per_action_type_list and isinstance(cost_per_action_type_list, list):
@@ -1608,13 +1639,13 @@ def pull_facebook_data(
                                 else:
                                     cost_per_action_map[action_type] = value
                     
-                    # Cost per checkout initiated: cost_per_action_type; action_type="omni_initiated_checkout"
+                    # Cost per checkout initiated: ưu tiên omni_initiated_checkout theo spec
                     cost_per_checkout = pick_first_variant(cost_per_action_map, bases_ic)
                     if cost_per_checkout == 0 and checkouts > 0:
                         # Fallback: tính từ spend / checkouts
                         cost_per_checkout = spend / checkouts
                     
-                    # Cost per purchase: cost_per_action_type; action_type="omni_purchase"
+                    # Cost per purchase: ưu tiên omni_purchase theo spec
                     cost_per_purchase = pick_first_variant(cost_per_action_map, bases_pur)
                     if cost_per_purchase == 0 and purchases > 0:
                         # Fallback: tính từ spend / purchases
@@ -1668,30 +1699,35 @@ def pull_facebook_data(
                     campaign_name = item.get('campaign_name', '')
                     logger.debug(f"Campaign '{campaign_name}' - Objective: '{campaign_objective}' → Type: {campaign_type}")
                     
-                    # Lấy budget và xác định budget_level
+                    # 🔹 FIX CBO BUDGET: Lấy budget và xác định budget_level theo spec
                     campaign_id = item.get('campaign_id', '')
                     adset_id = item.get('adset_id', '')
                     
                     # Xác định budget_level từ campaign info
                     campaign_info = campaign_budgets_cache.get(campaign_id, {})
                     campaign_has_budget = campaign_info.get('budget_level', 'ADSET') == 'CAMPAIGN'
-                    campaign_budget = campaign_info.get('daily_budget', 0.0) or campaign_info.get('lifetime_budget', 0.0) or 0.0
-                    adset_budget = adset_budgets_cache.get(adset_id, 0.0)
+                    campaign_daily_budget = campaign_info.get('daily_budget', 0.0) or 0.0
+                    campaign_lifetime_budget = campaign_info.get('lifetime_budget', 0.0) or 0.0
+                    campaign_budget_total = campaign_daily_budget if campaign_daily_budget > 0 else campaign_lifetime_budget
                     
-                    # Xác định budget_level: nếu campaign có budget → CAMPAIGN, nếu không → ADSET
-                    budget_level = 'CAMPAIGN' if campaign_has_budget else 'ADSET'
+                    adset_daily_budget = adset_budgets_cache.get(adset_id, 0.0) or 0.0
                     
-                    # Lấy budget: nếu campaign có budget → dùng campaign budget, nếu không → dùng adset budget
-                    if budget_level == 'CAMPAIGN':
-                        budget = campaign_budget
+                    # Theo spec: using_campaign_budget = adset_daily_budget in (None, 0) and campaign có budget
+                    using_campaign_budget = (adset_daily_budget in (None, 0)) and campaign_budget_total > 0
+                    
+                    # Xác định budget_type: CAMPAIGN hoặc ADSET
+                    if using_campaign_budget or campaign_has_budget:
+                        budget_type = 'CAMPAIGN'
+                        budget = campaign_budget_total
                     else:
-                        budget = adset_budget
+                        budget_type = 'ADSET'
+                        budget = adset_daily_budget
                     
-                    # Lưu cả campaign và adset budget để dùng sau này khi group theo level
-                    campaign_budget_value = campaign_budget if campaign_has_budget else 0.0
-                    adset_budget_value = adset_budget if not campaign_has_budget else 0.0
+                    # Lưu đầy đủ budget info để frontend hiển thị đúng
+                    campaign_budget_value = campaign_budget_total
+                    adset_budget_value = adset_daily_budget
                     
-                    # Tạo row data
+                    # Tạo row data với đầy đủ fields theo spec
                     row = {
                         'account_name': item.get('account_name', ''),
                         'account_id': item.get('account_id', ''),
@@ -1706,11 +1742,18 @@ def pull_facebook_data(
                         'campaign_objective': campaign_objective,
                         'adset_status': 'ACTIVE',  # Mặc định, sẽ được cập nhật sau
                         'effective_status': '',  # Sẽ được cập nhật sau
+                        
+                        # 🔹 Budget fields theo spec
                         'budget': budget,
                         'daily_budget': budget,  # Alias
-                        'budget_level': budget_level,  # CAMPAIGN hoặc ADSET
-                        'campaign_budget': campaign_budget_value,  # Campaign budget (nếu có)
-                        'adset_budget': adset_budget_value,  # Adset budget (nếu có)
+                        'budget_type': budget_type,  # "CAMPAIGN" | "ADSET"
+                        'budget_level': budget_type,  # Alias (backward compatible)
+                        'adset_daily_budget': adset_budget_value,
+                        'campaign_daily_budget': campaign_budget_value,
+                        'using_campaign_budget': using_campaign_budget,
+                        'campaign_budget': campaign_budget_value,  # Alias (backward compatible)
+                        'adset_budget': adset_budget_value,  # Alias (backward compatible)
+                        
                         'spend': spend,
                         'amount_spent': spend,
                         'results': results,
@@ -1718,11 +1761,11 @@ def pull_facebook_data(
                         'gia_data': gia_data,
                         'percent_ads': percent_ads,
                         'cost_per_checkout_initiated': cost_per_checkout,
-                        'checkouts_initiated': checkouts,  # Đã parse từ actions
+                        'checkouts_initiated': checkouts,  # Đã parse từ actions theo spec (omni_initiated_checkout)
                         'cost_per_purchase': cost_per_purchase,
-                        'purchases': purchases,  # Đã parse từ actions
+                        'purchases': purchases,  # Đã parse từ actions theo spec (omni_purchase)
                         'sdt': checkouts,  # SĐT = checkouts (alias)
-                        'gia_tri_chuyen_doi_tu_luot_mua': purchase_value,
+                        'gia_tri_chuyen_doi_tu_luot_mua': purchase_value,  # Purchase value theo spec
                         'cpm': cpm,
                         'impressions': impressions,
                         'reach': int(item.get('reach', 0) or 0),
@@ -1735,9 +1778,9 @@ def pull_facebook_data(
                         'cpc_all': cpc,
                         'cost_per_comment': (spend / comments) if comments > 0 else 0,
                         'cost_per_messaging_conversation': (spend / messages) if messages > 0 else 0,
-                        'post_comments': comments,
-                        'messaging_conversations_started': messages,
-                        'onsite_conversion_post_save': post_saves,  # Bắt đầu TT (Lead Gen)
+                        'post_comments': comments,  # Đã parse từ actions theo spec
+                        'messaging_conversations_started': messages,  # Đã parse từ actions theo spec
+                        'onsite_conversion_post_save': post_saves,  # Bắt đầu TT (Lead Gen) theo spec
                         'date': datetime.now(),
                         'date_preset': date_preset,
                     }
