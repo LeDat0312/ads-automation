@@ -259,21 +259,18 @@ async def get_dashboard_dataset(
     ]
     logger.info(f"   📊 After filter spend>0 && impressions>0: {len(all_data)}/{before_filter} rows")
     
-    # ===== BƯỚC 3: Filter by view_mode (campaign_type) =====
-    before_view_filter = len(all_data)
-    if view_mode == "ecommerce":
-        all_data = [row for row in all_data if row.get('campaign_type') == 'ECOMMERCE']
-    elif view_mode == "lead":
-        all_data = [row for row in all_data if row.get('campaign_type') == 'LEAD']
-    logger.info(f"   📊 After filter view_mode ({view_mode}): {len(all_data)}/{before_view_filter} rows")
+    # ===== BƯỚC 3: rows_base = SINGLE SOURCE OF TRUTH =====
+    # ✅ FIX: Không filter theo campaign_type nữa vì user_account_ids đã được lọc theo account_type từ DB
+    # Accounts đã được filter bởi get_user_account_prefixes_filtered_by_view_mode() theo Account.account_type
+    # Tất cả ads/adsets từ accounts E-Commerce sẽ thuộc E-Commerce view, tương tự cho Lead Gen
+    logger.info(f"   ✅ Skipping view_mode filter - accounts already filtered by account_type from DB")
     
-    # ===== BƯỚC 4: rows_base = SINGLE SOURCE OF TRUTH =====
-    # rows_base = dataset sau khi filter spend>0 && impressions>0 && view_mode
+    # rows_base = dataset sau khi filter spend>0 && impressions>0
     # rows_base sẽ dùng để tính summary (KHÔNG bị ảnh hưởng bởi prefix/status/search)
     rows_base = all_data.copy()
     logger.info(f"   📊 rows_base (for summary): {len(rows_base)} rows")
     
-    # ===== BƯỚC 5: Fetch adset statuses từ Facebook API =====
+    # ===== BƯỚC 4: Fetch adset statuses từ Facebook API =====
     adset_ids_base = list(set([row.get('adset_id') for row in rows_base if row.get('adset_id')]))
     adset_statuses_map = {}
     if adset_ids_base:
@@ -295,7 +292,7 @@ async def get_dashboard_dataset(
                 row['delivery'] = 'UNKNOWN'
                 row['configured_status'] = 'UNKNOWN'
     
-    # ===== BƯỚC 6: Tính SUMMARY từ rows_base (SINGLE SOURCE OF TRUTH) =====
+    # ===== BƯỚC 5: Tính SUMMARY từ rows_base (SINGLE SOURCE OF TRUTH) =====
     logger.info(f"   📊 Computing summary from rows_base ({len(rows_base)} rows)...")
     
     # Group rows_base theo adset_id để tính summary (vì insights có thể có nhiều rows cho 1 adset)
@@ -399,7 +396,7 @@ async def get_dashboard_dataset(
     
     logger.info(f"   ✅ SUMMARY computed: spend={total_spend:.2f}, active={active_adsets}, paused={paused_adsets}, total={total_adsets}")
     
-    # ===== BƯỚC 7: Build rows_for_table (áp dụng filters prefix/status/search) =====
+    # ===== BƯỚC 6: Build rows_for_table (áp dụng filters prefix/status/search) =====
     rows_for_table = rows_base.copy()
     logger.info(f"   📊 rows_for_table initial (from rows_base): {len(rows_for_table)} rows")
     
@@ -408,17 +405,25 @@ async def get_dashboard_dataset(
         rows_for_table = [row for row in rows_for_table if row.get('prefix') == prefix]
         logger.info(f"   📊 After filter prefix ({prefix}): {len(rows_for_table)} rows")
     
-    # Filter by campaign_id
-    if campaign_id and campaign_id != "None" and rows_for_table:
+    # Filter by campaign_id (chỉ khi drill-down vào campaign hoặc đang ở level adset/ad)
+    if campaign_id and campaign_id != "None" and campaign_id.lower() != "null" and rows_for_table:
         rows_for_table = [row for row in rows_for_table if row.get('campaign_id') == campaign_id]
         logger.info(f"   📊 After filter campaign_id ({campaign_id}): {len(rows_for_table)} rows")
     
-    # Filter by adset_id
+    # ✅ FIX: Filter by adset_id CHỈ KHI thực sự drill-down (level=ad hoặc level=campaign)
+    # Không áp dụng khi đang ở level=adset (xem tổng quan adsets)
     if adset_id and isinstance(adset_id, str):
         adset_id_clean = adset_id.strip()
-        if adset_id_clean and adset_id_clean.lower() != "none":
-            rows_for_table = [row for row in rows_for_table if row.get('adset_id') == adset_id_clean]
-            logger.info(f"   📊 After filter adset_id ({adset_id_clean}): {len(rows_for_table)} rows")
+        # Chỉ filter nếu có giá trị hợp lệ VÀ không đang ở level adset
+        if adset_id_clean and adset_id_clean.lower() not in ("none", "null", "undefined", ""):
+            logger.info(f"   🔎 adset_id param received: '{adset_id_clean}' (current level: {level})")
+            # Chỉ áp dụng filter khi level != adset (tức là đang drill-down vào ads)
+            if level == "ad":
+                before_adset_filter = len(rows_for_table)
+                rows_for_table = [row for row in rows_for_table if row.get('adset_id') == adset_id_clean]
+                logger.info(f"   📊 After filter adset_id ({adset_id_clean}): {len(rows_for_table)}/{before_adset_filter} rows [level=ad, drill-down]")
+            else:
+                logger.info(f"   ⚠️ Ignoring adset_id filter because level={level} (not drilling down)")
     
     # Filter by status (chỉ áp dụng cho bảng)
     if status and isinstance(status, str) and status.strip():
@@ -444,7 +449,7 @@ async def get_dashboard_dataset(
         )]
         logger.info(f"   📊 After filter search ({search}): {len(rows_for_table)} rows")
     
-    # ===== BƯỚC 8: Fetch all adsets from accounts (để đếm đúng nếu cần) =====
+    # ===== BƯỚC 7: Fetch all adsets from accounts (để đếm đúng nếu cần) =====
     from app.services.facebook_api import fetch_all_adsets_from_accounts
     logger.info(f"   📥 Fetching all adsets from {len(user_account_ids)} accounts...")
     all_adsets_from_accounts = fetch_all_adsets_from_accounts(
@@ -671,6 +676,7 @@ async def get_dashboard_data(
     
     try:
         logger.info(f"📊 /dashboard/data START | view={view_mode}, level={level}, date_from={date_from}, date_to={date_to}")
+        logger.info(f"🔎 Filter params received | prefix={prefix}, status={status}, search={search}, campaign_id={campaign_id}, adset_id={adset_id}")
         
         # ===== BƯỚC 1: Get user accounts & build account_type_map =====
         user_account_ids, user_prefixes = get_user_account_prefixes_filtered_by_view_mode(
