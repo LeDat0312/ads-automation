@@ -26,6 +26,8 @@ export interface AdsetRow {
   budget_level: 'CAMPAIGN' | 'ADSET';
   adset_daily_budget?: number | null;  // Adset daily budget (if exists)
   campaign_daily_budget?: number | null;  // Campaign daily budget (if exists)
+  daily_budget?: number | null;  // Alias for adset_daily_budget
+  lifetime_budget?: number | null;  // Lifetime budget (if exists)
   using_campaign_budget?: boolean;  // True if adset uses campaign budget (CBO)
   currency: Currency;
 
