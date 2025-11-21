@@ -148,6 +148,80 @@ function App() {
     return data?.details.rows || [];
   }, [data?.details.rows]);
 
+  // 🔹 NHIỆM VỤ 3: Tính totals từ rows hiện tại (sau filter) cho footer
+  const calculatedTotals = React.useMemo(() => {
+    if (!sortedRows || sortedRows.length === 0) {
+      return null;
+    }
+
+    const totals = sortedRows.reduce(
+      (acc, row) => {
+        acc.spend += Number(row.spend || 0);
+        acc.results += Number(row.results || 0);
+        acc.checkouts_initiated += Number(row.checkouts_initiated || row.initiated_checkout || 0);
+        acc.purchases += Number(row.purchases || 0);
+        acc.purchase_value += Number(row.purchase_value || row.gia_tri_chuyen_doi_tu_luot_mua || 0);
+        acc.impressions += Number(row.impressions || 0);
+        acc.reach += Number(row.reach || 0);
+        acc.clicks += Number(row.clicks || 0);
+        acc.data_cost += Number(row.data_cost || row.gia_data || 0);
+        acc.cost_per_checkout_initiated += Number(row.cost_per_checkout_initiated || 0);
+        acc.cost_per_purchase += Number(row.cost_per_purchase || 0);
+        acc.cpm += Number(row.cpm || 0);
+        acc.ctr += Number(row.ctr || 0);
+        acc.cpc += Number(row.cpc || 0);
+        acc.frequency += Number(row.frequency || 0);
+        
+        // E-Commerce specific
+        if (viewMode === 'ecommerce') {
+          acc.ads_percent += Number(row.ads_percent || 0);
+          acc.tlc += Number(row.tlc || 0);
+        }
+        
+        return acc;
+      },
+      {
+        spend: 0,
+        results: 0,
+        checkouts_initiated: 0,
+        purchases: 0,
+        purchase_value: 0,
+        impressions: 0,
+        reach: 0,
+        clicks: 0,
+        data_cost: 0,
+        cost_per_checkout_initiated: 0,
+        cost_per_purchase: 0,
+        cpm: 0,
+        ctr: 0,
+        cpc: 0,
+        frequency: 0,
+        ads_percent: 0,
+        tlc: 0,
+      }
+    );
+
+    // Tính các metrics trung bình / tổng hợp
+    const rowCount = sortedRows.length;
+    return {
+      ...totals,
+      // Trung bình cho các metrics cần chia
+      data_cost: totals.results > 0 ? totals.spend / totals.results : 0,
+      cost_per_checkout_initiated: totals.checkouts_initiated > 0 ? totals.spend / totals.checkouts_initiated : 0,
+      cost_per_purchase: totals.purchases > 0 ? totals.spend / totals.purchases : 0,
+      cpm: totals.impressions > 0 ? (totals.spend / totals.impressions) * 1000 : 0,
+      ctr: totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0,
+      cpc: totals.clicks > 0 ? totals.spend / totals.clicks : 0,
+      frequency: totals.reach > 0 ? totals.impressions / totals.reach : 0,
+      // % ADS cho E-Commerce (tổng spend / tổng purchase_value * 100)
+      ads_percent: totals.purchase_value > 0 ? (totals.spend / totals.purchase_value) * 100 : 0,
+      // TLC (tỷ lệ chuyển đổi) = purchases / checkouts_initiated * 100
+      tlc: totals.checkouts_initiated > 0 ? (totals.purchases / totals.checkouts_initiated) * 100 : 0,
+      // Alias cho initiated_checkout
+      initiated_checkout: totals.checkouts_initiated,
+    };
+  }, [sortedRows, viewMode]);
+
   // Handle force refresh
   const handleRefresh = () => {
     setFilters(prev => ({ ...prev, force_refresh: 1 }));
@@ -284,10 +358,12 @@ function App() {
   };
 
   // Handle status update (pause/resume) - single row
+  // 🔹 FIX: Dùng effective_status thay vì delivery
   const handleStatusToggle = async (row: any) => {
     try {
       setLoading(true);
-      const newStatus = row.delivery === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+      const currentStatus = (row.effective_status || row.delivery || 'UNKNOWN').toUpperCase();
+      const newStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
       await updateStatus({
         level: currentLevel.toUpperCase() as 'CAMPAIGN' | 'ADSET' | 'AD',
         items: [{
@@ -738,7 +814,7 @@ function App() {
           onBudgetUpdate={handleBudgetUpdateSingle}
           onDrillDown={handleDrillDown}
           currency={currency}
-          totals={data?.details.totals}
+          totals={calculatedTotals}
         />
 
         {/* Pagination Controls */}

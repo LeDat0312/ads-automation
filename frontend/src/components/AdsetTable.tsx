@@ -25,14 +25,18 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   const getColumnWidth = (key: string) => columnWidths[key] || defaultWidths[key] || 128;
   
   // Helper function to check if budget can be edited
+  // 🔹 FIX CBO: Sử dụng using_campaign_budget để xác định chính xác
   const canEditBudget = (row: AdsetRow, level: 'campaign' | 'adset' | 'ad'): boolean => {
-    if (!row.budget_level) return false;
+    // Xác định budget level từ using_campaign_budget hoặc budget_level
+    const isCampaignBudget = row.using_campaign_budget || row.budget_level === 'CAMPAIGN';
+    const isAdsetBudget = !isCampaignBudget && (row.budget_level === 'ADSET' || (row.adset_daily_budget && row.adset_daily_budget > 0));
+    
     if (level === 'campaign') {
-      // Tab Chiến dịch: chỉ cho edit nếu budget_level === 'CAMPAIGN'
-      return row.budget_level === 'CAMPAIGN';
+      // Tab Chiến dịch: chỉ cho edit nếu đang dùng campaign budget (CBO)
+      return isCampaignBudget;
     } else if (level === 'adset') {
-      // Tab Nhóm quảng cáo: chỉ cho edit nếu budget_level === 'ADSET'
-      return row.budget_level === 'ADSET';
+      // Tab Nhóm quảng cáo: chỉ cho edit nếu có adset budget riêng (ABO)
+      return isAdsetBudget;
     }
     return false;
   };
@@ -356,7 +360,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                 {/* % ADS (chỉ Ecommerce) */}
                 {viewMode === 'ecommerce' && (
                   <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: '#ef4444', fontWeight: 600 }}>
-                    {formatPercentage((totals.ads_percent || 0) * 100)}%
+                    {formatPercentage(totals.ads_percent || 0)}%
                   </td>
                 )}
                 {/* Kết Quả */}
@@ -522,7 +526,7 @@ const TableRow: React.FC<TableRowProps> = ({
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={row.delivery === 'ACTIVE'}
+              checked={(row.effective_status || row.delivery || 'UNKNOWN') === 'ACTIVE'}
               onChange={() => onStatusToggle?.(row)}
               className="sr-only peer"
             />
@@ -569,9 +573,9 @@ const TableRow: React.FC<TableRowProps> = ({
             style={{
               width: '12px',
               height: '12px',
-              backgroundColor: row.delivery === 'ACTIVE' ? '#22c55e' : (row.delivery === 'PAUSED' ? '#ef4444' : '#d1d5db')
+              backgroundColor: (row.effective_status || row.delivery || 'UNKNOWN') === 'ACTIVE' ? '#22c55e' : ((row.effective_status || row.delivery || 'UNKNOWN') === 'PAUSED' ? '#ef4444' : '#d1d5db')
             }}
-            title={row.delivery === 'ACTIVE' ? 'Đang chạy' : row.delivery === 'PAUSED' ? 'Tạm dừng' : 'Không xác định'}
+            title={(row.effective_status || row.delivery || 'UNKNOWN') === 'ACTIVE' ? 'Đang chạy' : (row.effective_status || row.delivery || 'UNKNOWN') === 'PAUSED' ? 'Tạm dừng' : 'Không xác định'}
           />
         </td>
 
@@ -620,9 +624,14 @@ const TableRow: React.FC<TableRowProps> = ({
                 }
               }
             }
+            // 🔹 FIX CBO TOOLTIP: Hiển thị tooltip phù hợp với currentTab
             const budgetTitle = canEdit 
               ? 'Click để chỉnh sửa ngân sách'
-              : `Ngân sách đang ở cấp ${row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}. Chỉnh ở tab ${row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}`;
+              : (usingCampaignBudget && currentLevel === 'adset')
+                ? 'Ngân sách ở cấp chiến dịch, chỉnh ở tab Chiến dịch'
+                : (!usingCampaignBudget && currentLevel === 'campaign' && row.budget_level === 'ADSET')
+                ? 'Ngân sách ở cấp nhóm quảng cáo, chỉnh ở tab Nhóm Quảng Cáo'
+                : `Ngân sách đang ở cấp ${row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}. Chỉnh ở tab ${row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}`;
             
             if (canEdit && onOpenBudgetEditor) {
               return (
@@ -770,7 +779,7 @@ const TableRow: React.FC<TableRowProps> = ({
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={row.delivery === 'ACTIVE'}
+              checked={(row.effective_status || row.delivery || 'UNKNOWN') === 'ACTIVE'}
               onChange={() => onStatusToggle?.(row)}
               className="sr-only peer"
             />
@@ -817,9 +826,9 @@ const TableRow: React.FC<TableRowProps> = ({
             style={{
               width: '12px',
               height: '12px',
-              backgroundColor: row.delivery === 'ACTIVE' ? '#22c55e' : (row.delivery === 'PAUSED' ? '#ef4444' : '#d1d5db')
+              backgroundColor: (row.effective_status || row.delivery || 'UNKNOWN') === 'ACTIVE' ? '#22c55e' : ((row.effective_status || row.delivery || 'UNKNOWN') === 'PAUSED' ? '#ef4444' : '#d1d5db')
             }}
-            title={row.delivery === 'ACTIVE' ? 'Đang chạy' : row.delivery === 'PAUSED' ? 'Tạm dừng' : 'Không xác định'}
+            title={(row.effective_status || row.delivery || 'UNKNOWN') === 'ACTIVE' ? 'Đang chạy' : (row.effective_status || row.delivery || 'UNKNOWN') === 'PAUSED' ? 'Tạm dừng' : 'Không xác định'}
           />
         </td>
 
@@ -868,9 +877,14 @@ const TableRow: React.FC<TableRowProps> = ({
                 }
               }
             }
+            // 🔹 FIX CBO TOOLTIP: Hiển thị tooltip phù hợp với currentTab
             const budgetTitle = canEdit 
               ? 'Click để chỉnh sửa ngân sách'
-              : `Ngân sách đang ở cấp ${row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}. Chỉnh ở tab ${row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}`;
+              : (usingCampaignBudget && currentLevel === 'adset')
+                ? 'Ngân sách ở cấp chiến dịch, chỉnh ở tab Chiến dịch'
+                : (!usingCampaignBudget && currentLevel === 'campaign' && row.budget_level === 'ADSET')
+                ? 'Ngân sách ở cấp nhóm quảng cáo, chỉnh ở tab Nhóm Quảng Cáo'
+                : `Ngân sách đang ở cấp ${row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}. Chỉnh ở tab ${row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}`;
             
             if (canEdit && onOpenBudgetEditor) {
               return (
@@ -904,7 +918,7 @@ const TableRow: React.FC<TableRowProps> = ({
 
         {/* % ADS */}
         <td style={{ padding: '12px', fontSize: '14px', color: '#ef4444', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('ads_percent')}px`, minWidth: `${getColumnWidth('ads_percent')}px` }}>
-          {formatPercentage((row.ads_percent || 0) * 100)}%
+          {formatPercentage(row.ads_percent || 0)}%
         </td>
 
         {/* Results (Kết quả) */}

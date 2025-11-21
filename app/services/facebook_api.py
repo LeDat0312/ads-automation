@@ -646,34 +646,55 @@ def fetch_all_adsets_from_accounts(
             
             account_adsets_count = 0
             while url:
-                response = requests.get(url, params=params, timeout=30)
-                response.raise_for_status()
-                data = response.json()
-                
-                if 'data' in data:
-                    for adset in data['data']:
-                        adset_id = adset.get('id')
-                        if adset_id:
-                            campaign = adset.get('campaign', {})
-                            campaign_id = campaign.get('id') if isinstance(campaign, dict) else None
-                            
-                            all_adsets_map[adset_id] = {
-                                'effective_status': adset.get('effective_status', 'UNKNOWN'),
-                                'status': adset.get('status', 'UNKNOWN'),
-                                'campaign_id': campaign_id
-                            }
-                            account_adsets_count += 1
-                
-                # Check for next page
-                if 'paging' in data and 'next' in data['paging']:
-                    url = data['paging']['next']
-                    params = {}  # URL đã có params
-                else:
+                try:
+                    response = requests.get(url, params=params, timeout=30)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    if 'data' in data:
+                        for adset in data['data']:
+                            adset_id = adset.get('id')
+                            if adset_id:
+                                campaign = adset.get('campaign', {})
+                                campaign_id = campaign.get('id') if isinstance(campaign, dict) else None
+                                
+                                all_adsets_map[adset_id] = {
+                                    'effective_status': adset.get('effective_status', 'UNKNOWN'),
+                                    'status': adset.get('status', 'UNKNOWN'),
+                                    'campaign_id': campaign_id
+                                }
+                                account_adsets_count += 1
+                    
+                    # Check for next page
+                    if 'paging' in data and 'next' in data['paging']:
+                        url = data['paging']['next']
+                        params = {}  # URL đã có params
+                    else:
+                        url = None
+                except requests.exceptions.HTTPError as http_err:
+                    # 🔹 NHIỆM VỤ PHỤ: Xử lý lỗi 400 một cách rõ ràng, không crash
+                    if http_err.response and http_err.response.status_code == 400:
+                        error_detail = http_err.response.text
+                        logger.warning(
+                            f"⚠️ Lỗi 400 khi fetch adsets từ account {account_id_formatted}: "
+                            f"{error_detail[:200]}. Có thể do permission, token hết hạn, hoặc account không hợp lệ. "
+                            f"Bỏ qua account này (summary & rows vẫn có đủ data từ insights)."
+                        )
+                        # Không raise exception, chỉ bỏ qua account này
+                        url = None  # Dừng pagination
+                    else:
+                        # Các lỗi HTTP khác (500, 503, ...) vẫn log và bỏ qua
+                        logger.warning(f"⚠️ Lỗi HTTP {http_err.response.status_code if http_err.response else 'unknown'} khi fetch adsets từ account {account_id_formatted}: {http_err}")
+                        url = None
+                except Exception as e:
+                    logger.warning(f"⚠️ Lỗi khác khi fetch adsets từ account {account_id_formatted}: {e}")
                     url = None
             
-            logger.info(f"   ✅ Đã fetch {account_adsets_count} adsets từ account {account_id_formatted}")
+            if account_adsets_count > 0:
+                logger.info(f"   ✅ Đã fetch {account_adsets_count} adsets từ account {account_id_formatted}")
         except Exception as e:
-            logger.error(f"🚨 Lỗi fetch adsets từ account {account_id}: {e}")
+            # 🔹 FIX: Log rõ ràng hơn, không crash, chỉ bỏ qua account này
+            logger.warning(f"⚠️ Lỗi fetch adsets từ account {account_id}: {e}. Bỏ qua account này (summary & rows vẫn có đủ data từ insights).")
             continue
     
     logger.info(f"📊 Tổng cộng fetch được {len(all_adsets_map)} adsets từ tất cả accounts")
@@ -725,9 +746,19 @@ def fetch_struct_adsets_from_accounts(
             
             account_adsets_count = 0
             while url:
-                response = requests.get(url, params=params, timeout=30)
-                response.raise_for_status()
-                data = response.json()
+                try:
+                    response = requests.get(url, params=params, timeout=30)
+                    response.raise_for_status()
+                    data = response.json()
+                except requests.exceptions.HTTPError as http_err:
+                    if response.status_code == 400:
+                        logger.warning(f"⚠️ 400 Bad Request for {account_id_formatted}/adsets (struct) - skipping (likely permission issue)")
+                        break
+                    else:
+                        raise
+                except Exception as e:
+                    logger.error(f"🚨 Error fetching struct adsets from {account_id_formatted}: {e}")
+                    break
                 
                 if 'data' in data:
                     for adset in data['data']:

@@ -368,10 +368,13 @@ async def get_dashboard_dataset(
     
     # Build summary object
     if view_mode == "ecommerce":
-        ads_percent = (total_spend / total_purchase_value * 100) if total_purchase_value > 0 else 0
+        # 🔹 FIX % ADS: Công thức đúng = (total_spend / total_purchase_value * 100)
+        # Không nhân 100 lần nữa ở bất kỳ chỗ nào khác
+        ads_percent = (total_spend / total_purchase_value * 100.0) if total_purchase_value > 0 else 0.0
+        logger.info(f"   📊 % ADS calculation: spend={total_spend:.2f}, purchaseValue={total_purchase_value:.2f}, adsPercent={ads_percent:.2f}%")
         summary = {
             "totalSpend": round(total_spend, 2),
-            "adsPercent": round(ads_percent, 2),
+            "adsPercent": round(ads_percent, 2),  # Đã nhân 100, frontend chỉ cần format
             "purchaseValue": round(total_purchase_value, 2),
             "totalCheckouts": total_checkouts,
             "totalPurchases": total_purchases,
@@ -431,10 +434,21 @@ async def get_dashboard_dataset(
         status_upper = status.upper().strip()
         if status_upper in ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']:
             before_status_filter = len(rows_for_table)
-            rows_for_table = [
-                row for row in rows_for_table
-                if (row.get('effective_status') or row.get('adset_status') or 'UNKNOWN').upper() == status_upper
-            ]
+            if status_upper == 'ACTIVE':
+                rows_for_table = [
+                    row for row in rows_for_table
+                    if (row.get('effective_status') or 'UNKNOWN').upper() == 'ACTIVE'
+                ]
+            elif status_upper == 'PAUSED':
+                rows_for_table = [
+                    row for row in rows_for_table
+                    if (row.get('effective_status') or 'UNKNOWN').upper() in ('PAUSED', 'INACTIVE')
+                ]
+            else:
+                rows_for_table = [
+                    row for row in rows_for_table
+                    if (row.get('effective_status') or 'UNKNOWN').upper() == status_upper
+                ]
             logger.info(f"   📊 After filter status={status_upper}: {len(rows_for_table)}/{before_status_filter} rows")
     
     # Filter by search
