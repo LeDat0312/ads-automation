@@ -841,7 +841,9 @@ async def get_dashboard_data(
                     group['delivery'] = row.get('delivery', 'UNKNOWN')
                     # 🔹 CBO Budget fields
                     group['adset_daily_budget'] = row.get('adset_daily_budget')
+                    group['adset_lifetime_budget'] = row.get('adset_lifetime_budget')
                     group['campaign_daily_budget'] = row.get('campaign_daily_budget')
+                    group['campaign_lifetime_budget'] = row.get('campaign_lifetime_budget')
                     group['using_campaign_budget'] = row.get('using_campaign_budget', False)
                     group['budget_type'] = row.get('budget_type', 'ADSET')
             
@@ -916,6 +918,7 @@ async def get_dashboard_data(
                     group['campaign_name'] = row.get('campaign_name', '')
                     group['prefix'] = row.get('prefix', '')
                     group['campaign_daily_budget'] = row.get('campaign_daily_budget')
+                    group['campaign_lifetime_budget'] = row.get('campaign_lifetime_budget')
                     group['budget_type'] = 'CAMPAIGN'
                     group['budget_level'] = 'CAMPAIGN'
                     # 🔹 FIX: Lưu status cho campaign

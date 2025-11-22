@@ -25,20 +25,11 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   const getColumnWidth = (key: string) => columnWidths[key] || defaultWidths[key] || 128;
   
   // Helper function to check if budget can be edited
-  // 🔹 FIX CBO: Sử dụng using_campaign_budget để xác định chính xác
+  // ✅ CHO PHÉP CHỈNH TẤT CẢ: adset budget VÀ campaign budget (CBO)
   const canEditBudget = (row: AdsetRow, level: 'campaign' | 'adset' | 'ad'): boolean => {
-    // Xác định budget level từ using_campaign_budget hoặc budget_level
-    const isCampaignBudget = !!(row.using_campaign_budget || row.budget_level === 'CAMPAIGN');
-    const isAdsetBudget = !isCampaignBudget && !!(row.budget_level === 'ADSET' || (row.adset_daily_budget && row.adset_daily_budget > 0));
-    
-    if (level === 'campaign') {
-      // Tab Chiến dịch: chỉ cho edit nếu đang dùng campaign budget (CBO)
-      return isCampaignBudget;
-    } else if (level === 'adset') {
-      // Tab Nhóm quảng cáo: chỉ cho edit nếu có adset budget riêng (ABO)
-      return isAdsetBudget;
-    }
-    return false;
+    // ✅ MỚI: Cho phép chỉnh ngân sách ở cả 2 cấp (campaign & adset)
+    // KHÔNG CÒN hạn chế phải chuyển tab
+    return true;  // User có thể chỉnh mọi loại ngân sách
   };
 
   // ✅ COMPLETELY DIFFERENT columns for Lead vs Ecom (per old dashboard)
@@ -589,65 +580,62 @@ const TableRow: React.FC<TableRowProps> = ({
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
             let budgetDisplay: string;
-            
-            // 🔹 FIX CBO BUDGET DISPLAY: Hiển thị đúng campaign budget khi using_campaign_budget
             let budgetValue: number | null = null;
+            
+            // Xác định budget value và loại (daily/lifetime)
             const usingCampaignBudget = row.using_campaign_budget || (row.budget_level === 'CAMPAIGN');
             const isCampaignLevel = currentLevel === 'campaign';
             
-            // Xác định budget value và source
             if (isCampaignLevel && row.budget_level === 'CAMPAIGN') {
-              // Ở tab campaign, row là campaign → dùng campaign_daily_budget
-              budgetValue = row.campaign_daily_budget || row.budget || null;
-            } else if (row.using_campaign_budget && row.campaign_daily_budget) {
-              // Adset đang dùng campaign budget (CBO) → dùng campaign_daily_budget
-              budgetValue = row.campaign_daily_budget;
-            } else if (row.adset_daily_budget) {
-              // Adset có budget riêng → dùng adset_daily_budget
-              budgetValue = row.adset_daily_budget;
-            } else if (row.budget && row.budget > 0) {
-              // Fallback: dùng budget field
-              budgetValue = row.budget;
-            }
-            
-            if (canEdit) {
-              // Có thể edit → hiển thị số tiền
-              budgetDisplay = budgetValue ? formatCurrency(budgetValue, row.currency || 'VND') : '0';
-            } else {
-              // Không thể edit → hiển thị text mô tả
-              if (isCampaignLevel && row.budget_level === 'CAMPAIGN') {
-                // Ở tab campaign, row là campaign → hiển thị "Ngân sách chiến dịch"
-                if (budgetValue) {
-                  budgetDisplay = `Ngân sách chiến dịch\n(${formatCurrency(budgetValue, row.currency || 'VND')})`;
-                } else {
-                  budgetDisplay = 'Ngân sách chiến dịch';
-                }
-              } else if (usingCampaignBudget && budgetValue) {
-                // Đang dùng campaign budget (CBO) → hiển thị "Ngân sách chiến dịch (xxx.xxx ₫)"
-                budgetDisplay = `Ngân sách chiến dịch\n(${formatCurrency(budgetValue, row.currency || 'VND')})`;
-              } else if (row.budget_level === 'ADSET' && currentLevel === 'campaign' && budgetValue) {
-                // Adset có budget, đang ở tab campaign → hiển thị "Ngân sách nhóm QC (xxx.xxx ₫)"
-                budgetDisplay = `Ngân sách nhóm QC\n(${formatCurrency(budgetValue, row.currency || 'VND')})`;
-              } else if (budgetValue) {
-                // Có budget → hiển thị số tiền
-                budgetDisplay = formatCurrency(budgetValue, row.currency || 'VND');
+              // Tab Campaign, row là campaign
+              if (row.campaign_daily_budget && row.campaign_daily_budget > 0) {
+                budgetValue = row.campaign_daily_budget;
+                budgetDisplay = canEdit 
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách chiến dịch (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
+              } else if (row.campaign_lifetime_budget && row.campaign_lifetime_budget > 0) {
+                budgetValue = row.campaign_lifetime_budget;
+                budgetDisplay = canEdit
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách chiến dịch trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
               } else {
-                // Không có budget → hiển thị text mô tả (KHÔNG hiển thị "0")
-                if (row.budget_level === 'CAMPAIGN' || usingCampaignBudget) {
-                  budgetDisplay = 'Ngân sách chiến dịch';
-                } else {
-                  budgetDisplay = 'Ngân sách nhóm QC';
-                }
+                budgetDisplay = 'Ngân sách chiến dịch';
+              }
+            } else if (usingCampaignBudget) {
+              // Adset đang dùng campaign budget (CBO)
+              if (row.campaign_daily_budget && row.campaign_daily_budget > 0) {
+                budgetValue = row.campaign_daily_budget;
+                budgetDisplay = canEdit
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách chiến dịch (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
+              } else if (row.campaign_lifetime_budget && row.campaign_lifetime_budget > 0) {
+                budgetValue = row.campaign_lifetime_budget;
+                budgetDisplay = canEdit
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách chiến dịch trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
+              } else {
+                budgetDisplay = 'Ngân sách chiến dịch';
+              }
+            } else {
+              // Adset có budget riêng
+              if (row.adset_daily_budget && row.adset_daily_budget > 0) {
+                budgetValue = row.adset_daily_budget;
+                budgetDisplay = canEdit
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách nhóm QC (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
+              } else if (row.adset_lifetime_budget && row.adset_lifetime_budget > 0) {
+                budgetValue = row.adset_lifetime_budget;
+                budgetDisplay = canEdit
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách nhóm QC trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
+              } else {
+                budgetDisplay = 'Ngân sách nhóm QC';
               }
             }
-            // 🔹 FIX CBO TOOLTIP: Hiển thị tooltip phù hợp với currentTab
+            
             const budgetTitle = canEdit 
               ? 'Click để chỉnh sửa ngân sách'
-              : (usingCampaignBudget && currentLevel === 'adset')
-                ? 'Ngân sách ở cấp chiến dịch, chỉnh ở tab Chiến dịch'
-                : (!usingCampaignBudget && currentLevel === 'campaign' && row.budget_level === 'ADSET')
-                ? 'Ngân sách ở cấp nhóm quảng cáo, chỉnh ở tab Nhóm Quảng Cáo'
-                : `Ngân sách đang ở cấp ${row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}. Chỉnh ở tab ${row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}`;
+              : budgetDisplay;
             
             if (canEdit && onOpenBudgetEditor) {
               return (
@@ -857,65 +845,62 @@ const TableRow: React.FC<TableRowProps> = ({
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
             let budgetDisplay: string;
-            
-            // 🔹 FIX CBO BUDGET DISPLAY: Hiển thị đúng campaign budget khi using_campaign_budget
             let budgetValue: number | null = null;
+            
+            // Xác định budget value và loại (daily/lifetime)
             const usingCampaignBudget = row.using_campaign_budget || (row.budget_level === 'CAMPAIGN');
             const isCampaignLevel = currentLevel === 'campaign';
             
-            // Xác định budget value và source
             if (isCampaignLevel && row.budget_level === 'CAMPAIGN') {
-              // Ở tab campaign, row là campaign → dùng campaign_daily_budget
-              budgetValue = row.campaign_daily_budget || row.budget || null;
-            } else if (row.using_campaign_budget && row.campaign_daily_budget) {
-              // Adset đang dùng campaign budget (CBO) → dùng campaign_daily_budget
-              budgetValue = row.campaign_daily_budget;
-            } else if (row.adset_daily_budget) {
-              // Adset có budget riêng → dùng adset_daily_budget
-              budgetValue = row.adset_daily_budget;
-            } else if (row.budget && row.budget > 0) {
-              // Fallback: dùng budget field
-              budgetValue = row.budget;
-            }
-            
-            if (canEdit) {
-              // Có thể edit → hiển thị số tiền
-              budgetDisplay = budgetValue ? formatCurrency(budgetValue, row.currency || 'VND') : '0';
-            } else {
-              // Không thể edit → hiển thị text mô tả
-              if (isCampaignLevel && row.budget_level === 'CAMPAIGN') {
-                // Ở tab campaign, row là campaign → hiển thị "Ngân sách chiến dịch"
-                if (budgetValue) {
-                  budgetDisplay = `Ngân sách chiến dịch\n(${formatCurrency(budgetValue, row.currency || 'VND')})`;
-                } else {
-                  budgetDisplay = 'Ngân sách chiến dịch';
-                }
-              } else if (usingCampaignBudget && budgetValue) {
-                // Đang dùng campaign budget (CBO) → hiển thị "Ngân sách chiến dịch (xxx.xxx ₫)"
-                budgetDisplay = `Ngân sách chiến dịch\n(${formatCurrency(budgetValue, row.currency || 'VND')})`;
-              } else if (row.budget_level === 'ADSET' && currentLevel === 'campaign' && budgetValue) {
-                // Adset có budget, đang ở tab campaign → hiển thị "Ngân sách nhóm QC (xxx.xxx ₫)"
-                budgetDisplay = `Ngân sách nhóm QC\n(${formatCurrency(budgetValue, row.currency || 'VND')})`;
-              } else if (budgetValue) {
-                // Có budget → hiển thị số tiền
-                budgetDisplay = formatCurrency(budgetValue, row.currency || 'VND');
+              // Tab Campaign, row là campaign
+              if (row.campaign_daily_budget && row.campaign_daily_budget > 0) {
+                budgetValue = row.campaign_daily_budget;
+                budgetDisplay = canEdit 
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách chiến dịch (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
+              } else if (row.campaign_lifetime_budget && row.campaign_lifetime_budget > 0) {
+                budgetValue = row.campaign_lifetime_budget;
+                budgetDisplay = canEdit
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách chiến dịch trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
               } else {
-                // Không có budget → hiển thị text mô tả (KHÔNG hiển thị "0")
-                if (row.budget_level === 'CAMPAIGN' || usingCampaignBudget) {
-                  budgetDisplay = 'Ngân sách chiến dịch';
-                } else {
-                  budgetDisplay = 'Ngân sách nhóm QC';
-                }
+                budgetDisplay = 'Ngân sách chiến dịch';
+              }
+            } else if (usingCampaignBudget) {
+              // Adset đang dùng campaign budget (CBO)
+              if (row.campaign_daily_budget && row.campaign_daily_budget > 0) {
+                budgetValue = row.campaign_daily_budget;
+                budgetDisplay = canEdit
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách chiến dịch (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
+              } else if (row.campaign_lifetime_budget && row.campaign_lifetime_budget > 0) {
+                budgetValue = row.campaign_lifetime_budget;
+                budgetDisplay = canEdit
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách chiến dịch trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
+              } else {
+                budgetDisplay = 'Ngân sách chiến dịch';
+              }
+            } else {
+              // Adset có budget riêng
+              if (row.adset_daily_budget && row.adset_daily_budget > 0) {
+                budgetValue = row.adset_daily_budget;
+                budgetDisplay = canEdit
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách nhóm QC (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
+              } else if (row.adset_lifetime_budget && row.adset_lifetime_budget > 0) {
+                budgetValue = row.adset_lifetime_budget;
+                budgetDisplay = canEdit
+                  ? formatCurrency(budgetValue, row.currency || 'VND')
+                  : `Ngân sách nhóm QC trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
+              } else {
+                budgetDisplay = 'Ngân sách nhóm QC';
               }
             }
-            // 🔹 FIX CBO TOOLTIP: Hiển thị tooltip phù hợp với currentTab
+            
             const budgetTitle = canEdit 
               ? 'Click để chỉnh sửa ngân sách'
-              : (usingCampaignBudget && currentLevel === 'adset')
-                ? 'Ngân sách ở cấp chiến dịch, chỉnh ở tab Chiến dịch'
-                : (!usingCampaignBudget && currentLevel === 'campaign' && row.budget_level === 'ADSET')
-                ? 'Ngân sách ở cấp nhóm quảng cáo, chỉnh ở tab Nhóm Quảng Cáo'
-                : `Ngân sách đang ở cấp ${row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm quảng cáo'}. Chỉnh ở tab ${row.budget_level === 'CAMPAIGN' ? 'Chiến Dịch' : 'Nhóm Quảng Cáo'}`;
+              : budgetDisplay;
             
             if (canEdit && onOpenBudgetEditor) {
               return (

@@ -27,7 +27,9 @@ export interface AdsetRow {
   budget_edit_level?: 'ADSET' | 'CAMPAIGN' | 'NONE';  // ⭐ Metadata: Level có thể chỉnh được
   budget_edit_reason?: 'OK' | 'CBO' | 'LIFETIME';  // ⭐ Lý do (OK=chỉnh được, CBO=cần update campaign, LIFETIME=lifetime budget)
   adset_daily_budget?: number | null;  // Adset daily budget (if exists)
+  adset_lifetime_budget?: number | null;  // ⭐ Adset lifetime budget (if exists)
   campaign_daily_budget?: number | null;  // Campaign daily budget (if exists)
+  campaign_lifetime_budget?: number | null;  // ⭐ Campaign lifetime budget (if exists)
   daily_budget?: number | null;  // Alias for adset_daily_budget
   lifetime_budget?: number | null;  // Lifetime budget (if exists)
   using_campaign_budget?: boolean;  // True if adset uses campaign budget (CBO)

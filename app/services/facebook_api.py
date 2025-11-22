@@ -455,10 +455,14 @@ def fetch_adset_budgets(adset_ids: List[str], access_token: str, use_cache: bool
             if json_data and isinstance(json_data, dict):
                 for adset_id, node in json_data.items():
                     if node:
-                        # Ưu tiên daily_budget, fallback lifetime_budget
-                        budget = float(node.get('daily_budget') or node.get('lifetime_budget') or 0)
-                        if budget > 0:
-                            budget_map[adset_id] = budget
+                        # Lưu CẢ daily và lifetime budget vào dict
+                        daily = float(node.get('daily_budget', 0) or 0)
+                        lifetime = float(node.get('lifetime_budget', 0) or 0)
+                        budget_map[adset_id] = {
+                            'daily_budget': daily,
+                            'lifetime_budget': lifetime,
+                            'budget': daily if daily > 0 else lifetime  # Fallback cho backward compat
+                        }
         except Exception as e:
             logger.error(f"🚨 Lỗi lấy budget AdSet (batch ids): {e}")
     
@@ -1963,7 +1967,15 @@ def pull_facebook_data(
                     campaign_lifetime_budget = campaign_info.get('lifetime_budget', 0.0) or 0.0
                     campaign_budget_total = campaign_daily_budget if campaign_daily_budget > 0 else campaign_lifetime_budget
                     
-                    adset_daily_budget = adset_budgets_cache.get(adset_id, 0.0) or 0.0
+                    # Lấy adset budget (daily và lifetime riêng biệt)
+                    adset_budget_info = adset_budgets_cache.get(adset_id, {})
+                    if isinstance(adset_budget_info, dict):
+                        adset_daily_budget = adset_budget_info.get('daily_budget', 0.0) or 0.0
+                        adset_lifetime_budget = adset_budget_info.get('lifetime_budget', 0.0) or 0.0
+                    else:
+                        # Backward compat: nếu cache cũ chỉ lưu số
+                        adset_daily_budget = float(adset_budget_info or 0.0)
+                        adset_lifetime_budget = 0.0
                     
                     # Theo spec: using_campaign_budget = adset_daily_budget in (None, 0) and campaign có budget
                     using_campaign_budget = (adset_daily_budget in (None, 0)) and campaign_budget_total > 0
@@ -2012,8 +2024,10 @@ def pull_facebook_data(
                         'daily_budget': budget,  # Alias
                         'budget_type': budget_type,  # "CAMPAIGN" | "ADSET"
                         'budget_level': budget_type,  # Alias (backward compatible)
-                        'adset_daily_budget': adset_budget_value,
-                        'campaign_daily_budget': campaign_budget_value,
+                        'adset_daily_budget': adset_daily_budget,
+                        'adset_lifetime_budget': adset_lifetime_budget,
+                        'campaign_daily_budget': campaign_daily_budget,
+                        'campaign_lifetime_budget': campaign_lifetime_budget,
                         'using_campaign_budget': using_campaign_budget,
                         'campaign_budget': campaign_budget_value,  # Alias (backward compatible)
                         'adset_budget': adset_budget_value,  # Alias (backward compatible)
