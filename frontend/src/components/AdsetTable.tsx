@@ -61,7 +61,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
 
   const columns = useMemo(() => {
     if (viewMode === 'lead') {
-      // Lead columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, Kết Quả, Giá DATA, Chi Phi/BĐTT, Bắt Đầu TT, Chi phí / LM, Lượt Mua, CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
+      // Lead columns: Chọn, Bật/Tắt, Tên, Phân Phối, Ngân Sách, Chi Tiêu, Kết Quả, Giá DATA, ⭐ [Chi Phi/BĐTT, Bắt Đầu TT, Chi phí/LM, Lượt Mua], CPM, Hiển Thị, Tiếp Cận, Tần Suất, Nhấp, CTR, CPC
       return [
         { key: 'select', label: 'Chọn', sortable: false, width: columnWidths.select || defaultWidths.select, fixed: true },
         { key: 'status', label: 'Bật/Tắt', sortable: false, width: columnWidths.status || defaultWidths.status, fixed: true },
@@ -71,6 +71,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
         { key: 'spend', label: 'Chi Tiêu', sortable: true, width: columnWidths.spend || defaultWidths.spend },
         { key: 'results', label: 'Kết Quả', sortable: true, width: columnWidths.results || defaultWidths.results },
         { key: 'data_cost', label: 'Giá DATA', sortable: true, width: columnWidths.data_cost || defaultWidths.data_cost },
+        // ⭐ NHÓM CỘT QUAN TRỌNG - đổi thứ tự để cạnh nhau
         { key: 'cost_per_checkout_initiated', label: 'Chi Phí/BĐTT', sortable: true, width: columnWidths.cost_per_checkout_initiated || defaultWidths.cost_per_checkout_initiated },
         { key: 'checkouts_initiated', label: 'Bắt Đầu TT', sortable: true, width: columnWidths.checkouts_initiated || defaultWidths.checkouts_initiated },
         { key: 'cost_per_purchase', label: 'Chi phí / LM', sortable: true, width: columnWidths.cost_per_purchase || defaultWidths.cost_per_purchase },
@@ -206,9 +207,13 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
                   `}
                   style={{
                     borderBottom: '1px solid #f3f4f6',
-                    background: col.fixed ? '#f9fafb' : '#f9fafb',
-                    fontWeight: 600,
-                    color: '#374151',
+                    background: col.fixed ? '#f9fafb' : 
+                                ['cost_per_checkout_initiated', 'checkouts_initiated', 'cost_per_purchase', 'purchases'].includes(col.key) 
+                                  ? '#f0f9ff' : '#f9fafb',  // ⭐ Nền xanh nhạt cho cột quan trọng
+                    fontWeight: ['cost_per_checkout_initiated', 'checkouts_initiated', 'cost_per_purchase', 'purchases'].includes(col.key) 
+                                  ? 700 : 600,  // ⭐ Chữ đậm hơn
+                    color: ['cost_per_checkout_initiated', 'checkouts_initiated', 'cost_per_purchase', 'purchases'].includes(col.key) 
+                             ? '#1e40af' : '#374151',  // ⭐ Màu xanh chữ cho cột quan trọng
                     fontSize: '14px',
                     position: col.fixed ? 'sticky' : 'relative',
                     top: 0,
@@ -456,30 +461,48 @@ interface TableRowProps {
 }
 
 // ⭐ Helper function: Get budget display text
-const getBudgetDisplay = (row: AdsetRow, canEdit: boolean): { display: string; value: number; title: string } => {
-  const budgetValue = row.current_budget || 0;
+const getBudgetDisplay = (row: AdsetRow, canEdit: boolean): { display: string; value: number; title: string; label: string; suffix: string } => {
   const isLifetime = row.budget_type === 'LIFETIME';
-  const levelText = row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm QC';
+  const budgetValue = row.current_budget || 0;
   
+  // Xác định label và suffix theo budget_level và lifetime
+  let label: string;
+  let suffix: string;
+  
+  if (row.budget_level === 'CAMPAIGN' && !isLifetime) {
+    label = 'Ngân sách chiến dịch';
+    suffix = 'VND/ngày';
+  } else if (row.budget_level === 'CAMPAIGN' && isLifetime) {
+    label = 'Ngân sách chiến dịch (trọn đời)';
+    suffix = 'VND (trọn đời)';
+  } else if (row.budget_level === 'ADSET' && !isLifetime) {
+    label = 'Ngân sách nhóm QC';
+    suffix = 'VND/ngày';
+  } else if (row.budget_level === 'ADSET' && isLifetime) {
+    label = 'Ngân sách nhóm QC (trọn đời)';
+    suffix = 'VND (trọn đời)';
+  } else {
+    label = 'Ngân sách';
+    suffix = 'VND';
+  }
+  
+  // Hiển thị
   let budgetDisplay: string;
-  
   if (budgetValue > 0) {
     if (canEdit) {
       budgetDisplay = formatCurrency(budgetValue, row.currency || 'VND');
     } else {
-      budgetDisplay = isLifetime
-        ? `Ngân sách ${levelText} trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`
-        : `Ngân sách ${levelText} (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
+      budgetDisplay = `${label} (${formatCurrency(budgetValue, row.currency || 'VND')})`;
     }
   } else {
-    budgetDisplay = `Ngân sách ${levelText}`;
+    budgetDisplay = label;
   }
   
   const budgetTitle = canEdit 
     ? 'Click để chỉnh sửa ngân sách'
     : budgetDisplay;
     
-  return { display: budgetDisplay, value: budgetValue, title: budgetTitle };
+  return { display: budgetDisplay, value: budgetValue, title: budgetTitle, label, suffix };
 };
 
 const TableRow: React.FC<TableRowProps> = ({ 
@@ -647,23 +670,63 @@ const TableRow: React.FC<TableRowProps> = ({
           {formatCurrency(row.data_cost, row.currency || 'VND')}
         </td>
 
-        {/* Cost per Checkout Initiated (Chi Phí/BĐTT) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cost_per_checkout_initiated')}px`, minWidth: `${getColumnWidth('cost_per_checkout_initiated')}px` }}>
+        {/* Cost per Checkout Initiated (Chi Phí/BĐTT) - ⭐ CỘT QUAN TRỌNG */}
+        <td style={{ 
+          padding: '12px', 
+          fontSize: '14px', 
+          color: '#1e40af',  // ⭐ Màu xanh đậm
+          textAlign: 'center', 
+          fontWeight: 600,  // ⭐ Chữ đậm
+          backgroundColor: '#f0f9ff',  // ⭐ Nền xanh nhạt
+          borderBottom: '1px solid #f3f4f6', 
+          width: `${getColumnWidth('cost_per_checkout_initiated')}px`, 
+          minWidth: `${getColumnWidth('cost_per_checkout_initiated')}px` 
+        }}>
           {formatCurrency(row.cost_per_checkout_initiated || 0, row.currency || 'VND')}
         </td>
 
-        {/* Checkouts Initiated (Bắt Đầu TT) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('checkouts_initiated')}px`, minWidth: `${getColumnWidth('checkouts_initiated')}px` }}>
+        {/* Checkouts Initiated (Bắt Đầu TT) - ⭐ CỘT QUAN TRỌNG */}
+        <td style={{ 
+          padding: '12px', 
+          fontSize: '14px', 
+          color: '#1e40af',  // ⭐ Màu xanh đậm
+          textAlign: 'center', 
+          fontWeight: 600,  // ⭐ Chữ đậm
+          backgroundColor: '#f0f9ff',  // ⭐ Nền xanh nhạt
+          borderBottom: '1px solid #f3f4f6', 
+          width: `${getColumnWidth('checkouts_initiated')}px`, 
+          minWidth: `${getColumnWidth('checkouts_initiated')}px` 
+        }}>
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
-        {/* Cost per Purchase (Chi phí / LM) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cost_per_purchase')}px`, minWidth: `${getColumnWidth('cost_per_purchase')}px` }}>
+        {/* Cost per Purchase (Chi phí / LM) - ⭐ CỘT QUAN TRỌNG */}
+        <td style={{ 
+          padding: '12px', 
+          fontSize: '14px', 
+          color: '#1e40af',  // ⭐ Màu xanh đậm
+          textAlign: 'center', 
+          fontWeight: 600,  // ⭐ Chữ đậm
+          backgroundColor: '#f0f9ff',  // ⭐ Nền xanh nhạt
+          borderBottom: '1px solid #f3f4f6', 
+          width: `${getColumnWidth('cost_per_purchase')}px`, 
+          minWidth: `${getColumnWidth('cost_per_purchase')}px` 
+        }}>
           {row.cost_per_purchase != null ? formatCurrency(row.cost_per_purchase, row.currency || 'VND') : '-'}
         </td>
 
-        {/* Purchases (Lượt Mua) */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('purchases')}px`, minWidth: `${getColumnWidth('purchases')}px` }}>
+        {/* Purchases (Lượt Mua) - ⭐ CỘT QUAN TRỌNG */}
+        <td style={{ 
+          padding: '12px', 
+          fontSize: '14px', 
+          color: row.purchases > 0 ? '#10b981' : '#9ca3af',  // ⭐ Xanh nếu > 0, xám nếu = 0
+          textAlign: 'center', 
+          fontWeight: 700,  // ⭐ Chữ đậm nhất
+          backgroundColor: '#f0f9ff',  // ⭐ Nền xanh nhạt
+          borderBottom: '1px solid #f3f4f6', 
+          width: `${getColumnWidth('purchases')}px`, 
+          minWidth: `${getColumnWidth('purchases')}px` 
+        }}>
           {formatNumber(row.purchases)}
         </td>
 
@@ -866,23 +929,63 @@ const TableRow: React.FC<TableRowProps> = ({
           {formatPercentage(row.tlc || 0)}%
         </td>
 
-        {/* Cost per Checkout Initiated */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cost_per_checkout_initiated')}px`, minWidth: `${getColumnWidth('cost_per_checkout_initiated')}px` }}>
+        {/* Cost per Checkout Initiated - ⭐ CỘT QUAN TRỌNG */}
+        <td style={{ 
+          padding: '12px', 
+          fontSize: '14px', 
+          color: '#1e40af',  // ⭐ Màu xanh đậm
+          textAlign: 'center', 
+          fontWeight: 600,  // ⭐ Chữ đậm
+          backgroundColor: '#f0f9ff',  // ⭐ Nền xanh nhạt
+          borderBottom: '1px solid #f3f4f6', 
+          width: `${getColumnWidth('cost_per_checkout_initiated')}px`, 
+          minWidth: `${getColumnWidth('cost_per_checkout_initiated')}px` 
+        }}>
           {formatCurrency(row.cost_per_checkout_initiated || 0, row.currency || 'VND')}
         </td>
 
-        {/* Checkouts Initiated */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('checkouts_initiated')}px`, minWidth: `${getColumnWidth('checkouts_initiated')}px` }}>
+        {/* Checkouts Initiated - ⭐ CỘT QUAN TRỌNG */}
+        <td style={{ 
+          padding: '12px', 
+          fontSize: '14px', 
+          color: '#1e40af',  // ⭐ Màu xanh đậm
+          textAlign: 'center', 
+          fontWeight: 600,  // ⭐ Chữ đậm
+          backgroundColor: '#f0f9ff',  // ⭐ Nền xanh nhạt
+          borderBottom: '1px solid #f3f4f6', 
+          width: `${getColumnWidth('checkouts_initiated')}px`, 
+          minWidth: `${getColumnWidth('checkouts_initiated')}px` 
+        }}>
           {formatNumber(row.initiated_checkout || row.checkouts_initiated || 0)}
         </td>
 
-        {/* Cost per Purchase */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('cost_per_purchase')}px`, minWidth: `${getColumnWidth('cost_per_purchase')}px` }}>
+        {/* Cost per Purchase - ⭐ CỘT QUAN TRỌNG */}
+        <td style={{ 
+          padding: '12px', 
+          fontSize: '14px', 
+          color: '#1e40af',  // ⭐ Màu xanh đậm
+          textAlign: 'center', 
+          fontWeight: 600,  // ⭐ Chữ đậm
+          backgroundColor: '#f0f9ff',  // ⭐ Nền xanh nhạt
+          borderBottom: '1px solid #f3f4f6', 
+          width: `${getColumnWidth('cost_per_purchase')}px`, 
+          minWidth: `${getColumnWidth('cost_per_purchase')}px` 
+        }}>
           {formatCurrency(row.cost_per_purchase || 0, row.currency || 'VND')}
         </td>
 
-        {/* Purchases */}
-        <td style={{ padding: '12px', fontSize: '14px', color: '#ec4899', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('purchases')}px`, minWidth: `${getColumnWidth('purchases')}px` }}>
+        {/* Purchases - ⭐ CỘT QUAN TRỌNG */}
+        <td style={{ 
+          padding: '12px', 
+          fontSize: '14px', 
+          color: row.purchases > 0 ? '#10b981' : '#9ca3af',  // ⭐ Xanh nếu > 0, xám nếu = 0
+          textAlign: 'center', 
+          fontWeight: 700,  // ⭐ Chữ đậm nhất
+          backgroundColor: '#f0f9ff',  // ⭐ Nền xanh nhạt
+          borderBottom: '1px solid #f3f4f6', 
+          width: `${getColumnWidth('purchases')}px`, 
+          minWidth: `${getColumnWidth('purchases')}px` 
+        }}>
           {formatNumber(row.purchases)}
         </td>
 

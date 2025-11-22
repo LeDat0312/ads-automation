@@ -232,12 +232,12 @@ function App() {
   };
 
   // Handle budget update - bulk
-  // 🔹 FIX LỖI 2 & 3: Xác định đúng level, KHÔNG reload toàn bộ, hiển thị progress
+  // ⭐ FIX: Xác định đúng level và field (daily/lifetime), KHÔNG reload toàn bộ, hiển thị progress
   const handleBudgetUpdate = async (changes: { id: string; new_budget: number }[]) => {
     try {
       setLoading(true);
       
-      // ✅ MỚI: GỬI TẤT CẢ items được chọn (không lọc CBO/trọn đời)
+      // ⭐ GỬI TẤT CẢ items được chọn (không lọc CBO/trọn đời)
       setBatchProgress({ 
         total: changes.length, 
         done: 0, 
@@ -245,45 +245,36 @@ function App() {
       });
       
       const operations = changes.map(change => {
-        // Tìm row tương ứng để xác định budget_level
+        // Tìm row tương ứng để xác định budget_level và budget_type
         const row = data?.details.rows.find(r => 
           r.id === change.id || 
           r.adset_id === change.id || 
           r.campaign_id === change.id
         );
         
-        // Xác định level: nếu row có budget_level = CAMPAIGN hoặc using_campaign_budget → CAMPAIGN
-        let opLevel: 'CAMPAIGN' | 'ADSET' = 'ADSET';
-        let campaignId: string | undefined;
+        // ⭐ Xác định level: CAMPAIGN hoặc ADSET
+        const opLevel: 'CAMPAIGN' | 'ADSET' = row?.budget_level === 'CAMPAIGN' ? 'CAMPAIGN' : 'ADSET';
+        const actualId = opLevel === 'CAMPAIGN' ? (row?.campaign_id || change.id) : change.id;
         
-        if (row) {
-          if (row.budget_level === 'CAMPAIGN' || row.using_campaign_budget) {
-            opLevel = 'CAMPAIGN';
-          }
-          // Luôn gửi campaign_id để backend có thể gom CBO
-          campaignId = row.campaign_id;
-        } else if (currentLevel === 'campaign') {
-          // Fallback: nếu ở tab campaign và không tìm thấy row → assume CAMPAIGN
-          opLevel = 'CAMPAIGN';
-        }
+        // ⭐ Xác định budget field: daily_budget hoặc lifetime_budget
+        const isLifetime = row?.budget_type === 'LIFETIME';
         
         return {
           level: opLevel,
-          id: change.id,
+          id: actualId,
           new_budget: change.new_budget,
-          campaign_id: campaignId,
-          budget_edit_level: row?.budget_edit_level,
-          budget_edit_reason: row?.budget_edit_reason,
+          budget_type: isLifetime ? 'lifetime_budget' : 'daily_budget',
+          campaign_id: row?.campaign_id,
         };
       });
       
-      // FIX LỖI 1: Gọi API update với batch processing (backend xử lý song song)
+      // Gọi API update với batch processing
       const response = await updateBudget({
         operations,
         view_mode: viewMode,
       });
       
-      // FIX LỖI 3: Cập nhật progress từ response (total, success_count, failed_count)
+      // Cập nhật progress từ response
       const successCount = response.success_count || 0;
       const failedCount = response.failed_count || 0;
       setBatchProgress({ 
@@ -292,24 +283,27 @@ function App() {
         status: `Hoàn thành ${successCount}/${response.total}` + (failedCount > 0 ? ` (${failedCount} lỗi)` : '')
       });
       
-      // FIX LỖI 2: KHÔNG gọi fetchData() - cập nhật state trực tiếp từ response
+      // ⭐ FIX: KHÔNG reload - cập nhật local state trực tiếp
       if (data && response.results && response.results.length > 0) {
         setData(prevData => {
           if (!prevData) return prevData;
           
-          // Map results để update budget trong rows
           const updatedRows = prevData.details.rows.map(row => {
             const result = response.results.find(r => 
               r.id === row.id || r.id === row.adset_id || r.id === row.campaign_id
             );
             
             if (result && result.status === 'ok') {
-              // Cập nhật budget mới từ response
+              const isLifetime = result.budget_type === 'lifetime_budget';
               return {
                 ...row,
+                current_budget: result.new_budget,  // ⭐ Update current_budget
                 budget: result.new_budget,
-                daily_budget: result.budget_type === 'DAILY' ? result.new_budget : row.daily_budget,
-                lifetime_budget: result.budget_type === 'LIFETIME' ? result.new_budget : row.lifetime_budget,
+                // Update đúng field tương ứng
+                ...(isLifetime 
+                  ? { lifetime_budget: result.new_budget, adset_lifetime_budget: result.new_budget }
+                  : { daily_budget: result.new_budget, adset_daily_budget: result.new_budget }
+                ),
               };
             }
             return row;
@@ -560,21 +554,18 @@ function App() {
   };
 
   // Handle budget update - single row
-  // 🔹 FIX: Xác định đúng level dựa trên budget_level và using_campaign_budget
+  // ⭐ FIX: Xác định đúng level và field (daily_budget/lifetime_budget) dựa trên budget_level và budget_type
   const handleBudgetUpdateSingle = async (row: any, newBudget: number) => {
     try {
       setLoading(true);
       const targetId = row.id || row.adset_id || row.campaign_id || row.ad_id || '';
       
-      // 🔹 FIX: Xác định level đúng
-      let opLevel: 'CAMPAIGN' | 'ADSET' = 'ADSET';
-      let actualId = targetId;
+      // ⭐ Xác định level: CAMPAIGN hoặc ADSET
+      const opLevel: 'CAMPAIGN' | 'ADSET' = row.budget_level === 'CAMPAIGN' ? 'CAMPAIGN' : 'ADSET';
+      const actualId = opLevel === 'CAMPAIGN' ? (row.campaign_id || targetId) : targetId;
       
-      if (row.budget_level === 'CAMPAIGN' || row.using_campaign_budget) {
-        // Nếu là campaign budget, dùng campaign_id
-        opLevel = 'CAMPAIGN';
-        actualId = row.campaign_id || targetId;
-      }
+      // ⭐ Xác định budget type: daily hoặc lifetime
+      const isLifetime = row.budget_type === 'LIFETIME';
       
       const response = await updateBudget({
         operations: [{
@@ -585,7 +576,7 @@ function App() {
         view_mode: viewMode,
       });
       
-      // FIX LỖI 2: KHÔNG reload - cập nhật local state
+      // ⭐ FIX: KHÔNG reload - cập nhật local state trực tiếp
       if (data && response.results && response.results.length > 0) {
         const result = response.results[0];
         if (result && result.status === 'ok') {
@@ -593,12 +584,21 @@ function App() {
             if (!prevData) return prevData;
             
             const updatedRows = prevData.details.rows.map(r => {
-              if (r.id === actualId || r.adset_id === actualId || r.campaign_id === actualId) {
+              // Update tất cả adset/campaign có cùng ID
+              const shouldUpdate = opLevel === 'CAMPAIGN' 
+                ? r.campaign_id === actualId
+                : (r.id === actualId || r.adset_id === actualId);
+                
+              if (shouldUpdate) {
                 return {
                   ...r,
-                  budget: result.new_budget,
-                  daily_budget: result.budget_type === 'daily_budget' ? result.new_budget : r.daily_budget,
-                  lifetime_budget: result.budget_type === 'lifetime_budget' ? result.new_budget : r.lifetime_budget,
+                  current_budget: newBudget,  // ⭐ Update current_budget
+                  budget: newBudget,
+                  // Update đúng field tương ứng
+                  ...(isLifetime 
+                    ? { lifetime_budget: newBudget, adset_lifetime_budget: newBudget }
+                    : { daily_budget: newBudget, adset_daily_budget: newBudget }
+                  ),
                 };
               }
               return r;
