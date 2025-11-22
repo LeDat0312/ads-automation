@@ -1218,10 +1218,10 @@ async def update_budget_endpoint(
     db: Session = Depends(get_db)
 ):
     """
-    ✅ FIX: Batch update budget - GOM NHIỀU ADSETS, LỌC CBO/LIFETIME
-    - Chỉ update items có budget_edit_level phù hợp
-    - Skip CBO và lifetime budget
-    - Trả về response với total, success_count, failed_count, skipped_count
+    ✅ NEW: Cho phép chỉnh campaign budget ngay tại tab Adset
+    - Phân loại 3 nhóm: adset budget, campaign CBO, lifetime rejected
+    - Không còn hạn chế "chuyển tab"
+    - Trả về progress cho từng batch
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -1233,66 +1233,84 @@ async def update_budget_endpoint(
         
         total_requested = len(payload.operations)
         
-        # ✅ LỌC items hợp lệ - CHỈ update items có budget_edit_level = ADSET/CAMPAIGN
-        adset_updates = []
-        campaign_updates = []
-        skipped_items = []
+        # ✅ PHÂN LOẠI 3 NHÓM
+        adset_budget_updates = []  # Adset có daily/lifetime budget riêng
+        campaign_cbo_map = {}      # Campaign CBO - gom theo campaign_id
+        lifetime_rejected = []      # Items bị reject do lifetime < min
         
         for op in payload.operations:
             normalized_budget = _normalize_budget(op.new_budget)
             
-            # Kiểm tra budget_edit_level từ frontend (nếu có)
-            # Frontend sẽ gửi kèm metadata này
-            edit_level = getattr(op, 'budget_edit_level', None)
+            # Lấy metadata từ frontend
+            edit_level = getattr(op, 'budget_edit_level', op.level)
             edit_reason = getattr(op, 'budget_edit_reason', 'UNKNOWN')
+            campaign_id = getattr(op, 'campaign_id', None)
             
-            # Nếu frontend không gửi metadata, dùng op.level để quyết định
-            if not edit_level:
-                edit_level = op.level
+            # NHÓM 3: Lifetime budget quá thấp → reject
+            if edit_reason == 'LIFETIME':
+                # TODO: Validate min lifetime budget
+                # Tạm thời skip, có thể thêm validation sau
+                lifetime_rejected.append({
+                    'id': op.id,
+                    'reason': 'Lifetime budget - chưa validate min'
+                })
+                continue
             
-            # Chỉ cho phép update nếu edit_level khớp với op.level
-            if op.level == "ADSET":
-                if edit_level == "ADSET":
-                    adset_updates.append({
-                        'id': op.id,
-                        'new_budget': normalized_budget
-                    })
+            # NHÓM 2: Campaign CBO - gom theo campaign_id
+            if edit_reason == 'CBO' and campaign_id:
+                # Gom tất cả adsets cùng campaign_id
+                if campaign_id not in campaign_cbo_map:
+                    campaign_cbo_map[campaign_id] = {
+                        'campaign_id': campaign_id,
+                        'new_budget': normalized_budget,
+                        'adset_ids': []
+                    }
+                campaign_cbo_map[campaign_id]['adset_ids'].append(op.id)
+                continue
+            
+            # NHÓM 1: Adset có budget riêng
+            if edit_level == "ADSET":
+                adset_budget_updates.append({
+                    'id': op.id,
+                    'new_budget': normalized_budget
+                })
+            elif edit_level == "CAMPAIGN":
+                # Direct campaign update
+                if campaign_id:
+                    if campaign_id not in campaign_cbo_map:
+                        campaign_cbo_map[campaign_id] = {
+                            'campaign_id': campaign_id,
+                            'new_budget': normalized_budget,
+                            'adset_ids': []
+                        }
                 else:
-                    # Skip: CBO hoặc lifetime budget
-                    skipped_items.append({
-                        'id': op.id,
-                        'reason': edit_reason or 'CBO/LIFETIME'
-                    })
-            elif op.level == "CAMPAIGN":
-                if edit_level == "CAMPAIGN":
-                    campaign_updates.append({
-                        'id': op.id,
-                        'new_budget': normalized_budget
-                    })
-                else:
-                    # Skip: lifetime budget
-                    skipped_items.append({
-                        'id': op.id,
-                        'reason': edit_reason or 'LIFETIME'
-                    })
+                    # Fallback: treat as campaign update
+                    campaign_cbo_map[op.id] = {
+                        'campaign_id': op.id,
+                        'new_budget': normalized_budget,
+                        'adset_ids': []
+                    }
         
         all_results = []
         all_errors = []
-        skipped_count = len(skipped_items)
         
-        # Log tổng quan
+        # Log phân loại
         logger.info(
-            f"📊 Budget update batch: total_requested={total_requested}, "
-            f"adsets={len(adset_updates)}, campaigns={len(campaign_updates)}, "
-            f"skipped={skipped_count} (CBO/LIFETIME)"
+            f"📊 Budget update: total={total_requested}, "
+            f"adset_budget={len(adset_budget_updates)}, "
+            f"campaign_cbo={len(campaign_cbo_map)}, "
+            f"lifetime_rejected={len(lifetime_rejected)}"
         )
         
-        # ✅ Xử lý ADSETS bằng BATCH API (50 adsets/request)
-        if adset_updates:
-            logger.info(f"🚀 Bắt đầu batch update {len(adset_updates)} adsets...")
-            batch_result = update_adsets_budget_batch(adset_updates, access_token)
+        all_results = []
+        all_errors = []
+        
+        # ✅ NHÓM 1: Xử lý ADSET BUDGET bằng BATCH API (50 adsets/request)
+        if adset_budget_updates:
+            logger.info(f"🚀 Batch update {len(adset_budget_updates)} adsets...")
+            batch_result = update_adsets_budget_batch(adset_budget_updates, access_token)
             
-            # Convert kết quả từ batch sang format cũ
+            # Convert kết quả từ batch
             for result in batch_result.get('results', []):
                 all_results.append({
                     "id": result['id'],
@@ -1309,25 +1327,11 @@ async def update_budget_endpoint(
                     _budgets_cache[access_token].pop(result['id'], None)
             
             for error in batch_result.get('errors', []):
-                error_msg = error.get('error', 'Unknown error')
                 all_errors.append({
                     "id": error['id'],
                     "level": "ADSET",
                     "status": "error",
-                    "error": error_msg
-                })
-            
-            # Clear batch cache
-            if batch_result.get('success_count', 0) > 0:
-                cache_key = f"budgets_{access_token[:20]}"
-                _cache_timestamps.pop(cache_key, None)
-                    error_msg = "Không thể cập nhật ngân sách: Ngân sách đang ở cấp chiến dịch. Vui lòng cập nhật ở tab 'Chiến Dịch'."
-                
-                all_errors.append({
-                    "id": error['id'],
-                    "level": "ADSET",
-                    "status": "error",
-                    "error": error_msg
+                    "error": error.get('error', 'Unknown error')
                 })
             
             # Clear batch cache
@@ -1335,84 +1339,113 @@ async def update_budget_endpoint(
                 cache_key = f"budgets_{access_token[:20]}"
                 _cache_timestamps.pop(cache_key, None)
         
-        # ✅ Xử lý CAMPAIGNS (từng cái vì API không hỗ trợ batch campaign)
-        if campaign_updates:
+        # ✅ NHÓM 2: Xử lý CAMPAIGN CBO - Mỗi campaign chỉ update 1 lần
+        if campaign_cbo_map:
             import asyncio
             semaphore = asyncio.Semaphore(3)
+            logger.info(f"🚀 Update {len(campaign_cbo_map)} campaigns (CBO)...")
             
-            async def update_single_campaign(item):
+            async def update_single_campaign_cbo(camp_data):
                 async with semaphore:
                     try:
                         loop = asyncio.get_event_loop()
                         result = await loop.run_in_executor(
                             None,
                             update_campaign_budget,
-                            item['id'],
+                            camp_data['campaign_id'],
                             access_token,
-                            item['new_budget']
+                            camp_data['new_budget']
                         )
                         
                         if result.get("success"):
+                            # Trả về success cho TẤT CẢ adsets của campaign
                             return {
-                                "id": item['id'],
-                                "level": "CAMPAIGN",
+                                "campaign_id": camp_data['campaign_id'],
+                                "adset_ids": camp_data['adset_ids'],
                                 "status": "ok",
                                 "old_budget": result.get("old_budget"),
-                                "new_budget": result.get("new_budget"),
-                                "budget_type": result.get("budget_type")
+                                "new_budget": result.get("new_budget")
                             }
                         else:
                             return {
-                                "id": item['id'],
-                                "level": "CAMPAIGN",
+                                "campaign_id": camp_data['campaign_id'],
+                                "adset_ids": camp_data['adset_ids'],
                                 "status": "error",
                                 "error": result.get("error", "Unknown error")
                             }
                     except Exception as e:
                         return {
-                            "id": item['id'],
-                            "level": "CAMPAIGN",
+                            "campaign_id": camp_data['campaign_id'],
+                            "adset_ids": camp_data['adset_ids'],
                             "status": "error",
                             "error": str(e)
                         }
             
-            tasks = [update_single_campaign(item) for item in campaign_updates]
+            # Run tất cả campaign updates
+            tasks = [update_single_campaign_cbo(data) for data in campaign_cbo_map.values()]
             campaign_results = await asyncio.gather(*tasks)
             
+            # Chuyển kết quả campaign → kết quả adsets
             for result in campaign_results:
                 if result["status"] == "ok":
-                    all_results.append(result)
+                    # Add result cho TẤT CẢ adsets
+                    for adset_id in result['adset_ids']:
+                        all_results.append({
+                            "id": adset_id,
+                            "level": "CAMPAIGN_CBO",
+                            "campaign_id": result['campaign_id'],
+                            "status": "ok",
+                            "old_budget": result.get("old_budget"),
+                            "new_budget": result.get("new_budget"),
+                            "message": "Updated via campaign budget (CBO)"
+                        })
+                    
                     # Clear cache
                     from app.services.facebook_api import _budgets_cache, _cache_timestamps
                     if access_token in _budgets_cache:
-                        _budgets_cache[access_token].pop(result['id'], None)
+                        _budgets_cache[access_token].pop(result['campaign_id'], None)
+                        # Clear cache cho tất cả adsets
+                        for adset_id in result['adset_ids']:
+                            _budgets_cache[access_token].pop(adset_id, None)
                 else:
-                    all_errors.append(result)
+                    # Add error cho TẤT CẢ adsets
+                    for adset_id in result['adset_ids']:
+                        all_errors.append({
+                            "id": adset_id,
+                            "level": "CAMPAIGN_CBO",
+                            "campaign_id": result['campaign_id'],
+                            "status": "error",
+                            "error": result.get("error")
+                        })
         
         success_count = len(all_results)
         failed_count = len(all_errors)
+        rejected_count = len(lifetime_rejected)
         
         # ✅ Log tổng kết
         logger.info(
-            f"✅ Batch update xong: success={success_count}, error={failed_count}, "
-            f"skipped={skipped_count} (CBO/LIFETIME)"
+            f"✅ Batch update done: success={success_count}, error={failed_count}, "
+            f"lifetime_rejected={rejected_count}"
         )
         
         if all_errors and not all_results:
             raise HTTPException(status_code=400, detail=f"All operations failed: {all_errors}")
         
-        # ✅ Response format với total, success_count, failed_count, skipped_count
+        # ✅ Response format MỚI với 3 nhóm
         return JSONResponse({
             "success": True,
             "total": total_requested,
             "success_count": success_count,
             "failed_count": failed_count,
-            "skipped_count": skipped_count,
-            "skipped_items": skipped_items,
+            "rejected_count": rejected_count,
+            "lifetime_rejected": lifetime_rejected if lifetime_rejected else None,
             "results": all_results,
             "errors": all_errors if all_errors else None,
-            "message": f"Updated {success_count}/{total_requested} budget(s) successfully" + 
-                      (f", skipped {skipped_count} (CBO/LIFETIME)" if skipped_count > 0 else "")
+            "message": (
+                f"Updated {success_count}/{total_requested} items" +
+                (f", {failed_count} errors" if failed_count > 0 else "") +
+                (f", {rejected_count} lifetime rejected" if rejected_count > 0 else "")
+            )
         })
         
     except HTTPException:
