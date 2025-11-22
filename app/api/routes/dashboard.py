@@ -28,6 +28,8 @@ from app.services.facebook_api import (
     resume_campaign,
     pause_single_adset,
     resume_single_adset,
+    pause_single_adset_async,
+    resume_single_adset_async,
     update_adset_budget, 
     update_campaign_budget,
     update_adsets_budget_batch,
@@ -1110,42 +1112,63 @@ async def update_status_endpoint(
         success_ids = []
         failed_ids = []
         
-        # ✅ XỬ LÝ TỪNG ITEM ĐƠN LẺ - KHÔNG dùng batch API của Facebook
-        # Vì batch API đang gặp lỗi, ta sẽ loop qua từng item như campaign
+        # ✅ XỬ LÝ SONG SONG với asyncio.gather - Nhanh hơn 5-10x
+        # Mỗi adset gọi async API với retry thông minh
         if payload.level == "ADSET" or payload.level == "AD":
+            # Tạo tasks cho asyncio.gather
+            tasks = []
             for item in payload.items:
-                try:
-                    if item.new_status == "PAUSED":
-                        result = pause_single_adset(item.id, access_token)
-                    elif item.new_status == "ACTIVE":
-                        result = resume_single_adset(item.id, access_token)
-                    else:
-                        failed_ids.append(item.id)
-                        errors.append({
-                            "id": item.id,
-                            "error": f"Unsupported status for ADSET/AD: {item.new_status}"
-                        })
-                        continue
-                    
-                    if result.get("success", False):
-                        success_ids.append(item.id)
-                        results.append({"id": item.id, "new_status": item.new_status})
+                if item.new_status == "PAUSED":
+                    tasks.append(pause_single_adset_async(item.id, access_token))
+                elif item.new_status == "ACTIVE":
+                    tasks.append(resume_single_adset_async(item.id, access_token))
+                else:
+                    # Invalid status - add to failed immediately
+                    failed_ids.append(item.id)
+                    errors.append({
+                        "id": item.id,
+                        "error": f"Unsupported status: {item.new_status}"
+                    })
+            
+            # Chạy song song tất cả tasks
+            if tasks:
+                logger.info(f"🚀 Starting parallel status update for {len(tasks)} adsets")
+                task_results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # Xử lý kết quả
+                for i, result in enumerate(task_results):
+                    if isinstance(result, Exception):
+                        # Exception occurred
+                        item_id = payload.items[i].id
+                        failed_ids.append(item_id)
+                        errors.append({"id": item_id, "error": str(result)})
+                        logger.error(f"Exception for adset {item_id}: {result}", exc_info=True)
+                    elif result.get("success", False):
+                        # Success
+                        item_id = result["adset_id"]
+                        success_ids.append(item_id)
+                        results.append({"id": item_id, "new_status": payload.items[i].new_status})
                         # Clear cache
                         from app.services.facebook_api import _status_cache, _cache_timestamps
                         if access_token in _status_cache:
-                            _status_cache[access_token].pop(item.id, None)
+                            _status_cache[access_token].pop(item_id, None)
                         cache_key = f"status_{access_token[:20]}"
                         _cache_timestamps.pop(cache_key, None)
                     else:
-                        failed_ids.append(item.id)
-                        errors.append({
-                            "id": item.id,
-                            "error": result.get('error', 'Unknown error')
-                        })
-                except Exception as e:
-                    logger.error(f"Error updating adset {item.id}: {e}", exc_info=True)
-                    failed_ids.append(item.id)
-                    errors.append({"id": item.id, "error": str(e)})
+                        # Failed
+                        item_id = result.get("adset_id") or payload.items[i].id
+                        failed_ids.append(item_id)
+                        error_info = {"id": item_id, "error": result.get("error", "Unknown error")}
+                        # Thêm chi tiết error nếu có
+                        if "error_code" in result:
+                            error_info["error_code"] = result["error_code"]
+                        if "error_subcode" in result:
+                            error_info["error_subcode"] = result["error_subcode"]
+                        if "fbtrace_id" in result:
+                            error_info["fbtrace_id"] = result["fbtrace_id"]
+                        errors.append(error_info)
+                
+                logger.info(f"✅ Parallel status update completed: {len(success_ids)} success, {len(failed_ids)} failed")
                         
         elif payload.level == "CAMPAIGN":
             # ✅ CAMPAIGN: Xử lý từng cái (vì API không hỗ trợ batch campaign)

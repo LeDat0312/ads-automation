@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 FB_API_VERSION = "v24.0"
 FB_GRAPH_API_BASE = f"https://graph.facebook.com/{FB_API_VERSION}"
 
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAY_BASE = 0.5  # seconds
+
 
 def _normalize_budget(value) -> int:
     """
@@ -655,7 +659,7 @@ def pause_single_adset(
     access_token: str
 ) -> Dict[str, Any]:
     """
-    Tắt một Adset đơn lẻ - KHÔNG dùng batch API
+    Tắt một Adset đơn lẻ - KHÔNG dùng batch API (sync version for backward compatibility)
     """
     try:
         url = f"{FB_GRAPH_API_BASE}/{adset_id}"
@@ -694,7 +698,7 @@ def resume_single_adset(
     access_token: str
 ) -> Dict[str, Any]:
     """
-    Bật một Adset đơn lẻ - KHÔNG dùng batch API
+    Bật một Adset đơn lẻ - KHÔNG dùng batch API (sync version for backward compatibility)
     """
     try:
         url = f"{FB_GRAPH_API_BASE}/{adset_id}"
@@ -726,6 +730,206 @@ def resume_single_adset(
     except Exception as e:
         logger.error(f"🚨 Lỗi bật Adset {adset_id}: {e}")
         return {"success": False, "adset_id": adset_id, "error": str(e)}
+
+
+async def pause_single_adset_async(
+    adset_id: str,
+    access_token: str,
+    retry_count: int = MAX_RETRIES
+) -> Dict[str, Any]:
+    """
+    Tắt một Adset đơn lẻ - Async với retry thông minh
+    
+    Args:
+        adset_id: ID của adset
+        access_token: Facebook access token
+        retry_count: Số lần retry (default 3)
+    
+    Returns:
+        Dict với success, adset_id, error (nếu có), error_code, error_subcode, fbtrace_id
+    """
+    url = f"{FB_GRAPH_API_BASE}/{adset_id}"
+    
+    for attempt in range(retry_count):
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    url,
+                    params={'access_token': access_token},
+                    data={'status': 'PAUSED'}
+                )
+                
+                json_response = response.json()
+                
+                # Success case
+                if response.status_code == 200 and 'error' not in json_response:
+                    if attempt > 0:
+                        logger.info(f"✅ Pause adset {adset_id} succeeded on retry {attempt + 1}")
+                    return {"success": True, "adset_id": adset_id}
+                
+                # Error case
+                if 'error' in json_response:
+                    error = json_response['error']
+                    error_msg = error.get('message', 'Unknown error')
+                    error_code = error.get('code')
+                    error_subcode = error.get('error_subcode')
+                    fbtrace_id = error.get('fbtrace_id')
+                    
+                    # Check if retryable error
+                    is_retryable = error_code in [1, 2, 17, 613] or error_subcode in [99, 1675030]
+                    
+                    if is_retryable and attempt < retry_count - 1:
+                        delay = RETRY_DELAY_BASE * (2 ** attempt)  # Exponential backoff
+                        logger.warning(
+                            f"⚠️ Pause adset {adset_id} retryable error, attempt {attempt + 1}/{retry_count}, "
+                            f"retrying in {delay}s",
+                            extra={
+                                "adset_id": adset_id,
+                                "fb_error_code": error_code,
+                                "fb_error_subcode": error_subcode,
+                                "fbtrace_id": fbtrace_id,
+                                "attempt": attempt + 1
+                            }
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    
+                    # Non-retryable or final attempt
+                    logger.error(
+                        f"❌ Pause adset {adset_id} failed",
+                        extra={
+                            "adset_id": adset_id,
+                            "fb_error_code": error_code,
+                            "fb_error_subcode": error_subcode,
+                            "fb_error_message": error_msg,
+                            "fbtrace_id": fbtrace_id,
+                            "http_status": response.status_code,
+                            "attempt": attempt + 1
+                        }
+                    )
+                    return {
+                        "success": False,
+                        "adset_id": adset_id,
+                        "error": error_msg,
+                        "error_code": error_code,
+                        "error_subcode": error_subcode,
+                        "fbtrace_id": fbtrace_id
+                    }
+        
+        except httpx.TimeoutException as e:
+            if attempt < retry_count - 1:
+                delay = RETRY_DELAY_BASE * (2 ** attempt)
+                logger.warning(f"⚠️ Timeout pausing adset {adset_id}, retry {attempt + 1}/{retry_count} in {delay}s")
+                await asyncio.sleep(delay)
+                continue
+            logger.error(f"❌ Timeout pausing adset {adset_id} after {retry_count} attempts")
+            return {"success": False, "adset_id": adset_id, "error": f"Timeout after {retry_count} attempts"}
+        
+        except Exception as e:
+            logger.error(f"❌ Exception pausing adset {adset_id}: {e}", exc_info=True)
+            return {"success": False, "adset_id": adset_id, "error": str(e)}
+    
+    return {"success": False, "adset_id": adset_id, "error": "Max retries exceeded"}
+
+
+async def resume_single_adset_async(
+    adset_id: str,
+    access_token: str,
+    retry_count: int = MAX_RETRIES
+) -> Dict[str, Any]:
+    """
+    Bật một Adset đơn lẻ - Async với retry thông minh
+    
+    Args:
+        adset_id: ID của adset
+        access_token: Facebook access token
+        retry_count: Số lần retry (default 3)
+    
+    Returns:
+        Dict với success, adset_id, error (nếu có), error_code, error_subcode, fbtrace_id
+    """
+    url = f"{FB_GRAPH_API_BASE}/{adset_id}"
+    
+    for attempt in range(retry_count):
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    url,
+                    params={'access_token': access_token},
+                    data={'status': 'ACTIVE'}
+                )
+                
+                json_response = response.json()
+                
+                # Success case
+                if response.status_code == 200 and 'error' not in json_response:
+                    if attempt > 0:
+                        logger.info(f"✅ Resume adset {adset_id} succeeded on retry {attempt + 1}")
+                    return {"success": True, "adset_id": adset_id}
+                
+                # Error case
+                if 'error' in json_response:
+                    error = json_response['error']
+                    error_msg = error.get('message', 'Unknown error')
+                    error_code = error.get('code')
+                    error_subcode = error.get('error_subcode')
+                    fbtrace_id = error.get('fbtrace_id')
+                    
+                    # Check if retryable error
+                    is_retryable = error_code in [1, 2, 17, 613] or error_subcode in [99, 1675030]
+                    
+                    if is_retryable and attempt < retry_count - 1:
+                        delay = RETRY_DELAY_BASE * (2 ** attempt)  # Exponential backoff
+                        logger.warning(
+                            f"⚠️ Resume adset {adset_id} retryable error, attempt {attempt + 1}/{retry_count}, "
+                            f"retrying in {delay}s",
+                            extra={
+                                "adset_id": adset_id,
+                                "fb_error_code": error_code,
+                                "fb_error_subcode": error_subcode,
+                                "fbtrace_id": fbtrace_id,
+                                "attempt": attempt + 1
+                            }
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    
+                    # Non-retryable or final attempt
+                    logger.error(
+                        f"❌ Resume adset {adset_id} failed",
+                        extra={
+                            "adset_id": adset_id,
+                            "fb_error_code": error_code,
+                            "fb_error_subcode": error_subcode,
+                            "fb_error_message": error_msg,
+                            "fbtrace_id": fbtrace_id,
+                            "http_status": response.status_code,
+                            "attempt": attempt + 1
+                        }
+                    )
+                    return {
+                        "success": False,
+                        "adset_id": adset_id,
+                        "error": error_msg,
+                        "error_code": error_code,
+                        "error_subcode": error_subcode,
+                        "fbtrace_id": fbtrace_id
+                    }
+        
+        except httpx.TimeoutException as e:
+            if attempt < retry_count - 1:
+                delay = RETRY_DELAY_BASE * (2 ** attempt)
+                logger.warning(f"⚠️ Timeout resuming adset {adset_id}, retry {attempt + 1}/{retry_count} in {delay}s")
+                await asyncio.sleep(delay)
+                continue
+            logger.error(f"❌ Timeout resuming adset {adset_id} after {retry_count} attempts")
+            return {"success": False, "adset_id": adset_id, "error": f"Timeout after {retry_count} attempts"}
+        
+        except Exception as e:
+            logger.error(f"❌ Exception resuming adset {adset_id}: {e}", exc_info=True)
+            return {"success": False, "adset_id": adset_id, "error": str(e)}
+    
+    return {"success": False, "adset_id": adset_id, "error": "Max retries exceeded"}
 
 
 def get_campaign_adsets_count(
