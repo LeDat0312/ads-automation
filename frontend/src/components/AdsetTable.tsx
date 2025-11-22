@@ -606,63 +606,7 @@ const TableRow: React.FC<TableRowProps> = ({
         <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('budget')}px`, minWidth: `${getColumnWidth('budget')}px` }}>
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
-            let budgetDisplay: string;
-            let budgetValue: number | null = null;
-            
-            // Xác định budget value và loại (daily/lifetime)
-            const usingCampaignBudget = row.using_campaign_budget || (row.budget_level === 'CAMPAIGN');
-            const isCampaignLevel = currentLevel === 'campaign';
-            
-            if (isCampaignLevel && row.budget_level === 'CAMPAIGN') {
-              // Tab Campaign, row là campaign
-              if (row.campaign_daily_budget && row.campaign_daily_budget > 0) {
-                budgetValue = row.campaign_daily_budget;
-                budgetDisplay = canEdit 
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách chiến dịch (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
-              } else if (row.campaign_lifetime_budget && row.campaign_lifetime_budget > 0) {
-                budgetValue = row.campaign_lifetime_budget;
-                budgetDisplay = canEdit
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách chiến dịch trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
-              } else {
-                budgetDisplay = 'Ngân sách chiến dịch';
-              }
-            } else if (usingCampaignBudget) {
-              // Adset đang dùng campaign budget (CBO)
-              if (row.campaign_daily_budget && row.campaign_daily_budget > 0) {
-                budgetValue = row.campaign_daily_budget;
-                budgetDisplay = canEdit
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách chiến dịch (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
-              } else if (row.campaign_lifetime_budget && row.campaign_lifetime_budget > 0) {
-                budgetValue = row.campaign_lifetime_budget;
-                budgetDisplay = canEdit
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách chiến dịch trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
-              } else {
-                budgetDisplay = 'Ngân sách chiến dịch';
-              }
-            } else {
-              // Adset có budget riêng
-              if (row.adset_daily_budget && row.adset_daily_budget > 0) {
-                budgetValue = row.adset_daily_budget;
-                budgetDisplay = canEdit
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách nhóm QC (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
-              } else if (row.adset_lifetime_budget && row.adset_lifetime_budget > 0) {
-                budgetValue = row.adset_lifetime_budget;
-                budgetDisplay = canEdit
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách nhóm QC trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
-              } else {
-                budgetDisplay = 'Ngân sách nhóm QC';
-              }
-            }
-            
-            const budgetTitle = canEdit 
-              ? 'Click để chỉnh sửa ngân sách'
-              : budgetDisplay;
+            const { display: budgetDisplay, title: budgetTitle } = getBudgetDisplay(row, canEdit);
             
             if (canEdit && onOpenBudgetEditor) {
               return (
@@ -871,63 +815,7 @@ const TableRow: React.FC<TableRowProps> = ({
         <td style={{ padding: '12px', fontSize: '14px', color: '#1f2937', textAlign: 'center', borderBottom: '1px solid #f3f4f6', width: `${getColumnWidth('budget')}px`, minWidth: `${getColumnWidth('budget')}px` }}>
           {(() => {
             const canEdit = canEditBudget(row, currentLevel);
-            let budgetDisplay: string;
-            let budgetValue: number | null = null;
-            
-            // Xác định budget value và loại (daily/lifetime)
-            const usingCampaignBudget = row.using_campaign_budget || (row.budget_level === 'CAMPAIGN');
-            const isCampaignLevel = currentLevel === 'campaign';
-            
-            if (isCampaignLevel && row.budget_level === 'CAMPAIGN') {
-              // Tab Campaign, row là campaign
-              if (row.campaign_daily_budget && row.campaign_daily_budget > 0) {
-                budgetValue = row.campaign_daily_budget;
-                budgetDisplay = canEdit 
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách chiến dịch (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
-              } else if (row.campaign_lifetime_budget && row.campaign_lifetime_budget > 0) {
-                budgetValue = row.campaign_lifetime_budget;
-                budgetDisplay = canEdit
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách chiến dịch trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
-              } else {
-                budgetDisplay = 'Ngân sách chiến dịch';
-              }
-            } else if (usingCampaignBudget) {
-              // Adset đang dùng campaign budget (CBO)
-              if (row.campaign_daily_budget && row.campaign_daily_budget > 0) {
-                budgetValue = row.campaign_daily_budget;
-                budgetDisplay = canEdit
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách chiến dịch (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
-              } else if (row.campaign_lifetime_budget && row.campaign_lifetime_budget > 0) {
-                budgetValue = row.campaign_lifetime_budget;
-                budgetDisplay = canEdit
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách chiến dịch trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
-              } else {
-                budgetDisplay = 'Ngân sách chiến dịch';
-              }
-            } else {
-              // Adset có budget riêng
-              if (row.adset_daily_budget && row.adset_daily_budget > 0) {
-                budgetValue = row.adset_daily_budget;
-                budgetDisplay = canEdit
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách nhóm QC (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
-              } else if (row.adset_lifetime_budget && row.adset_lifetime_budget > 0) {
-                budgetValue = row.adset_lifetime_budget;
-                budgetDisplay = canEdit
-                  ? formatCurrency(budgetValue, row.currency || 'VND')
-                  : `Ngân sách nhóm QC trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`;
-              } else {
-                budgetDisplay = 'Ngân sách nhóm QC';
-              }
-            }
-            
-            const budgetTitle = canEdit 
-              ? 'Click để chỉnh sửa ngân sách'
-              : budgetDisplay;
+            const { display: budgetDisplay, title: budgetTitle } = getBudgetDisplay(row, canEdit);
             
             if (canEdit && onOpenBudgetEditor) {
               return (
