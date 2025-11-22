@@ -24,6 +24,8 @@ export interface AdsetRow {
   // Budget
   budget: number;
   budget_level: 'CAMPAIGN' | 'ADSET';
+  budget_edit_level?: 'ADSET' | 'CAMPAIGN' | 'NONE';  // ⭐ Metadata: Level có thể chỉnh được
+  budget_edit_reason?: 'OK' | 'CBO' | 'LIFETIME';  // ⭐ Lý do (OK=chỉnh được, CBO=cần update campaign, LIFETIME=lifetime budget)
   adset_daily_budget?: number | null;  // Adset daily budget (if exists)
   campaign_daily_budget?: number | null;  // Campaign daily budget (if exists)
   daily_budget?: number | null;  // Alias for adset_daily_budget
@@ -159,6 +161,9 @@ export interface BudgetOperation {
   level: 'CAMPAIGN' | 'ADSET';
   id: string;  // campaign_id or adset_id
   new_budget: number;  // VND / day
+  campaign_id?: string;  // ⭐ Cần để gom CBO updates
+  budget_edit_level?: string;  // ⭐ Metadata from frontend
+  budget_edit_reason?: string;  // ⭐ Metadata from frontend
   reason?: string;
 }
 
@@ -170,20 +175,28 @@ export interface BudgetUpdateRequest {
 
 export interface BudgetUpdateResponse {
   success: boolean;
-  total: number; // 🔹 FIX LỖI 1 & 3: Thêm total, success_count, failed_count
+  total: number;
   success_count: number;
   failed_count: number;
+  rejected_count?: number;  // ⭐ NHÓM 3: Lifetime rejected
+  lifetime_rejected?: Array<{  // ⭐ Chi tiết items bị reject
+    id: string;
+    reason: string;
+  }>;
   results: Array<{
     id: string;
     level: string;
+    campaign_id?: string;  // ⭐ Cho CAMPAIGN_CBO items
     old_budget?: number;
     new_budget: number;
     budget_type?: string;
     status: string;
+    message?: string;  // ⭐ "Updated via campaign budget (CBO)"
   }>;
   errors?: Array<{
     id: string;
     level: string;
+    campaign_id?: string;
     error: string;
     status: string;
   }>;
