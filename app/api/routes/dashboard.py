@@ -981,69 +981,54 @@ async def get_dashboard_data(
         
         # ===== BƯỚC 4.5: Thêm metadata budget_type + current_budget =====
         for row in rows:
-            # Default values
-            row['budget_type'] = 'DAILY'  # 'DAILY' | 'LIFETIME'
-            row['current_budget'] = 0
+            # 1. Lấy nguyên liệu (convert None thành 0)
+            adset_daily = row.get('adset_daily_budget') or 0
+            adset_lifetime = row.get('adset_lifetime_budget') or 0
+            campaign_daily = row.get('campaign_daily_budget') or 0
+            campaign_lifetime = row.get('campaign_lifetime_budget') or 0
             
-            if level == 'adset':
-                # Kiểm tra adset có budget nào
-                adset_daily = row.get('adset_daily_budget')
-                adset_lifetime = row.get('adset_lifetime_budget')
-                campaign_daily = row.get('campaign_daily_budget')
-                campaign_lifetime = row.get('campaign_lifetime_budget')
-                is_using_cbo = row.get('using_campaign_budget', False)
-                
-                if is_using_cbo:
-                    # Dùng budget của campaign
-                    row['budget_edit_level'] = 'CAMPAIGN'
-                    if campaign_lifetime is not None:
-                        row['budget_type'] = 'LIFETIME'
-                        row['current_budget'] = int(campaign_lifetime)
-                        row['budget_edit_reason'] = 'CBO'
-                    elif campaign_daily is not None:
-                        row['budget_type'] = 'DAILY'
-                        row['current_budget'] = int(campaign_daily)
-                        row['budget_edit_reason'] = 'CBO'
-                    else:
-                        row['budget_edit_level'] = 'NONE'
-                        row['budget_edit_reason'] = 'UNKNOWN'
-                else:
-                    # Adset có budget riêng
-                    row['budget_edit_level'] = 'ADSET'
-                    if adset_lifetime is not None:
-                        row['budget_type'] = 'LIFETIME'
-                        row['current_budget'] = int(adset_lifetime)
-                        row['budget_edit_reason'] = 'OK'
-                    elif adset_daily is not None:
-                        row['budget_type'] = 'DAILY'
-                        row['current_budget'] = int(adset_daily)
-                        row['budget_edit_reason'] = 'OK'
-                    else:
-                        row['budget_edit_level'] = 'NONE'
-                        row['budget_edit_reason'] = 'UNKNOWN'
-                    
-            elif level == 'campaign':
-                # Kiểm tra campaign có budget nào
-                campaign_daily = row.get('campaign_daily_budget')
-                campaign_lifetime = row.get('campaign_lifetime_budget')
-                
-                row['budget_edit_level'] = 'CAMPAIGN'
-                if campaign_lifetime is not None:
-                    row['budget_type'] = 'LIFETIME'
-                    row['current_budget'] = int(campaign_lifetime)
-                    row['budget_edit_reason'] = 'OK'
-                elif campaign_daily is not None:
-                    row['budget_type'] = 'DAILY'
-                    row['current_budget'] = int(campaign_daily)
-                    row['budget_edit_reason'] = 'OK'
-                else:
-                    row['budget_edit_level'] = 'NONE'
-                    row['budget_edit_reason'] = 'UNKNOWN'
+            # 2. Ưu tiên ngân sách theo thứ tự: adset daily → adset lifetime → campaign daily → campaign lifetime
+            current_budget = 0
+            budget_type = None
+            budget_edit_level = None
+            budget_edit_reason = "OK"
             
+            # (a) Nếu adset dùng ngân sách NGÀY
+            if adset_daily > 0:
+                current_budget = int(adset_daily)
+                budget_type = "DAILY"
+                budget_edit_level = "ADSET"
+            
+            # (b) Nếu adset dùng ngân sách TRỌN ĐỜI
+            elif adset_lifetime > 0:
+                current_budget = int(adset_lifetime)
+                budget_type = "LIFETIME"
+                budget_edit_level = "ADSET"
+            
+            # (c) Nếu campaign dùng ngân sách NGÀY (CBO daily)
+            elif campaign_daily > 0:
+                current_budget = int(campaign_daily)
+                budget_type = "DAILY"
+                budget_edit_level = "CAMPAIGN"
+            
+            # (d) Nếu campaign dùng ngân sách TRỌN ĐỜI (CBO lifetime)
+            elif campaign_lifetime > 0:
+                current_budget = int(campaign_lifetime)
+                budget_type = "LIFETIME"
+                budget_edit_level = "CAMPAIGN"
+            
+            # (e) Không có budget nào (dự phòng)
             else:
-                # level == 'ad' không cần edit budget
-                row['budget_edit_level'] = 'NONE'
-                row['budget_edit_reason'] = 'UNKNOWN'
+                current_budget = 0
+                budget_type = "DAILY"
+                budget_edit_level = "ADSET"
+                budget_edit_reason = "NO_BUDGET"
+            
+            # 3. Gán vào row
+            row['current_budget'] = current_budget
+            row['budget_type'] = budget_type
+            row['budget_edit_level'] = budget_edit_level
+            row['budget_edit_reason'] = budget_edit_reason
         
         # ===== BƯỚC 5: Pagination =====
         total_rows = len(rows)
