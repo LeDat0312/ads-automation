@@ -91,6 +91,211 @@ def unique_list(arr: List) -> List:
     return result
 
 
+# ========================================
+# 🚀 ASYNC BUDGET UPDATE - PRODUCTION GRADE
+# ========================================
+
+async def update_single_budget_async(
+    object_id: str,
+    access_token: str,
+    new_budget: float,
+    budget_type: str,  # "DAILY" hoặc "LIFETIME"
+    level: str,  # "ADSET" hoặc "CAMPAIGN"
+    retry_count: int = MAX_RETRIES
+) -> Dict[str, Any]:
+    """
+    Cập nhật ngân sách cho 1 object (adset hoặc campaign) - Async với retry thông minh
+    
+    Args:
+        object_id: ID của adset hoặc campaign
+        access_token: Facebook access token
+        new_budget: Ngân sách mới (sẽ được normalize thành integer)
+        budget_type: "DAILY" hoặc "LIFETIME"
+        level: "ADSET" hoặc "CAMPAIGN"
+        retry_count: Số lần retry (default 3)
+    
+    Returns:
+        Dict với success, object_id, old_budget, new_budget, error (nếu có), error_code, error_subcode, fbtrace_id
+    
+    Logic xử lý 4 trường hợp:
+        1. ADSET + DAILY    → POST /{adset_id}    {daily_budget: X}
+        2. ADSET + LIFETIME → POST /{adset_id}    {lifetime_budget: X}
+        3. CAMPAIGN + DAILY → POST /{campaign_id} {daily_budget: X}
+        4. CAMPAIGN + LIFETIME → POST /{campaign_id} {lifetime_budget: X}
+    """
+    url = f"{FB_GRAPH_API_BASE}/{object_id}"
+    
+    # Normalize budget thành integer
+    new_budget_normalized = _normalize_budget(new_budget)
+    
+    # Xác định field name theo budget_type
+    budget_field = 'daily_budget' if budget_type.upper() == 'DAILY' else 'lifetime_budget'
+    
+    for attempt in range(retry_count):
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Bước 1: Lấy budget hiện tại
+                get_response = await client.get(
+                    url,
+                    params={
+                        'access_token': access_token,
+                        'fields': 'daily_budget,lifetime_budget'
+                    }
+                )
+                
+                get_data = get_response.json()
+                
+                if 'error' in get_data:
+                    error = get_data['error']
+                    error_msg = error.get('message', 'Unknown error')
+                    error_code = error.get('code')
+                    error_subcode = error.get('error_subcode')
+                    fbtrace_id = error.get('fbtrace_id')
+                    
+                    logger.error(
+                        f"❌ Get budget failed for {level} {object_id}",
+                        extra={
+                            "object_id": object_id,
+                            "level": level,
+                            "fb_error_code": error_code,
+                            "fb_error_subcode": error_subcode,
+                            "fb_error_message": error_msg,
+                            "fbtrace_id": fbtrace_id
+                        }
+                    )
+                    return {
+                        "success": False,
+                        "object_id": object_id,
+                        "level": level,
+                        "error": error_msg,
+                        "error_code": error_code,
+                        "error_subcode": error_subcode,
+                        "fbtrace_id": fbtrace_id
+                    }
+                
+                # Lấy old budget
+                old_budget = float(get_data.get(budget_field) or 0)
+                
+                # Bước 2: Update budget
+                update_response = await client.post(
+                    url,
+                    params={'access_token': access_token},
+                    data={budget_field: new_budget_normalized}
+                )
+                
+                update_data = update_response.json()
+                
+                # Success case
+                if update_response.status_code == 200 and 'error' not in update_data:
+                    if attempt > 0:
+                        logger.info(f"✅ Update budget {level} {object_id} succeeded on retry {attempt + 1}")
+                    
+                    logger.info(
+                        f"✅ Updated budget {level} {object_id}: {old_budget} → {new_budget_normalized} ({budget_field})"
+                    )
+                    
+                    return {
+                        "success": True,
+                        "object_id": object_id,
+                        "level": level,
+                        "old_budget": old_budget,
+                        "new_budget": new_budget_normalized,
+                        "budget_type": budget_type,
+                        "budget_field": budget_field
+                    }
+                
+                # Error case
+                if 'error' in update_data:
+                    error = update_data['error']
+                    error_msg = error.get('message', 'Unknown error')
+                    error_code = error.get('code')
+                    error_subcode = error.get('error_subcode')
+                    fbtrace_id = error.get('fbtrace_id')
+                    
+                    # Check if retryable error
+                    is_retryable = error_code in [1, 2, 17, 613] or error_subcode in [99, 1675030]
+                    
+                    if is_retryable and attempt < retry_count - 1:
+                        delay = RETRY_DELAY_BASE * (2 ** attempt)  # Exponential backoff
+                        logger.warning(
+                            f"⚠️ Update budget {level} {object_id} retryable error, "
+                            f"attempt {attempt + 1}/{retry_count}, retrying in {delay}s",
+                            extra={
+                                "object_id": object_id,
+                                "level": level,
+                                "fb_error_code": error_code,
+                                "fb_error_subcode": error_subcode,
+                                "fbtrace_id": fbtrace_id,
+                                "attempt": attempt + 1
+                            }
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    
+                    # Non-retryable or final attempt
+                    logger.error(
+                        f"❌ Update budget {level} {object_id} failed",
+                        extra={
+                            "object_id": object_id,
+                            "level": level,
+                            "old_budget": old_budget,
+                            "new_budget": new_budget_normalized,
+                            "budget_type": budget_type,
+                            "budget_field": budget_field,
+                            "fb_error_code": error_code,
+                            "fb_error_subcode": error_subcode,
+                            "fb_error_message": error_msg,
+                            "fbtrace_id": fbtrace_id,
+                            "http_status": update_response.status_code,
+                            "attempt": attempt + 1
+                        }
+                    )
+                    return {
+                        "success": False,
+                        "object_id": object_id,
+                        "level": level,
+                        "old_budget": old_budget,
+                        "new_budget": new_budget_normalized,
+                        "error": error_msg,
+                        "error_code": error_code,
+                        "error_subcode": error_subcode,
+                        "fbtrace_id": fbtrace_id
+                    }
+        
+        except httpx.TimeoutException as e:
+            if attempt < retry_count - 1:
+                delay = RETRY_DELAY_BASE * (2 ** attempt)
+                logger.warning(
+                    f"⚠️ Timeout updating budget {level} {object_id}, "
+                    f"retry {attempt + 1}/{retry_count} in {delay}s"
+                )
+                await asyncio.sleep(delay)
+                continue
+            logger.error(f"❌ Timeout updating budget {level} {object_id} after {retry_count} attempts")
+            return {
+                "success": False,
+                "object_id": object_id,
+                "level": level,
+                "error": f"Timeout after {retry_count} attempts"
+            }
+        
+        except Exception as e:
+            logger.error(f"❌ Exception updating budget {level} {object_id}: {e}", exc_info=True)
+            return {
+                "success": False,
+                "object_id": object_id,
+                "level": level,
+                "error": str(e)
+            }
+    
+    return {
+        "success": False,
+        "object_id": object_id,
+        "level": level,
+        "error": "Max retries exceeded"
+    }
+
+
 # Status normalization constants
 ACTIVE_STATUSES = {
     "ACTIVE", "IN_PROCESS", "WITH_ISSUES",

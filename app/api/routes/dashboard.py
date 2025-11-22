@@ -1242,10 +1242,13 @@ async def update_budget_endpoint(
     db: Session = Depends(get_db)
 ):
     """
-    ✅ NEW: Cho phép chỉnh campaign budget ngay tại tab Adset
-    - Phân loại 3 nhóm: adset budget, campaign CBO, lifetime rejected
-    - Không còn hạn chế "chuyển tab"
-    - Trả về progress cho từng batch
+    🚀 PRODUCTION GRADE: Async parallel budget update với retry thông minh
+    
+    - NO Facebook Batch API (unreliable for budget updates)
+    - Async parallel execution với asyncio.gather
+    - Retry logic với exponential backoff
+    - Xử lý 4 loại budget: ABO Daily, ABO Lifetime, CBO Daily, CBO Lifetime
+    - Detailed logging: error_code, error_subcode, fbtrace_id
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -1256,213 +1259,125 @@ async def update_budget_endpoint(
             raise HTTPException(status_code=400, detail="Facebook access token not found. Please configure in Settings.")
         
         total_requested = len(payload.operations)
+        logger.info(f"🚀 Budget update: {total_requested} operations")
         
-        # ✅ PHÂN LOẠI 3 NHÓM
-        adset_budget_updates = []  # Adset có daily/lifetime budget riêng
-        campaign_cbo_map = {}      # Campaign CBO - gom theo campaign_id
-        lifetime_rejected = []      # Items bị reject do lifetime < min
-        
+        # ✅ TẠO ASYNC TASKS CHO TẤT CẢ OPERATIONS
+        tasks = []
         for op in payload.operations:
             normalized_budget = _normalize_budget(op.new_budget)
             
             # Lấy metadata từ frontend
             edit_level = getattr(op, 'budget_edit_level', op.level)
-            edit_reason = getattr(op, 'budget_edit_reason', 'UNKNOWN')
+            budget_type = getattr(op, 'budget_type', 'DAILY')  # DAILY hoặc LIFETIME
             campaign_id = getattr(op, 'campaign_id', None)
             
-            # ✅ XÓA LOGIC REJECT LIFETIME - Cho phép update lifetime budget
-            # Lifetime budget sẽ được xử lý bình thường như daily budget
-            # Facebook API tự validate min lifetime budget
+            # Xác định level và object_id
+            if edit_level == "ADSET":
+                object_id = op.id
+                level = "ADSET"
+            elif edit_level == "CAMPAIGN":
+                object_id = campaign_id if campaign_id else op.id
+                level = "CAMPAIGN"
+            else:
+                # Fallback
+                object_id = op.id
+                level = "ADSET"
             
-            # NHÓM 2: Campaign CBO - gom theo campaign_id
-            if edit_reason == 'CBO' and campaign_id:
-                # Gom tất cả adsets cùng campaign_id
-                if campaign_id not in campaign_cbo_map:
-                    campaign_cbo_map[campaign_id] = {
-                        'campaign_id': campaign_id,
-                        'new_budget': normalized_budget,
-                        'adset_ids': []
-                    }
-                campaign_cbo_map[campaign_id]['adset_ids'].append(op.id)
+            # Import async function
+            from app.services.facebook_api import update_single_budget_async
+            
+            # Tạo task
+            task = update_single_budget_async(
+                object_id=object_id,
+                access_token=access_token,
+                new_budget=normalized_budget,
+                budget_type=budget_type,
+                level=level
+            )
+            tasks.append(task)
+        
+        # ✅ CHẠY SONG SONG TẤT CẢ TASKS
+        logger.info(f"⚡ Running {len(tasks)} budget updates in parallel...")
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # ✅ XỬ LÝ KẾT QUẢ
+        all_results = []
+        all_errors = []
+        
+        for i, result in enumerate(results):
+            op = payload.operations[i]
+            
+            # Handle exceptions
+            if isinstance(result, Exception):
+                logger.error(f"❌ Exception for operation {i}: {result}", exc_info=result)
+                all_errors.append({
+                    "id": op.id,
+                    "level": getattr(op, 'budget_edit_level', op.level),
+                    "status": "error",
+                    "error": str(result)
+                })
                 continue
             
-            # NHÓM 1: Adset có budget riêng (daily HOẶC lifetime)
-            if edit_level == "ADSET":
-                adset_budget_updates.append({
-                    'id': op.id,
-                    'new_budget': normalized_budget
-                })
-            elif edit_level == "CAMPAIGN":
-                # Direct campaign update
-                if campaign_id:
-                    if campaign_id not in campaign_cbo_map:
-                        campaign_cbo_map[campaign_id] = {
-                            'campaign_id': campaign_id,
-                            'new_budget': normalized_budget,
-                            'adset_ids': []
-                        }
-                else:
-                    # Fallback: treat as campaign update
-                    campaign_cbo_map[op.id] = {
-                        'campaign_id': op.id,
-                        'new_budget': normalized_budget,
-                        'adset_ids': []
-                    }
-        
-        all_results = []
-        all_errors = []
-        
-        # Log phân loại
-        logger.info(
-            f"📊 Budget update: total={total_requested}, "
-            f"adset_budget={len(adset_budget_updates)}, "
-            f"campaign_cbo={len(campaign_cbo_map)}, "
-            f"lifetime_rejected={len(lifetime_rejected)}"
-        )
-        
-        all_results = []
-        all_errors = []
-        
-        # ✅ NHÓM 1: Xử lý ADSET BUDGET bằng BATCH API (50 adsets/request)
-        if adset_budget_updates:
-            logger.info(f"🚀 Batch update {len(adset_budget_updates)} adsets...")
-            batch_result = update_adsets_budget_batch(adset_budget_updates, access_token)
-            
-            # Convert kết quả từ batch
-            for result in batch_result.get('results', []):
+            # Handle success/failure
+            if result.get("success"):
                 all_results.append({
-                    "id": result['id'],
-                    "level": "ADSET",
+                    "id": result['object_id'],
+                    "level": result['level'],
                     "status": "ok",
                     "old_budget": result.get('old_budget'),
                     "new_budget": result.get('new_budget'),
-                    "budget_type": result.get('budget_type')
+                    "budget_type": result.get('budget_type'),
+                    "budget_field": result.get('budget_field')
                 })
                 
                 # Clear cache
                 from app.services.facebook_api import _budgets_cache, _cache_timestamps
                 if access_token in _budgets_cache:
-                    _budgets_cache[access_token].pop(result['id'], None)
-            
-            for error in batch_result.get('errors', []):
-                all_errors.append({
-                    "id": error['id'],
-                    "level": "ADSET",
+                    _budgets_cache[access_token].pop(result['object_id'], None)
+            else:
+                error_detail = {
+                    "id": result['object_id'],
+                    "level": result['level'],
                     "status": "error",
-                    "error": error.get('error', 'Unknown error')
-                })
-            
-            # Clear batch cache
-            if batch_result.get('success_count', 0) > 0:
-                cache_key = f"budgets_{access_token[:20]}"
-                _cache_timestamps.pop(cache_key, None)
-        
-        # ✅ NHÓM 2: Xử lý CAMPAIGN CBO - Mỗi campaign chỉ update 1 lần
-        if campaign_cbo_map:
-            import asyncio
-            semaphore = asyncio.Semaphore(3)
-            logger.info(f"🚀 Update {len(campaign_cbo_map)} campaigns (CBO)...")
-            
-            async def update_single_campaign_cbo(camp_data):
-                async with semaphore:
-                    try:
-                        loop = asyncio.get_event_loop()
-                        result = await loop.run_in_executor(
-                            None,
-                            update_campaign_budget,
-                            camp_data['campaign_id'],
-                            access_token,
-                            camp_data['new_budget']
-                        )
-                        
-                        if result.get("success"):
-                            # Trả về success cho TẤT CẢ adsets của campaign
-                            return {
-                                "campaign_id": camp_data['campaign_id'],
-                                "adset_ids": camp_data['adset_ids'],
-                                "status": "ok",
-                                "old_budget": result.get("old_budget"),
-                                "new_budget": result.get("new_budget")
-                            }
-                        else:
-                            return {
-                                "campaign_id": camp_data['campaign_id'],
-                                "adset_ids": camp_data['adset_ids'],
-                                "status": "error",
-                                "error": result.get("error", "Unknown error")
-                            }
-                    except Exception as e:
-                        return {
-                            "campaign_id": camp_data['campaign_id'],
-                            "adset_ids": camp_data['adset_ids'],
-                            "status": "error",
-                            "error": str(e)
-                        }
-            
-            # Run tất cả campaign updates
-            tasks = [update_single_campaign_cbo(data) for data in campaign_cbo_map.values()]
-            campaign_results = await asyncio.gather(*tasks)
-            
-            # Chuyển kết quả campaign → kết quả adsets
-            for result in campaign_results:
-                if result["status"] == "ok":
-                    # Add result cho TẤT CẢ adsets
-                    for adset_id in result['adset_ids']:
-                        all_results.append({
-                            "id": adset_id,
-                            "level": "CAMPAIGN_CBO",
-                            "campaign_id": result['campaign_id'],
-                            "status": "ok",
-                            "old_budget": result.get("old_budget"),
-                            "new_budget": result.get("new_budget"),
-                            "message": "Updated via campaign budget (CBO)"
-                        })
-                    
-                    # Clear cache
-                    from app.services.facebook_api import _budgets_cache, _cache_timestamps
-                    if access_token in _budgets_cache:
-                        _budgets_cache[access_token].pop(result['campaign_id'], None)
-                        # Clear cache cho tất cả adsets
-                        for adset_id in result['adset_ids']:
-                            _budgets_cache[access_token].pop(adset_id, None)
-                else:
-                    # Add error cho TẤT CẢ adsets
-                    for adset_id in result['adset_ids']:
-                        all_errors.append({
-                            "id": adset_id,
-                            "level": "CAMPAIGN_CBO",
-                            "campaign_id": result['campaign_id'],
-                            "status": "error",
-                            "error": result.get("error")
-                        })
+                    "error": result.get('error', 'Unknown error')
+                }
+                
+                # Thêm Facebook error details nếu có
+                if result.get('error_code'):
+                    error_detail['error_code'] = result['error_code']
+                if result.get('error_subcode'):
+                    error_detail['error_subcode'] = result['error_subcode']
+                if result.get('fbtrace_id'):
+                    error_detail['fbtrace_id'] = result['fbtrace_id']
+                
+                all_errors.append(error_detail)
         
         success_count = len(all_results)
         failed_count = len(all_errors)
-        rejected_count = len(lifetime_rejected)
+        
+        # ✅ Clear batch cache nếu có thành công
+        if success_count > 0:
+            from app.services.facebook_api import _cache_timestamps
+            cache_key = f"budgets_{access_token[:20]}"
+            _cache_timestamps.pop(cache_key, None)
         
         # ✅ Log tổng kết
         logger.info(
-            f"✅ Batch update done: success={success_count}, error={failed_count}, "
-            f"lifetime_rejected={rejected_count}"
+            f"✅ Budget update done: success={success_count}/{total_requested}, "
+            f"failed={failed_count}"
         )
         
-        if all_errors and not all_results:
-            raise HTTPException(status_code=400, detail=f"All operations failed: {all_errors}")
-        
-        # ✅ Response format MỚI với 3 nhóm
+        # Response chi tiết
         return JSONResponse({
             "success": True,
             "total": total_requested,
             "success_count": success_count,
             "failed_count": failed_count,
-            "rejected_count": rejected_count,
-            "lifetime_rejected": lifetime_rejected if lifetime_rejected else None,
             "results": all_results,
             "errors": all_errors if all_errors else None,
             "message": (
                 f"Updated {success_count}/{total_requested} items" +
-                (f", {failed_count} errors" if failed_count > 0 else "") +
-                (f", {rejected_count} lifetime rejected" if rejected_count > 0 else "")
+                (f", {failed_count} errors" if failed_count > 0 else "")
             )
         })
         
