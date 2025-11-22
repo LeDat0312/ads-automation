@@ -1249,15 +1249,9 @@ async def update_budget_endpoint(
             edit_reason = getattr(op, 'budget_edit_reason', 'UNKNOWN')
             campaign_id = getattr(op, 'campaign_id', None)
             
-            # NHÓM 3: Lifetime budget quá thấp → reject
-            if edit_reason == 'LIFETIME':
-                # TODO: Validate min lifetime budget
-                # Tạm thời skip, có thể thêm validation sau
-                lifetime_rejected.append({
-                    'id': op.id,
-                    'reason': 'Lifetime budget - chưa validate min'
-                })
-                continue
+            # ✅ XÓA LOGIC REJECT LIFETIME - Cho phép update lifetime budget
+            # Lifetime budget sẽ được xử lý bình thường như daily budget
+            # Facebook API tự validate min lifetime budget
             
             # NHÓM 2: Campaign CBO - gom theo campaign_id
             if edit_reason == 'CBO' and campaign_id:
@@ -1271,7 +1265,7 @@ async def update_budget_endpoint(
                 campaign_cbo_map[campaign_id]['adset_ids'].append(op.id)
                 continue
             
-            # NHÓM 1: Adset có budget riêng
+            # NHÓM 1: Adset có budget riêng (daily HOẶC lifetime)
             if edit_level == "ADSET":
                 adset_budget_updates.append({
                     'id': op.id,
