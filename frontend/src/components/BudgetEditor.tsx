@@ -8,7 +8,6 @@ interface BudgetEditorProps {
   onClose: () => void;
   onSave: (newBudget: number) => Promise<void>;
   currency: Currency;
-  currentLevel?: 'campaign' | 'adset' | 'ad'; // 🔹 FIX: Thêm currentLevel
 }
 
 export default function BudgetEditor({
@@ -17,7 +16,6 @@ export default function BudgetEditor({
   onClose,
   onSave,
   currency,
-  currentLevel = 'adset',
 }: BudgetEditorProps) {
   // ⭐ SIMPLE: Dùng current_budget từ backend (đã chuẩn hóa)
   const getCurrentBudget = (): number => {

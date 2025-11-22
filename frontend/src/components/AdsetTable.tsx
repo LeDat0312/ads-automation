@@ -435,7 +435,6 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
             setBudgetEditorRow(null);
           }}
           currency={currency}
-          currentLevel={currentLevel}
         />
       )}
     </div>
