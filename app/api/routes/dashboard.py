@@ -26,6 +26,8 @@ from app.services.facebook_api import (
     resume_adsets, 
     pause_campaign,
     resume_campaign,
+    pause_single_adset,
+    resume_single_adset,
     update_adset_budget, 
     update_campaign_budget,
     update_adsets_budget_batch,
@@ -1108,60 +1110,42 @@ async def update_status_endpoint(
         success_ids = []
         failed_ids = []
         
-        # ✅ GOM BATCH: Thu thập tất cả IDs theo status
+        # ✅ XỬ LÝ TỪNG ITEM ĐƠN LẺ - KHÔNG dùng batch API của Facebook
+        # Vì batch API đang gặp lỗi, ta sẽ loop qua từng item như campaign
         if payload.level == "ADSET" or payload.level == "AD":
-            # Lấy danh sách IDs và status mong muốn
-            all_ids = [item.id for item in payload.items]
-            target_status = payload.items[0].new_status if payload.items else None
-            
-            # Kiểm tra tất cả items có cùng status không
-            if not all(item.new_status == target_status for item in payload.items):
-                raise HTTPException(
-                    status_code=400, 
-                    detail="All items must have the same target status for batch operation"
-                )
-            
-            # ✅ GỌI 1 LẦN DUY NHẤT với toàn bộ IDs
-            if target_status == "PAUSED":
-                result = pause_adsets(all_ids, access_token, delay_ms=0)
-            elif target_status == "ACTIVE":
-                result = resume_adsets(all_ids, access_token, delay_ms=0)
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Unsupported status for ADSET/AD: {target_status}"
-                )
-            
-            # Xử lý kết quả batch
-            success_count = result.get("success", 0)
-            error_count = result.get("errors", 0)
-            error_details = result.get("errorDetails", [])
-            
-            # Tạo set của IDs thất bại
-            failed_id_set = {err.get("adsetId") for err in error_details if err.get("adsetId")}
-            
-            # Phân loại success vs failed
-            for item_id in all_ids:
-                if item_id in failed_id_set:
-                    failed_ids.append(item_id)
-                    # Tìm error message
-                    error_msg = next(
-                        (err.get("error", "Unknown error") for err in error_details if err.get("adsetId") == item_id),
-                        "Unknown error"
-                    )
-                    errors.append({"id": item_id, "error": error_msg})
-                else:
-                    success_ids.append(item_id)
-                    results.append({"id": item_id, "new_status": target_status})
-            
-            # Clear cache cho tất cả IDs đã cập nhật thành công
-            if success_ids:
-                from app.services.facebook_api import _status_cache, _cache_timestamps
-                if access_token in _status_cache:
-                    for item_id in success_ids:
-                        _status_cache[access_token].pop(item_id, None)
-                cache_key = f"status_{access_token[:20]}"
-                _cache_timestamps.pop(cache_key, None)
+            for item in payload.items:
+                try:
+                    if item.new_status == "PAUSED":
+                        result = pause_single_adset(item.id, access_token)
+                    elif item.new_status == "ACTIVE":
+                        result = resume_single_adset(item.id, access_token)
+                    else:
+                        failed_ids.append(item.id)
+                        errors.append({
+                            "id": item.id,
+                            "error": f"Unsupported status for ADSET/AD: {item.new_status}"
+                        })
+                        continue
+                    
+                    if result.get("success", False):
+                        success_ids.append(item.id)
+                        results.append({"id": item.id, "new_status": item.new_status})
+                        # Clear cache
+                        from app.services.facebook_api import _status_cache, _cache_timestamps
+                        if access_token in _status_cache:
+                            _status_cache[access_token].pop(item.id, None)
+                        cache_key = f"status_{access_token[:20]}"
+                        _cache_timestamps.pop(cache_key, None)
+                    else:
+                        failed_ids.append(item.id)
+                        errors.append({
+                            "id": item.id,
+                            "error": result.get('error', 'Unknown error')
+                        })
+                except Exception as e:
+                    logger.error(f"Error updating adset {item.id}: {e}", exc_info=True)
+                    failed_ids.append(item.id)
+                    errors.append({"id": item.id, "error": str(e)})
                         
         elif payload.level == "CAMPAIGN":
             # ✅ CAMPAIGN: Xử lý từng cái (vì API không hỗ trợ batch campaign)

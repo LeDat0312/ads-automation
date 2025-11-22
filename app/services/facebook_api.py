@@ -650,6 +650,84 @@ def resume_campaign(
         return {"success": False, "campaign_id": campaign_id, "error": str(e)}
 
 
+def pause_single_adset(
+    adset_id: str,
+    access_token: str
+) -> Dict[str, Any]:
+    """
+    Tắt một Adset đơn lẻ - KHÔNG dùng batch API
+    """
+    try:
+        url = f"{FB_GRAPH_API_BASE}/{adset_id}"
+        params = {
+            'access_token': access_token
+        }
+        data = {
+            'status': 'PAUSED'
+        }
+        
+        response = requests.post(url, params=params, data=data, timeout=30)
+        response.raise_for_status()
+        
+        json_response = response.json()
+        if 'error' in json_response:
+            error_msg = json_response['error'].get('message', 'Unknown error')
+            error_code = json_response['error'].get('code')
+            logger.error(
+                f"Pause adset failed",
+                extra={
+                    "adset_id": adset_id,
+                    "fb_error_code": error_code,
+                    "fb_error_message": error_msg
+                }
+            )
+            return {"success": False, "adset_id": adset_id, "error": error_msg}
+        
+        return {"success": True, "adset_id": adset_id}
+    except Exception as e:
+        logger.error(f"🚨 Lỗi tắt Adset {adset_id}: {e}")
+        return {"success": False, "adset_id": adset_id, "error": str(e)}
+
+
+def resume_single_adset(
+    adset_id: str,
+    access_token: str
+) -> Dict[str, Any]:
+    """
+    Bật một Adset đơn lẻ - KHÔNG dùng batch API
+    """
+    try:
+        url = f"{FB_GRAPH_API_BASE}/{adset_id}"
+        params = {
+            'access_token': access_token
+        }
+        data = {
+            'status': 'ACTIVE'
+        }
+        
+        response = requests.post(url, params=params, data=data, timeout=30)
+        response.raise_for_status()
+        
+        json_response = response.json()
+        if 'error' in json_response:
+            error_msg = json_response['error'].get('message', 'Unknown error')
+            error_code = json_response['error'].get('code')
+            logger.error(
+                f"Resume adset failed",
+                extra={
+                    "adset_id": adset_id,
+                    "fb_error_code": error_code,
+                    "fb_error_message": error_msg
+                }
+            )
+            return {"success": False, "adset_id": adset_id, "error": error_msg}
+        
+        return {"success": True, "adset_id": adset_id}
+    except Exception as e:
+        logger.error(f"🚨 Lỗi bật Adset {adset_id}: {e}")
+        return {"success": False, "adset_id": adset_id, "error": str(e)}
+
+
 def get_campaign_adsets_count(
     campaign_id: str,
     access_token: str
