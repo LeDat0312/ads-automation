@@ -976,6 +976,43 @@ async def get_dashboard_data(
                 # Fallback: sort by string
                 rows.sort(key=lambda x: str(x.get(sort_by, '')), reverse=reverse)
         
+        # ===== BƯỚC 4.5: Thêm metadata budget_edit_level và budget_edit_reason =====
+        # CHỈ THÊM metadata, KHÔNG thay đổi bất kỳ logic nào khác
+        for row in rows:
+            # Default values
+            row['budget_edit_level'] = 'NONE'
+            row['budget_edit_reason'] = 'UNKNOWN'
+            
+            if level == 'adset':
+                # Kiểm tra xem adset có daily_budget không
+                has_daily_budget = row.get('adset_daily_budget') is not None
+                has_lifetime_budget = row.get('adset_lifetime_budget') is not None
+                is_using_cbo = row.get('using_campaign_budget', False)
+                
+                if has_lifetime_budget:
+                    row['budget_edit_level'] = 'NONE'
+                    row['budget_edit_reason'] = 'LIFETIME'
+                elif is_using_cbo:
+                    row['budget_edit_level'] = 'NONE'
+                    row['budget_edit_reason'] = 'CBO'
+                elif has_daily_budget:
+                    row['budget_edit_level'] = 'ADSET'
+                    row['budget_edit_reason'] = 'OK'
+                    
+            elif level == 'campaign':
+                # Kiểm tra campaign có daily_budget không
+                has_daily_budget = row.get('campaign_daily_budget') is not None
+                has_lifetime_budget = row.get('campaign_lifetime_budget') is not None
+                
+                if has_lifetime_budget:
+                    row['budget_edit_level'] = 'NONE'
+                    row['budget_edit_reason'] = 'LIFETIME'
+                elif has_daily_budget:
+                    row['budget_edit_level'] = 'CAMPAIGN'
+                    row['budget_edit_reason'] = 'OK'
+            
+            # level == 'ad' không cần edit budget nên để NONE/UNKNOWN
+        
         # ===== BƯỚC 5: Pagination =====
         total_rows = len(rows)
         total_pages = ((total_rows - 1) // pageSize) + 1 if total_rows > 0 else 0
@@ -1181,8 +1218,10 @@ async def update_budget_endpoint(
     db: Session = Depends(get_db)
 ):
     """
-    ✅ FIX: Batch update budget - GOM NHIỀU ADSETS THÀNH 1 REQUEST BATCH API
-    Trả về response với total, success_count, failed_count để frontend hiển thị tiến độ
+    ✅ FIX: Batch update budget - GOM NHIỀU ADSETS, LỌC CBO/LIFETIME
+    - Chỉ update items có budget_edit_level phù hợp
+    - Skip CBO và lifetime budget
+    - Trả về response với total, success_count, failed_count, skipped_count
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -1192,27 +1231,61 @@ async def update_budget_endpoint(
         if not access_token:
             raise HTTPException(status_code=400, detail="Facebook access token not found. Please configure in Settings.")
         
-        total = len(payload.operations)
+        total_requested = len(payload.operations)
         
-        # ✅ FIX LỖI 1: DÙNG BATCH API - Gom adsets và campaigns riêng
+        # ✅ LỌC items hợp lệ - CHỈ update items có budget_edit_level = ADSET/CAMPAIGN
         adset_updates = []
         campaign_updates = []
+        skipped_items = []
         
         for op in payload.operations:
             normalized_budget = _normalize_budget(op.new_budget)
+            
+            # Kiểm tra budget_edit_level từ frontend (nếu có)
+            # Frontend sẽ gửi kèm metadata này
+            edit_level = getattr(op, 'budget_edit_level', None)
+            edit_reason = getattr(op, 'budget_edit_reason', 'UNKNOWN')
+            
+            # Nếu frontend không gửi metadata, dùng op.level để quyết định
+            if not edit_level:
+                edit_level = op.level
+            
+            # Chỉ cho phép update nếu edit_level khớp với op.level
             if op.level == "ADSET":
-                adset_updates.append({
-                    'id': op.id,
-                    'new_budget': normalized_budget
-                })
+                if edit_level == "ADSET":
+                    adset_updates.append({
+                        'id': op.id,
+                        'new_budget': normalized_budget
+                    })
+                else:
+                    # Skip: CBO hoặc lifetime budget
+                    skipped_items.append({
+                        'id': op.id,
+                        'reason': edit_reason or 'CBO/LIFETIME'
+                    })
             elif op.level == "CAMPAIGN":
-                campaign_updates.append({
-                    'id': op.id,
-                    'new_budget': normalized_budget
-                })
+                if edit_level == "CAMPAIGN":
+                    campaign_updates.append({
+                        'id': op.id,
+                        'new_budget': normalized_budget
+                    })
+                else:
+                    # Skip: lifetime budget
+                    skipped_items.append({
+                        'id': op.id,
+                        'reason': edit_reason or 'LIFETIME'
+                    })
         
         all_results = []
         all_errors = []
+        skipped_count = len(skipped_items)
+        
+        # Log tổng quan
+        logger.info(
+            f"📊 Budget update batch: total_requested={total_requested}, "
+            f"adsets={len(adset_updates)}, campaigns={len(campaign_updates)}, "
+            f"skipped={skipped_count} (CBO/LIFETIME)"
+        )
         
         # ✅ Xử lý ADSETS bằng BATCH API (50 adsets/request)
         if adset_updates:
@@ -1237,15 +1310,17 @@ async def update_budget_endpoint(
             
             for error in batch_result.get('errors', []):
                 error_msg = error.get('error', 'Unknown error')
-                
-                # ✅ Check CBO error
-                is_cbo_error = (
-                    "campaign budget optimization" in error_msg.lower() or
-                    "campaign_budget_optimization" in error_msg.lower() or
-                    "cbo" in error_msg.lower()
-                )
-                
-                if is_cbo_error:
+                all_errors.append({
+                    "id": error['id'],
+                    "level": "ADSET",
+                    "status": "error",
+                    "error": error_msg
+                })
+            
+            # Clear batch cache
+            if batch_result.get('success_count', 0) > 0:
+                cache_key = f"budgets_{access_token[:20]}"
+                _cache_timestamps.pop(cache_key, None)
                     error_msg = "Không thể cập nhật ngân sách: Ngân sách đang ở cấp chiến dịch. Vui lòng cập nhật ở tab 'Chiến Dịch'."
                 
                 all_errors.append({
@@ -1317,18 +1392,27 @@ async def update_budget_endpoint(
         success_count = len(all_results)
         failed_count = len(all_errors)
         
+        # ✅ Log tổng kết
+        logger.info(
+            f"✅ Batch update xong: success={success_count}, error={failed_count}, "
+            f"skipped={skipped_count} (CBO/LIFETIME)"
+        )
+        
         if all_errors and not all_results:
             raise HTTPException(status_code=400, detail=f"All operations failed: {all_errors}")
         
-        # ✅ Response format với total, success_count, failed_count cho frontend
+        # ✅ Response format với total, success_count, failed_count, skipped_count
         return JSONResponse({
             "success": True,
-            "total": total,
+            "total": total_requested,
             "success_count": success_count,
             "failed_count": failed_count,
+            "skipped_count": skipped_count,
+            "skipped_items": skipped_items,
             "results": all_results,
             "errors": all_errors if all_errors else None,
-            "message": f"Updated {success_count}/{total} budget(s) successfully"
+            "message": f"Updated {success_count}/{total_requested} budget(s) successfully" + 
+                      (f", skipped {skipped_count} (CBO/LIFETIME)" if skipped_count > 0 else "")
         })
         
     except HTTPException:
