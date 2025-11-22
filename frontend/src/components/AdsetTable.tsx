@@ -462,11 +462,9 @@ interface TableRowProps {
 
 // ⭐ Helper function: Get budget display text
 const getBudgetDisplay = (row: AdsetRow, canEdit: boolean): { display: string; value: number; title: string; label: string; suffix: string } => {
-  // ⭐ FIX: Ưu tiên lấy từ daily_budget/lifetime_budget thay vì current_budget
-  const isLifetime = row.budget_type === 'LIFETIME' || (!!row.lifetime_budget && row.lifetime_budget > 0);
-  const budgetValue = isLifetime 
-    ? (row.lifetime_budget || row.current_budget || 0)
-    : (row.daily_budget || row.current_budget || 0);
+  // ⭐ FIX: CHỈ dùng current_budget từ backend (backend đã chuẩn hóa đúng)
+  const isLifetime = row.budget_type === 'LIFETIME';
+  const budgetValue = row.current_budget || 0;
   
   // Xác định label và suffix theo budget_level và lifetime
   let label: string;
@@ -489,7 +487,7 @@ const getBudgetDisplay = (row: AdsetRow, canEdit: boolean): { display: string; v
     suffix = '';
   }
   
-  // ⭐ FIX: LUÔN hiển thị số tiền, không bao giờ chỉ hiển thị text
+  // ⭐ LUÔN hiển thị số tiền, không bao giờ chỉ hiển thị text
   const formattedValue = formatCurrency(budgetValue, row.currency || 'VND');
   const budgetDisplay = formattedValue;
   

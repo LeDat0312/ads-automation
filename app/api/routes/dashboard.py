@@ -979,11 +979,13 @@ async def get_dashboard_data(
                 # Fallback: sort by string
                 rows.sort(key=lambda x: str(x.get(sort_by, '')), reverse=reverse)
         
-        # ===== BƯỚC 4.5: Thêm metadata budget_type + current_budget =====
+        # ===== BƯỚC 4.5: Thêm metadata budget_type + current_budget + budget_is_lifetime + budget_value =====
         for row in rows:
             # Default values
             row['budget_type'] = 'DAILY'  # 'DAILY' | 'LIFETIME'
             row['current_budget'] = 0
+            row['budget_is_lifetime'] = False  # ⭐ NEW: Flag rõ ràng
+            row['budget_value'] = 0  # ⭐ NEW: Giá trị ngân sách thực tế
             
             if level == 'adset':
                 # Kiểm tra adset có budget nào
@@ -996,13 +998,17 @@ async def get_dashboard_data(
                 if is_using_cbo:
                     # Dùng budget của campaign
                     row['budget_edit_level'] = 'CAMPAIGN'
-                    if campaign_lifetime is not None:
+                    if campaign_lifetime is not None and campaign_lifetime > 0:
                         row['budget_type'] = 'LIFETIME'
+                        row['budget_is_lifetime'] = True
                         row['current_budget'] = int(campaign_lifetime)
+                        row['budget_value'] = int(campaign_lifetime)
                         row['budget_edit_reason'] = 'CBO'
-                    elif campaign_daily is not None:
+                    elif campaign_daily is not None and campaign_daily > 0:
                         row['budget_type'] = 'DAILY'
+                        row['budget_is_lifetime'] = False
                         row['current_budget'] = int(campaign_daily)
+                        row['budget_value'] = int(campaign_daily)
                         row['budget_edit_reason'] = 'CBO'
                     else:
                         row['budget_edit_level'] = 'NONE'
@@ -1010,13 +1016,17 @@ async def get_dashboard_data(
                 else:
                     # Adset có budget riêng
                     row['budget_edit_level'] = 'ADSET'
-                    if adset_lifetime is not None:
+                    if adset_lifetime is not None and adset_lifetime > 0:
                         row['budget_type'] = 'LIFETIME'
+                        row['budget_is_lifetime'] = True
                         row['current_budget'] = int(adset_lifetime)
+                        row['budget_value'] = int(adset_lifetime)
                         row['budget_edit_reason'] = 'OK'
-                    elif adset_daily is not None:
+                    elif adset_daily is not None and adset_daily > 0:
                         row['budget_type'] = 'DAILY'
+                        row['budget_is_lifetime'] = False
                         row['current_budget'] = int(adset_daily)
+                        row['budget_value'] = int(adset_daily)
                         row['budget_edit_reason'] = 'OK'
                     else:
                         row['budget_edit_level'] = 'NONE'
@@ -1028,13 +1038,17 @@ async def get_dashboard_data(
                 campaign_lifetime = row.get('campaign_lifetime_budget')
                 
                 row['budget_edit_level'] = 'CAMPAIGN'
-                if campaign_lifetime is not None:
+                if campaign_lifetime is not None and campaign_lifetime > 0:
                     row['budget_type'] = 'LIFETIME'
+                    row['budget_is_lifetime'] = True
                     row['current_budget'] = int(campaign_lifetime)
+                    row['budget_value'] = int(campaign_lifetime)
                     row['budget_edit_reason'] = 'OK'
-                elif campaign_daily is not None:
+                elif campaign_daily is not None and campaign_daily > 0:
                     row['budget_type'] = 'DAILY'
+                    row['budget_is_lifetime'] = False
                     row['current_budget'] = int(campaign_daily)
+                    row['budget_value'] = int(campaign_daily)
                     row['budget_edit_reason'] = 'OK'
                 else:
                     row['budget_edit_level'] = 'NONE'

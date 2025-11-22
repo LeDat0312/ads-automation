@@ -24,8 +24,10 @@ export interface AdsetRow {
   // Budget
   budget: number;
   budget_level: 'CAMPAIGN' | 'ADSET';
-  budget_type: 'DAILY' | 'LIFETIME';  // ⭐ NEW: Loại ngân sách (daily/lifetime)
-  current_budget: number;  // ⭐ NEW: Số ngân sách đang dùng (đã chuẩn hóa)
+  budget_type: 'DAILY' | 'LIFETIME';  // ⭐ Loại ngân sách (daily/lifetime)
+  budget_is_lifetime: boolean;  // ⭐ NEW: Flag rõ ràng (true = lifetime, false = daily)
+  budget_value: number;  // ⭐ NEW: Giá trị ngân sách thực tế (daily hoặc lifetime)
+  current_budget: number;  // ⭐ Số ngân sách đang dùng (đã chuẩn hóa)
   budget_edit_level?: 'ADSET' | 'CAMPAIGN' | 'NONE';  // ⭐ Metadata: Level có thể chỉnh được
   budget_edit_reason?: 'OK' | 'CBO' | 'LIFETIME';  // ⭐ Lý do (OK=chỉnh được, CBO=cần update campaign, LIFETIME=lifetime budget)
   adset_daily_budget?: number | null;  // Adset daily budget (if exists)

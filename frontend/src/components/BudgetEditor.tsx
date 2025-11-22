@@ -17,12 +17,9 @@ export default function BudgetEditor({
   onSave,
   currency,
 }: BudgetEditorProps) {
-  // ⭐ FIX: ƪu tiên lấy từ daily_budget/lifetime_budget thay vì current_budget
+  // ⭐ FIX: CHỈ dùng current_budget từ backend (backend đã chuẩn hóa đúng)
   const getCurrentBudget = (): number => {
-    const isLifetime = row.budget_type === 'LIFETIME' || (!!row.lifetime_budget && row.lifetime_budget > 0);
-    return isLifetime 
-      ? (row.lifetime_budget || row.current_budget || 0)
-      : (row.daily_budget || row.current_budget || 0);
+    return row.current_budget || 0;
   };
   
   const originalBudget = getCurrentBudget();

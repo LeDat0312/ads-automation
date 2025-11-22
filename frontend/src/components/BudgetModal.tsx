@@ -28,12 +28,9 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply, 
   const [manualBudget, setManualBudget] = useState<string>('');
   const [previewChanges, setPreviewChanges] = useState<{ id: string; current: number; new: number; currency: string }[]>([]);
 
-  // ⭐ FIX: ƪu tiên lấy từ daily_budget/lifetime_budget thay vì current_budget
+  // ⭐ FIX: CHỈ dùng current_budget từ backend (backend đã chuẩn hóa đúng)
   const getCurrentBudget = (row: AdsetRow): number => {
-    const isLifetime = row.budget_type === 'LIFETIME' || (!!row.lifetime_budget && row.lifetime_budget > 0);
-    return isLifetime 
-      ? (row.lifetime_budget || row.current_budget || 0)
-      : (row.daily_budget || row.current_budget || 0);
+    return row.current_budget || 0;
   };
 
   // ⭐ SIMPLE: Lấy ID đúng từ row
