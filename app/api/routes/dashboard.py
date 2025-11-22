@@ -1204,8 +1204,8 @@ async def update_status_endpoint(
         success_count = len(success_ids)
         failed_count = len(failed_ids)
         
-        if errors and not results:
-            raise HTTPException(status_code=400, detail=f"All {total} operations failed")
+        # ✅ KHÔNG raise 400 nếu có partial success - chỉ raise nếu lỗi thật sự từ backend
+        # Frontend sẽ dựa vào success_count/failed_count để hiển thị kết quả
         
         # ✅ Response format mới với total, counts, và danh sách IDs
         return JSONResponse({

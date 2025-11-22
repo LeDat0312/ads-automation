@@ -530,6 +530,7 @@ def pause_adsets(
                     else:
                         error_count += 1
                         error_msg = "Unknown error"
+                        fb_error_code = None
                         try:
                             if 'body' in item:
                                 body = item['body']
@@ -538,22 +539,54 @@ def pause_adsets(
                                     body_json = json.loads(body)
                                     if 'error' in body_json:
                                         error_msg = body_json['error'].get('message', error_msg)
+                                        fb_error_code = body_json['error'].get('code')
                                 else:
                                     error_msg = str(body)
                         except Exception:
                             error_msg = item.get('body', 'Failed to parse error')
                         
+                        # Log chi tiết từng item fail
+                        logger.error(
+                            f"Batch PAUSE failed for adset {adset_id}",
+                            extra={
+                                "adset_id": adset_id,
+                                "batch_index": batch_idx,
+                                "item_index": i,
+                                "fb_error_code": fb_error_code,
+                                "fb_error_message": error_msg,
+                                "http_code": item.get('code')
+                            }
+                        )
+                        
                         error_details.append({"adsetId": adset_id, "error": error_msg})
             else:
+                logger.error(
+                    f"Batch PAUSE invalid response format for batch {batch_idx}",
+                    extra={
+                        "batch_index": batch_idx,
+                        "response_type": type(json_response).__name__
+                    }
+                )
                 error_count += len(batch_ids)
                 for adset_id in batch_ids:
+                    logger.error(f"Batch PAUSE failed for adset {adset_id}: Invalid response format")
                     error_details.append({
                         "adsetId": adset_id,
                         "error": "Batch API error: Invalid response format"
                     })
         except Exception as e:
+            logger.error(
+                f"Batch PAUSE exception for batch {batch_idx}",
+                extra={
+                    "batch_index": batch_idx,
+                    "batch_size": len(batch_ids),
+                    "exception": str(e)
+                },
+                exc_info=True
+            )
             error_count += len(batch_ids)
             for adset_id in batch_ids:
+                logger.error(f"Batch PAUSE failed for adset {adset_id}: {str(e)}")
                 error_details.append({
                     "adsetId": adset_id,
                     "error": f"Exception: {str(e)}"
@@ -925,6 +958,7 @@ def resume_adsets(
                     else:
                         error_count += 1
                         error_msg = "Unknown error"
+                        fb_error_code = None
                         try:
                             if 'body' in item:
                                 body = item['body']
@@ -933,22 +967,54 @@ def resume_adsets(
                                     body_json = json.loads(body)
                                     if 'error' in body_json:
                                         error_msg = body_json['error'].get('message', error_msg)
+                                        fb_error_code = body_json['error'].get('code')
                                 else:
                                     error_msg = str(body)
                         except Exception:
                             error_msg = item.get('body', 'Failed to parse error')
                         
+                        # Log chi tiết từng item fail
+                        logger.error(
+                            f"Batch RESUME failed for adset {adset_id}",
+                            extra={
+                                "adset_id": adset_id,
+                                "batch_index": batch_idx,
+                                "item_index": i,
+                                "fb_error_code": fb_error_code,
+                                "fb_error_message": error_msg,
+                                "http_code": item.get('code')
+                            }
+                        )
+                        
                         error_details.append({"adsetId": adset_id, "error": error_msg})
             else:
+                logger.error(
+                    f"Batch RESUME invalid response format for batch {batch_idx}",
+                    extra={
+                        "batch_index": batch_idx,
+                        "response_type": type(json_response).__name__
+                    }
+                )
                 error_count += len(batch_ids)
                 for adset_id in batch_ids:
+                    logger.error(f"Batch RESUME failed for adset {adset_id}: Invalid response format")
                     error_details.append({
                         "adsetId": adset_id,
                         "error": "Batch API error: Invalid response format"
                     })
         except Exception as e:
+            logger.error(
+                f"Batch RESUME exception for batch {batch_idx}",
+                extra={
+                    "batch_index": batch_idx,
+                    "batch_size": len(batch_ids),
+                    "exception": str(e)
+                },
+                exc_info=True
+            )
             error_count += len(batch_ids)
             for adset_id in batch_ids:
+                logger.error(f"Batch RESUME failed for adset {adset_id}: {str(e)}")
                 error_details.append({
                     "adsetId": adset_id,
                     "error": f"Exception: {str(e)}"
