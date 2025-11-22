@@ -237,34 +237,14 @@ function App() {
     try {
       setLoading(true);
       
-      // ✅ Lọc chỉ items có thể edit (không CBO, không lifetime)
-      const editableChanges = changes.filter(change => {
-        const row = data?.details.rows.find(r => 
-          r.id === change.id || r.adset_id === change.id || r.campaign_id === change.id
-        );
-        if (currentLevel === 'adset') {
-          return row?.budget_edit_level === 'ADSET' && row?.budget_edit_reason === 'OK';
-        } else if (currentLevel === 'campaign') {
-          return row?.budget_edit_level === 'CAMPAIGN' && row?.budget_edit_reason === 'OK';
-        }
-        return false;
-      });
-      
-      const skippedCount = changes.length - editableChanges.length;
+      // ✅ MỚI: GỬI TẤT CẢ items được chọn (không lọc CBO/trọn đời)
       setBatchProgress({ 
-        total: editableChanges.length, 
+        total: changes.length, 
         done: 0, 
-        status: `Đang cập nhật...` + (skippedCount > 0 ? ` (bỏ qua ${skippedCount} CBO/trọn đời)` : '')
+        status: 'Đang cập nhật...'
       });
       
-      if (editableChanges.length === 0) {
-        setBatchProgress({ total: changes.length, done: 0, status: `Tất cả items đang dùng CBO/NS trọn đời` });
-        setTimeout(() => setBatchProgress(null), 3000);
-        setLoading(false);
-        return;
-      }
-      
-      const operations = editableChanges.map(change => {
+      const operations = changes.map(change => {
         // Tìm row tương ứng để xác định budget_level
         const row = data?.details.rows.find(r => 
           r.id === change.id || 
@@ -864,21 +844,6 @@ function App() {
 
         {/* Bulk Actions Bar - Di chuyển xuống dưới header "Chi Tiết Quảng Cáo" */}
         {selectedIds.size > 0 && (() => {
-          // Tính số items editable
-          const editableCount = sortedRows.filter(row => {
-            const rowId = row.id || row.adset_id || row.campaign_id || row.ad_id || '';
-            if (!selectedIds.has(rowId)) return false;
-            
-            if (currentLevel === 'adset') {
-              return row.budget_edit_level === 'ADSET' && row.budget_edit_reason === 'OK';
-            } else if (currentLevel === 'campaign') {
-              return row.budget_edit_level === 'CAMPAIGN' && row.budget_edit_reason === 'OK';
-            }
-            return true; // Ad level không filter
-          }).length;
-          
-          const skippedCount = selectedIds.size - editableCount;
-          
           return (
           <div className="sticky top-0 z-20 mb-4 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 shadow-xl animate-fadeIn">
             <div className="flex items-center justify-between">
@@ -893,11 +858,7 @@ function App() {
                     {selectedIds.size} đã chọn
                   </div>
                   <div className="text-indigo-100 text-xs">
-                    {currentLevel !== 'ad' && skippedCount > 0 ? (
-                      <>{editableCount} có thể chỉnh NS, {skippedCount} bỏ qua (CBO/trọn đời)</>
-                    ) : (
-                      <>Thao tác hàng loạt</>
-                    )}
+                    Thao tác hàng loạt
                   </div>
                   {/* Progress Bar - Status Update */}
                   {bulkProgress && (
