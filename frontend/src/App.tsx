@@ -254,10 +254,14 @@ function App() {
         
         // Xác định level: nếu row có budget_level = CAMPAIGN hoặc using_campaign_budget → CAMPAIGN
         let opLevel: 'CAMPAIGN' | 'ADSET' = 'ADSET';
+        let campaignId: string | undefined;
+        
         if (row) {
           if (row.budget_level === 'CAMPAIGN' || row.using_campaign_budget) {
             opLevel = 'CAMPAIGN';
           }
+          // Luôn gửi campaign_id để backend có thể gom CBO
+          campaignId = row.campaign_id;
         } else if (currentLevel === 'campaign') {
           // Fallback: nếu ở tab campaign và không tìm thấy row → assume CAMPAIGN
           opLevel = 'CAMPAIGN';
@@ -267,6 +271,9 @@ function App() {
           level: opLevel,
           id: change.id,
           new_budget: change.new_budget,
+          campaign_id: campaignId,
+          budget_edit_level: row?.budget_edit_level,
+          budget_edit_reason: row?.budget_edit_reason,
         };
       });
       
