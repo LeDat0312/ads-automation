@@ -26,7 +26,7 @@ export const AdsetTable: React.FC<AdsetTableProps> = ({
   
   // Helper function to check if budget can be edited
   // ✅ CHO PHÉP CHỈNH TẤT CẢ: adset budget VÀ campaign budget (CBO)
-  const canEditBudget = (row: AdsetRow, level: 'campaign' | 'adset' | 'ad'): boolean => {
+  const canEditBudget = (_row: AdsetRow, _level: 'campaign' | 'adset' | 'ad'): boolean => {
     // ✅ MỚI: Cho phép chỉnh ngân sách ở cả 2 cấp (campaign & adset)
     // KHÔNG CÒN hạn chế phải chuyển tab
     return true;  // User có thể chỉnh mọi loại ngân sách
