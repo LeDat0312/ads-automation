@@ -462,8 +462,11 @@ interface TableRowProps {
 
 // ⭐ Helper function: Get budget display text
 const getBudgetDisplay = (row: AdsetRow, canEdit: boolean): { display: string; value: number; title: string; label: string; suffix: string } => {
-  const isLifetime = row.budget_type === 'LIFETIME';
-  const budgetValue = row.current_budget || 0;
+  // ⭐ FIX: Ưu tiên lấy từ daily_budget/lifetime_budget thay vì current_budget
+  const isLifetime = row.budget_type === 'LIFETIME' || (!!row.lifetime_budget && row.lifetime_budget > 0);
+  const budgetValue = isLifetime 
+    ? (row.lifetime_budget || row.current_budget || 0)
+    : (row.daily_budget || row.current_budget || 0);
   
   // Xác định label và suffix theo budget_level và lifetime
   let label: string;
@@ -471,36 +474,28 @@ const getBudgetDisplay = (row: AdsetRow, canEdit: boolean): { display: string; v
   
   if (row.budget_level === 'CAMPAIGN' && !isLifetime) {
     label = 'Ngân sách chiến dịch';
-    suffix = 'VND/ngày';
+    suffix = '/ngày';
   } else if (row.budget_level === 'CAMPAIGN' && isLifetime) {
     label = 'Ngân sách chiến dịch (trọn đời)';
-    suffix = 'VND (trọn đời)';
+    suffix = '(trọn đời)';
   } else if (row.budget_level === 'ADSET' && !isLifetime) {
     label = 'Ngân sách nhóm QC';
-    suffix = 'VND/ngày';
+    suffix = '/ngày';
   } else if (row.budget_level === 'ADSET' && isLifetime) {
     label = 'Ngân sách nhóm QC (trọn đời)';
-    suffix = 'VND (trọn đời)';
+    suffix = '(trọn đời)';
   } else {
     label = 'Ngân sách';
-    suffix = 'VND';
+    suffix = '';
   }
   
-  // Hiển thị
-  let budgetDisplay: string;
-  if (budgetValue > 0) {
-    if (canEdit) {
-      budgetDisplay = formatCurrency(budgetValue, row.currency || 'VND');
-    } else {
-      budgetDisplay = `${label} (${formatCurrency(budgetValue, row.currency || 'VND')})`;
-    }
-  } else {
-    budgetDisplay = label;
-  }
+  // ⭐ FIX: LUÔN hiển thị số tiền, không bao giờ chỉ hiển thị text
+  const formattedValue = formatCurrency(budgetValue, row.currency || 'VND');
+  const budgetDisplay = formattedValue;
   
   const budgetTitle = canEdit 
-    ? 'Click để chỉnh sửa ngân sách'
-    : budgetDisplay;
+    ? `${label} - Click để chỉnh sửa`
+    : `${label} ${suffix}`;
     
   return { display: budgetDisplay, value: budgetValue, title: budgetTitle, label, suffix };
 };
