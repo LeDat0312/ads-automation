@@ -456,6 +456,33 @@ interface TableRowProps {
   defaultWidths: Record<string, number>;
 }
 
+// ⭐ Helper function: Get budget display text
+const getBudgetDisplay = (row: AdsetRow, canEdit: boolean): { display: string; value: number; title: string } => {
+  const budgetValue = row.current_budget || 0;
+  const isLifetime = row.budget_type === 'LIFETIME';
+  const levelText = row.budget_level === 'CAMPAIGN' ? 'chiến dịch' : 'nhóm QC';
+  
+  let budgetDisplay: string;
+  
+  if (budgetValue > 0) {
+    if (canEdit) {
+      budgetDisplay = formatCurrency(budgetValue, row.currency || 'VND');
+    } else {
+      budgetDisplay = isLifetime
+        ? `Ngân sách ${levelText} trọn đời (${formatCurrency(budgetValue, row.currency || 'VND')})`
+        : `Ngân sách ${levelText} (${formatCurrency(budgetValue, row.currency || 'VND')}/ngày)`;
+    }
+  } else {
+    budgetDisplay = `Ngân sách ${levelText}`;
+  }
+  
+  const budgetTitle = canEdit 
+    ? 'Click để chỉnh sửa ngân sách'
+    : budgetDisplay;
+    
+  return { display: budgetDisplay, value: budgetValue, title: budgetTitle };
+};
+
 const TableRow: React.FC<TableRowProps> = ({ 
   row, 
   viewMode,

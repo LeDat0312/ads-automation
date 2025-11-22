@@ -19,22 +19,9 @@ export default function BudgetEditor({
   currency,
   currentLevel = 'adset',
 }: BudgetEditorProps) {
-  // 🔹 FIX: Xác định budget hiện tại đúng (CBO vs ABO)
+  // ⭐ SIMPLE: Dùng current_budget từ backend (đã chuẩn hóa)
   const getCurrentBudget = (): number => {
-    // Nếu ở tab campaign và row là campaign
-    if (currentLevel === 'campaign' && row.budget_level === 'CAMPAIGN') {
-      return row.campaign_daily_budget || row.budget || 0;
-    }
-    // Nếu adset đang dùng campaign budget (CBO)
-    if (row.using_campaign_budget && row.campaign_daily_budget) {
-      return row.campaign_daily_budget;
-    }
-    // Nếu adset có budget riêng (ABO)
-    if (row.adset_daily_budget) {
-      return row.adset_daily_budget;
-    }
-    // Fallback
-    return row.budget || 0;
+    return row.current_budget || 0;
   };
   
   const originalBudget = getCurrentBudget();
@@ -55,7 +42,7 @@ export default function BudgetEditor({
         inputRef.current?.select();
       }, 100);
     }
-  }, [isOpen, row.budget, row.campaign_daily_budget, row.adset_daily_budget, row.using_campaign_budget, currentLevel]);
+  }, [isOpen, row.current_budget]);
 
   // Adjust budget by percentage
   const adjustPercent = (deltaPercent: number) => {
@@ -157,7 +144,9 @@ export default function BudgetEditor({
             <div className="text-2xl font-bold text-indigo-900">
               {formatCurrency(originalBudget, currency)}
             </div>
-            <div className="text-xs text-indigo-600 mt-1">{currency}/ngày</div>
+            <div className="text-xs text-indigo-600 mt-1">
+              {currency}{row.budget_type === 'LIFETIME' ? '/trọn đời' : '/ngày'}
+            </div>
           </div>
 
           {/* Input - Centered & Large */}

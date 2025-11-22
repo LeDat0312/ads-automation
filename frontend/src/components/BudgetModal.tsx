@@ -28,36 +28,14 @@ export default function BudgetModal({ isOpen, onClose, selectedAdsets, onApply, 
   const [manualBudget, setManualBudget] = useState<string>('');
   const [previewChanges, setPreviewChanges] = useState<{ id: string; current: number; new: number; currency: string }[]>([]);
 
-  // 🔹 FIX: Hàm helper để xác định budget hiện tại đúng (CBO vs ABO)
+  // ⭐ SIMPLE: Dùng current_budget từ backend (đã chuẩn hóa)
   const getCurrentBudget = (row: AdsetRow): number => {
-    // Nếu ở tab campaign và row là campaign (budget_level = CAMPAIGN)
-    if (currentLevel === 'campaign' && row.budget_level === 'CAMPAIGN') {
-      return row.campaign_daily_budget || row.budget || 0;
-    }
-    // Nếu adset đang dùng campaign budget (CBO)
-    if (row.using_campaign_budget && row.campaign_daily_budget) {
-      return row.campaign_daily_budget;
-    }
-    // Nếu adset có budget riêng (ABO)
-    if (row.adset_daily_budget) {
-      return row.adset_daily_budget;
-    }
-    // Fallback
-    return row.budget || 0;
+    return row.current_budget || 0;
   };
 
-  // 🔹 FIX: Hàm helper để xác định ID đúng (campaign_id nếu CBO, adset_id nếu ABO)
+  // ⭐ SIMPLE: Lấy ID đúng từ row
   const getRowId = (row: AdsetRow): string => {
-    // Nếu ở tab campaign và row là campaign
-    if (currentLevel === 'campaign' && row.budget_level === 'CAMPAIGN') {
-      return row.campaign_id || row.id || '';
-    }
-    // Nếu adset đang dùng campaign budget (CBO) → dùng campaign_id
-    if (row.using_campaign_budget && row.campaign_id) {
-      return row.campaign_id;
-    }
-    // Nếu adset có budget riêng (ABO) → dùng adset_id
-    return row.adset_id || row.id || '';
+    return row.id || row.adset_id || row.campaign_id || '';
   };
 
   useEffect(() => {
