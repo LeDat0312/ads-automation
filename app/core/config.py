@@ -4,7 +4,7 @@ Thay thế cho layCaiDatHeThong() và getSettingsSafe_() từ Google Apps Script
 """
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, AnyUrl
 import os
 
 
@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     JOB_QUEUE_WORKERS: int = Field(default=2, env="JOB_QUEUE_WORKERS")
     JOB_RATE_LIMIT_SECONDS: int = Field(default=30, env="JOB_RATE_LIMIT_SECONDS")
     JOB_MAX_ATTEMPTS: int = Field(default=3, env="JOB_MAX_ATTEMPTS")
+    
+    # ===== Facebook OAuth =====
+    FACEBOOK_APP_ID: Optional[str] = Field(default=None, env="FACEBOOK_APP_ID")
+    FACEBOOK_APP_SECRET: Optional[str] = Field(default=None, env="FACEBOOK_APP_SECRET")
+    FACEBOOK_REDIRECT_URI: Optional[AnyUrl] = Field(default=None, env="FACEBOOK_REDIRECT_URI")
+    FACEBOOK_LOGIN_SCOPES: str = Field(default="ads_read,ads_management,business_management", env="FACEBOOK_LOGIN_SCOPES")
     
     def parse_ad_account_ids(self, v: str = None) -> List[str]:
         """Parse AD_ACCOUNT_IDS từ string sang list"""
