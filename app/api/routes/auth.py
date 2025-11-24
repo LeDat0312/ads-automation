@@ -1257,11 +1257,10 @@ async def login_page(request: Request):
                 <button
                     type="button"
                     onclick="window.location.href='/api/auth/facebook/login'"
-                    style="margin-top: 16px; width: 100%; padding: 14px; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 12px; background: rgba(255, 255, 255, 0.1); color: white; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px;"
-                    onmouseover="this.style.background = 'rgba(255, 255, 255, 0.2)'; this.style.borderColor = 'rgba(255, 255, 255, 0.4)';"
-                    onmouseout="this.style.background = 'rgba(255, 255, 255, 0.1)'; this.style.borderColor = 'rgba(255, 255, 255, 0.3)';"
+                    class="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/40 text-sm font-semibold text-white transition-colors duration-150"
+                    style="padding: 14px; cursor: pointer; font-family: inherit;"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: currentColor;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4 fill-current">
                         <path d="M22 12a10 10 0 1 0-11.5 9.87v-6.99H8.1V12h2.4V9.8c0-2.37 1.42-3.68 3.6-3.68 1.04 0 2.13.18 2.13.18v2.35h-1.2c-1.18 0-1.55.73-1.55 1.48V12h2.64l-.42 2.88h-2.22v6.99A10.01 10.01 0 0 0 22 12z" />
                     </svg>
                     <span>Đăng nhập bằng Facebook</span>
