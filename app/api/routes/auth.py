@@ -1256,15 +1256,15 @@ async def login_page(request: Request):
                 
                 <button
                     type="button"
-                    onclick="window.location.href = '/api/auth/facebook/login';"
-                    style="margin-top: 16px; width: 100%; padding: 14px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px; background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.9); font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px;"
-                    onmouseover="this.style.background = 'rgba(255, 255, 255, 0.1)'; this.style.borderColor = 'rgba(255, 255, 255, 0.3)';"
-                    onmouseout="this.style.background = 'rgba(255, 255, 255, 0.05)'; this.style.borderColor = 'rgba(255, 255, 255, 0.2)';"
+                    onclick="window.location.href='/api/auth/facebook/login'"
+                    style="margin-top: 16px; width: 100%; padding: 14px; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 12px; background: rgba(255, 255, 255, 0.1); color: white; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px;"
+                    onmouseover="this.style.background = 'rgba(255, 255, 255, 0.2)'; this.style.borderColor = 'rgba(255, 255, 255, 0.4)';"
+                    onmouseout="this.style.background = 'rgba(255, 255, 255, 0.1)'; this.style.borderColor = 'rgba(255, 255, 255, 0.3)';"
                 >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: currentColor;">
+                        <path d="M22 12a10 10 0 1 0-11.5 9.87v-6.99H8.1V12h2.4V9.8c0-2.37 1.42-3.68 3.6-3.68 1.04 0 2.13.18 2.13.18v2.35h-1.2c-1.18 0-1.55.73-1.55 1.48V12h2.64l-.42 2.88h-2.22v6.99A10.01 10.01 0 0 0 22 12z" />
                     </svg>
-                    Đăng nhập bằng Facebook
+                    <span>Đăng nhập bằng Facebook</span>
                 </button>
                 
                 <div class="register-link" style="text-align: center; margin-top: 20px; font-size: 14px; color: #64748b;">

@@ -2,7 +2,7 @@
 Facebook OAuth Routes
 Xử lý đăng nhập bằng Facebook OAuth
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from app.core.config import get_settings
@@ -27,7 +27,7 @@ async def facebook_login(settings=Depends(get_settings)):
     if not settings.FACEBOOK_APP_ID or not settings.FACEBOOK_REDIRECT_URI:
         raise HTTPException(status_code=500, detail="Facebook OAuth chưa được cấu hình")
     
-    base_url = "https://www.facebook.com/v19.0/dialog/oauth"
+    base_url = "https://www.facebook.com/v24.0/dialog/oauth"
     params = {
         "client_id": settings.FACEBOOK_APP_ID,
         "redirect_uri": str(settings.FACEBOOK_REDIRECT_URI),
@@ -42,6 +42,7 @@ async def facebook_login(settings=Depends(get_settings)):
 
 @router.get("/callback")
 async def facebook_callback(
+    request: Request,
     code: str | None = None,
     error: str | None = None,
     settings=Depends(get_settings),
@@ -51,17 +52,19 @@ async def facebook_callback(
     Facebook redirect về đây với ?code=...
     Đổi code -> access_token -> lấy user info -> tạo/tìm user -> JWT -> redirect dashboard
     """
-    if error:
-        raise HTTPException(status_code=400, detail=f"Facebook error: {error}")
-    
-    if not code:
-        raise HTTPException(status_code=400, detail="Thiếu mã ủy quyền (code)")
+    # Nếu người dùng cancel hoặc Facebook báo lỗi → quay lại trang login
+    if error or not code:
+        # TODO: có thể log lỗi nếu cần
+        return RedirectResponse(
+            url="/auth/login?error=facebook_login_failed",
+            status_code=302,
+        )
     
     if not settings.FACEBOOK_APP_ID or not settings.FACEBOOK_APP_SECRET:
         raise HTTPException(status_code=500, detail="Facebook OAuth chưa cấu hình đầy đủ")
     
     # Bước 1: Đổi code -> access_token
-    token_url = "https://graph.facebook.com/v19.0/oauth/access_token"
+    token_url = "https://graph.facebook.com/v24.0/oauth/access_token"
     
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
@@ -90,7 +93,7 @@ async def facebook_callback(
         )
     
     # Bước 2: Gọi /me API để lấy thông tin user
-    me_url = "https://graph.facebook.com/v19.0/me"
+    me_url = "https://graph.facebook.com/v24.0/me"
     
     async with httpx.AsyncClient(timeout=10) as client:
         me_resp = await client.get(
