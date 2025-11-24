@@ -1257,6 +1257,13 @@ async def login_page(request: Request):
                 <div class="register-link" style="text-align: center; margin-top: 20px; font-size: 14px; color: #64748b;">
                     Chưa có tài khoản? <a href="/auth/register" style="color: #667eea; text-decoration: none; font-weight: 600;">Đăng ký ngay</a>
                 </div>
+                
+                <div style="margin-top: 16px; text-align: center; font-size: 12px; color: #64748b;">
+                    Bằng việc tiếp tục, bạn đồng ý với{" "}
+                    <a href="/terms" style="color: #64748b; text-decoration: none;" onmouseover="this.style.textDecoration='underline'; this.style.color='#667eea';" onmouseout="this.style.textDecoration='none'; this.style.color='#64748b';">Điều khoản dịch vụ</a>
+                    {" "}và{" "}
+                    <a href="/privacy" style="color: #64748b; text-decoration: none;" onmouseover="this.style.textDecoration='underline'; this.style.color='#667eea';" onmouseout="this.style.textDecoration='none'; this.style.color='#64748b';">Chính sách quyền riêng tư</a>.
+                </div>
             </div>
         </div>
         
