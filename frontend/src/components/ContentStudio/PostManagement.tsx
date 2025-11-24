@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ScheduledPost, PostStatus, DashboardStats, PostsFilterParams } from '../../types/contentStudio';
-import { getScheduledPosts, getDashboardStats, updateScheduledPost, deleteScheduledPost, publishPostNow } from '../../api/contentStudio';
+import { getScheduledPosts, getDashboardStats, deleteScheduledPost, publishPostNow } from '../../api/contentStudio';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
