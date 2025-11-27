@@ -2437,7 +2437,7 @@ async def settings_page(
             
             <!-- Section 5: Apify API Key (Admin Only) -->
             <!-- NOTE: AdStudio / Apify - Replaced ScrapeGraphAI with Apify Key (admin-only) -->
-            {'<div class="section" id="apifyKeySection" style="display: none;">' if True else ''}
+            <div class="section" id="apifyKeySection" style="display: none;">
                 <div class="section-title">
                     <span class="icon">🔑</span>
                     <span>Apify API Key (Admin Only)</span>
@@ -2469,7 +2469,7 @@ async def settings_page(
                 </div>
                 
                 <div id="apifyTestResult" style="margin-top: 20px;"></div>
-            {'</div>' if True else ''}
+            </div>
         </div>
         
         <!-- Modal Add/Edit Account -->
