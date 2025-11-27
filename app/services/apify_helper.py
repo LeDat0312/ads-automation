@@ -46,7 +46,8 @@ def get_apify_api_key(db: Session) -> str:
         return env_key.strip()
 
     # Not found anywhere
+    # NOTE: AdStudio - Return 400 instead of 500 for missing API key
     raise HTTPException(
-        status_code=500,
-        detail="Apify API key chưa được cấu hình. Admin vui lòng cấu hình tại /settings hoặc thêm APIFY_DEFAULT_KEY vào .env",
+        status_code=400,
+        detail="APIFY_KEY_MISSING",
     )

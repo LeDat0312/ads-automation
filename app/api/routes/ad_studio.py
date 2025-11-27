@@ -182,19 +182,12 @@ def scrape_tiktok(
 ):
     """
     Lấy video + caption từ TikTok qua Apify actor.
+    NOTE: AdStudio - Updated error handling
     
     QUAN TRỌNG - BẢO MẬT:
     - Apify API key được lấy từ DB (admin cấu hình tại /settings)
     - Nếu DB không có → fallback sang biến môi trường APIFY_DEFAULT_KEY
     - Frontend KHÔNG BAO GIỜ biết hoặc lưu trữ Apify API key
-    
-    Luồng hoạt động:
-    1. Lấy Apify API key từ helper (DB → .env)
-    2. Gọi Apify actor "TikTok Data Extractor"
-    3. Chờ actor chạy xong, lấy dataset
-    4. Map kết quả thành Asset object
-    5. Lưu vào bảng ad_studio_assets
-    6. Trả về Asset cho frontend
     
     Args:
         body: ScrapeRequest chứa URL TikTok và note (optional)
@@ -204,14 +197,18 @@ def scrape_tiktok(
         Asset: Object chứa video URL, thumbnail, caption, etc.
         
     Raises:
-        HTTPException 500: Nếu không tìm thấy Apify key hoặc lỗi khi gọi Apify
+        HTTPException 400: Nếu thiếu Apify key (APIFY_KEY_MISSING)
+        HTTPException 502: Nếu lỗi khi gọi Apify (APIFY_SCRAPE_FAILED)
     """
-    # NOTE: added for AdStudio only
+    # NOTE: AdStudio
+    import logging
+    logger = logging.getLogger(__name__)
     
     # 1. Lấy Apify API key (DB first → .env fallback)
     try:
         apify_key = get_apify_api_key(db)
     except HTTPException as e:
+        # Re-raise với detail APIFY_KEY_MISSING
         raise e
     
     # 2. Start actor run trên Apify
@@ -227,25 +224,22 @@ def scrape_tiktok(
     
     try:
         r = requests.post(start_run_url, json=run_input, timeout=120)
-    except requests.RequestException as e:
+        r.raise_for_status()
+    except Exception as e:
+        logger.error(f"Apify TikTok scrape error: {str(e)}")
         raise HTTPException(
-            status_code=500, 
-            detail=f"Lỗi kết nối tới Apify TikTok actor: {str(e)}"
-        )
-    
-    if r.status_code >= 300:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Apify TikTok actor trả lỗi {r.status_code}: {r.text}"
+            status_code=502,
+            detail="APIFY_SCRAPE_FAILED"
         )
     
     run_data = r.json().get("data") or {}
     dataset_id = run_data.get("defaultDatasetId")
     
     if not dataset_id:
+        logger.error("No dataset ID from Apify TikTok actor")
         raise HTTPException(
-            status_code=500,
-            detail="Không lấy được dataset ID từ Apify TikTok actor"
+            status_code=502,
+            detail="APIFY_SCRAPE_FAILED"
         )
     
     # 3. Lấy dataset items
@@ -253,24 +247,21 @@ def scrape_tiktok(
     
     try:
         d = requests.get(dataset_url, timeout=120)
-    except requests.RequestException as e:
+        d.raise_for_status()
+    except Exception as e:
+        logger.error(f"Apify dataset fetch error: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Lỗi lấy dataset từ Apify: {str(e)}"
-        )
-    
-    if d.status_code >= 300:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Apify dataset trả lỗi {d.status_code}: {d.text}"
+            status_code=502,
+            detail="APIFY_SCRAPE_FAILED"
         )
     
     items: List[Dict[str, Any]] = d.json()
     
     if not items:
+        logger.error("Empty dataset from Apify TikTok")
         raise HTTPException(
-            status_code=500,
-            detail="Dataset TikTok rỗng, không tìm thấy video nào"
+            status_code=502,
+            detail="APIFY_SCRAPE_FAILED"
         )
     
     item = items[0]
@@ -435,3 +426,387 @@ def schedule_post(
         id=post_id,
         message=f"Đã lưu lịch đăng bài thành công. Sẽ đăng vào {schedule_time.strftime('%Y-%m-%d %H:%M:%S')} UTC",
     )
+
+
+# ==================== NEW ENDPOINTS FOR AD STUDIO - NOTE: AdStudio ====================
+
+@api_router.post("/facebook/scrape", response_model=Asset)
+def scrape_facebook(
+    body: ScrapeRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Lấy video + caption từ Facebook qua Apify actor.
+    NOTE: AdStudio - Implement Facebook scraping thật
+    
+    Args:
+        body: ScrapeRequest chứa URL Facebook và note (optional)
+        db: Database session
+        
+    Returns:
+        Asset: Object chứa video URL, thumbnail, caption, etc.
+        
+    Raises:
+        HTTPException 400: Nếu thiếu Apify key (APIFY_KEY_MISSING)
+        HTTPException 502: Nếu lỗi khi gọi Apify (APIFY_SCRAPE_FAILED)
+    """
+    # NOTE: AdStudio
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # 1. Lấy Apify API key
+    try:
+        apify_key = get_apify_api_key(db)
+    except HTTPException as e:
+        # Re-raise với detail APIFY_KEY_MISSING
+        raise e
+    
+    # 2. Lấy Facebook actor ID từ env hoặc setting
+    import os
+    fb_actor_id = os.getenv("FACEBOOK_SCRAPER_ACTOR_ID", "apify/facebook-posts-scraper")
+    
+    # 3. Start actor run trên Apify
+    start_run_url = f"{APIFY_BASE}/acts/{fb_actor_id}/runs?token={apify_key}"
+    
+    run_input: Dict[str, Any] = {
+        "startUrls": [{"url": str(body.url)}],
+        "maxPosts": 1,
+    }
+    
+    try:
+        r = requests.post(start_run_url, json=run_input, timeout=120)
+        r.raise_for_status()
+    except Exception as e:
+        logger.error(f"Apify Facebook scrape error: {str(e)}")
+        raise HTTPException(
+            status_code=502,
+            detail="APIFY_SCRAPE_FAILED"
+        )
+    
+    run_data = r.json().get("data") or {}
+    dataset_id = run_data.get("defaultDatasetId")
+    
+    if not dataset_id:
+        raise HTTPException(
+            status_code=502,
+            detail="APIFY_SCRAPE_FAILED"
+        )
+    
+    # 4. Lấy dataset items
+    dataset_url = f"{APIFY_BASE}/datasets/{dataset_id}/items?token={apify_key}"
+    
+    try:
+        d = requests.get(dataset_url, timeout=120)
+        d.raise_for_status()
+    except Exception as e:
+        logger.error(f"Apify dataset fetch error: {str(e)}")
+        raise HTTPException(
+            status_code=502,
+            detail="APIFY_SCRAPE_FAILED"
+        )
+    
+    items: List[Dict[str, Any]] = d.json()
+    
+    if not items:
+        raise HTTPException(
+            status_code=502,
+            detail="APIFY_SCRAPE_FAILED"
+        )
+    
+    item = items[0]
+    
+    # 5. Parse Facebook item
+    video_url = item.get("videoUrl") or item.get("video") or None
+    thumbnail_url = item.get("image") or item.get("imageUrl") or ""
+    caption = item.get("text") or item.get("message") or ""
+    
+    asset = Asset(
+        id=str(uuid4()),
+        platform="facebook",
+        sourceUrl=str(body.url),
+        videoUrl=video_url or "",
+        thumbnailUrl=thumbnail_url,
+        captionOriginal=caption,
+        note=body.note,
+        duration=None,
+        hashtags=None,
+    )
+    
+    # 6. Lưu vào database
+    try:
+        db_asset = AdStudioAsset(
+            id=asset.id,
+            platform=asset.platform,
+            source_url=asset.sourceUrl,
+            video_url=asset.videoUrl,
+            thumbnail_url=asset.thumbnailUrl,
+            caption_original=asset.captionOriginal,
+            note=asset.note,
+            duration=asset.duration,
+            hashtags=asset.hashtags,
+            created_at=datetime.utcnow(),
+        )
+        db.add(db_asset)
+        db.commit()
+        db.refresh(db_asset)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error saving Facebook asset: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi lưu asset vào database: {str(e)}"
+        )
+    
+    return asset
+
+
+@api_router.get("/ad-studio/pages")
+def get_ad_studio_pages(
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Lấy danh sách Facebook pages cho Ad Studio
+    NOTE: AdStudio - Reuse logic from content_studio or settings
+    
+    Returns:
+        List of pages: [{"id": "PAGE_ID", "name": "Page Name", "platform": "facebook"}]
+    """
+    # NOTE: AdStudio
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Tạm thời trả về từ SystemSetting hoặc mock
+    # TODO: Integrate với Facebook Graph API /me/accounts
+    from app.core.database import SystemSetting
+    
+    fb_token_setting = db.query(SystemSetting).filter(
+        SystemSetting.key == "facebook_access_token"
+    ).first()
+    
+    if not fb_token_setting or not fb_token_setting.value:
+        # Chưa cấu hình token, trả về list rỗng
+        return {"items": []}
+    
+    # Gọi Facebook Graph API để lấy pages
+    import requests
+    fb_token = fb_token_setting.value
+    
+    try:
+        r = requests.get(
+            "https://graph.facebook.com/v18.0/me/accounts",
+            params={"access_token": fb_token},
+            timeout=10
+        )
+        r.raise_for_status()
+        data = r.json()
+        
+        pages = []
+        for page in data.get("data", []):
+            pages.append({
+                "id": page.get("id"),
+                "name": page.get("name"),
+                "platform": "facebook"
+            })
+        
+        return {"items": pages}
+    except Exception as e:
+        # Fallback: trả về empty
+        import logging
+        logging.error(f"Error fetching Facebook pages: {str(e)}")
+        return {"items": []}
+
+
+@api_router.get("/ad-studio/assets")
+def get_ad_studio_assets(
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Lấy danh sách assets đã lưu trong bộ sưu tầm
+    NOTE: AdStudio
+    """
+    # NOTE: AdStudio
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Query all assets, order by created_at desc
+    assets = db.query(AdStudioAsset).order_by(
+        AdStudioAsset.created_at.desc()
+    ).limit(100).all()
+    
+    result = []
+    for asset in assets:
+        result.append({
+            "id": asset.id,
+            "platform": asset.platform,
+            "sourceUrl": asset.source_url,
+            "videoUrl": asset.video_url,
+            "thumbnailUrl": asset.thumbnail_url,
+            "captionOriginal": asset.caption_original,
+            "note": asset.note,
+            "duration": asset.duration,
+            "hashtags": asset.hashtags,
+            "createdAt": asset.created_at.isoformat() if asset.created_at else None,
+        })
+    
+    return {"items": result}
+
+
+@api_router.get("/ad-studio/posts")
+def get_ad_studio_posts(
+    status: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Lấy danh sách bài đăng đã lên lịch
+    NOTE: AdStudio
+    
+    Args:
+        status: ALL | SCHEDULED | PUBLISHED | FAILED | DRAFT | CANCELLED
+        from_date: ISO date string
+        to_date: ISO date string
+    """
+    # NOTE: AdStudio
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    query = db.query(AdStudioScheduledPost)
+    
+    # Filter by status
+    if status and status != "ALL":
+        query = query.filter(AdStudioScheduledPost.status == status)
+    
+    # Filter by date range
+    if from_date:
+        try:
+            from_dt = datetime.fromisoformat(from_date)
+            query = query.filter(AdStudioScheduledPost.created_at >= from_dt)
+        except:
+            pass
+    
+    if to_date:
+        try:
+            to_dt = datetime.fromisoformat(to_date)
+            query = query.filter(AdStudioScheduledPost.created_at <= to_dt)
+        except:
+            pass
+    
+    posts = query.order_by(AdStudioScheduledPost.created_at.desc()).limit(200).all()
+    
+    result = []
+    for post in posts:
+        # Join với asset để lấy thumbnail nếu có
+        asset = None
+        if post.asset_id:
+            asset = db.query(AdStudioAsset).filter(
+                AdStudioAsset.id == post.asset_id
+            ).first()
+        
+        result.append({
+            "id": post.id,
+            "caption": post.caption,
+            "channels": ["facebook"],  # Hardcode cho đơn giản
+            "scheduleTime": post.schedule_time.isoformat() if post.schedule_time else None,
+            "status": post.status,
+            "creatorName": "User",  # TODO: join với user table
+            "thumbnailUrl": asset.thumbnail_url if asset else "",
+            "pageIds": post.page_ids,
+            "language": post.language,
+            "ctaText": post.cta_text,
+            "targetUrl": post.target_url,
+        })
+    
+    return {"items": result}
+
+
+@api_router.get("/ad-studio/summary")
+def get_ad_studio_summary(
+    range: str = "7d",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Lấy summary stats cho Dashboard
+    NOTE: AdStudio
+    
+    Args:
+        range: 7d | 30d
+    """
+    # NOTE: AdStudio
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Calculate date range
+    if range == "30d":
+        from_date = datetime.utcnow() - timedelta(days=30)
+    else:
+        from_date = datetime.utcnow() - timedelta(days=7)
+    
+    # Count posts by status
+    total_posts = db.query(AdStudioScheduledPost).filter(
+        AdStudioScheduledPost.created_at >= from_date
+    ).count()
+    
+    posted_count = db.query(AdStudioScheduledPost).filter(
+        AdStudioScheduledPost.created_at >= from_date,
+        AdStudioScheduledPost.status == "PUBLISHED"
+    ).count()
+    
+    scheduled_count = db.query(AdStudioScheduledPost).filter(
+        AdStudioScheduledPost.created_at >= from_date,
+        AdStudioScheduledPost.status == "SCHEDULED"
+    ).count()
+    
+    draft_count = db.query(AdStudioScheduledPost).filter(
+        AdStudioScheduledPost.created_at >= from_date,
+        AdStudioScheduledPost.status == "DRAFT"
+    ).count()
+    
+    failed_count = db.query(AdStudioScheduledPost).filter(
+        AdStudioScheduledPost.created_at >= from_date,
+        AdStudioScheduledPost.status == "FAILED"
+    ).count()
+    
+    return {
+        "totalPosts": total_posts,
+        "publishedPosts": posted_count,
+        "scheduledPosts": scheduled_count,
+        "draftPosts": draft_count,
+        "failedPosts": failed_count,
+    }
+
+
+@api_router.patch("/ad-studio/posts/{post_id}/cancel")
+def cancel_ad_studio_post(
+    post_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Huỷ bài đăng đã lên lịch
+    NOTE: AdStudio
+    """
+    # NOTE: AdStudio
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    post = db.query(AdStudioScheduledPost).filter(
+        AdStudioScheduledPost.id == post_id
+    ).first()
+    
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    if post.status == "PUBLISHED":
+        raise HTTPException(status_code=400, detail="Cannot cancel published post")
+    
+    post.status = "CANCELLED"
+    post.updated_at = datetime.utcnow()
+    
+    db.commit()
+    
+    return {"ok": True, "message": "Post cancelled successfully"}
