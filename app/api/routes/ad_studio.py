@@ -3,12 +3,13 @@ Ad Studio API Routes
 NOTE: added for AdStudio only
 
 Endpoints cho hệ thống quản lý nội dung quảng cáo (AdStudio):
-- GET /ad-studio - UI page
+- GET /ad-studio - UI page (serve React app)
 - POST /api/tiktok/scrape - Lấy video + caption từ TikTok qua Apify
 - POST /api/facebook/scrape - Stub cho Facebook (chưa implement)
 - POST /api/posts/schedule - Lưu lịch đăng bài
 """
 
+import os
 import random
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -16,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -38,141 +39,84 @@ async def ad_studio_page(
 ):
     """
     Trang Ad Studio - UI cho việc thu thập, quản lý video và lên lịch đăng bài
-    NOTE: added for AdStudio only
+    NOTE: added for AdStudio only - Serve React app
     """
     # Check if user is locked
     if current_user and not current_user.is_active:
         return HTMLResponse(content=get_account_locked_message())
     
-    user_info = get_user_dropdown_menu(current_user) if current_user else ""
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Ad Studio - Facebook Ads Automation</title>
-        <link rel="icon" type="image/png" href="/static/favicon.png">
-        <style>
-            * {{
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }}
-            
-            body {{
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                padding: 20px;
-            }}
-            
-            .container {{
-                max-width: 1400px;
-                margin: 0 auto;
-            }}
-            
-            .header {{
-                background: white;
-                border-radius: 16px;
-                padding: 24px;
-                margin-bottom: 24px;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }}
-            
-            .header h1 {{
-                font-size: 32px;
-                font-weight: 700;
-                color: #1e293b;
-            }}
-            
-            .btn-home {{
-                padding: 12px 24px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                font-weight: 600;
-                cursor: pointer;
-                text-decoration: none;
-                display: inline-block;
-            }}
-            
-            .btn-home:hover {{
-                opacity: 0.9;
-            }}
-            
-            .content {{
-                background: white;
-                border-radius: 16px;
-                padding: 32px;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-                min-height: 600px;
-            }}
-            
-            #root {{
-                width: 100%;
-            }}
-        </style>
-    </head>
-    <body>
-        {user_info}
-        
-        <div class="container">
-            <div class="header">
-                <h1>🎬 Ad Studio</h1>
-                <a href="/" class="btn-home">🏠 Về Trang Chủ</a>
-            </div>
-            
-            <div class="content">
-                <div id="root"></div>
-            </div>
-        </div>
-        
-        <script type="module">
-            import {{ createRoot }} from 'https://esm.sh/react-dom@18/client';
-            import {{ createElement }} from 'https://esm.sh/react@18';
-            
-            // Placeholder - trong production sẽ load từ built React app
-            const App = () => {{
-                return createElement('div', {{ 
-                    style: {{ 
-                        textAlign: 'center', 
-                        padding: '40px',
-                        color: '#64748b'
-                    }} 
-                }}, 
-                    createElement('h2', null, '🚧 Ad Studio đang được xây dựng'),
-                    createElement('p', null, 'Tính năng này sẽ sớm được hoàn thiện.')
-                );
-            }};
-            
-            const root = createRoot(document.getElementById('root'));
-            root.render(createElement(App));
-        </script>
-        
+    # Redirect to login if not authenticated
+    if not current_user:
+        return HTMLResponse(content="""
         <script>
-            // Authentication check
-            function getCookie(name) {{
-                const value = \`; $\{{document.cookie}}\`;
-                const parts = value.split(\`; $\{{name}}=\`);
-                if (parts.length === 2) return parts.pop().split(';').shift();
-                return null;
-            }}
-            
-            const token = localStorage.getItem('access_token') || getCookie('access_token');
-            if (!token) {{
-                window.location.href = '/auth/login';
-            }}
+            window.location.href = '/auth/login';
         </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+        """)
+    
+    # Serve React app from frontend/dist
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    frontend_dist = os.path.join(project_root, "frontend", "dist", "index.html")
+    
+    if os.path.exists(frontend_dist):
+        return FileResponse(frontend_dist)
+    else:
+        # Fallback nếu React app chưa được build
+        return HTMLResponse(content="""
+        <!DOCTYPE html>
+        <html lang="vi">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Ad Studio - React App Not Built</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0;
+                }
+                .container {
+                    background: white;
+                    border-radius: 16px;
+                    padding: 48px;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                    text-align: center;
+                    max-width: 600px;
+                }
+                h1 { color: #1e293b; margin-bottom: 16px; }
+                p { color: #64748b; margin-bottom: 24px; }
+                pre {
+                    background: #f1f5f9;
+                    padding: 16px;
+                    border-radius: 8px;
+                    text-align: left;
+                    overflow-x: auto;
+                }
+                .btn {
+                    display: inline-block;
+                    margin-top: 16px;
+                    padding: 12px 24px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-weight: 600;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🎬 Ad Studio</h1>
+                <p>React frontend chưa được build. Vui lòng chạy lệnh sau:</p>
+                <pre>cd frontend && npm install && npm run build</pre>
+                <a href="/" class="btn">🏠 Về Trang Chủ</a>
+            </div>
+        </body>
+        </html>
+        """)
 
 
 # Apify constants
