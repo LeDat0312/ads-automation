@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+// NOTE: AdStudio - Updated to use real API calls
+import React, { useState, useEffect } from 'react';
+import * as API from '../api/adStudio';
+import { isApifyKeyMissing, isApifyScrapeFailed } from '../api/adStudio';
 
 // ============================================================================
 // TYPES
@@ -95,125 +98,9 @@ function getPlatformInfo(platform: AssetPlatform) {
 }
 
 // ============================================================================
-// API STUBS
+// NOTE: AdStudio - Mock data removed, now using real API calls
+// All data is loaded via API from backend
 // ============================================================================
-
-/**
- * QUAN TRỌNG: Hàm này gọi backend để lấy video + caption từ TikTok.
- * Backend sẽ dùng Apify API key đã được admin cấu hình tại /settings.
- * Frontend KHÔNG BAO GIỜ biết hoặc lưu trữ Apify API key.
- */
-async function fetchTiktokAsset(url: string, note?: string): Promise<Asset> {
-  // TODO: Implement call to POST /api/tiktok/scrape
-  // Backend sẽ:
-  // 1. Lấy Apify API key từ DB (admin đã cấu hình tại /settings)
-  // 2. Gọi TikTok Data Extractor actor trên Apify
-  // 3. Parse kết quả thành Asset object
-  // 4. Trả về JSON Asset
-  
-  console.log('[fetchTiktokAsset] Calling backend with:', { url, note });
-  
-  // Mock data cho development
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        id: `tiktok-${Date.now()}`,
-        platform: 'tiktok',
-        sourceUrl: url,
-        videoUrl: 'https://example.com/mock-video.mp4',
-        thumbnailUrl: 'https://via.placeholder.com/300x400',
-        captionOriginal: 'สวัสดีค่ะ! วันนี้เรามาแชร์เคล็ดลับดูแลผิวกันนะคะ 🌸✨\n\n#skincare #beauty #thailand',
-        duration: 45,
-        hashtags: ['skincare', 'beauty', 'thailand'],
-        note,
-      });
-    }, 1500);
-  });
-}
-
-/**
- * QUAN TRỌNG: Hàm này gọi backend để lấy video + caption từ Facebook.
- * Backend sẽ dùng Apify API key đã được admin cấu hình tại /settings.
- * Frontend KHÔNG BAO GIỜ biết hoặc lưu trữ Apify API key.
- */
-async function fetchFacebookAsset(url: string, note?: string): Promise<Asset> {
-  // TODO: Implement call to POST /api/facebook/scrape
-  // Tương tự TikTok, backend sẽ dùng Apify actor cho Facebook
-  
-  console.log('[fetchFacebookAsset] Calling backend with:', { url, note });
-  
-  // Mock placeholder
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        id: `facebook-${Date.now()}`,
-        platform: 'facebook',
-        sourceUrl: url,
-        videoUrl: 'https://example.com/mock-fb-video.mp4',
-        thumbnailUrl: 'https://via.placeholder.com/300x400',
-        captionOriginal: 'Check out this amazing product! 🎉',
-        note,
-      });
-    }, 1500);
-  });
-}
-
-/**
- * Gọi backend để lên lịch đăng bài
- */
-async function schedulePost(payload: SchedulePayload): Promise<void> {
-  // TODO: Implement call to POST /api/posts/schedule
-  console.log('[schedulePost] Calling backend with:', payload);
-  
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      alert('Đã lưu vào lịch đăng thành công!');
-      resolve();
-    }, 1000);
-  });
-}
-
-// ============================================================================
-// MOCK DATA
-// ============================================================================
-
-function getMockDashboardData(_range: string): DashboardStats {
-  // _range prefix indicates intentionally unused parameter
-  return {
-    totalPosts: 127,
-    publishedPosts: 89,
-    scheduledPosts: 15,
-    draftPosts: 18,
-    failedPosts: 5,
-  };
-}
-
-const mockPosts: Post[] = [
-  {
-    id: '1',
-    caption: 'Khuyến mãi lớn cuối năm! Giảm giá 50%...',
-    thumbnailUrl: 'https://via.placeholder.com/150',
-    channels: ['Facebook', 'TikTok'],
-    scheduledTime: '2025-11-28 14:30',
-    status: 'scheduled',
-    creator: 'Admin',
-  },
-  {
-    id: '2',
-    caption: 'Sản phẩm mới vừa về! Đặt hàng ngay...',
-    thumbnailUrl: 'https://via.placeholder.com/150',
-    channels: ['Facebook'],
-    scheduledTime: '2025-11-27 10:00',
-    status: 'published',
-    creator: 'Marketing Team',
-  },
-];
-
-const mockFanpages = [
-  { id: 'page1', name: 'Fanpage A - Skincare' },
-  { id: 'page2', name: 'Fanpage B - Fashion' },
-  { id: 'page3', name: 'Fanpage C - Food' },
-];
 
 const ctaOptions = [
   'Nhắn tin ngay',
@@ -258,12 +145,129 @@ export default function AdStudioCard() {
   });
   
   // Tab 4: Posts management
-  const [posts] = useState<Post[]>(mockPosts);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [filterStatus, setFilterStatus] = useState<PostStatus | 'all'>('all');
   
   // Dashboard
   const [dashboardRange, setDashboardRange] = useState('7days');
-  const dashboardStats = getMockDashboardData(dashboardRange);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    totalPosts: 0,
+    publishedPosts: 0,
+    scheduledPosts: 0,
+    draftPosts: 0,
+    failedPosts: 0,
+  });
+  const [recentPosts, setRecentPosts] = useState<Post[]>([]);
+  
+  // NOTE: AdStudio - Add loading and error states
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fanpages, setFanpages] = useState<Array<{id: string, name: string}>>([]);
+  const [fanpagesError, setFanpagesError] = useState<string | null>(null);
+
+  // NOTE: AdStudio - Load dashboard stats
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      setIsLoadingStats(true);
+      setIsLoadingPosts(true);
+      setError(null);
+      
+      API.getSummary(dashboardRange === '30days' ? '30d' : '7d')
+        .then(data => {
+          setDashboardStats({
+            totalPosts: data.totalPosts || 0,
+            publishedPosts: data.publishedPosts || 0,
+            scheduledPosts: data.scheduledPosts || 0,
+            draftPosts: data.draftPosts || 0,
+            failedPosts: data.failedPosts || 0,
+          });
+        })
+        .catch(err => {
+          console.error('Error loading dashboard stats:', err);
+          setError('Không thể tải số liệu tổng quan. Vui lòng thử lại.');
+        })
+        .finally(() => setIsLoadingStats(false));
+
+      // Load recent posts for dashboard
+      API.getPosts({ status: 'ALL' })
+        .then(data => {
+          const formatted = data.slice(0, 5).map((post: any) => ({
+            id: post.id,
+            caption: post.caption,
+            thumbnailUrl: post.thumbnailUrl || '',
+            channels: post.channels || [],
+            scheduledTime: post.scheduleTime || '',
+            status: post.status,
+            creator: post.creatorName || 'User',
+          }));
+          setRecentPosts(formatted);
+        })
+        .catch(err => {
+          console.error('Error loading recent posts:', err);
+        })
+        .finally(() => setIsLoadingPosts(false));
+    }
+  }, [activeTab, dashboardRange]);
+
+  // NOTE: AdStudio - Load assets when switching to collection tab
+  useEffect(() => {
+    if (activeTab === 'collection') {
+      setIsLoadingAssets(true);
+      setError(null);
+      
+      API.getAssets()
+        .then(data => {
+          setAssets(data);
+        })
+        .catch(err => {
+          console.error('Error loading assets:', err);
+          setError('Không thể tải bộ sưu tầm. Vui lòng thử lại.');
+        })
+        .finally(() => setIsLoadingAssets(false));
+    }
+  }, [activeTab]);
+
+  // NOTE: AdStudio - Load posts when switching to posts tab
+  useEffect(() => {
+    if (activeTab === 'posts') {
+      setIsLoadingPosts(true);
+      const statusFilter = filterStatus === 'all' ? undefined : filterStatus.toUpperCase();
+      API.getPosts({ status: statusFilter })
+        .then(data => {
+          const formatted = data.map((post: any) => ({
+            id: post.id,
+            caption: post.caption,
+            thumbnailUrl: post.thumbnailUrl || '',
+            channels: post.channels || [],
+            scheduledTime: post.scheduleTime || '',
+            status: post.status.toLowerCase() as PostStatus,
+            creator: post.creatorName || 'User',
+          }));
+          setPosts(formatted);
+        })
+        .catch(err => {
+          console.error('Error loading posts:', err);
+        })
+        .finally(() => setIsLoadingPosts(false));
+    }
+  }, [activeTab, filterStatus]);
+
+  // NOTE: AdStudio - Load fanpages on mount
+  useEffect(() => {
+    API.getFanpages()
+      .then(data => {
+        if (data.length === 0) {
+          setFanpagesError('Chưa có fanpage nào được cấu hình. Vui lòng kiểm tra lại mục Cài Đặt.');
+        }
+        setFanpages(data.map((p: any) => ({ id: p.id, name: p.name })));
+      })
+      .catch(err => {
+        console.error('Error loading fanpages:', err);
+        setFanpagesError('Không thể tải danh sách fanpage. Vui lòng kiểm tra kết nối.');
+      });
+  }, []);
 
   // ============================================================================
   // EVENT HANDLERS
@@ -282,13 +286,16 @@ export default function AdStudioCard() {
     }
 
     setIsLoadingAsset(true);
+    setError(null);
+    
     try {
       let asset: Asset;
       
+      // NOTE: AdStudio - Use real API calls
       if (detectedPlatform === 'tiktok') {
-        asset = await fetchTiktokAsset(inputUrl);
+        asset = await API.fetchTiktokAsset(inputUrl);
       } else if (detectedPlatform === 'facebook') {
-        asset = await fetchFacebookAsset(inputUrl);
+        asset = await API.fetchFacebookAsset(inputUrl);
       } else {
         alert('Nền tảng không được hỗ trợ');
         return;
@@ -297,9 +304,24 @@ export default function AdStudioCard() {
       setSelectedAsset(asset);
       setEditedCaption(asset.captionOriginal);
       setAssets((prev) => [...prev, asset]);
-    } catch (error) {
-      console.error('Error fetching asset:', error);
-      alert('Lỗi khi lấy video. Vui lòng thử lại.');
+      setCurrentStep(2);
+    } catch (err: any) {
+      console.error('Error fetching asset:', err);
+      
+      // NOTE: AdStudio - Handle specific error cases
+      if (isApifyKeyMissing(err)) {
+        // TODO: Check if user is admin from context
+        const isAdmin = false; // Placeholder
+        if (isAdmin) {
+          setError('Chưa cấu hình Apify API key. Vui lòng vào mục Cài Đặt → Apify để thêm key.');
+        } else {
+          setError('Hệ thống chưa được cấu hình Apify API, vui lòng liên hệ Admin.');
+        }
+      } else if (isApifyScrapeFailed(err)) {
+        setError('Không lấy được video từ link này. Vui lòng kiểm tra lại URL hoặc thử lại sau.');
+      } else {
+        setError('Đã xảy ra lỗi. Vui lòng thử lại.');
+      }
     } finally {
       setIsLoadingAsset(false);
     }
@@ -337,26 +359,33 @@ export default function AdStudioCard() {
       customVideoFile: customVideoFile || undefined,
     };
 
-    await schedulePost(payload);
-    
-    // Reset form và chuyển tab
-    setCurrentStep(1);
-    setSelectedAsset(null);
-    setInputUrl('');
-    setEditedCaption('');
-    setCustomVideoFile(null);
-    setPublishForm({
-      caption: '',
-      language: 'la',
-      ctaText: 'Nhắn tin ngay',
-      targetUrl: '',
-      pageIds: [],
-      scheduleMode: 'NOW',
-      scheduleTime: '',
-      thumbnailSource: 'FRAME',
-      thumbnailFile: null,
-    });
-    setActiveTab('posts');
+    // NOTE: AdStudio - Use real API
+    try {
+      await API.schedulePost(payload);
+      alert('Đã lên lịch đăng bài thành công!');
+      
+      // Reset form và chuyển tab
+      setCurrentStep(1);
+      setSelectedAsset(null);
+      setInputUrl('');
+      setEditedCaption('');
+      setCustomVideoFile(null);
+      setPublishForm({
+        caption: '',
+        language: 'la',
+        ctaText: 'Nhắn tin ngay',
+        targetUrl: '',
+        pageIds: [],
+        scheduleMode: 'NOW',
+        scheduleTime: '',
+        thumbnailSource: 'FRAME',
+        thumbnailFile: null,
+      });
+      setActiveTab('posts');
+    } catch (error) {
+      console.error('Error scheduling post:', error);
+      alert('Lỗi khi lên lịch đăng bài. Vui lòng thử lại.');
+    }
   };
 
   const handleUseAssetFromCollection = (asset: Asset) => {
@@ -378,6 +407,34 @@ export default function AdStudioCard() {
     const file = e.target.files?.[0];
     if (file) {
       setPublishForm((prev) => ({ ...prev, thumbnailFile: file }));
+    }
+  };
+
+  const handleCancelPost = async (postId: string) => {
+    if (!confirm('Bạn có chắc muốn hủy bài đăng này?')) {
+      return;
+    }
+
+    try {
+      await API.cancelPost(postId);
+      alert('Đã hủy bài đăng thành công!');
+      
+      // Reload posts
+      const statusFilter = filterStatus === 'all' ? undefined : filterStatus.toUpperCase();
+      const data = await API.getPosts({ status: statusFilter });
+      const formatted = data.map((post: any) => ({
+        id: post.id,
+        caption: post.caption,
+        thumbnailUrl: post.thumbnailUrl || '',
+        channels: post.channels || [],
+        scheduledTime: post.scheduleTime || '',
+        status: post.status.toLowerCase() as PostStatus,
+        creator: post.creatorName || 'User',
+      }));
+      setPosts(formatted);
+    } catch (error) {
+      console.error('Error canceling post:', error);
+      alert('Lỗi khi hủy bài đăng. Vui lòng thử lại.');
     }
   };
 
@@ -444,54 +501,78 @@ export default function AdStudioCard() {
         </select>
       </div>
 
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
+
+      {/* Loading indicator */}
+      {isLoadingStats && (
+        <div className="text-center py-8">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="mt-2 text-gray-600">Đang tải dữ liệu...</p>
+        </div>
+      )}
+
       {/* Số liệu tổng quan */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-lg border shadow-sm">
-          <div className="text-gray-600 text-sm">Tổng bài đăng</div>
-          <div className="text-2xl font-bold text-gray-900">{dashboardStats.totalPosts}</div>
+      {!isLoadingStats && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="bg-white p-4 rounded-lg border shadow-sm">
+            <div className="text-gray-600 text-sm">Tổng bài đăng</div>
+            <div className="text-2xl font-bold text-gray-900">{dashboardStats.totalPosts}</div>
+          </div>
+          <div className="bg-white p-4 rounded-lg border shadow-sm">
+            <div className="text-gray-600 text-sm">Đã đăng</div>
+            <div className="text-2xl font-bold text-green-600">{dashboardStats.publishedPosts}</div>
+          </div>
+          <div className="bg-white p-4 rounded-lg border shadow-sm">
+            <div className="text-gray-600 text-sm">Chờ đăng</div>
+            <div className="text-2xl font-bold text-blue-600">{dashboardStats.scheduledPosts}</div>
+          </div>
+          <div className="bg-white p-4 rounded-lg border shadow-sm">
+            <div className="text-gray-600 text-sm">Nháp</div>
+            <div className="text-2xl font-bold text-gray-600">{dashboardStats.draftPosts}</div>
+          </div>
+          <div className="bg-white p-4 rounded-lg border shadow-sm">
+            <div className="text-gray-600 text-sm">Thất bại</div>
+            <div className="text-2xl font-bold text-red-600">{dashboardStats.failedPosts}</div>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-lg border shadow-sm">
-          <div className="text-gray-600 text-sm">Đã đăng</div>
-          <div className="text-2xl font-bold text-green-600">{dashboardStats.publishedPosts}</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg border shadow-sm">
-          <div className="text-gray-600 text-sm">Chờ đăng</div>
-          <div className="text-2xl font-bold text-blue-600">{dashboardStats.scheduledPosts}</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg border shadow-sm">
-          <div className="text-gray-600 text-sm">Nháp</div>
-          <div className="text-2xl font-bold text-gray-600">{dashboardStats.draftPosts}</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg border shadow-sm">
-          <div className="text-gray-600 text-sm">Thất bại</div>
-          <div className="text-2xl font-bold text-red-600">{dashboardStats.failedPosts}</div>
-        </div>
-      </div>
+      )}
 
       {/* Lịch đăng 7 ngày tới */}
-      <div className="bg-white rounded-lg border shadow-sm p-6">
-        <h3 className="text-lg font-semibold mb-4">Lịch đăng trong 7 ngày tới</h3>
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Thời gian</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Nội dung</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Kênh</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Trạng thái</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mockPosts.filter((p) => p.status === 'scheduled').map((post) => (
-              <tr key={post.id} className="border-t">
-                <td className="px-4 py-3 text-sm">{post.scheduledTime}</td>
-                <td className="px-4 py-3 text-sm">{post.caption.substring(0, 50)}...</td>
-                <td className="px-4 py-3 text-sm">{post.channels.join(', ')}</td>
-                <td className="px-4 py-3">{getStatusBadge(post.status)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {!isLoadingPosts && (
+        <div className="bg-white rounded-lg border shadow-sm p-6">
+          <h3 className="text-lg font-semibold mb-4">Lịch đăng trong 7 ngày tới</h3>
+          {recentPosts.filter((p) => p.status === 'scheduled').length === 0 ? (
+            <p className="text-gray-500 text-center py-8">Chưa có bài đăng nào được lên lịch</p>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Thời gian</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Nội dung</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Kênh</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* NOTE: AdStudio - Use recentPosts from API */}
+                {recentPosts.filter((p) => p.status === 'scheduled').map((post) => (
+                  <tr key={post.id} className="border-t">
+                    <td className="px-4 py-3 text-sm">{post.scheduledTime}</td>
+                    <td className="px-4 py-3 text-sm">{post.caption.substring(0, 50)}...</td>
+                    <td className="px-4 py-3 text-sm">{post.channels.join(', ')}</td>
+                    <td className="px-4 py-3">{getStatusBadge(post.status)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -714,8 +795,12 @@ export default function AdStudioCard() {
                 <label className="block text-sm font-medium text-gray-700">
                   Chọn fanpage <span className="text-red-500">*</span>
                 </label>
+                {/* NOTE: AdStudio - Show error if no fanpages */}
+                {fanpagesError && (
+                  <div className="text-sm text-red-600 mb-2">{fanpagesError}</div>
+                )}
                 <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
-                  {mockFanpages.map((page) => (
+                  {fanpages.map((page) => (
                     <label key={page.id} className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -893,43 +978,61 @@ export default function AdStudioCard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {assets.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-gray-500">
-            Chưa có asset nào. Hãy thu thập video từ tab "Thu thập link".
-          </div>
-        ) : (
-          assets.map((asset) => (
-            <div key={asset.id} className="bg-white border rounded-lg p-4 space-y-3">
-              <div className="aspect-[9/16] bg-gray-100 rounded-lg overflow-hidden">
-                <img
-                  src={asset.thumbnailUrl}
-                  alt="Asset thumbnail"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  {getPlatformInfo(asset.platform).icon}
-                  <span className="text-xs font-medium">{getPlatformInfo(asset.platform).label}</span>
-                </div>
-                <div className="text-sm text-gray-700 line-clamp-3">
-                  {asset.captionOriginal}
-                </div>
-                {asset.note && (
-                  <div className="text-xs text-gray-500 italic">Note: {asset.note}</div>
-                )}
-                <button
-                  onClick={() => handleUseAssetFromCollection(asset)}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-                >
-                  Dùng để tạo bài đăng
-                </button>
-              </div>
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
+
+      {/* Loading indicator */}
+      {isLoadingAssets && (
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="mt-2 text-gray-600">Đang tải bộ sưu tầm...</p>
+        </div>
+      )}
+
+      {/* Asset grid */}
+      {!isLoadingAssets && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {assets.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-gray-500">
+              Chưa có asset nào. Hãy thu thập video từ tab "Thu thập link".
             </div>
-          ))
-        )}
-      </div>
+          ) : (
+            assets.map((asset) => (
+              <div key={asset.id} className="bg-white border rounded-lg p-4 space-y-3">
+                <div className="aspect-[9/16] bg-gray-100 rounded-lg overflow-hidden">
+                  <img
+                    src={asset.thumbnailUrl}
+                    alt="Asset thumbnail"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {getPlatformInfo(asset.platform).icon}
+                    <span className="text-xs font-medium">{getPlatformInfo(asset.platform).label}</span>
+                  </div>
+                  <div className="text-sm text-gray-700 line-clamp-3">
+                    {asset.captionOriginal}
+                  </div>
+                  {asset.note && (
+                    <div className="text-xs text-gray-500 italic">Note: {asset.note}</div>
+                  )}
+                  <button
+                    onClick={() => handleUseAssetFromCollection(asset)}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                  >
+                    Dùng để tạo bài đăng
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -992,7 +1095,13 @@ export default function AdStudioCard() {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button className="text-blue-600 hover:underline text-sm">Sửa</button>
-                      <button className="text-red-600 hover:underline text-sm">Huỷ</button>
+                      <button 
+                        onClick={() => handleCancelPost(post.id)}
+                        className="text-red-600 hover:underline text-sm"
+                        disabled={post.status === 'published' || post.status === 'cancelled'}
+                      >
+                        Huỷ
+                      </button>
                     </div>
                   </td>
                 </tr>
