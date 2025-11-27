@@ -121,7 +121,9 @@ async def ad_studio_page(
 
 # Apify constants
 APIFY_BASE = "https://api.apify.com/v2"
-TIKTOK_ACTOR_ID = "clockworks/free-tiktok-scraper"  # Actor ID cho TikTok Data Extractor
+# NOTE: AdStudio - Actor ID format: clockworks/free-tiktok-scraper
+# In API URLs, slash must be replaced with tilde: clockworks~free-tiktok-scraper
+TIKTOK_ACTOR_ID = "clockworks~free-tiktok-scraper"
 
 
 def _map_tiktok_item_to_asset(
