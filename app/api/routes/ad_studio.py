@@ -166,13 +166,24 @@ def _map_tiktok_item_to_asset(
     """
     # NOTE: AdStudio - Extract theo format thực tế của TikTok Data Extractor
     video_meta = item.get("videoMeta") or {}
+    media_urls = item.get("mediaUrls") or []
     
-    # Video URL: Actor này không cung cấp direct mp4 link, chỉ có TikTok link
-    # Ưu tiên submittedVideoUrl (URL user paste), fallback webVideoUrl
-    video_url = item.get("submittedVideoUrl") or item.get("webVideoUrl") or source_url
+    # Video URL: Ưu tiên downloadAddr từ videoMeta hoặc mediaUrls[0] (Apify KV store)
+    # Fallback về TikTok link nếu không download được
+    video_url = (
+        video_meta.get("downloadAddr")  # Direct mp4 từ Apify KV store
+        or (media_urls[0] if media_urls else None)  # Alternative từ mediaUrls array
+        or item.get("submittedVideoUrl")  # TikTok link user paste
+        or item.get("webVideoUrl")  # TikTok link từ scraper
+    )
     
-    # Thumbnail: lấy từ videoMeta
-    thumbnail_url = video_meta.get("coverUrl") or video_meta.get("originalCoverUrl") or ""
+    # Thumbnail: lấy từ videoMeta (đã download) hoặc fallback
+    thumbnail_url = (
+        video_meta.get("coverUrl")  # Cover từ Apify KV store
+        or video_meta.get("originalCoverUrl")
+        or item.get("authorMeta", {}).get("avatar")  # Fallback: author avatar
+        or ""
+    )
     
     # Caption
     caption = item.get("text") or ""
@@ -250,18 +261,19 @@ def scrape_tiktok(
     sync_url = f"{APIFY_BASE}/acts/{TIKTOK_ACTOR_ID}/run-sync-get-dataset-items?token={apify_key}"
     
     # Input theo OpenAPI schema của clockworks/free-tiktok-scraper
-    # Key field: postURLs (array of strings) - NOT directUrls
+    # NOTE: AdStudio - MUST enable shouldDownloadVideos to get videoMeta.downloadAddr
     run_input: Dict[str, Any] = {
         "postURLs": [str(body.url)],
-        "shouldDownloadVideos": False,  # Không cần download, chỉ lấy metadata + link
-        "shouldDownloadCovers": False,  # Không cần download thumbnail
+        "shouldDownloadVideos": True,   # Bắt buộc để lấy video download URL từ Apify KV store
+        "shouldDownloadCovers": True,   # Lấy cover image để làm thumbnail/poster
         "shouldDownloadSubtitles": False,
+        "shouldDownloadSlideshowImages": False,
     }
     
     logger.info(f"Calling Apify TikTok scraper for URL: {body.url}")
     
     try:
-        # NOTE: AdStudio - Timeout 180s cho sync call (actor cần thời gian scrape)
+        # NOTE: AdStudio - Timeout 180s cho sync call (actor cần thời gian scrape + download)
         r = requests.post(sync_url, json=run_input, timeout=180)
         
         # Log response để debug
@@ -324,17 +336,27 @@ def scrape_tiktok(
     )
     
     # NOTE: AdStudio - Validate asset có đủ dữ liệu để preview
-    if not asset.thumbnailUrl or not asset.videoUrl:
+    if not asset.videoUrl:
         logger.error(
-            f"Invalid Apify payload - missing required fields. "
-            f"thumbnailUrl: {asset.thumbnailUrl}, videoUrl: {asset.videoUrl}, "
+            f"Apify payload missing video URL. "
             f"item keys: {list(item.keys())}, "
-            f"videoMeta: {item.get('videoMeta', {})}"
+            f"videoMeta: {item.get('videoMeta', {})}, "
+            f"mediaUrls: {item.get('mediaUrls', [])}"
         )
         raise HTTPException(
             status_code=502,
-            detail="APIFY_SCRAPE_PAYLOAD_INVALID"
+            detail="APIFY_SCRAPE_FAILED_NO_VIDEO_URL"
         )
+    
+    if not asset.thumbnailUrl:
+        logger.warning(f"Asset missing thumbnail, will use placeholder. videoMeta: {item.get('videoMeta', {})}")
+    
+    # Log thông tin để debug
+    logger.info(
+        f"Asset created - videoUrl: {asset.videoUrl[:80] if asset.videoUrl else 'None'}, "
+        f"thumbnailUrl: {asset.thumbnailUrl[:80] if asset.thumbnailUrl else 'None'}, "
+        f"duration: {asset.duration}s, hashtags: {len(asset.hashtags or [])}"
+    )
     
     # 5. Lưu vào database
     try:
