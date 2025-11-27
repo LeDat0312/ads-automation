@@ -218,10 +218,10 @@ async def home_page(
                     <span style="font-size: 14px; color: #64748b; margin-top: 8px;">Xem tổng quan hiệu suất và thống kê quảng cáo</span>
                 </a>
                 
-                <a href="/competitor" class="nav-button">
-                    <span class="icon">🔍</span>
-                    <span class="text">Nghiên Cứu Đối Thủ</span>
-                    <span style="font-size: 14px; color: #64748b; margin-top: 8px;">Scrape và phân tích quảng cáo của đối thủ với ScrapeGraphAI</span>
+                <a href="/ad-studio" class="nav-button">
+                    <span class="icon">🎬</span>
+                    <span class="text">Ad Studio</span>
+                    <span style="font-size: 14px; color: #64748b; margin-top: 8px;">Thu thập, quản lý video từ TikTok/Facebook và lên lịch đăng bài</span>
                 </a>
             </div>
         </div>

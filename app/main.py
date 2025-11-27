@@ -57,7 +57,8 @@ app.include_router(logic_7days_config.router)
 app.include_router(competitor_research.router)  # Competitor research với ScrapeGraphAI
 app.include_router(legal.router)  # Legal pages - Privacy Policy and Terms of Service
 app.include_router(facebook_oauth.router)  # Facebook OAuth login
-app.include_router(ad_studio.router)  # NOTE: added for AdStudio only
+app.include_router(ad_studio.router)  # NOTE: added for AdStudio only - UI route
+app.include_router(ad_studio.api_router)  # NOTE: added for AdStudio only - API routes
 
 # Initialize database on startup
 @app.on_event("startup")

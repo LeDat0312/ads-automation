@@ -3,6 +3,7 @@ Ad Studio API Routes
 NOTE: added for AdStudio only
 
 Endpoints cho hệ thống quản lý nội dung quảng cáo (AdStudio):
+- GET /ad-studio - UI page
 - POST /api/tiktok/scrape - Lấy video + caption từ TikTok qua Apify
 - POST /api/facebook/scrape - Stub cho Facebook (chưa implement)
 - POST /api/posts/schedule - Lưu lịch đăng bài
@@ -11,19 +12,168 @@ Endpoints cho hệ thống quản lý nội dung quảng cáo (AdStudio):
 import random
 from datetime import datetime, timedelta
 from uuid import uuid4
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.ad_studio import AdStudioAsset, AdStudioScheduledPost
+from app.models.user import User
 from app.schemas.ad_studio import ScrapeRequest, Asset, SchedulePayload, ScheduleResponse
 from app.services.apify_helper import get_apify_api_key
+from app.api.routes.auth import get_current_user_optional
+from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
 
 # NOTE: added for AdStudio only
-router = APIRouter(prefix="/api", tags=["ad-studio"])
+router = APIRouter(tags=["ad-studio"])
+api_router = APIRouter(prefix="/api", tags=["ad-studio"])
+
+@router.get("/ad-studio", response_class=HTMLResponse)
+async def ad_studio_page(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Trang Ad Studio - UI cho việc thu thập, quản lý video và lên lịch đăng bài
+    NOTE: added for AdStudio only
+    """
+    # Check if user is locked
+    if current_user and not current_user.is_active:
+        return HTMLResponse(content=get_account_locked_message())
+    
+    user_info = get_user_dropdown_menu(current_user) if current_user else ""
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Ad Studio - Facebook Ads Automation</title>
+        <link rel="icon" type="image/png" href="/static/favicon.png">
+        <style>
+            * {{
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }}
+            
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 20px;
+            }}
+            
+            .container {{
+                max-width: 1400px;
+                margin: 0 auto;
+            }}
+            
+            .header {{
+                background: white;
+                border-radius: 16px;
+                padding: 24px;
+                margin-bottom: 24px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }}
+            
+            .header h1 {{
+                font-size: 32px;
+                font-weight: 700;
+                color: #1e293b;
+            }}
+            
+            .btn-home {{
+                padding: 12px 24px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                text-decoration: none;
+                display: inline-block;
+            }}
+            
+            .btn-home:hover {{
+                opacity: 0.9;
+            }}
+            
+            .content {{
+                background: white;
+                border-radius: 16px;
+                padding: 32px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                min-height: 600px;
+            }}
+            
+            #root {{
+                width: 100%;
+            }}
+        </style>
+    </head>
+    <body>
+        {user_info}
+        
+        <div class="container">
+            <div class="header">
+                <h1>🎬 Ad Studio</h1>
+                <a href="/" class="btn-home">🏠 Về Trang Chủ</a>
+            </div>
+            
+            <div class="content">
+                <div id="root"></div>
+            </div>
+        </div>
+        
+        <script type="module">
+            import {{ createRoot }} from 'https://esm.sh/react-dom@18/client';
+            import {{ createElement }} from 'https://esm.sh/react@18';
+            
+            // Placeholder - trong production sẽ load từ built React app
+            const App = () => {{
+                return createElement('div', {{ 
+                    style: {{ 
+                        textAlign: 'center', 
+                        padding: '40px',
+                        color: '#64748b'
+                    }} 
+                }}, 
+                    createElement('h2', null, '🚧 Ad Studio đang được xây dựng'),
+                    createElement('p', null, 'Tính năng này sẽ sớm được hoàn thiện.')
+                );
+            }};
+            
+            const root = createRoot(document.getElementById('root'));
+            root.render(createElement(App));
+        </script>
+        
+        <script>
+            // Authentication check
+            function getCookie(name) {{
+                const value = \`; $\{{document.cookie}}\`;
+                const parts = value.split(\`; $\{{name}}=\`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }}
+            
+            const token = localStorage.getItem('access_token') || getCookie('access_token');
+            if (!token) {{
+                window.location.href = '/auth/login';
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
 
 # Apify constants
 APIFY_BASE = "https://api.apify.com/v2"
@@ -81,7 +231,7 @@ def _map_tiktok_item_to_asset(
     )
 
 
-@router.post("/tiktok/scrape", response_model=Asset)
+@api_router.post("/tiktok/scrape", response_model=Asset)
 def scrape_tiktok(
     body: ScrapeRequest,
     db: Session = Depends(get_db),
@@ -215,7 +365,7 @@ def scrape_tiktok(
     return asset
 
 
-@router.post("/facebook/scrape")
+@api_router.post("/facebook/scrape")
 def scrape_facebook_stub(body: ScrapeRequest):
     """
     Stub tạm thời cho Facebook scraping.
@@ -236,7 +386,7 @@ def scrape_facebook_stub(body: ScrapeRequest):
     }
 
 
-@router.post("/posts/schedule", response_model=ScheduleResponse)
+@api_router.post("/posts/schedule", response_model=ScheduleResponse)
 def schedule_post(
     payload: SchedulePayload,
     db: Session = Depends(get_db),
