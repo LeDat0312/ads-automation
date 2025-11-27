@@ -177,7 +177,8 @@ async function schedulePost(payload: SchedulePayload): Promise<void> {
 // MOCK DATA
 // ============================================================================
 
-function getMockDashboardData(range: string): DashboardStats {
+function getMockDashboardData(_range: string): DashboardStats {
+  // _range prefix indicates intentionally unused parameter
   return {
     totalPosts: 127,
     publishedPosts: 89,
@@ -257,7 +258,7 @@ export default function AdStudioCard() {
   });
   
   // Tab 4: Posts management
-  const [posts, setPosts] = useState<Post[]>(mockPosts);
+  const [posts] = useState<Post[]>(mockPosts);
   const [filterStatus, setFilterStatus] = useState<PostStatus | 'all'>('all');
   
   // Dashboard
