@@ -17,7 +17,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.database import Base, init_db, get_db_session, SessionLocal
+from app.core.database import Base, init_db, get_db_session
 from app.models.ad_studio import AdStudioAsset, AdStudioScheduledPost
 from app.core.database import SystemSetting
 
@@ -29,13 +29,13 @@ def run_migration():
     # Initialize database connection FIRST
     init_db()
     
-    # Get engine từ SessionLocal (sau khi init_db đã tạo SessionLocal)
+    # Get engine từ get_db_session() (đã được init_db tạo sẵn)
     print("🔧 Getting database engine...")
-    db = SessionLocal()
+    db = get_db_session()
     try:
         engine = db.get_bind()
         if engine is None:
-            raise RuntimeError("SessionLocal không có bind engine. Vui lòng kiểm tra DATABASE_URL trong .env")
+            raise RuntimeError("Database engine is None. Vui lòng kiểm tra DATABASE_URL trong .env")
     finally:
         db.close()
     
