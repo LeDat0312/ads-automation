@@ -699,12 +699,13 @@ export default function AdStudioCard() {
             
             {selectedAsset ? (
               <div className="bg-white border rounded-lg p-4 space-y-3">
-                {/* Video preview */}
+                {/* Video preview - NOTE: AdStudio - Show actual video player, not just thumbnail */}
                 <div className="aspect-[9/16] bg-gray-100 rounded-lg overflow-hidden max-w-xs mx-auto">
                   {videoSource === 'original' ? (
-                    <img
-                      src={selectedAsset.thumbnailUrl}
-                      alt="Video thumbnail"
+                    <video
+                      src={selectedAsset.videoUrl}
+                      poster={selectedAsset.thumbnailUrl}
+                      controls
                       className="w-full h-full object-cover"
                     />
                   ) : customVideoFile ? (
@@ -720,8 +721,27 @@ export default function AdStudioCard() {
                   )}
                 </div>
 
-                <div className="text-sm text-gray-600 text-center">
-                  Chất lượng: HD (No logo)
+                {/* Video metadata - NOTE: AdStudio */}
+                <div className="text-sm text-gray-600 space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span>Chất lượng: HD (No logo)</span>
+                    {selectedAsset.duration && (
+                      <span className="text-blue-600 font-medium">{selectedAsset.duration}s</span>
+                    )}
+                  </div>
+                  {selectedAsset.hashtags && selectedAsset.hashtags.length > 0 && (
+                    <div className="text-xs text-gray-500">
+                      #{selectedAsset.hashtags.join(' #')}
+                    </div>
+                  )}
+                  <a
+                    href={selectedAsset.videoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 hover:underline text-xs block mt-2"
+                  >
+                    📥 Tải video gốc (.mp4)
+                  </a>
                 </div>
 
                 <button
