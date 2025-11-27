@@ -134,6 +134,7 @@ def init_db():
     from app.models.logic_7days_config import Logic7DaysConfig  # Import model config logic 7 ngày
     from app.models.user import User  # User model for authentication
     from app.models.user_settings import UserSettings  # User settings for Facebook token
+    from app.models.ad_studio import AdStudioAsset, AdStudioScheduledPost  # NOTE: added for AdStudio only
     
     settings = get_settings()
     database_url = settings.DATABASE_URL

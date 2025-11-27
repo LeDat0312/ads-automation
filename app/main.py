@@ -14,6 +14,7 @@ from app.services.telegram_bot import send_telegram_message_safe
 from app.services.webhook_setup import setup_webhook
 from app.api.routes import dashboard, templates, templates_ui, rules, rules_ui, rules_ui_v2, telegram, accounts_prefixes
 from app.api.routes import logic_7days_config, rules_ui_birch, auth, home, settings, profile, user_management, competitor_research, legal, facebook_oauth
+from app.api.routes import ad_studio  # NOTE: added for AdStudio only
 from fastapi.staticfiles import StaticFiles
 import os
 
@@ -56,6 +57,7 @@ app.include_router(logic_7days_config.router)
 app.include_router(competitor_research.router)  # Competitor research với ScrapeGraphAI
 app.include_router(legal.router)  # Legal pages - Privacy Policy and Terms of Service
 app.include_router(facebook_oauth.router)  # Facebook OAuth login
+app.include_router(ad_studio.router)  # NOTE: added for AdStudio only
 
 # Initialize database on startup
 @app.on_event("startup")
