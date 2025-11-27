@@ -12,7 +12,7 @@ import logging
 import threading
 import time
 
-from app.core.database import get_db
+from app.core.database import get_db, SystemSetting
 from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.models.account_prefix import Account, Prefix, AccountPrefix
@@ -554,6 +554,115 @@ def delete_scrapegraphai_key(
     db.commit()
     
     return {"message": "ScrapeGraphAI API Key đã được xóa thành công"}
+
+
+# ==================== APIFY API KEY ENDPOINTS (ADMIN ONLY) ====================
+# NOTE: AdStudio / Apify - Admin-only endpoints for system-wide Apify API key
+
+class ApifyKeySaveRequest(BaseModel):
+    apiKey: str
+
+@router.get("/apify-key")
+def get_apify_key_status(
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Get Apify API Key status (admin only)"""
+    # NOTE: AdStudio / Apify - Only admin can access
+    if not current_user or current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="FORBIDDEN")
+    
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "APIFY_API_KEY").first()
+    
+    if not setting or not setting.value:
+        return {"exists": False, "maskedKey": None}
+    
+    # Mask key: show first 10 and last 4 characters
+    key = setting.value
+    masked = key[:10] + "..." + key[-4:] if len(key) > 14 else "***"
+    
+    return {"exists": True, "maskedKey": masked}
+
+
+@router.post("/apify-key")
+def save_apify_key(
+    key_request: ApifyKeySaveRequest,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Save Apify API Key to SystemSetting (admin only)"""
+    # NOTE: AdStudio / Apify - Only admin can save
+    if not current_user or current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="FORBIDDEN")
+    
+    if not key_request.apiKey or not key_request.apiKey.strip():
+        raise HTTPException(status_code=400, detail="API key không được để trống")
+    
+    api_key = key_request.apiKey.strip()
+    
+    # Get or create SystemSetting
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "APIFY_API_KEY").first()
+    if not setting:
+        setting = SystemSetting(key="APIFY_API_KEY", value=api_key)
+        db.add(setting)
+    else:
+        setting.value = api_key
+    
+    db.commit()
+    return {"message": "Apify API Key đã được lưu thành công"}
+
+
+@router.delete("/apify-key")
+def delete_apify_key(
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Delete Apify API Key from SystemSetting (admin only)"""
+    # NOTE: AdStudio / Apify - Only admin can delete
+    if not current_user or current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="FORBIDDEN")
+    
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "APIFY_API_KEY").first()
+    if not setting:
+        raise HTTPException(status_code=404, detail="Chưa có Apify API Key để xóa")
+    
+    db.delete(setting)
+    db.commit()
+    
+    return {"message": "Apify API Key đã được xóa thành công"}
+
+
+@router.post("/apify-key/check")
+def check_apify_key(
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Check if Apify API Key is valid (admin only)"""
+    # NOTE: AdStudio / Apify - Only admin can check
+    if not current_user or current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="FORBIDDEN")
+    
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "APIFY_API_KEY").first()
+    if not setting or not setting.value:
+        raise HTTPException(status_code=404, detail="Chưa có Apify API Key")
+    
+    # Test API key by calling Apify account endpoint
+    try:
+        import httpx
+        response = httpx.get(
+            "https://api.apify.com/v2/account",
+            params={"token": setting.value},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            return {"ok": True}
+        elif response.status_code == 401:
+            return {"ok": False, "error": "APIFY_INVALID"}
+        else:
+            return {"ok": False, "error": f"HTTP {response.status_code}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 # ==================== ACCOUNTS ENDPOINTS ====================
@@ -2326,40 +2435,41 @@ async def settings_page(
                 <div id="telegramTestResult" style="margin-top: 20px;"></div>
             </div>
             
-            <!-- Section 5: ScrapeGraphAI API Key -->
-            <div class="section">
+            <!-- Section 5: Apify API Key (Admin Only) -->
+            <!-- NOTE: AdStudio / Apify - Replaced ScrapeGraphAI with Apify Key (admin-only) -->
+            {'<div class="section" id="apifyKeySection" style="display: none;">' if True else ''}
                 <div class="section-title">
-                    <span class="icon">🔍</span>
-                    <span>ScrapeGraphAI API Key</span>
+                    <span class="icon">🔑</span>
+                    <span>Apify API Key (Admin Only)</span>
                 </div>
                 
-                <div id="scrapegraphaiStatus" class="token-status not-set">
+                <div id="apifyStatus" class="token-status not-set">
                     Đang kiểm tra trạng thái...
                 </div>
                 
-                <div id="scrapegraphaiInfo" style="display: none; margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div id="apifyInfo" style="display: none; margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <strong>API Key đã lưu:</strong>
-                            <span id="scrapegraphaiKeyMasked" style="font-family: monospace; color: #64748b; margin-left: 8px;"></span>
+                            <span id="apifyKeyMasked" style="font-family: monospace; color: #64748b; margin-left: 8px;"></span>
                         </div>
-                        <button class="btn btn-danger" onclick="deleteScrapeGraphAIKey()" style="padding: 6px 12px; font-size: 12px;">🗑️ Xóa API Key</button>
+                        <button class="btn btn-danger" onclick="deleteApifyKey()" style="padding: 6px 12px; font-size: 12px;">🗑️ Xóa API Key</button>
                     </div>
                 </div>
                 
                 <div class="form-group">
-                    <label>ScrapeGraphAI API Key *</label>
-                    <input type="password" id="scrapegraphaiApiKey" placeholder="Nhập API key từ dashboard.scrapegraphai.com" />
-                    <small style="color: #64748b; margin-top: 4px; display: block;">Lấy API key từ <a href="https://dashboard.scrapegraphai.com/" target="_blank" style="color: #667eea;">dashboard.scrapegraphai.com</a></small>
+                    <label>Apify API Key *</label>
+                    <input type="password" id="apifyApiKey" placeholder="Nhập Apify API key từ console.apify.com" />
+                    <small style="color: #64748b; margin-top: 4px; display: block;">Dùng để scrape video từ TikTok/Facebook cho Ad Studio. Lấy key từ <a href="https://console.apify.com/account/integrations" target="_blank" style="color: #667eea;">Apify Console</a></small>
                 </div>
                 
                 <div style="display: flex; gap: 12px;">
-                    <button class="btn btn-primary" onclick="saveScrapeGraphAIKey()">💾 Lưu API Key</button>
-                    <button class="btn btn-secondary" onclick="testScrapeGraphAIKey()">✅ Kiểm Tra</button>
+                    <button class="btn btn-primary" onclick="saveApifyKey()">💾 Lưu API Key</button>
+                    <button class="btn btn-secondary" onclick="testApifyKey()">✅ Kiểm Tra</button>
                 </div>
                 
-                <div id="scrapegraphaiTestResult" style="margin-top: 20px;"></div>
-            </div>
+                <div id="apifyTestResult" style="margin-top: 20px;"></div>
+            {'</div>' if True else ''}
         </div>
         
         <!-- Modal Add/Edit Account -->
@@ -3830,8 +3940,9 @@ async def settings_page(
                     loadTelegramStatus().catch(error => {{
                         console.error('❌ Error loading Telegram Bot status:', error);
                     }}),
-                    loadScrapeGraphAIStatus().catch(error => {{
-                        console.error('❌ Error loading ScrapeGraphAI status:', error);
+                    // NOTE: AdStudio / Apify - Load Apify status instead of ScrapeGraphAI (admin only)
+                    loadApifyStatus().catch(error => {{
+                        console.error('❌ Error loading Apify status:', error);
                     }})
                 ]);
                 console.log('✅ All data loaded');
@@ -4001,58 +4112,53 @@ async def settings_page(
                 }}
             }}
             
-            // ScrapeGraphAI Functions
-            async function loadScrapeGraphAIStatus() {{
+            // NOTE: AdStudio / Apify - Replaced ScrapeGraphAI with Apify functions (admin-only)
+            async function loadApifyStatus() {{
                 try {{
-                    const response = await fetch('/settings/scrapegraphai/status', {{
+                    const response = await fetch('/settings/apify-key', {{
                         headers: getAuthHeaders()
                     }});
                     
                     if (!response.ok) {{
-                        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                        // Not admin or error - hide section
+                        const section = document.getElementById('apifyKeySection');
+                        if (section) section.style.display = 'none';
+                        return;
                     }}
                     
                     const data = await response.json();
-                    const statusDiv = document.getElementById('scrapegraphaiStatus');
-                    const infoDiv = document.getElementById('scrapegraphaiInfo');
+                    const statusDiv = document.getElementById('apifyStatus');
+                    const infoDiv = document.getElementById('apifyInfo');
+                    const section = document.getElementById('apifyKeySection');
                     
+                    // Show section for admin
+                    if (section) section.style.display = 'block';
                     if (!statusDiv) return;
                     
-                    if (data.has_key) {{
-                        if (data.status === 'VALID') {{
-                            statusDiv.className = 'token-status valid';
-                            statusDiv.innerHTML = '✅ ' + data.message;
-                        }} else if (data.status === 'INVALID') {{
-                            statusDiv.className = 'token-status invalid';
-                            statusDiv.innerHTML = '❌ ' + data.message;
-                        }} else {{
-                            statusDiv.className = 'token-status not-set';
-                            statusDiv.innerHTML = '⚠️ ' + data.message;
-                        }}
+                    if (data.exists) {{
+                        statusDiv.className = 'token-status valid';
+                        statusDiv.innerHTML = '✅ API Key đã được cấu hình';
                         
                         if (infoDiv) {{
                             infoDiv.style.display = 'block';
-                            document.getElementById('scrapegraphaiKeyMasked').textContent = data.api_key_masked || '***';
+                            document.getElementById('apifyKeyMasked').textContent = data.maskedKey || '***';
                         }}
                     }} else {{
                         statusDiv.className = 'token-status not-set';
-                        statusDiv.innerHTML = '⚠️ ' + data.message;
+                        statusDiv.innerHTML = '⚠️ Chưa cấu hình Apify API Key';
                         if (infoDiv) {{
                             infoDiv.style.display = 'none';
                         }}
                     }}
                 }} catch (error) {{
-                    console.error('Error loading ScrapeGraphAI status:', error);
-                    const statusDiv = document.getElementById('scrapegraphaiStatus');
-                    if (statusDiv) {{
-                        statusDiv.className = 'token-status invalid';
-                        statusDiv.innerHTML = '❌ Lỗi khi tải trạng thái: ' + error.message;
-                    }}
+                    console.error('Error loading Apify status:', error);
+                    const section = document.getElementById('apifyKeySection');
+                    if (section) section.style.display = 'none';
                 }}
             }}
             
-            async function saveScrapeGraphAIKey() {{
-                const apiKey = document.getElementById('scrapegraphaiApiKey').value.trim();
+            async function saveApifyKey() {{
+                const apiKey = document.getElementById('apifyApiKey').value.trim();
                 
                 if (!apiKey) {{
                     showToast('Vui lòng nhập API Key', 'error');
@@ -4060,61 +4166,61 @@ async def settings_page(
                 }}
                 
                 try {{
-                    const response = await fetch('/settings/scrapegraphai/save', {{
+                    const response = await fetch('/settings/apify-key', {{
                         method: 'POST',
                         headers: {{
                             ...getAuthHeaders(),
                             'Content-Type': 'application/json'
                         }},
-                        body: JSON.stringify({{ api_key: apiKey }})
+                        body: JSON.stringify({{ apiKey: apiKey }})
                     }});
                     
                     const data = await response.json();
                     
                     if (response.ok) {{
-                        showToast('Đã lưu ScrapeGraphAI API Key thành công!');
-                        document.getElementById('scrapegraphaiApiKey').value = '';
-                        loadScrapeGraphAIStatus();
+                        showToast('Đã lưu Apify API Key thành công!');
+                        document.getElementById('apifyApiKey').value = '';
+                        loadApifyStatus();
                     }} else {{
                         showToast(data.message || data.detail || 'Lỗi khi lưu API Key', 'error');
                     }}
                 }} catch (error) {{
-                    console.error('Error saving ScrapeGraphAI API key:', error);
+                    console.error('Error saving Apify API key:', error);
                     showToast('Lỗi khi lưu API Key: ' + error.message, 'error');
                 }}
             }}
             
-            async function testScrapeGraphAIKey() {{
-                const resultDiv = document.getElementById('scrapegraphaiTestResult');
+            async function testApifyKey() {{
+                const resultDiv = document.getElementById('apifyTestResult');
                 resultDiv.innerHTML = '<div class="loading">Đang kiểm tra...</div>';
                 
                 try {{
-                    const response = await fetch('/settings/scrapegraphai/test', {{
+                    const response = await fetch('/settings/apify-key/check', {{
                         method: 'POST',
                         headers: getAuthHeaders()
                     }});
                     
                     const data = await response.json();
                     
-                    if (data.valid) {{
-                        resultDiv.innerHTML = '<div style="padding: 16px; background: #d1fae5; border-radius: 8px; border: 1px solid #10b981;"><strong>✅ ' + data.message + '</strong></div>';
-                        loadScrapeGraphAIStatus();
+                    if (data.ok) {{
+                        resultDiv.innerHTML = '<div style="padding: 16px; background: #d1fae5; border-radius: 8px; border: 1px solid #10b981;"><strong>✅ API Key hợp lệ</strong></div>';
+                        loadApifyStatus();
                     }} else {{
-                        resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ ' + data.message + '</strong></div>';
+                        resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ ' + (data.error || 'API Key không hợp lệ') + '</strong></div>';
                     }}
                 }} catch (error) {{
-                    console.error('Error testing ScrapeGraphAI API key:', error);
+                    console.error('Error testing Apify API key:', error);
                     resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ Lỗi khi kiểm tra: ' + error.message + '</strong></div>';
                 }}
             }}
             
-            async function deleteScrapeGraphAIKey() {{
-                if (!confirm('Bạn có chắc muốn xóa ScrapeGraphAI API Key?')) {{
+            async function deleteApifyKey() {{
+                if (!confirm('Bạn có chắc muốn xóa Apify API Key?')) {{
                     return;
                 }}
                 
                 try {{
-                    const response = await fetch('/settings/scrapegraphai/delete', {{
+                    const response = await fetch('/settings/apify-key', {{
                         method: 'DELETE',
                         headers: getAuthHeaders()
                     }});
@@ -4122,13 +4228,13 @@ async def settings_page(
                     const data = await response.json();
                     
                     if (response.ok) {{
-                        showToast('Đã xóa ScrapeGraphAI API Key thành công!');
-                        loadScrapeGraphAIStatus();
+                        showToast('Đã xóa Apify API Key thành công!');
+                        loadApifyStatus();
                     }} else {{
                         showToast(data.message || data.detail || 'Lỗi khi xóa API Key', 'error');
                     }}
                 }} catch (error) {{
-                    console.error('Error deleting ScrapeGraphAI API key:', error);
+                    console.error('Error deleting Apify API key:', error);
                     showToast('Lỗi khi xóa API Key: ' + error.message, 'error');
                 }}
             }}

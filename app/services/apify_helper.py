@@ -18,7 +18,7 @@ from app.core.database import SystemSetting
 def get_apify_api_key(db: Session) -> str:
     """
     Lấy Apify API key theo thứ tự ưu tiên:
-    1. Database (SystemSetting.key = 'apify_api_key')
+    1. Database (SystemSetting.key = 'APIFY_API_KEY')
     2. Environment variable (APIFY_DEFAULT_KEY)
     
     Args:
@@ -30,10 +30,10 @@ def get_apify_api_key(db: Session) -> str:
     Raises:
         HTTPException: Nếu không tìm thấy key ở cả DB và .env
     """
-    # Priority 1: Database
+    # Priority 1: Database - NOTE: AdStudio / Apify - Use uppercase key name
     setting = (
         db.query(SystemSetting)
-        .filter(SystemSetting.key == "apify_api_key")
+        .filter(SystemSetting.key == "APIFY_API_KEY")
         .first()
     )
 
