@@ -652,14 +652,19 @@ async def check_apify_key(
             "message": "Chưa có Apify API Key được cấu hình. Vui lòng lưu key trước."
         }
     
+    api_key = setting.value.strip()
+    
     # Test API key by calling Apify account endpoint
+    # NOTE: AdStudio / Apify - Use proper URL format as per Apify docs
     try:
         import httpx
+        # Apify API requires token in query string, not header
+        url = f"https://api.apify.com/v2/account?token={api_key}"
+        
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                "https://api.apify.com/v2/account",
-                params={"token": setting.value}
-            )
+            response = await client.get(url)
+        
+        logger.info(f"Apify check response: status={response.status_code}, body={response.text[:200]}")
         
         if response.status_code == 200:
             return {
@@ -673,6 +678,14 @@ async def check_apify_key(
                 "httpStatus": response.status_code,
                 "errorCode": "INVALID_KEY",
                 "message": "API Key không hợp lệ hoặc không có quyền truy cập."
+            }
+        elif response.status_code == 404:
+            # NOTE: 404 from Apify usually means invalid token format or endpoint
+            return {
+                "ok": False,
+                "httpStatus": response.status_code,
+                "errorCode": "INVALID_TOKEN_FORMAT",
+                "message": "API Key có định dạng không hợp lệ. Vui lòng kiểm tra lại key từ Apify Console."
             }
         else:
             return {
@@ -689,6 +702,7 @@ async def check_apify_key(
             "message": "Timeout khi kết nối tới Apify. Vui lòng thử lại."
         }
     except Exception as e:
+        logger.error(f"Error checking Apify key: {e}", exc_info=True)
         return {
             "ok": False,
             "httpStatus": 0,
