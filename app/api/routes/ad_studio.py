@@ -134,20 +134,25 @@ def _map_tiktok_item_to_asset(
     """
     Map một item từ dataset TikTok của Apify sang schema Asset mà frontend expect.
     
-    NOTE: AdStudio - Updated mapping based on actual clockworks/free-tiktok-scraper output
+    NOTE: AdStudio - Updated mapping for clockworks/free-tiktok-scraper (TikTok Data Extractor)
     
-    Dataset structure từ actor:
+    Actual dataset structure từ actor:
     {
-      "id": "7497226199786081554",
-      "text": "caption gốc ...",
-      "webVideoUrl": "https://www.tiktok.com/@user/video/7497...",
-      "video": {
-        "downloadUrl": "https://v16m-...mp4",
-        "cover": "https://p16-...jpeg",
-        "dynamicCover": "...",
-        "ratio": "720p",
-        ...
+      "id": "7536470562428800263",
+      "text": "caption...",
+      "webVideoUrl": "https://www.tiktok.com/@user/video/...",
+      "submittedVideoUrl": "https://www.tiktok.com/@user/video/...",
+      "mediaUrls": [],  # Empty - actor không download video
+      "videoMeta": {
+        "height": 1024,
+        "width": 576,
+        "duration": 12,
+        "coverUrl": "https://...image",
+        "originalCoverUrl": "https://...image",
+        "definition": "540p",
+        "format": "mp4"
       },
+      "hashtags": [{"id": "...", "name": "muitrunghoa", ...}, ...],
       "authorMeta": {...}
     }
     
@@ -159,30 +164,31 @@ def _map_tiktok_item_to_asset(
     Returns:
         Asset: Object Asset theo format frontend
     """
-    # NOTE: AdStudio - Extract video URLs theo format thực tế của actor
-    video_obj = item.get("video") or {}
+    # NOTE: AdStudio - Extract theo format thực tế của TikTok Data Extractor
+    video_meta = item.get("videoMeta") or {}
     
-    # Ưu tiên downloadUrl (no watermark), fallback về webVideoUrl
-    video_url = video_obj.get("downloadUrl") or item.get("webVideoUrl") or ""
+    # Video URL: Actor này không cung cấp direct mp4 link, chỉ có TikTok link
+    # Ưu tiên submittedVideoUrl (URL user paste), fallback webVideoUrl
+    video_url = item.get("submittedVideoUrl") or item.get("webVideoUrl") or source_url
     
-    # Thumbnail: ưu tiên cover, fallback dynamicCover
-    thumbnail_url = video_obj.get("cover") or video_obj.get("dynamicCover") or ""
+    # Thumbnail: lấy từ videoMeta
+    thumbnail_url = video_meta.get("coverUrl") or video_meta.get("originalCoverUrl") or ""
     
     # Caption
     caption = item.get("text") or ""
     
-    # Duration (nếu có)
-    duration = video_obj.get("duration") or 0
+    # Duration (seconds)
+    duration = video_meta.get("duration") or 0
     
-    # Hashtags (nếu có)
-    # NOTE: Actor có thể trả về hashtags dưới dạng array hoặc string
+    # Hashtags: parse từ array of objects
+    # NOTE: AdStudio - Actor trả về array of {id, name, title, cover}
     hashtags_data = item.get("hashtags") or []
     hashtags = []
     
     if isinstance(hashtags_data, list):
         for tag in hashtags_data:
-            if isinstance(tag, dict):
-                hashtags.append(tag.get("name", ""))
+            if isinstance(tag, dict) and tag.get("name"):
+                hashtags.append(tag["name"])
             elif isinstance(tag, str):
                 hashtags.append(tag)
     
@@ -317,6 +323,19 @@ def scrape_tiktok(
         note=body.note
     )
     
+    # NOTE: AdStudio - Validate asset có đủ dữ liệu để preview
+    if not asset.thumbnailUrl or not asset.videoUrl:
+        logger.error(
+            f"Invalid Apify payload - missing required fields. "
+            f"thumbnailUrl: {asset.thumbnailUrl}, videoUrl: {asset.videoUrl}, "
+            f"item keys: {list(item.keys())}, "
+            f"videoMeta: {item.get('videoMeta', {})}"
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="APIFY_SCRAPE_PAYLOAD_INVALID"
+        )
+    
     # 5. Lưu vào database
     try:
         db_asset = AdStudioAsset(
@@ -334,7 +353,7 @@ def scrape_tiktok(
         db.add(db_asset)
         db.commit()
         db.refresh(db_asset)
-        logger.info(f"Saved asset to DB: {asset.id}")
+        logger.info(f"Saved asset to DB: {asset.id}, videoUrl: {asset.videoUrl[:50]}, thumbnailUrl: {asset.thumbnailUrl[:50]}")
     except Exception as e:
         db.rollback()
         logger.error(f"Error saving asset to DB: {str(e)}", exc_info=True)
