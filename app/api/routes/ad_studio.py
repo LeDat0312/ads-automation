@@ -132,11 +132,22 @@ def _map_tiktok_item_to_asset(
     """
     Map một item từ dataset TikTok của Apify sang schema Asset mà frontend expect.
     
-    Dựa trên JSON structure của TikTok Data Extractor actor:
-    - text: Caption
-    - mediaUrls[0]: Video URL
-    - videoMeta.coverUrl: Thumbnail URL
-    - videoMeta.duration: Duration in seconds
+    NOTE: AdStudio - Updated mapping based on actual clockworks/free-tiktok-scraper output
+    
+    Dataset structure từ actor:
+    {
+      "id": "7497226199786081554",
+      "text": "caption gốc ...",
+      "webVideoUrl": "https://www.tiktok.com/@user/video/7497...",
+      "video": {
+        "downloadUrl": "https://v16m-...mp4",
+        "cover": "https://p16-...jpeg",
+        "dynamicCover": "...",
+        "ratio": "720p",
+        ...
+      },
+      "authorMeta": {...}
+    }
     
     Args:
         item: TikTok item từ Apify dataset
@@ -146,21 +157,32 @@ def _map_tiktok_item_to_asset(
     Returns:
         Asset: Object Asset theo format frontend
     """
-    # Extract video URL
-    media_urls: List[str] = item.get("mediaUrls") or []
-    video_url = media_urls[0] if media_urls else ""
+    # NOTE: AdStudio - Extract video URLs theo format thực tế của actor
+    video_obj = item.get("video") or {}
     
-    # Extract video metadata
-    video_meta = item.get("videoMeta") or {}
-    thumbnail_url = video_meta.get("coverUrl") or ""
-    duration = video_meta.get("duration") or 0
+    # Ưu tiên downloadUrl (no watermark), fallback về webVideoUrl
+    video_url = video_obj.get("downloadUrl") or item.get("webVideoUrl") or ""
     
-    # Extract caption/text
+    # Thumbnail: ưu tiên cover, fallback dynamicCover
+    thumbnail_url = video_obj.get("cover") or video_obj.get("dynamicCover") or ""
+    
+    # Caption
     caption = item.get("text") or ""
     
-    # Extract hashtags (nếu có)
+    # Duration (nếu có)
+    duration = video_obj.get("duration") or 0
+    
+    # Hashtags (nếu có)
+    # NOTE: Actor có thể trả về hashtags dưới dạng array hoặc string
     hashtags_data = item.get("hashtags") or []
-    hashtags = [tag.get("name", "") for tag in hashtags_data if isinstance(tag, dict)]
+    hashtags = []
+    
+    if isinstance(hashtags_data, list):
+        for tag in hashtags_data:
+            if isinstance(tag, dict):
+                hashtags.append(tag.get("name", ""))
+            elif isinstance(tag, str):
+                hashtags.append(tag)
     
     return Asset(
         id=str(uuid4()),
@@ -170,7 +192,7 @@ def _map_tiktok_item_to_asset(
         thumbnailUrl=thumbnail_url,
         captionOriginal=caption,
         note=note,
-        duration=duration,
+        duration=duration if duration else None,
         hashtags=hashtags if hashtags else None,
     )
 
@@ -182,12 +204,16 @@ def scrape_tiktok(
 ):
     """
     Lấy video + caption từ TikTok qua Apify actor.
-    NOTE: AdStudio - Updated error handling
+    NOTE: AdStudio - Use run-sync-get-dataset-items for immediate results
     
     QUAN TRỌNG - BẢO MẬT:
     - Apify API key được lấy từ DB (admin cấu hình tại /settings)
     - Nếu DB không có → fallback sang biến môi trường APIFY_DEFAULT_KEY
     - Frontend KHÔNG BAO GIỜ biết hoặc lưu trữ Apify API key
+    
+    Apify Actor: clockworks/free-tiktok-scraper
+    Endpoint: POST /v2/acts/{actorId}/run-sync-get-dataset-items
+    Input format: {"postURLs": ["https://tiktok.com/..."], "shouldDownloadVideos": false, ...}
     
     Args:
         body: ScrapeRequest chứa URL TikTok và note (optional)
@@ -211,60 +237,75 @@ def scrape_tiktok(
         # Re-raise với detail APIFY_KEY_MISSING
         raise e
     
-    # 2. Start actor run trên Apify
-    start_run_url = f"{APIFY_BASE}/acts/{TIKTOK_ACTOR_ID}/runs?token={apify_key}"
+    # 2. Call Apify synchronously and get dataset items immediately
+    # NOTE: AdStudio - Use run-sync-get-dataset-items endpoint (không cần /runs rồi fetch dataset)
+    sync_url = f"{APIFY_BASE}/acts/{TIKTOK_ACTOR_ID}/run-sync-get-dataset-items?token={apify_key}"
     
-    # Input cho TikTok actor - tuỳ actor có thể khác
+    # Input theo OpenAPI schema của clockworks/free-tiktok-scraper
+    # Key field: postURLs (array of strings) - NOT directUrls
     run_input: Dict[str, Any] = {
-        "directUrls": [str(body.url)],
-        "resultsPerPage": 1,
-        "shouldDownloadVideos": True,
-        "shouldDownloadCovers": True,
+        "postURLs": [str(body.url)],
+        "shouldDownloadVideos": False,  # Không cần download, chỉ lấy metadata + link
+        "shouldDownloadCovers": False,  # Không cần download thumbnail
+        "shouldDownloadSubtitles": False,
     }
     
+    logger.info(f"Calling Apify TikTok scraper for URL: {body.url}")
+    
     try:
-        r = requests.post(start_run_url, json=run_input, timeout=120)
+        # NOTE: AdStudio - Timeout 180s cho sync call (actor cần thời gian scrape)
+        r = requests.post(sync_url, json=run_input, timeout=180)
+        
+        # Log response để debug
+        logger.info(f"Apify response status: {r.status_code}")
+        
+        if r.status_code != 200:
+            logger.error(f"Apify error response: {r.text[:500]}")
+            raise HTTPException(
+                status_code=502,
+                detail="APIFY_SCRAPE_FAILED"
+            )
+        
         r.raise_for_status()
+        
+    except requests.exceptions.Timeout:
+        logger.error("Apify TikTok scrape timeout after 180s")
+        raise HTTPException(
+            status_code=504,
+            detail="APIFY_SCRAPE_TIMEOUT"
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Apify TikTok scrape network error: {str(e)}")
+        raise HTTPException(
+            status_code=502,
+            detail="APIFY_SCRAPE_FAILED"
+        )
     except Exception as e:
-        logger.error(f"Apify TikTok scrape error: {str(e)}")
+        logger.error(f"Apify TikTok scrape unexpected error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=502,
             detail="APIFY_SCRAPE_FAILED"
         )
     
-    run_data = r.json().get("data") or {}
-    dataset_id = run_data.get("defaultDatasetId")
-    
-    if not dataset_id:
-        logger.error("No dataset ID from Apify TikTok actor")
-        raise HTTPException(
-            status_code=502,
-            detail="APIFY_SCRAPE_FAILED"
-        )
-    
-    # 3. Lấy dataset items
-    dataset_url = f"{APIFY_BASE}/datasets/{dataset_id}/items?token={apify_key}"
-    
+    # 3. Parse dataset items từ response body (run-sync-get-dataset-items trả về trực tiếp array)
     try:
-        d = requests.get(dataset_url, timeout=120)
-        d.raise_for_status()
+        items: List[Dict[str, Any]] = r.json()
     except Exception as e:
-        logger.error(f"Apify dataset fetch error: {str(e)}")
+        logger.error(f"Failed to parse Apify response JSON: {str(e)}, body: {r.text[:500]}")
         raise HTTPException(
             status_code=502,
             detail="APIFY_SCRAPE_FAILED"
         )
     
-    items: List[Dict[str, Any]] = d.json()
-    
-    if not items:
-        logger.error("Empty dataset from Apify TikTok")
+    if not items or len(items) == 0:
+        logger.error(f"Empty dataset from Apify for URL: {body.url}")
         raise HTTPException(
             status_code=502,
             detail="APIFY_SCRAPE_FAILED"
         )
     
     item = items[0]
+    logger.info(f"Successfully scraped TikTok video, item keys: {list(item.keys())}")
     
     # 4. Map sang schema Asset mà frontend expect
     asset = _map_tiktok_item_to_asset(
@@ -290,8 +331,10 @@ def scrape_tiktok(
         db.add(db_asset)
         db.commit()
         db.refresh(db_asset)
+        logger.info(f"Saved asset to DB: {asset.id}")
     except Exception as e:
         db.rollback()
+        logger.error(f"Error saving asset to DB: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Lỗi lưu asset vào database: {str(e)}"
