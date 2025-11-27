@@ -633,7 +633,7 @@ def delete_apify_key(
 
 
 @router.post("/apify-key/check")
-def check_apify_key(
+async def check_apify_key(
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
@@ -644,25 +644,57 @@ def check_apify_key(
     
     setting = db.query(SystemSetting).filter(SystemSetting.key == "APIFY_API_KEY").first()
     if not setting or not setting.value:
-        raise HTTPException(status_code=404, detail="Chưa có Apify API Key")
+        # NOTE: AdStudio / Apify - Return friendly error instead of raising 404
+        return {
+            "ok": False,
+            "httpStatus": 404,
+            "errorCode": "KEY_NOT_FOUND",
+            "message": "Chưa có Apify API Key được cấu hình. Vui lòng lưu key trước."
+        }
     
     # Test API key by calling Apify account endpoint
     try:
         import httpx
-        response = httpx.get(
-            "https://api.apify.com/v2/account",
-            params={"token": setting.value},
-            timeout=10
-        )
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                "https://api.apify.com/v2/account",
+                params={"token": setting.value}
+            )
         
         if response.status_code == 200:
-            return {"ok": True}
-        elif response.status_code == 401:
-            return {"ok": False, "error": "APIFY_INVALID"}
+            return {
+                "ok": True,
+                "httpStatus": 200,
+                "message": "API Key hợp lệ và có thể sử dụng."
+            }
+        elif response.status_code in (401, 403):
+            return {
+                "ok": False,
+                "httpStatus": response.status_code,
+                "errorCode": "INVALID_KEY",
+                "message": "API Key không hợp lệ hoặc không có quyền truy cập."
+            }
         else:
-            return {"ok": False, "error": f"HTTP {response.status_code}"}
+            return {
+                "ok": False,
+                "httpStatus": response.status_code,
+                "errorCode": f"APIFY_ERROR_{response.status_code}",
+                "message": f"Apify API trả về lỗi HTTP {response.status_code}"
+            }
+    except httpx.TimeoutException:
+        return {
+            "ok": False,
+            "httpStatus": 0,
+            "errorCode": "TIMEOUT",
+            "message": "Timeout khi kết nối tới Apify. Vui lòng thử lại."
+        }
     except Exception as e:
-        return {"ok": False, "error": str(e)}
+        return {
+            "ok": False,
+            "httpStatus": 0,
+            "errorCode": "NETWORK_ERROR",
+            "message": f"Lỗi kết nối: {str(e)}"
+        }
 
 
 # ==================== ACCOUNTS ENDPOINTS ====================
@@ -4200,17 +4232,25 @@ async def settings_page(
                         headers: getAuthHeaders()
                     }});
                     
+                    // NOTE: AdStudio / Apify - Handle both success and error responses properly
+                    if (!response.ok) {{
+                        // HTTP error (403, 500, etc.)
+                        const text = await response.text();
+                        resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ Lỗi HTTP ' + response.status + ':</strong> ' + text + '</div>';
+                        return;
+                    }}
+                    
                     const data = await response.json();
                     
                     if (data.ok) {{
-                        resultDiv.innerHTML = '<div style="padding: 16px; background: #d1fae5; border-radius: 8px; border: 1px solid #10b981;"><strong>✅ API Key hợp lệ</strong></div>';
+                        resultDiv.innerHTML = '<div style="padding: 16px; background: #d1fae5; border-radius: 8px; border: 1px solid #10b981;"><strong>✅ ' + (data.message || 'API Key hợp lệ') + '</strong></div>';
                         loadApifyStatus();
                     }} else {{
-                        resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ ' + (data.error || 'API Key không hợp lệ') + '</strong></div>';
+                        resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ ' + (data.message || data.errorCode || 'API Key không hợp lệ') + '</strong></div>';
                     }}
                 }} catch (error) {{
                     console.error('Error testing Apify API key:', error);
-                    resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ Lỗi khi kiểm tra: ' + error.message + '</strong></div>';
+                    resultDiv.innerHTML = '<div style="padding: 16px; background: #fee2e2; border-radius: 8px; border: 1px solid #ef4444;"><strong>❌ Không thể kết nối máy chủ để kiểm tra</strong></div>';
                 }}
             }}
             
