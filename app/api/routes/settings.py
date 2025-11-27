@@ -33,6 +33,33 @@ import re
 router = APIRouter(prefix="/settings", tags=["settings"])
 logger = logging.getLogger(__name__)
 
+# NOTE: AdStudio / Apify - Validation helper for Apify API key format
+APIFY_KEY_PREFIX = "apify_api_"
+
+def is_valid_apify_key_format(value: str) -> bool:
+    """
+    Validate Apify API key format (for format check only, not authentication)
+    Expected format: apify_api_[A-Za-z0-9]{20,}
+    
+    Args:
+        value: API key string to validate
+        
+    Returns:
+        bool: True if format is valid, False otherwise
+    """
+    if not value or not isinstance(value, str):
+        return False
+    
+    # Must start with prefix
+    if not value.startswith(APIFY_KEY_PREFIX):
+        return False
+    
+    # Extract suffix after prefix
+    suffix = value[len(APIFY_KEY_PREFIX):]
+    
+    # Suffix must be at least 20 alphanumeric characters
+    return len(suffix) >= 20 and suffix.isalnum()
+
 # In-memory storage for sync progress (per user)
 # Format: {user_id: {"status": "running"|"completed"|"error", "progress": 0-100, "current": 0, "total": 0, "message": ""}}
 sync_progress: Dict[int, Dict[str, Any]] = {}
@@ -654,15 +681,25 @@ async def check_apify_key(
     
     api_key = setting.value.strip()
     
-    # Test API key by calling Apify account endpoint
-    # NOTE: AdStudio / Apify - Use proper URL format as per Apify docs
+    # NOTE: AdStudio / Apify - Validate format BEFORE calling API
+    if not is_valid_apify_key_format(api_key):
+        return {
+            "ok": False,
+            "httpStatus": 400,
+            "errorCode": "INVALID_FORMAT",
+            "message": "API Key có định dạng không hợp lệ. Định dạng đúng: apify_api_[chuỗi ký tự chữ số]. Vui lòng kiểm tra lại key từ Apify Console."
+        }
+    
+    # Test API key by calling Apify TikTok actor endpoint
+    # NOTE: AdStudio / Apify - Use actor endpoint instead of /v2/account (which requires header auth)
     try:
         import httpx
-        # Apify API requires token in query string, not header
-        url = f"https://api.apify.com/v2/account?token={api_key}"
+        # Get TikTok actor info - if key is valid, this returns 200
+        actor_id = "clockworks~free-tiktok-scraper"
+        url = f"https://api.apify.com/v2/acts/{actor_id}"
         
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(url)
+            response = await client.get(url, params={"token": api_key})
         
         logger.info(f"Apify check response: status={response.status_code}, body={response.text[:200]}")
         
@@ -670,22 +707,22 @@ async def check_apify_key(
             return {
                 "ok": True,
                 "httpStatus": 200,
-                "message": "API Key hợp lệ và có thể sử dụng."
+                "message": "API Key hợp lệ và có thể sử dụng cho Ad Studio (TikTok scraper)."
             }
         elif response.status_code in (401, 403):
             return {
                 "ok": False,
                 "httpStatus": response.status_code,
-                "errorCode": "INVALID_KEY",
-                "message": "API Key không hợp lệ hoặc không có quyền truy cập."
+                "errorCode": "INVALID_OR_UNAUTHORIZED",
+                "message": "API Key không hợp lệ hoặc không có quyền truy cập actor TikTok. Vui lòng kiểm tra lại key từ Apify Console."
             }
         elif response.status_code == 404:
-            # NOTE: 404 from Apify usually means invalid token format or endpoint
+            # NOTE: 404 could mean actor not found or token invalid
             return {
                 "ok": False,
                 "httpStatus": response.status_code,
-                "errorCode": "INVALID_TOKEN_FORMAT",
-                "message": "API Key có định dạng không hợp lệ. Vui lòng kiểm tra lại key từ Apify Console."
+                "errorCode": "ACTOR_NOT_FOUND_OR_INVALID_TOKEN",
+                "message": "Không tìm thấy actor TikTok hoặc token không hợp lệ. Vui lòng kiểm tra lại."
             }
         else:
             return {
