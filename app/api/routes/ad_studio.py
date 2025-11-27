@@ -259,7 +259,8 @@ def scrape_tiktok(
         # Log response để debug
         logger.info(f"Apify response status: {r.status_code}")
         
-        if r.status_code != 200:
+        # NOTE: AdStudio - Apify trả về 200 hoặc 201 (Created) cho run-sync-get-dataset-items
+        if r.status_code not in (200, 201):
             logger.error(f"Apify error response: {r.text[:500]}")
             raise HTTPException(
                 status_code=502,
