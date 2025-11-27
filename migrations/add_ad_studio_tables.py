@@ -22,33 +22,22 @@ from app.models.ad_studio import AdStudioAsset, AdStudioScheduledPost
 from app.core.database import SystemSetting
 
 
-def get_engine():
-    """
-    Lấy engine từ SessionLocal để tránh lỗi engine = None
-    
-    Returns:
-        Engine object từ database connection
-    """
-    db = SessionLocal()
-    try:
-        bind = db.get_bind()
-        if bind is None:
-            raise RuntimeError("SessionLocal không có bind engine. Vui lòng kiểm tra DATABASE_URL trong .env")
-        return bind
-    finally:
-        db.close()
-
-
 def run_migration():
     """Run migration to create AdStudio tables"""
     print("🚀 Starting AdStudio migration...")
     
-    # Initialize database connection
+    # Initialize database connection FIRST
     init_db()
     
-    # Get engine từ SessionLocal
+    # Get engine từ SessionLocal (sau khi init_db đã tạo SessionLocal)
     print("🔧 Getting database engine...")
-    engine = get_engine()
+    db = SessionLocal()
+    try:
+        engine = db.get_bind()
+        if engine is None:
+            raise RuntimeError("SessionLocal không có bind engine. Vui lòng kiểm tra DATABASE_URL trong .env")
+    finally:
+        db.close()
     
     # Create tables
     print("📦 Creating AdStudio tables...")
