@@ -37,6 +37,20 @@ static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# NOTE: AdStudio - Mount media directory for serving downloaded videos/thumbnails
+# This serves files from MEDIA_ROOT at /media/ URL path
+from app.core.config import get_settings as get_settings_for_media
+media_settings = get_settings_for_media()
+media_root = media_settings.MEDIA_ROOT
+if os.path.exists(media_root):
+    app.mount("/media", StaticFiles(directory=media_root), name="media")
+    logger.info(f"✅ Media directory mounted at /media (serving from {media_root})")
+else:
+    # Create media directory if it doesn't exist
+    os.makedirs(media_root, exist_ok=True)
+    app.mount("/media", StaticFiles(directory=media_root), name="media")
+    logger.info(f"✅ Media directory created and mounted at /media ({media_root})")
+
 # Include routes - Auth và Home phải được include trước
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(home.router)  # Home page - phải include trước để handle "/"

@@ -11,16 +11,20 @@ Endpoints cho hệ thống quản lý nội dung quảng cáo (AdStudio):
 
 import os
 import random
+import logging
 from datetime import datetime, timedelta
 from uuid import uuid4
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
 
 import requests
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.config import get_settings
 from app.models.ad_studio import AdStudioAsset, AdStudioScheduledPost
 from app.models.user import User
 from app.schemas.ad_studio import ScrapeRequest, Asset, SchedulePayload, ScheduleResponse
@@ -31,6 +35,83 @@ from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_messa
 # NOTE: added for AdStudio only
 router = APIRouter(tags=["ad-studio"])
 api_router = APIRouter(prefix="/api", tags=["ad-studio"])
+logger = logging.getLogger(__name__)
+settings = get_settings()
+
+
+# ==================== HELPER FUNCTIONS ====================
+
+async def download_media_to_local(
+    url: str,
+    dest_filename: str,
+    subfolder: str = "ad_studio"
+) -> Tuple[str, int, str]:
+    """
+    Download media from URL and save to local storage.
+    
+    NOTE: AdStudio - Download video/thumbnail from Apify KV store to local disk
+    
+    Args:
+        url: Source URL (Apify KV store URL)
+        dest_filename: Target filename (e.g., "asset_id.mp4")
+        subfolder: Subfolder under MEDIA_ROOT (default: "ad_studio")
+        
+    Returns:
+        Tuple of (relative_path, size_bytes, mime_type)
+        
+    Raises:
+        HTTPException: If download fails
+    """
+    # Create destination directory
+    media_root = Path(settings.MEDIA_ROOT)
+    dest_dir = media_root / subfolder
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    
+    dest_path = dest_dir / dest_filename
+    
+    logger.info(f"Downloading {url[:80]}... to {dest_path}")
+    
+    try:
+        async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            
+            # Write to disk
+            dest_path.write_bytes(response.content)
+            
+            size_bytes = len(response.content)
+            mime_type = response.headers.get("Content-Type", "application/octet-stream")
+            
+            logger.info(
+                f"Downloaded {size_bytes} bytes ({size_bytes / 1024 / 1024:.2f} MB), "
+                f"mime: {mime_type}"
+            )
+            
+            # Return relative path (for DB storage)
+            relative_path = str(dest_path.relative_to(Path.cwd()))
+            return relative_path, size_bytes, mime_type
+            
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error downloading {url}: {e.response.status_code}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"MEDIA_DOWNLOAD_FAILED: HTTP {e.response.status_code}"
+        )
+    except httpx.TimeoutException:
+        logger.error(f"Timeout downloading {url}")
+        raise HTTPException(
+            status_code=504,
+            detail="MEDIA_DOWNLOAD_TIMEOUT"
+        )
+    except Exception as e:
+        logger.error(f"Failed to download {url}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"MEDIA_DOWNLOAD_FAILED: {str(e)}"
+        )
+
+
+# ==================== ROUTES ====================
 
 @router.get("/ad-studio", response_class=HTMLResponse)
 async def ad_studio_page(
@@ -217,12 +298,12 @@ def _map_tiktok_item_to_asset(
 
 
 @api_router.post("/tiktok/scrape", response_model=Asset)
-def scrape_tiktok(
+async def scrape_tiktok(
     body: ScrapeRequest,
     db: Session = Depends(get_db),
 ):
     """
-    Lấy video + caption từ TikTok qua Apify actor.
+    Lấy video + caption từ TikTok qua Apify actor + Download về local storage.
     NOTE: AdStudio - Use run-sync-get-dataset-items for immediate results
     
     QUAN TRỌNG - BẢO MẬT:
@@ -230,25 +311,27 @@ def scrape_tiktok(
     - Nếu DB không có → fallback sang biến môi trường APIFY_DEFAULT_KEY
     - Frontend KHÔNG BAO GIỜ biết hoặc lưu trữ Apify API key
     
+    QUAN TRỌNG - LOCAL STORAGE:
+    - Sau khi scrape, video + thumbnail được download về server
+    - Lưu vào MEDIA_ROOT/ad_studio/{asset_id}.mp4 và {asset_id}.jpg
+    - Return URL local cho frontend (/media/ad_studio/{asset_id}.mp4)
+    - Giữ Apify URL làm fallback trong DB
+    
     Apify Actor: clockworks/free-tiktok-scraper
     Endpoint: POST /v2/acts/{actorId}/run-sync-get-dataset-items
-    Input format: {"postURLs": ["https://tiktok.com/..."], "shouldDownloadVideos": false, ...}
+    Input format: {"postURLs": ["https://tiktok.com/..."], "shouldDownloadVideos": true, ...}
     
     Args:
         body: ScrapeRequest chứa URL TikTok và note (optional)
         db: Database session
         
     Returns:
-        Asset: Object chứa video URL, thumbnail, caption, etc.
+        Asset: Object chứa LOCAL video URL, thumbnail, caption, etc.
         
     Raises:
         HTTPException 400: Nếu thiếu Apify key (APIFY_KEY_MISSING)
         HTTPException 502: Nếu lỗi khi gọi Apify (APIFY_SCRAPE_FAILED)
     """
-    # NOTE: AdStudio
-    import logging
-    logger = logging.getLogger(__name__)
-    
     # 1. Lấy Apify API key (DB first → .env fallback)
     try:
         apify_key = get_apify_api_key(db)
@@ -351,21 +434,70 @@ def scrape_tiktok(
     if not asset.thumbnailUrl:
         logger.warning(f"Asset missing thumbnail, will use placeholder. videoMeta: {item.get('videoMeta', {})}")
     
-    # Log thông tin để debug
+    # Log thông tin trước khi download
     logger.info(
-        f"Asset created - videoUrl: {asset.videoUrl[:80] if asset.videoUrl else 'None'}, "
+        f"Asset mapped from Apify - videoUrl: {asset.videoUrl[:80] if asset.videoUrl else 'None'}, "
         f"thumbnailUrl: {asset.thumbnailUrl[:80] if asset.thumbnailUrl else 'None'}, "
         f"duration: {asset.duration}s, hashtags: {len(asset.hashtags or [])}"
     )
     
-    # 5. Lưu vào database
+    # 5. Download video + thumbnail to local storage
+    # NOTE: AdStudio - NEW: Download files locally instead of relying on Apify KV store
+    apify_video_url = asset.videoUrl  # Save original Apify URL
+    apify_thumb_url = asset.thumbnailUrl
+    
+    local_video_path = None
+    local_thumb_path = None
+    video_size_bytes = None
+    video_mime_type = None
+    
+    try:
+        # Generate unique filenames
+        video_filename = f"{asset.id}.mp4"
+        thumb_filename = f"{asset.id}.jpg"
+        
+        # Download video
+        logger.info(f"Downloading video from Apify KV store...")
+        local_video_path, video_size_bytes, video_mime_type = await download_media_to_local(
+            apify_video_url,
+            video_filename,
+            subfolder="ad_studio"
+        )
+        
+        # Download thumbnail
+        logger.info(f"Downloading thumbnail from Apify KV store...")
+        local_thumb_path, _, _ = await download_media_to_local(
+            apify_thumb_url,
+            thumb_filename,
+            subfolder="ad_studio"
+        )
+        
+        logger.info(
+            f"Media downloaded successfully - "
+            f"video: {local_video_path} ({video_size_bytes / 1024 / 1024:.2f} MB), "
+            f"thumbnail: {local_thumb_path}"
+        )
+        
+    except HTTPException as e:
+        # If download fails, fallback to Apify URLs (không crash)
+        logger.warning(f"Failed to download media, will use Apify URLs as fallback: {e.detail}")
+        local_video_path = None
+        local_thumb_path = None
+        video_size_bytes = None
+        video_mime_type = None
+    
+    # 6. Lưu vào database
     try:
         db_asset = AdStudioAsset(
             id=asset.id,
             platform=asset.platform,
             source_url=asset.sourceUrl,
-            video_url=asset.videoUrl,
-            thumbnail_url=asset.thumbnailUrl,
+            video_url=apify_video_url,              # Keep Apify URL as fallback
+            thumbnail_url=apify_thumb_url,
+            local_video_path=local_video_path,      # NEW
+            local_thumbnail_path=local_thumb_path,  # NEW
+            video_size_bytes=video_size_bytes,      # NEW
+            video_mime_type=video_mime_type,        # NEW
             caption_original=asset.captionOriginal,
             note=asset.note,
             duration=asset.duration,
@@ -376,20 +508,32 @@ def scrape_tiktok(
         db.commit()
         db.refresh(db_asset)
         
-        # NOTE: AdStudio - Log full URLs from DB to verify no truncation
+        # NOTE: AdStudio - Log full paths to verify storage
         logger.info(
-            f"AdStudio asset DB state - id: {db_asset.id}, "
-            f"video_url: {db_asset.video_url}, "
-            f"thumbnail_url: {db_asset.thumbnail_url}"
+            f"AdStudio asset saved to DB - id: {db_asset.id}, "
+            f"local_video_path: {db_asset.local_video_path}, "
+            f"local_thumbnail_path: {db_asset.local_thumbnail_path}, "
+            f"size: {db_asset.video_size_bytes} bytes"
         )
         
-        # NOTE: AdStudio - Return asset from DB to ensure data consistency
+        # NOTE: AdStudio - Return asset with LOCAL URLs for frontend
+        # If local download succeeded, use local URL; otherwise fallback to Apify
+        if local_video_path:
+            video_url_for_frontend = f"{settings.MEDIA_URL_PREFIX}/{local_video_path.replace(os.sep, '/')}"
+        else:
+            video_url_for_frontend = apify_video_url
+        
+        if local_thumb_path:
+            thumb_url_for_frontend = f"{settings.MEDIA_URL_PREFIX}/{local_thumb_path.replace(os.sep, '/')}"
+        else:
+            thumb_url_for_frontend = apify_thumb_url
+        
         return Asset(
             id=db_asset.id,
             platform=db_asset.platform,
             sourceUrl=db_asset.source_url,
-            videoUrl=db_asset.video_url,
-            thumbnailUrl=db_asset.thumbnail_url,
+            videoUrl=video_url_for_frontend,        # LOCAL URL (or Apify fallback)
+            thumbnailUrl=thumb_url_for_frontend,    # LOCAL URL (or Apify fallback)
             captionOriginal=db_asset.caption_original,
             note=db_asset.note,
             duration=db_asset.duration,
