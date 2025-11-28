@@ -9,7 +9,7 @@ import json
 import sys
 
 # Config
-APIFY_KEY = "apify_api_w3KnaMZFdHEbe3TSi9BAgbBU2fNlOv07i01L"
+APIFY_KEY = "your-apify-api-key-here"  # Replace with actual key
 ACTOR_ID = "clockworks~free-tiktok-scraper"
 TEST_URL = "https://www.tiktok.com/@nangmui.hoangduong/video/7536470562428800263"
 
