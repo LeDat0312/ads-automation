@@ -375,7 +375,27 @@ def scrape_tiktok(
         db.add(db_asset)
         db.commit()
         db.refresh(db_asset)
-        logger.info(f"Saved asset to DB: {asset.id}, videoUrl: {asset.videoUrl[:50]}, thumbnailUrl: {asset.thumbnailUrl[:50]}")
+        
+        # NOTE: AdStudio - Log full URLs from DB to verify no truncation
+        logger.info(
+            f"AdStudio asset DB state - id: {db_asset.id}, "
+            f"video_url: {db_asset.video_url}, "
+            f"thumbnail_url: {db_asset.thumbnail_url}"
+        )
+        
+        # NOTE: AdStudio - Return asset from DB to ensure data consistency
+        return Asset(
+            id=db_asset.id,
+            platform=db_asset.platform,
+            sourceUrl=db_asset.source_url,
+            videoUrl=db_asset.video_url,
+            thumbnailUrl=db_asset.thumbnail_url,
+            captionOriginal=db_asset.caption_original,
+            note=db_asset.note,
+            duration=db_asset.duration,
+            hashtags=db_asset.hashtags or [],
+        )
+        
     except Exception as e:
         db.rollback()
         logger.error(f"Error saving asset to DB: {str(e)}", exc_info=True)
@@ -383,8 +403,6 @@ def scrape_tiktok(
             status_code=500,
             detail=f"Lỗi lưu asset vào database: {str(e)}"
         )
-    
-    return asset
 
 
 @api_router.post("/facebook/scrape")
