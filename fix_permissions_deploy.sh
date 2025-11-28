@@ -13,12 +13,18 @@ echo "✅ In directory: $(pwd)"
 echo ""
 echo "🔑 Fixing file permissions..."
 if [ -d "frontend/dist" ]; then
-    echo "Changing permissions on frontend/dist..."
-    chmod -R 755 frontend/dist 2>/dev/null || true
+    echo "Removing old frontend/dist (may need sudo)..."
     
-    echo "Removing old frontend/dist..."
-    rm -rf frontend/dist
-    echo "✅ Removed old frontend/dist"
+    # Try without sudo first
+    rm -rf frontend/dist 2>/dev/null && echo "✅ Removed old frontend/dist" || {
+        # If failed, try with sudo
+        echo "Need elevated permissions, using sudo..."
+        sudo rm -rf frontend/dist && echo "✅ Removed old frontend/dist with sudo" || {
+            echo "❌ Failed to remove frontend/dist even with sudo"
+            echo "Please run manually: sudo rm -rf frontend/dist"
+            exit 1
+        }
+    }
 fi
 
 # Backup local changes
