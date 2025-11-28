@@ -19,6 +19,8 @@ type Asset = {
   duration?: number;
   hashtags?: string[];
   note?: string;
+  fileSizeBytes?: number;      // NEW - Video file size in bytes
+  qualityLabel?: string;       // NEW - Quality label (e.g., "HD (No Watermark)")
 };
 
 type ScheduleMode = 'NOW' | 'RANDOM_2H' | 'EXACT_TIME';
@@ -67,6 +69,19 @@ type SchedulePayload = {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+
+/**
+ * Format file size from bytes to human-readable string
+ */
+function formatFileSize(bytes?: number): string | undefined {
+  if (!bytes || bytes <= 0) return undefined;
+  const mb = bytes / (1024 * 1024);
+  if (mb < 0.1) {
+    const kb = bytes / 1024;
+    return `${kb.toFixed(0)} KB`;
+  }
+  return `${mb.toFixed(1)} MB`;
+}
 
 /**
  * Phát hiện nền tảng từ URL
@@ -908,26 +923,48 @@ export default function AdStudioCard() {
             </div>
 
             {/* Video metadata */}
-            <div className="text-sm text-gray-600 space-y-1">
-              <div className="flex justify-between items-center">
-                <span>Chất lượng: HD (No logo)</span>
-                {selectedAsset.duration && (
-                  <span className="text-blue-600 font-medium">{selectedAsset.duration}s</span>
+            <div className="text-sm text-gray-600 space-y-2">
+              {/* Badge + Download Button Row - NEW */}
+              <div className="flex items-center justify-between">
+                {/* Quality Badge with Size */}
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                  {selectedAsset.qualityLabel || 'HD (No Watermark)'}
+                  {formatFileSize(selectedAsset.fileSizeBytes) && (
+                    <>
+                      <span className="mx-1">·</span>
+                      <span>{formatFileSize(selectedAsset.fileSizeBytes)}</span>
+                    </>
+                  )}
+                </span>
+
+                {/* Download Button */}
+                {selectedAsset.videoUrl && (
+                  <a
+                    href={selectedAsset.videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  >
+                    <span className="mr-1">⬇️</span>
+                    Tải video
+                  </a>
                 )}
               </div>
+
+              {/* Duration */}
+              {selectedAsset.duration && (
+                <div className="flex items-center text-xs text-gray-500">
+                  <span>🕒 Thời lượng: {selectedAsset.duration}s</span>
+                </div>
+              )}
+
+              {/* Hashtags */}
               {selectedAsset.hashtags && selectedAsset.hashtags.length > 0 && (
                 <div className="text-xs text-gray-500">
                   #{selectedAsset.hashtags.join(' #')}
                 </div>
               )}
-              <a
-                href={selectedAsset.videoUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-600 hover:underline text-xs block mt-2"
-              >
-                📥 Tải video gốc (.mp4)
-              </a>
             </div>
 
             {/* Preview of publish content */}
