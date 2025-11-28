@@ -1,12 +1,17 @@
 # VPS Deployment Guide - AdStudio
 # Quick reference for deploying AdStudio on VPS
 
-## Initial Deployment (when you have conflicts)
+## Initial Deployment (when you have conflicts or permission errors)
 
 ```bash
 cd /home/adsuser/ads-automation
+
+# Method 1: Direct download and run (recommended for permission issues)
+curl -O https://raw.githubusercontent.com/LeDat0312/ads-automation/main/fix_permissions_deploy.sh
+bash fix_permissions_deploy.sh
+
+# Method 2: If you can git fetch (no permission errors)
 git fetch origin main
-git reset --hard origin/main  # Force update to latest
 bash fix_vps_conflicts.sh
 ```
 
@@ -69,6 +74,14 @@ pwd  # Should show: /home/adsuser/ads-automation
 ```bash
 # Use python3 instead
 python3 --version  # Should show Python 3.10+
+```
+
+### Error: "unable to unlink old 'frontend/dist/...': Permission denied"
+```bash
+# Fix permissions and deploy
+cd /home/adsuser/ads-automation
+curl -O https://raw.githubusercontent.com/LeDat0312/ads-automation/main/fix_permissions_deploy.sh
+bash fix_permissions_deploy.sh
 ```
 
 ### Error: "git merge conflicts"
