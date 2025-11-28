@@ -126,7 +126,6 @@ export default function AdStudioCard() {
   const [inputUrl, setInputUrl] = useState('');
   const [detectedPlatform, setDetectedPlatform] = useState<AssetPlatform>('other');
   const [isLoadingAsset, setIsLoadingAsset] = useState(false);
-  const [currentStep, setCurrentStep] = useState<1 | 2>(1); // Step trong Tab 2
   const [editedCaption, setEditedCaption] = useState('');
   const [videoSource, setVideoSource] = useState<'original' | 'upload'>('original');
   const [customVideoFile, setCustomVideoFile] = useState<File | null>(null);
@@ -304,7 +303,6 @@ export default function AdStudioCard() {
       setSelectedAsset(asset);
       setEditedCaption(asset.captionOriginal);
       setAssets((prev) => [...prev, asset]);
-      setCurrentStep(2);
     } catch (err: any) {
       console.error('Error fetching asset:', err);
       
@@ -325,16 +323,6 @@ export default function AdStudioCard() {
     } finally {
       setIsLoadingAsset(false);
     }
-  };
-
-  const handleContinueToStep2 = () => {
-    if (!selectedAsset) {
-      alert('Vui lòng lấy video trước');
-      return;
-    }
-    setCurrentStep(2);
-    // Pre-fill caption vào form
-    setPublishForm((prev) => ({ ...prev, caption: editedCaption }));
   };
 
   const handleSchedulePost = async () => {
@@ -364,8 +352,7 @@ export default function AdStudioCard() {
       await API.schedulePost(payload);
       alert('Đã lên lịch đăng bài thành công!');
       
-      // Reset form và chuyển tab
-      setCurrentStep(1);
+      // Reset form (no need to change step in merged UI)
       setSelectedAsset(null);
       setInputUrl('');
       setEditedCaption('');
@@ -392,7 +379,7 @@ export default function AdStudioCard() {
     setSelectedAsset(asset);
     setEditedCaption(asset.captionOriginal);
     setActiveTab('collect');
-    setCurrentStep(2);
+    // Pre-fill caption vào form (no step change needed)
     setPublishForm((prev) => ({ ...prev, caption: asset.captionOriginal }));
   };
 
@@ -576,35 +563,22 @@ export default function AdStudioCard() {
     </div>
   );
 
-  const renderCollectTab = () => (
-    <div className="space-y-6">
-      {/* Stepper indicator */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className={`flex items-center gap-2 ${currentStep === 1 ? 'text-blue-600' : 'text-gray-400'}`}>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            currentStep === 1 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-600'
-          }`}>
-            1
-          </div>
-          <span className="font-medium">Dán link & lấy video</span>
-        </div>
-        <div className="flex-1 h-1 bg-gray-300"></div>
-        <div className={`flex items-center gap-2 ${currentStep === 2 ? 'text-blue-600' : 'text-gray-400'}`}>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            currentStep === 2 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-600'
-          }`}>
-            2
-          </div>
-          <span className="font-medium">Chọn fanpage & lịch đăng</span>
-        </div>
-      </div>
+  // ============================================================================
+  // COLLECT TAB - HELPER FUNCTIONS (NEW: Phase 1 - Merged UI)
+  // ============================================================================
 
-      {currentStep === 1 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Cột trái: Input & Caption */}
+  /**
+   * Render left panel: URL input + Caption + Publish form
+   * All sections visible in single column, no step switching
+   */
+  const renderLeftPanel = () => {
+    return (
+      <div className="space-y-6">
+        {/* Section 1: URL Input - Always visible */}
+        <div className="bg-white border rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-4">1. Dán link video</h3>
+          
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Bước 1: Dán link quảng cáo</h3>
-            
             {/* URL Input với platform detection */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">URL video</label>
@@ -622,6 +596,13 @@ export default function AdStudioCard() {
               </div>
             </div>
 
+            {/* Error display */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
             {/* Nút lấy video */}
             <button
               onClick={handleFetchAsset}
@@ -630,162 +611,82 @@ export default function AdStudioCard() {
             >
               {isLoadingAsset ? 'Đang tải...' : `Lấy video ${platformInfo.label}`}
             </button>
-
-            {selectedAsset && (
-              <>
-                {/* Caption gốc */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Nội dung gốc (Thai/Viet)
-                  </label>
-                  <textarea
-                    value={editedCaption}
-                    onChange={(e) => setEditedCaption(e.target.value)}
-                    rows={6}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Radio: Video source */}
-                <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-                  <label className="flex items-start gap-3">
-                    <input
-                      type="radio"
-                      name="videoSource"
-                      checked={videoSource === 'original'}
-                      onChange={() => setVideoSource('original')}
-                      className="mt-1"
-                    />
-                    <div>
-                      <div className="font-medium">Dùng video gốc & chỉnh sửa nội dung</div>
-                      <div className="text-sm text-gray-600">
-                        Video sẽ là video từ link gốc. Bạn có thể chỉnh sửa caption.
-                      </div>
-                    </div>
-                  </label>
-                  
-                  <label className="flex items-start gap-3">
-                    <input
-                      type="radio"
-                      name="videoSource"
-                      checked={videoSource === 'upload'}
-                      onChange={() => setVideoSource('upload')}
-                      className="mt-1"
-                    />
-                    <div>
-                      <div className="font-medium">Dùng nội dung gốc, tự tải lên video của tôi</div>
-                      <div className="text-sm text-gray-600">
-                        Giữ caption gốc, nhưng upload video riêng của bạn.
-                      </div>
-                    </div>
-                  </label>
-
-                  {videoSource === 'upload' && (
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleCustomVideoUpload}
-                      className="w-full px-4 py-2 border rounded-lg bg-white"
-                    />
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Cột phải: Video Preview */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Video Asset</h3>
-            
-            {selectedAsset ? (
-              <div className="bg-white border rounded-lg p-4 space-y-3">
-                {/* Video preview - NOTE: AdStudio - Show actual video player, not just thumbnail */}
-                <div className="aspect-[9/16] bg-gray-100 rounded-lg overflow-hidden max-w-xs mx-auto">
-                  {videoSource === 'original' ? (
-                    <video
-                      src={selectedAsset.videoUrl}
-                      poster={selectedAsset.thumbnailUrl}
-                      controls
-                      className="w-full h-full object-cover"
-                    />
-                  ) : customVideoFile ? (
-                    <video
-                      src={URL.createObjectURL(customVideoFile)}
-                      controls
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      Chọn video để upload
-                    </div>
-                  )}
-                </div>
-
-                {/* Video metadata - NOTE: AdStudio */}
-                <div className="text-sm text-gray-600 space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span>Chất lượng: HD (No logo)</span>
-                    {selectedAsset.duration && (
-                      <span className="text-blue-600 font-medium">{selectedAsset.duration}s</span>
-                    )}
-                  </div>
-                  {selectedAsset.hashtags && selectedAsset.hashtags.length > 0 && (
-                    <div className="text-xs text-gray-500">
-                      #{selectedAsset.hashtags.join(' #')}
-                    </div>
-                  )}
-                  <a
-                    href={selectedAsset.videoUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-600 hover:underline text-xs block mt-2"
-                  >
-                    📥 Tải video gốc (.mp4)
-                  </a>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setSelectedAsset(null);
-                    setEditedCaption('');
-                    setCustomVideoFile(null);
-                  }}
-                  className="w-full px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
-                >
-                  Xoá video
-                </button>
-
-                <button
-                  onClick={handleContinueToStep2}
-                  className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
-                >
-                  Tiếp tục: Chọn fanpage & lịch đăng →
-                </button>
-              </div>
-            ) : (
-              <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-500">
-                Dán link và lấy video để xem preview
-              </div>
-            )}
           </div>
         </div>
-      )}
 
-      {currentStep === 2 && selectedAsset && (
-        <div className="space-y-6">
-          <button
-            onClick={() => setCurrentStep(1)}
-            className="text-blue-600 hover:underline flex items-center gap-2"
-          >
-            ← Quay lại Bước 1
-          </button>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Form bên trái */}
+        {/* Section 2: Caption & Video Source - Show after asset fetched */}
+        {selectedAsset && (
+          <div className="bg-white border rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-4">2. Nội dung & Video</h3>
+            
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Bước 2: Cấu hình đăng bài</h3>
+              {/* Caption gốc */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Nội dung gốc (Thai/Viet)
+                </label>
+                <textarea
+                  value={editedCaption}
+                  onChange={(e) => setEditedCaption(e.target.value)}
+                  rows={6}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
-              {/* Caption */}
+              {/* Radio: Video source */}
+              <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="videoSource"
+                    checked={videoSource === 'original'}
+                    onChange={() => setVideoSource('original')}
+                    className="mt-1"
+                  />
+                  <div>
+                    <div className="font-medium">Dùng video gốc & chỉnh sửa nội dung</div>
+                    <div className="text-sm text-gray-600">
+                      Video sẽ là video từ link gốc. Bạn có thể chỉnh sửa caption.
+                    </div>
+                  </div>
+                </label>
+                
+                <label className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="videoSource"
+                    checked={videoSource === 'upload'}
+                    onChange={() => setVideoSource('upload')}
+                    className="mt-1"
+                  />
+                  <div>
+                    <div className="font-medium">Dùng nội dung gốc, tự tải lên video của tôi</div>
+                    <div className="text-sm text-gray-600">
+                      Giữ caption gốc, nhưng upload video riêng của bạn.
+                    </div>
+                  </div>
+                </label>
+
+                {videoSource === 'upload' && (
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={handleCustomVideoUpload}
+                    className="w-full px-4 py-2 border rounded-lg bg-white"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Section 3: Publish Settings - Show after asset fetched */}
+        {selectedAsset && (
+          <div className="bg-white border rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-4">3. Cấu hình đăng bài</h3>
+            
+            <div className="space-y-4">
+              {/* Caption for publish */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">Nội dung đăng</label>
                 <textarea
@@ -815,7 +716,6 @@ export default function AdStudioCard() {
                 <label className="block text-sm font-medium text-gray-700">
                   Chọn fanpage <span className="text-red-500">*</span>
                 </label>
-                {/* NOTE: AdStudio - Show error if no fanpages */}
                 {fanpagesError && (
                   <div className="text-sm text-red-600 mb-2">{fanpagesError}</div>
                 )}
@@ -951,68 +851,120 @@ export default function AdStudioCard() {
                 Lưu vào lịch đăng
               </button>
             </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
-            {/* Preview bên phải */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Xem trước</h3>
-              <div className="bg-white border rounded-lg p-4">
-                <div className="aspect-[9/16] bg-gray-100 rounded-lg overflow-hidden max-w-xs mx-auto mb-4">
-                  {/* NOTE: AdStudio - Show video player instead of static image */}
-                  {selectedAsset.videoUrl ? (
-                    <video
-                      src={selectedAsset.videoUrl}
-                      controls
-                      className="w-full h-full object-contain bg-black"
-                      poster={selectedAsset.thumbnailUrl}
-                    />
-                  ) : selectedAsset.thumbnailUrl ? (
-                    <img
-                      src={selectedAsset.thumbnailUrl}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      No preview
-                    </div>
-                  )}
+  /**
+   * Render right preview panel: Video player + metadata
+   * Always visible, shows placeholder when no asset
+   */
+  const renderRightPreview = () => {
+    return (
+      <div className="space-y-4 sticky top-4">
+        <h3 className="text-lg font-semibold">Video Preview</h3>
+        
+        {selectedAsset ? (
+          <div className="bg-white border rounded-lg p-4 space-y-3">
+            {/* Video preview */}
+            <div className="aspect-[9/16] bg-gray-100 rounded-lg overflow-hidden max-w-xs mx-auto">
+              {videoSource === 'original' ? (
+                <video
+                  src={selectedAsset.videoUrl}
+                  poster={selectedAsset.thumbnailUrl}
+                  controls
+                  className="w-full h-full object-cover"
+                />
+              ) : customVideoFile ? (
+                <video
+                  src={URL.createObjectURL(customVideoFile)}
+                  controls
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  Chọn video để upload
                 </div>
-                
-                {/* NOTE: AdStudio - Video metadata and download link */}
-                {selectedAsset.videoUrl && (
-                  <div className="mb-3 flex justify-between items-center text-xs text-gray-500">
-                    <span>
-                      {selectedAsset.duration ? `${selectedAsset.duration}s` : ''}
-                      {selectedAsset.hashtags?.length ? ` • #${selectedAsset.hashtags.join(' #')}` : ''}
-                    </span>
-                    <a
-                      href={selectedAsset.videoUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 hover:underline font-medium"
-                    >
-                      📥 Tải video gốc (.mp4)
-                    </a>
-                  </div>
+              )}
+            </div>
+
+            {/* Video metadata */}
+            <div className="text-sm text-gray-600 space-y-1">
+              <div className="flex justify-between items-center">
+                <span>Chất lượng: HD (No logo)</span>
+                {selectedAsset.duration && (
+                  <span className="text-blue-600 font-medium">{selectedAsset.duration}s</span>
                 )}
-                
-                <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                  {publishForm.caption || editedCaption}
+              </div>
+              {selectedAsset.hashtags && selectedAsset.hashtags.length > 0 && (
+                <div className="text-xs text-gray-500">
+                  #{selectedAsset.hashtags.join(' #')}
                 </div>
-                <div className="mt-4 pt-4 border-t">
-                  <div className="text-xs text-gray-500">
-                    <div>📍 Fanpage: {publishForm.pageIds.length} được chọn</div>
-                    <div>⏰ Lịch: {publishForm.scheduleMode === 'NOW' ? 'Đăng ngay' : publishForm.scheduleMode === 'RANDOM_2H' ? 'Ngẫu nhiên 2h' : publishForm.scheduleTime}</div>
-                  </div>
-                </div>
+              )}
+              <a
+                href={selectedAsset.videoUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 hover:underline text-xs block mt-2"
+              >
+                📥 Tải video gốc (.mp4)
+              </a>
+            </div>
+
+            {/* Preview of publish content */}
+            <div className="mt-4 pt-4 border-t">
+              <div className="text-sm text-gray-700 whitespace-pre-wrap mb-3">
+                {publishForm.caption || editedCaption}
+              </div>
+              <div className="text-xs text-gray-500 space-y-1">
+                <div>📍 Fanpage: {publishForm.pageIds.length} được chọn</div>
+                <div>⏰ Lịch: {
+                  publishForm.scheduleMode === 'NOW' ? 'Đăng ngay' : 
+                  publishForm.scheduleMode === 'RANDOM_2H' ? 'Ngẫu nhiên 2h' : 
+                  publishForm.scheduleTime
+                }</div>
               </div>
             </div>
+
+            {/* Delete button */}
+            <button
+              onClick={() => {
+                setSelectedAsset(null);
+                setEditedCaption('');
+                setCustomVideoFile(null);
+              }}
+              className="w-full px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+            >
+              Xoá video
+            </button>
           </div>
+        ) : (
+          <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-500">
+            Dán link và lấy video để xem preview
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCollectTab = () => (
+    <div className="space-y-6">
+      {/* Error display - Global */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
+          {error}
         </div>
       )}
+
+      {/* 2-column layout: Forms left, Preview right */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {renderLeftPanel()}
+        {renderRightPreview()}
+      </div>
     </div>
   );
-
   const renderCollectionTab = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
