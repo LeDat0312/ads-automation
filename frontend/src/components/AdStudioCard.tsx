@@ -1,7 +1,6 @@
 // NOTE: AdStudio - Updated to use real API calls
 import React, { useState, useEffect } from 'react';
 import * as API from '../api/adStudio';
-import { isApifyKeyMissing, isApifyScrapeFailed } from '../api/adStudio';
 
 // ============================================================================
 // TYPES
@@ -49,6 +48,16 @@ type DashboardStats = {
   draftPosts: number;
   failedPosts: number;
 };
+
+// Error categorization for better UX
+type FetchErrorCode =
+  | 'NONE'
+  | 'APIFY_KEY_MISSING'
+  | 'APIFY_KEY_INVALID'
+  | 'SCRAPE_FAILED'
+  | 'INVALID_URL'
+  | 'NETWORK_ERROR'
+  | 'UNKNOWN';
 
 type SchedulePayload = {
   assetId: string;
@@ -179,7 +188,14 @@ export default function AdStudioCard() {
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+  
+  // NEW - Categorized error handling for fetch operations
+  const [fetchErrorCode, setFetchErrorCode] = useState<FetchErrorCode>('NONE');
+  const [fetchErrorMessage, setFetchErrorMessage] = useState<string | null>(null);
+  
+  // Generic error for dashboard/collections (keep for backward compat)
   const [error, setError] = useState<string | null>(null);
+  
   const [fanpages, setFanpages] = useState<Array<{id: string, name: string}>>([]);
   const [fanpagesError, setFanpagesError] = useState<string | null>(null);
 
@@ -297,12 +313,15 @@ export default function AdStudioCard() {
 
   const handleFetchAsset = async () => {
     if (!inputUrl.trim()) {
-      alert('Vui lòng nhập URL');
+      setFetchErrorCode('INVALID_URL');
+      setFetchErrorMessage('Vui lòng nhập URL video');
       return;
     }
 
+    // Reset errors before new fetch
+    setFetchErrorCode('NONE');
+    setFetchErrorMessage(null);
     setIsLoadingAsset(true);
-    setError(null);
     
     try {
       let asset: Asset;
@@ -313,29 +332,43 @@ export default function AdStudioCard() {
       } else if (detectedPlatform === 'facebook') {
         asset = await API.fetchFacebookAsset(inputUrl);
       } else {
-        alert('Nền tảng không được hỗ trợ');
+        setFetchErrorCode('INVALID_URL');
+        setFetchErrorMessage('Nền tảng không được hỗ trợ. Chỉ hỗ trợ TikTok và Facebook.');
+        setIsLoadingAsset(false);
         return;
       }
 
+      // Success: set asset and clear errors
       setSelectedAsset(asset);
       setEditedCaption(asset.captionOriginal);
       setAssets((prev) => [...prev, asset]);
+      setFetchErrorCode('NONE');
+      setFetchErrorMessage(null);
     } catch (err: any) {
-      console.error('Error fetching asset:', err);
+      console.error('[AdStudio] Error fetching asset:', err);
       
-      // NOTE: AdStudio - Handle specific error cases
-      if (isApifyKeyMissing(err)) {
-        // TODO: Check if user is admin from context
-        const isAdmin = false; // Placeholder
-        if (isAdmin) {
-          setError('Chưa cấu hình Apify API key. Vui lòng vào mục Cài Đặt → Apify để thêm key.');
-        } else {
-          setError('Hệ thống chưa được cấu hình Apify API, vui lòng liên hệ Admin.');
-        }
-      } else if (isApifyScrapeFailed(err)) {
-        setError('Không lấy được video từ link này. Vui lòng kiểm tra lại URL hoặc thử lại sau.');
+      // Ensure selectedAsset is cleared on error (no fake data)
+      setSelectedAsset(null);
+      
+      // NOTE: AdStudio - Map backend errors to user-friendly messages
+      if (API.isApifyKeyMissing(err)) {
+        setFetchErrorCode('APIFY_KEY_MISSING');
+        setFetchErrorMessage('Apify API key chưa được cấu hình. Vui lòng vào trang Cài đặt để thêm key trước khi tải video TikTok.');
+      } else if (err?.detail === 'APIFY_KEY_INVALID' || err?.message?.includes('API Key có định dạng không hợp lệ')) {
+        setFetchErrorCode('APIFY_KEY_INVALID');
+        setFetchErrorMessage('Apify API key không hợp lệ. Kiểm tra lại key trong trang Cài đặt.');
+      } else if (API.isApifyScrapeFailed(err)) {
+        setFetchErrorCode('SCRAPE_FAILED');
+        setFetchErrorMessage('Không lấy được dữ liệu từ TikTok. Thử lại sau hoặc kiểm tra lại link video.');
+      } else if (err?.status === 422 || err?.status === 400) {
+        setFetchErrorCode('INVALID_URL');
+        setFetchErrorMessage('Đường dẫn TikTok không hợp lệ. Vui lòng kiểm tra lại link.');
+      } else if (!err?.status || err?.status === 0 || err?.message?.includes('Network')) {
+        setFetchErrorCode('NETWORK_ERROR');
+        setFetchErrorMessage('Kết nối mạng không ổn định hoặc server đang bận. Thử lại sau ít phút.');
       } else {
-        setError('Đã xảy ra lỗi. Vui lòng thử lại.');
+        setFetchErrorCode('UNKNOWN');
+        setFetchErrorMessage('Có lỗi không xác định xảy ra khi tải video. Thử lại sau.');
       }
     } finally {
       setIsLoadingAsset(false);
@@ -615,10 +648,22 @@ export default function AdStudioCard() {
               </div>
             </div>
 
-            {/* Error display */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
-                {error}
+            {/* Error Display - NEW: Categorized errors with /settings link */}
+            {fetchErrorMessage && (
+              <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="flex-1">{fetchErrorMessage}</span>
+                  
+                  {/* Show settings link only for config errors */}
+                  {(fetchErrorCode === 'APIFY_KEY_MISSING' || fetchErrorCode === 'APIFY_KEY_INVALID') && (
+                    <a
+                      href="/settings"
+                      className="shrink-0 rounded border border-red-300 bg-white px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 transition-colors"
+                    >
+                      Mở Cài đặt
+                    </a>
+                  )}
+                </div>
               </div>
             )}
 
