@@ -957,12 +957,45 @@ export default function AdStudioCard() {
               <h3 className="text-lg font-semibold">Xem trước</h3>
               <div className="bg-white border rounded-lg p-4">
                 <div className="aspect-[9/16] bg-gray-100 rounded-lg overflow-hidden max-w-xs mx-auto mb-4">
-                  <img
-                    src={selectedAsset.thumbnailUrl}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                  />
+                  {/* NOTE: AdStudio - Show video player instead of static image */}
+                  {selectedAsset.videoUrl ? (
+                    <video
+                      src={selectedAsset.videoUrl}
+                      controls
+                      className="w-full h-full object-contain bg-black"
+                      poster={selectedAsset.thumbnailUrl}
+                    />
+                  ) : selectedAsset.thumbnailUrl ? (
+                    <img
+                      src={selectedAsset.thumbnailUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      No preview
+                    </div>
+                  )}
                 </div>
+                
+                {/* NOTE: AdStudio - Video metadata and download link */}
+                {selectedAsset.videoUrl && (
+                  <div className="mb-3 flex justify-between items-center text-xs text-gray-500">
+                    <span>
+                      {selectedAsset.duration ? `${selectedAsset.duration}s` : ''}
+                      {selectedAsset.hashtags?.length ? ` • #${selectedAsset.hashtags.join(' #')}` : ''}
+                    </span>
+                    <a
+                      href={selectedAsset.videoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 hover:underline font-medium"
+                    >
+                      📥 Tải video gốc (.mp4)
+                    </a>
+                  </div>
+                )}
+                
                 <div className="text-sm text-gray-700 whitespace-pre-wrap">
                   {publishForm.caption || editedCaption}
                 </div>

@@ -42,6 +42,17 @@ export async function fetchTiktokAsset(url: string, note?: string): Promise<Asse
   }
 
   const asset: Asset = await response.json();
+  
+  // NOTE: AdStudio - Debug log to verify API response
+  console.log('[AdStudio] TikTok asset from API:', {
+    id: asset.id,
+    platform: asset.platform,
+    videoUrl: asset.videoUrl,
+    thumbnailUrl: asset.thumbnailUrl,
+    duration: asset.duration,
+    hashtags: asset.hashtags,
+  });
+  
   return asset;
 }
 
