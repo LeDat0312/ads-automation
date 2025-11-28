@@ -5,7 +5,7 @@ NOTE: added for AdStudio only
 Models cho hệ thống quản lý nội dung quảng cáo (AdStudio)
 """
 
-from sqlalchemy import Column, String, Text, DateTime, JSON, Integer
+from sqlalchemy import Column, String, Text, DateTime, JSON, Integer, BigInteger
 from datetime import datetime
 from app.core.database import Base
 
@@ -21,10 +21,16 @@ class AdStudioAsset(Base):
     id = Column(String, primary_key=True)
     platform = Column(String, nullable=False)  # 'tiktok', 'facebook', 'other'
     source_url = Column(Text, nullable=False)
-    video_url = Column(Text, nullable=False)
-    thumbnail_url = Column(Text, nullable=False)
+    video_url = Column(Text, nullable=False)  # Apify URL (fallback)
+    thumbnail_url = Column(Text, nullable=False)  # Apify URL (fallback)
     caption_original = Column(Text, nullable=False)
     note = Column(Text, nullable=True)
+    
+    # NOTE: AdStudio - Local media storage (after download from Apify)
+    local_video_path = Column(Text, nullable=True)        # Relative path: "media/ad_studio/{id}.mp4"
+    local_thumbnail_path = Column(Text, nullable=True)    # Relative path: "media/ad_studio/{id}.jpg"
+    video_size_bytes = Column(BigInteger, nullable=True)  # File size for UI display
+    video_mime_type = Column(String(100), nullable=True)  # e.g., "video/mp4"
     
     # Optional metadata
     duration = Column(Integer, nullable=True)  # seconds

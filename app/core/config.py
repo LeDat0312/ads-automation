@@ -50,6 +50,19 @@ class Settings(BaseSettings):
     FACEBOOK_REDIRECT_URI: Optional[AnyUrl] = Field(default=None, env="FACEBOOK_REDIRECT_URI")
     FACEBOOK_LOGIN_SCOPES: str = Field(default="ads_read,ads_management,business_management", env="FACEBOOK_LOGIN_SCOPES")
     
+    # ===== Media Storage (AdStudio) =====
+    # NOTE: added for AdStudio only - Local media storage
+    MEDIA_ROOT: str = Field(
+        default="media",
+        env="MEDIA_ROOT",
+        description="Root directory for uploaded/downloaded media files"
+    )
+    MEDIA_URL_PREFIX: str = Field(
+        default="/media",
+        env="MEDIA_URL_PREFIX",
+        description="URL prefix to serve media files"
+    )
+    
     def parse_ad_account_ids(self, v: str = None) -> List[str]:
         """Parse AD_ACCOUNT_IDS từ string sang list"""
         if v is None:
