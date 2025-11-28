@@ -7,10 +7,22 @@ Change columns to TEXT to support long Apify URLs.
 """
 
 import logging
-from sqlalchemy import text
-from app.core.database import engine
+import os
+from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+
+def get_engine():
+    """Create database engine from DATABASE_URL"""
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL not found in environment variables")
+    return create_engine(database_url)
 
 
 def run_migration():
@@ -20,6 +32,8 @@ def run_migration():
     logger.info("🚀 Starting AdStudio URL columns migration...")
     
     try:
+        engine = get_engine()
+        
         with engine.connect() as conn:
             # PostgreSQL syntax - change columns to TEXT type
             logger.info("Altering video_url column to TEXT...")
