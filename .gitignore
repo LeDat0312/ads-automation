@@ -9,7 +9,6 @@ env/
 ENV/
 .venv
 *.egg-info/
-dist/
 build/
 
 # Environment variables
