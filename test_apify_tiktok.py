@@ -9,7 +9,9 @@ import json
 import sys
 
 # Config
-APIFY_KEY = "your-apify-api-key-here"  # Replace with actual key
+APIFY_TOKEN = os.getenv("APIFY_DEFAULT_KEY", "")
+# hoặc nếu muốn test nhanh:
+# raise ValueError("Set APIFY_DEFAULT_KEY in .env before running this test")
 ACTOR_ID = "clockworks~free-tiktok-scraper"
 TEST_URL = "https://www.tiktok.com/@nangmui.hoangduong/video/7536470562428800263"
 
