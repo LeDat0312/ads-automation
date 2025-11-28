@@ -9,12 +9,27 @@ export type Asset = {
   id: string;
   platform: AssetPlatform;
   sourceUrl: string;
-  videoUrl: string;
-  thumbnailUrl: string;
+  videoUrl: string;           // Now points to local file: /media/ad_studio/{id}.mp4
+  thumbnailUrl: string;       // Now points to local file: /media/ad_studio/{id}.jpg
   captionOriginal: string;
   duration?: number;
   hashtags?: string[];
   note?: string;
+  videoSizeMb?: number;       // NEW - for display "HD (No watermark) - 12.5 MB"
+  videoTitle?: string;        // NEW - user can set custom title
+};
+
+export type CallToAction = 
+  | 'SEND_MESSAGE' 
+  | 'LEARN_MORE' 
+  | 'CALL_NOW' 
+  | 'NONE';
+
+export const CTA_OPTIONS: Record<CallToAction, string> = {
+  SEND_MESSAGE: 'Gửi tin nhắn',
+  LEARN_MORE: 'Xem thêm',
+  CALL_NOW: 'Gọi ngay',
+  NONE: 'Không dùng nút',
 };
 
 export type ScheduleMode = 'NOW' | 'RANDOM_2H' | 'EXACT_TIME';
@@ -34,6 +49,7 @@ export type Post = {
   status: PostStatus;
   creator: string;
   videoUrl?: string;
+  videoTitle?: string;        // NEW
 };
 
 export type DashboardStats = {
@@ -46,9 +62,11 @@ export type DashboardStats = {
 
 export type SchedulePayload = {
   assetId: string;
+  sourceUrl?: string;
+  videoTitle?: string;        // NEW
   caption: string;
   language: Language;
-  ctaText: string;
+  ctaText: string;            // Now uses CallToAction type
   targetUrl: string;
   pageIds: string[];
   scheduleMode: ScheduleMode;
@@ -62,4 +80,5 @@ export type SchedulePayload = {
 export type Fanpage = {
   id: string;
   name: string;
+  platform?: string;
 };
