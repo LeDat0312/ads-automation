@@ -38,6 +38,12 @@ api_router = APIRouter(prefix="/api", tags=["ad-studio"])
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+# Project root directory - absolute path
+BASE_DIR = Path(__file__).resolve().parents[2]  # root project /home/adsuser/ads-automation
+MEDIA_ROOT = BASE_DIR / "media"
+AD_STUDIO_MEDIA_ROOT = MEDIA_ROOT / "ad_studio"
+AD_STUDIO_MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+
 
 # ==================== HELPER FUNCTIONS ====================
 
@@ -45,11 +51,14 @@ async def download_media_to_local(
     url: str,
     dest_filename: str,
     subfolder: str = "ad_studio"
-) -> Tuple[str, int, str]:
+) -> Tuple[Optional[str], Optional[int], Optional[str]]:
     """
     Download media from URL and save to local storage.
     
     NOTE: AdStudio - Download video/thumbnail from Apify KV store to local disk
+    
+    Always builds absolute path for saving, returns relative path for DB storage.
+    Does not crash on download failure - returns None values and logs warning.
     
     Args:
         url: Source URL (Apify KV store URL)
@@ -57,26 +66,26 @@ async def download_media_to_local(
         subfolder: Subfolder under MEDIA_ROOT (default: "ad_studio")
         
     Returns:
-        Tuple of (relative_path, size_bytes, mime_type)
+        Tuple of (relative_path, size_bytes, mime_type) - all can be None if download fails
         
-    Raises:
-        HTTPException: If download fails
+    Note:
+        Never raises exceptions - always returns None on error for graceful fallback
     """
-    # Create destination directory
-    media_root = Path(settings.MEDIA_ROOT)
-    dest_dir = media_root / subfolder
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    
-    dest_path = dest_dir / dest_filename
-    
-    logger.info(f"Downloading {url[:80]}... to {dest_path}")
-    
     try:
+        # Build absolute destination path
+        dest_path = AD_STUDIO_MEDIA_ROOT / dest_filename
+        
+        # Ensure directory exists
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        logger.info(f"Downloading {url[:80]}... to {dest_path}")
+        
+        # Download file
         async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
             response = await client.get(url)
             response.raise_for_status()
             
-            # Write to disk
+            # Write to disk using absolute path
             dest_path.write_bytes(response.content)
             
             size_bytes = len(response.content)
@@ -87,28 +96,17 @@ async def download_media_to_local(
                 f"mime: {mime_type}"
             )
             
-            # Return relative path (for DB storage)
-            relative_path = str(dest_path.relative_to(Path.cwd()))
+            # Return relative path (for DB storage) - relative to BASE_DIR
+            relative_path = str(dest_path.relative_to(BASE_DIR))
             return relative_path, size_bytes, mime_type
             
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error downloading {url}: {e.response.status_code}")
-        raise HTTPException(
-            status_code=502,
-            detail=f"MEDIA_DOWNLOAD_FAILED: HTTP {e.response.status_code}"
-        )
-    except httpx.TimeoutException:
-        logger.error(f"Timeout downloading {url}")
-        raise HTTPException(
-            status_code=504,
-            detail="MEDIA_DOWNLOAD_TIMEOUT"
-        )
     except Exception as e:
-        logger.error(f"Failed to download {url}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=502,
-            detail=f"MEDIA_DOWNLOAD_FAILED: {str(e)}"
+        # Log warning but don't crash - allow fallback to Apify URL
+        logger.warning(
+            f"Failed to download {url[:80]}..., will use Apify URL as fallback: {str(e)}",
+            exc_info=True
         )
+        return None, None, None
 
 
 # ==================== ROUTES ====================
@@ -446,45 +444,44 @@ async def scrape_tiktok(
     apify_video_url = asset.videoUrl  # Save original Apify URL
     apify_thumb_url = asset.thumbnailUrl
     
-    local_video_path = None
-    local_thumb_path = None
-    video_size_bytes = None
-    video_mime_type = None
+    # Generate unique filenames
+    video_filename = f"{asset.id}.mp4"
+    thumb_filename = f"{asset.id}.jpg"
     
-    try:
-        # Generate unique filenames
-        video_filename = f"{asset.id}.mp4"
-        thumb_filename = f"{asset.id}.jpg"
-        
-        # Download video
-        logger.info(f"Downloading video from Apify KV store...")
-        local_video_path, video_size_bytes, video_mime_type = await download_media_to_local(
-            apify_video_url,
-            video_filename,
-            subfolder="ad_studio"
-        )
-        
-        # Download thumbnail
-        logger.info(f"Downloading thumbnail from Apify KV store...")
-        local_thumb_path, _, _ = await download_media_to_local(
-            apify_thumb_url,
-            thumb_filename,
-            subfolder="ad_studio"
-        )
-        
+    # Download video (will return None if fails - no exception)
+    logger.info(f"Downloading video from Apify KV store...")
+    local_video_path, video_size_bytes, video_mime_type = await download_media_to_local(
+        apify_video_url,
+        video_filename,
+        subfolder="ad_studio"
+    )
+    
+    # Download thumbnail (will return None if fails - no exception)
+    logger.info(f"Downloading thumbnail from Apify KV store...")
+    local_thumb_path, _, _ = await download_media_to_local(
+        apify_thumb_url,
+        thumb_filename,
+        subfolder="ad_studio"
+    )
+    
+    # Log result
+    if local_video_path and video_size_bytes:
         logger.info(
             f"Media downloaded successfully - "
             f"video: {local_video_path} ({video_size_bytes / 1024 / 1024:.2f} MB), "
-            f"thumbnail: {local_thumb_path}"
+            f"thumbnail: {local_thumb_path or 'failed'}"
         )
-        
-    except HTTPException as e:
-        # If download fails, fallback to Apify URLs (không crash)
-        logger.warning(f"Failed to download media, will use Apify URLs as fallback: {e.detail}")
-        local_video_path = None
-        local_thumb_path = None
-        video_size_bytes = None
-        video_mime_type = None
+    elif local_video_path:
+        logger.info(
+            f"Media downloaded successfully - "
+            f"video: {local_video_path}, "
+            f"thumbnail: {local_thumb_path or 'failed'}"
+        )
+    else:
+        logger.warning(
+            f"Media download failed, will use Apify URLs as fallback - "
+            f"video: {apify_video_url[:80]}..."
+        )
     
     # 6. Lưu vào database
     try:
@@ -886,20 +883,129 @@ def get_ad_studio_assets(
     
     result = []
     for asset in assets:
+        # Build URLs - prefer local if available, fallback to Apify URL
+        video_url = asset.video_url
+        thumbnail_url = asset.thumbnail_url
+        
+        if asset.local_video_path:
+            video_url = f"{settings.MEDIA_URL_PREFIX}/{asset.local_video_path.replace(os.sep, '/')}"
+        
+        if asset.local_thumbnail_path:
+            thumbnail_url = f"{settings.MEDIA_URL_PREFIX}/{asset.local_thumbnail_path.replace(os.sep, '/')}"
+        
         result.append({
             "id": asset.id,
             "platform": asset.platform,
             "sourceUrl": asset.source_url,
-            "videoUrl": asset.video_url,
-            "thumbnailUrl": asset.thumbnail_url,
+            "videoUrl": video_url,
+            "thumbnailUrl": thumbnail_url,
+            "localVideoUrl": video_url if asset.local_video_path else None,
+            "localThumbnailUrl": thumbnail_url if asset.local_thumbnail_path else None,
             "captionOriginal": asset.caption_original,
             "note": asset.note,
             "duration": asset.duration,
+            "durationSeconds": asset.duration,  # Alias for frontend
             "hashtags": asset.hashtags,
+            "fileSizeBytes": asset.video_size_bytes,
+            "qualityLabel": "HD (No Watermark)",  # Default label
             "createdAt": asset.created_at.isoformat() if asset.created_at else None,
         })
     
     return {"items": result}
+
+
+@api_router.delete("/ad-studio/assets/{asset_id}")
+def delete_asset(
+    asset_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Xóa asset khỏi bộ sưu tập (xóa cả file local và record trong DB).
+    
+    NOTE: AdStudio - Delete asset and associated local media files
+    
+    Security:
+    - Check if asset is used in scheduled posts (TODO: optionally prevent deletion)
+    - Delete local video/thumbnail files if they exist
+    - Delete database record
+    
+    Args:
+        asset_id: Asset ID to delete
+        current_user: Current authenticated user
+        db: Database session
+        
+    Returns:
+        {"message": "Đã xóa asset thành công", "asset_id": asset_id}
+        
+    Raises:
+        HTTPException 404: If asset not found
+        HTTPException 401: If not authenticated
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Find asset in database
+    asset = db.query(AdStudioAsset).filter(AdStudioAsset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Không tìm thấy asset")
+    
+    # TODO: Check if asset is used in scheduled posts
+    # For now, allow deletion even if used (can be improved later)
+    scheduled_posts = db.query(AdStudioScheduledPost).filter(
+        AdStudioScheduledPost.asset_id == asset_id
+    ).all()
+    
+    if scheduled_posts:
+        logger.warning(
+            f"Asset {asset_id} is used in {len(scheduled_posts)} scheduled post(s). "
+            "Deleting anyway (scheduled posts may break)."
+        )
+    
+    # Delete local files if they exist
+    # Build absolute paths from relative paths stored in DB
+    files_deleted = []
+    
+    if asset.local_video_path:
+        try:
+            abs_path = (BASE_DIR / Path(asset.local_video_path)).resolve()
+            # Security check: ensure path is within AD_STUDIO_MEDIA_ROOT
+            if abs_path.is_file() and abs_path.is_relative_to(AD_STUDIO_MEDIA_ROOT):
+                abs_path.unlink()
+                files_deleted.append("video")
+                logger.info(f"Deleted local video file: {abs_path}")
+            else:
+                logger.warning(f"Video file path outside allowed directory: {abs_path}")
+        except Exception as e:
+            logger.warning(f"Failed to delete video file {asset.local_video_path}: {str(e)}")
+    
+    if asset.local_thumbnail_path:
+        try:
+            abs_path = (BASE_DIR / Path(asset.local_thumbnail_path)).resolve()
+            # Security check: ensure path is within AD_STUDIO_MEDIA_ROOT
+            if abs_path.is_file() and abs_path.is_relative_to(AD_STUDIO_MEDIA_ROOT):
+                abs_path.unlink()
+                files_deleted.append("thumbnail")
+                logger.info(f"Deleted local thumbnail file: {abs_path}")
+            else:
+                logger.warning(f"Thumbnail file path outside allowed directory: {abs_path}")
+        except Exception as e:
+            logger.warning(f"Failed to delete thumbnail file {asset.local_thumbnail_path}: {str(e)}")
+    
+    # Delete database record
+    db.delete(asset)
+    db.commit()
+    
+    logger.info(
+        f"Deleted asset {asset_id} from database. "
+        f"Local files deleted: {', '.join(files_deleted) if files_deleted else 'none'}"
+    )
+    
+    return {
+        "message": "Đã xóa asset thành công",
+        "asset_id": asset_id,
+        "files_deleted": files_deleted
+    }
 
 
 @api_router.get("/ad-studio/posts")

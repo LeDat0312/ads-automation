@@ -226,6 +226,21 @@ export async function cancelPost(postId: string): Promise<void> {
 }
 
 /**
+ * Xóa asset khỏi bộ sưu tập
+ * NOTE: AdStudio - Delete asset and local files
+ */
+export async function deleteAdStudioAsset(assetId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/ad-studio/assets/${assetId}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || `HTTP error! status: ${response.status}`);
+  }
+}
+
+/**
  * Helper để check xem error có phải APIFY_KEY_MISSING không
  */
 export function isApifyKeyMissing(error: any): boolean {

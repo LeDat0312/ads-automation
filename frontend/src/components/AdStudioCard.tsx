@@ -14,12 +14,15 @@ type Asset = {
   sourceUrl: string;
   videoUrl: string;
   thumbnailUrl: string;
+  localVideoUrl?: string | null;      // Local video URL if downloaded
+  localThumbnailUrl?: string | null;  // Local thumbnail URL if downloaded
   captionOriginal: string;
   duration?: number;
+  durationSeconds?: number;           // Alias for duration
   hashtags?: string[];
   note?: string;
-  fileSizeBytes?: number;      // NEW - Video file size in bytes
-  qualityLabel?: string;       // NEW - Quality label (e.g., "HD (No Watermark)")
+  fileSizeBytes?: number;             // Video file size in bytes
+  qualityLabel?: string;              // Quality label (e.g., "HD (No Watermark)")
 };
 
 type ScheduleMode = 'NOW' | 'RANDOM_2H' | 'EXACT_TIME';
@@ -146,6 +149,8 @@ export default function AdStudioCard() {
   // Assets
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   
   // Tab 2: Thu thập link - Step 1
   const [inputUrl, setInputUrl] = useState('');
@@ -433,6 +438,25 @@ export default function AdStudioCard() {
     setActiveTab('collect');
     // Pre-fill caption vào form (no step change needed)
     setPublishForm((prev) => ({ ...prev, caption: asset.captionOriginal }));
+  };
+
+  const handleDeleteAsset = async (assetId: string) => {
+    if (!window.confirm("Bạn có chắc muốn xóa video này khỏi bộ sưu tập? Hành động này không thể hoàn tác.")) {
+      return;
+    }
+
+    setIsDeletingId(assetId);
+
+    try {
+      await API.deleteAdStudioAsset(assetId);
+      setAssets(prev => prev.filter(a => a.id !== assetId));
+      alert("Đã xóa video khỏi bộ sưu tập.");
+    } catch (error) {
+      console.error(error);
+      alert("Xóa video thất bại. Thử lại sau.");
+    } finally {
+      setIsDeletingId(null);
+    }
   };
 
   const handleCustomVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1103,40 +1127,63 @@ export default function AdStudioCard() {
         </div>
       )}
 
-      {/* Asset grid */}
+      {/* Asset grid - Compact layout */}
       {!isLoadingAssets && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
           {assets.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500">
               Chưa có asset nào. Hãy thu thập video từ tab "Thu thập link".
             </div>
           ) : (
             assets.map((asset) => (
-              <div key={asset.id} className="bg-white border rounded-lg p-4 space-y-3">
-                <div className="aspect-[9/16] bg-gray-100 rounded-lg overflow-hidden">
-                  <img
-                    src={asset.thumbnailUrl}
-                    alt="Asset thumbnail"
-                    className="w-full h-full object-cover"
+              <div 
+                key={asset.id} 
+                className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow relative"
+              >
+                {/* Video thumbnail/preview with delete button */}
+                <div className="relative aspect-[9/16] bg-black">
+                  <video
+                    src={asset.localVideoUrl ?? asset.videoUrl}
+                    poster={asset.localThumbnailUrl ?? asset.thumbnailUrl}
+                    className="h-full w-full object-cover"
+                    muted
+                    playsInline
+                    preload="metadata"
                   />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    {getPlatformInfo(asset.platform).icon}
-                    <span className="text-xs font-medium">{getPlatformInfo(asset.platform).label}</span>
-                  </div>
-                  <div className="text-sm text-gray-700 line-clamp-3">
-                    {asset.captionOriginal}
-                  </div>
-                  {asset.note && (
-                    <div className="text-xs text-gray-500 italic">Note: {asset.note}</div>
+                  {/* Duration badge - bottom right */}
+                  {(asset.durationSeconds || asset.duration) && (
+                    <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
+                      {(asset.durationSeconds || asset.duration)}s
+                    </span>
                   )}
+                  {/* Delete button - top right */}
                   <button
-                    onClick={() => handleUseAssetFromCollection(asset)}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                    onClick={() => handleDeleteAsset(asset.id)}
+                    disabled={isDeletingId === asset.id}
+                    className="absolute top-1 right-1 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80 text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="Xóa video"
                   >
-                    Dùng để tạo bài đăng
+                    {isDeletingId === asset.id ? '⏳' : '🗑️'}
                   </button>
+                </div>
+                
+                {/* Text info below */}
+                <div className="p-2 space-y-1">
+                  <p className="line-clamp-2 text-xs text-gray-800 min-h-[2.5rem]">
+                    {asset.captionOriginal || "Không có caption"}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-gray-500">
+                      {asset.qualityLabel || "HD (No Watermark)"}
+                      {asset.fileSizeBytes && ` · ${formatFileSize(asset.fileSizeBytes)}`}
+                    </span>
+                    <button
+                      onClick={() => handleUseAssetFromCollection(asset)}
+                      className="text-[10px] px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    >
+                      Dùng
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
