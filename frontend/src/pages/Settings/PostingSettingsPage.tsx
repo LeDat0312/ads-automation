@@ -1,49 +1,11 @@
 import React, { useState, useEffect } from 'react';
-
-// Types
-interface Channel {
-  id: string;
-  name: string;
-  pageId: string;
-  avatarUrl?: string;
-}
-
-interface BulkComment {
-  id: string;
-  content: string;
-  mediaUrl?: string;
-  delayMinutes?: number;
-  sendTimeMode: 'IMMEDIATELY' | 'AFTER_POST' | 'AT_SCHEDULED_TIME';
-}
-
-interface PostingConfig {
-  shareToStory: boolean;
-  commentsByChannel: Record<string, BulkComment[]>;
-}
-
-// Mock data
-const mockChannels: Channel[] = [
-  {
-    id: '1',
-    name: 'Fanpage Mỹ Phẩm ABC',
-    pageId: '123456789',
-    avatarUrl: 'https://via.placeholder.com/40',
-  },
-  {
-    id: '2',
-    name: 'Shop Thời Trang XYZ',
-    pageId: '987654321',
-    avatarUrl: 'https://via.placeholder.com/40',
-  },
-];
+import * as SettingsAPI from '../../api/settings';
+import type { PostingSettingsRow, AutoCommentTemplate } from '../../api/settings';
 
 const PostingSettingsPage: React.FC = () => {
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [config, setConfig] = useState<PostingConfig>({
-    shareToStory: false,
-    commentsByChannel: {},
-  });
+  const [settingsRows, setSettingsRows] = useState<PostingSettingsRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,114 +14,162 @@ const PostingSettingsPage: React.FC = () => {
 
   const loadData = async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      // TODO: Replace with real API calls
-      // const [channelsData, configData] = await Promise.all([
-      //   fetchChannels(),
-      //   fetchPostingConfig(),
-      // ]);
-      
-      // Mock data
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setChannels(mockChannels);
-      setConfig({
-        shareToStory: false,
-        commentsByChannel: {
-          '1': [
-            {
-              id: '1',
-              content: 'Cảm ơn bạn đã quan tâm! 💙',
-              sendTimeMode: 'IMMEDIATELY',
-            },
-          ],
-        },
-      });
-    } catch (error) {
-      console.error('Error loading data:', error);
-      console.error('Không thể tải dữ liệu');
-      setChannels(mockChannels);
+      const data = await SettingsAPI.fetchPostingSettings();
+      setSettingsRows(data);
+    } catch (err: any) {
+      console.error('Error loading posting settings:', err);
+      setError(err.response?.data?.detail || 'Không thể tải cài đặt đăng bài');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleToggleShareToStory = () => {
-    setConfig((prev) => ({ ...prev, shareToStory: !prev.shareToStory }));
+  // Get settings row for a channel
+  const getSettingsRow = (channelId: string): PostingSettingsRow | undefined => {
+    return settingsRows.find(row => row.channel.id === channelId);
   };
 
-  const handleToggleSignature = () => {
-    // TODO: Implement signature toggle
-    console.log('Tính năng chữ ký đang được phát triển');
+  // Update local state for a channel's settings
+  const updateSettingsRow = (channelId: string, updates: Partial<PostingSettingsRow>) => {
+    setSettingsRows(prev => prev.map(row => 
+      row.channel.id === channelId ? { ...row, ...updates } : row
+    ));
   };
 
-  const handleToggleAutoComment = () => {
-    // TODO: Implement auto comment toggle
-    console.log('Tính năng bình luận hàng loạt đang được phát triển');
+  const handleToggleSignature = async (channelId: string) => {
+    const row = getSettingsRow(channelId);
+    if (!row) return;
+
+    // Create settings if doesn't exist, or update existing
+    const newSettings: PostingSettingsRow['settings'] = row.settings ? {
+      ...row.settings,
+      default_signature: row.settings.default_signature ? undefined : 'Chữ ký mặc định',
+    } : null;
+
+    updateSettingsRow(channelId, { settings: newSettings });
+    // Auto-save toggle changes
+    await handleSaveChannel(channelId);
+  };
+
+  const handleToggleAutoComment = async (channelId: string) => {
+    const row = getSettingsRow(channelId);
+    if (!row) return;
+
+    const currentEnabled = row.settings?.auto_comment_enabled || false;
+    // Create settings if doesn't exist, or update existing
+    const newSettings: PostingSettingsRow['settings'] = row.settings ? {
+      ...row.settings,
+      auto_comment_enabled: !currentEnabled,
+    } : {
+      id: '',
+      user_id: 0,
+      channel_id: channelId,
+      default_signature: undefined,
+      auto_comment_enabled: true,
+      auto_comment_delay_seconds: undefined,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    updateSettingsRow(channelId, { settings: newSettings });
+    // Auto-save toggle changes
+    await handleSaveChannel(channelId);
   };
 
   const handleAddComment = (channelId: string) => {
-    const newComment: BulkComment = {
-      id: Date.now().toString(),
+    const row = getSettingsRow(channelId);
+    if (!row) return;
+
+    const newComment: AutoCommentTemplate = {
+      id: `temp-${Date.now()}`, // Temporary ID
+      user_id: 0,
+      channel_id: channelId,
       content: '',
-      sendTimeMode: 'IMMEDIATELY',
+      schedule_type: 'IMMEDIATE',
+      is_active: true,
+      sort_order: row.auto_comments.length,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
-    setConfig((prev) => ({
-      ...prev,
-      commentsByChannel: {
-        ...prev.commentsByChannel,
-        [channelId]: [...(prev.commentsByChannel[channelId] || []), newComment],
-      },
-    }));
+
+    updateSettingsRow(channelId, {
+      auto_comments: [...row.auto_comments, newComment]
+    });
   };
 
   const handleUpdateComment = (
     channelId: string,
     commentId: string,
-    updates: Partial<BulkComment>
+    updates: Partial<AutoCommentTemplate>
   ) => {
-    setConfig((prev) => ({
-      ...prev,
-      commentsByChannel: {
-        ...prev.commentsByChannel,
-        [channelId]: (prev.commentsByChannel[channelId] || []).map((c) =>
-          c.id === commentId ? { ...c, ...updates } : c
-        ),
-      },
-    }));
+    const row = getSettingsRow(channelId);
+    if (!row) return;
+
+    const updatedComments = row.auto_comments.map(c =>
+      c.id === commentId ? { ...c, ...updates } : c
+    );
+
+    updateSettingsRow(channelId, { auto_comments: updatedComments });
   };
 
   const handleDeleteComment = (channelId: string, commentId: string) => {
-    setConfig((prev) => ({
-      ...prev,
-      commentsByChannel: {
-        ...prev.commentsByChannel,
-        [channelId]: (prev.commentsByChannel[channelId] || []).filter(
-          (c) => c.id !== commentId
-        ),
-      },
-    }));
+    const row = getSettingsRow(channelId);
+    if (!row) return;
+
+    const updatedComments = row.auto_comments.filter(c => c.id !== commentId);
+    updateSettingsRow(channelId, { auto_comments: updatedComments });
   };
 
-  const handleSave = async () => {
+  // Save settings for a specific channel
+  const handleSaveChannel = async (channelId: string) => {
+    const row = getSettingsRow(channelId);
+    if (!row) return;
+
+    setError(null);
     try {
-      // TODO: Call API to save config
-      // await savePostingConfig(config);
-      alert('Đã lưu cài đặt');
-    } catch (error) {
-      console.error('Error saving config:', error);
-      alert('Lưu thất bại');
+      const payload = {
+        default_signature: row.settings?.default_signature || undefined,
+        auto_comment_enabled: row.settings?.auto_comment_enabled || false,
+        auto_comment_delay_seconds: row.settings?.auto_comment_delay_seconds || undefined,
+        auto_comments: row.auto_comments.map(template => ({
+          id: template.id.startsWith('temp-') ? undefined : template.id,
+          content: template.content,
+          media_url: template.media_url || undefined,
+          schedule_type: template.schedule_type,
+          delay_minutes: template.delay_minutes || undefined,
+          is_active: template.is_active,
+          sort_order: template.sort_order,
+        })),
+      };
+
+      const updated = await SettingsAPI.savePostingSettings(channelId, payload);
+      
+      // Update local state with response from server
+      setSettingsRows(prev => prev.map(r => 
+        r.channel.id === channelId ? updated : r
+      ));
+    } catch (err: any) {
+      console.error('Error saving posting settings:', err);
+      setError(err.response?.data?.detail || 'Không thể lưu cài đặt');
+      throw err;
     }
   };
 
-  const renderBulkCommentModal = (channel: Channel) => {
-    if (editingChannelId !== channel.id) return null;
+  const renderBulkCommentModal = (channelId: string) => {
+    if (editingChannelId !== channelId) return null;
 
-    const comments = config.commentsByChannel[channel.id] || [];
+    const row = getSettingsRow(channelId);
+    if (!row) return null;
+
+    const channel = row.channel;
+    const comments = row.auto_comments || [];
 
     return (
       <div className="modal modal-open">
         <div className="modal-box w-11/12 max-w-5xl">
-          <h3 className="font-bold text-lg mb-4">Bình luận hàng loạt - {channel.name}</h3>
+          <h3 className="font-bold text-lg mb-4">Bình luận hàng loạt - {channel.page_name}</h3>
           
           <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             {comments.map((comment) => (
@@ -178,7 +188,7 @@ const PostingSettingsPage: React.FC = () => {
                       placeholder="Nhập nội dung bình luận..."
                       value={comment.content}
                       onChange={(e) =>
-                        handleUpdateComment(channel.id, comment.id, {
+                        handleUpdateComment(channelId, comment.id, {
                           content: e.target.value,
                         })
                       }
@@ -191,9 +201,9 @@ const PostingSettingsPage: React.FC = () => {
                       <span className="label-text font-semibold">Media</span>
                     </label>
                     <div className="border border-gray-300 rounded-lg p-4 text-center text-gray-500 text-sm">
-                      {comment.mediaUrl ? (
+                      {comment.media_url ? (
                         <img
-                          src={comment.mediaUrl}
+                          src={comment.media_url}
                           alt="Media"
                           className="w-full h-20 object-cover rounded"
                         />
@@ -216,26 +226,27 @@ const PostingSettingsPage: React.FC = () => {
                     </label>
                     <select
                       className="select select-bordered w-full"
-                      value={comment.sendTimeMode}
+                      value={comment.schedule_type}
                       onChange={(e) =>
-                        handleUpdateComment(channel.id, comment.id, {
-                          sendTimeMode: e.target.value as BulkComment['sendTimeMode'],
+                        handleUpdateComment(channelId, comment.id, {
+                          schedule_type: e.target.value,
                         })
                       }
                     >
-                      <option value="IMMEDIATELY">Đăng ngay</option>
-                      <option value="AFTER_POST">Sau khi bài đăng được xuất bản</option>
-                      <option value="AT_SCHEDULED_TIME">Chọn giờ cụ thể</option>
+                      <option value="IMMEDIATE">Đăng ngay</option>
+                      <option value="AFTER_X_MINUTES">Sau X phút</option>
+                      <option value="DELAYED">Đăng sau</option>
+                      <option value="CUSTOM">Chọn giờ cụ thể</option>
                     </select>
-                    {comment.sendTimeMode === 'AFTER_POST' && (
+                    {(comment.schedule_type === 'AFTER_X_MINUTES' || comment.schedule_type === 'DELAYED') && (
                       <input
                         type="number"
                         className="input input-bordered input-sm w-full mt-2"
                         placeholder="Phút (ví dụ: 5)"
-                        value={comment.delayMinutes || ''}
+                        value={comment.delay_minutes || ''}
                         onChange={(e) =>
-                          handleUpdateComment(channel.id, comment.id, {
-                            delayMinutes: parseInt(e.target.value) || undefined,
+                          handleUpdateComment(channelId, comment.id, {
+                            delay_minutes: parseInt(e.target.value) || undefined,
                           })
                         }
                       />
@@ -246,7 +257,7 @@ const PostingSettingsPage: React.FC = () => {
                   <div className="col-span-1">
                     <button
                       className="btn btn-ghost btn-sm btn-square text-red-600"
-                      onClick={() => handleDeleteComment(channel.id, comment.id)}
+                      onClick={() => handleDeleteComment(channelId, comment.id)}
                       title="Xóa"
                     >
                       🗑️
@@ -267,16 +278,20 @@ const PostingSettingsPage: React.FC = () => {
             <button
               className="btn btn-primary"
               onClick={() => {
-                handleAddComment(channel.id);
+                handleAddComment(channelId);
               }}
             >
               ➕ Thêm mẫu
             </button>
             <button
               className="btn btn-primary"
-              onClick={() => {
-                handleSave();
-                setEditingChannelId(null);
+              onClick={async () => {
+                try {
+                  await handleSaveChannel(channelId);
+                  setEditingChannelId(null);
+                } catch (err) {
+                  // Error already shown
+                }
               }}
             >
               💾 Lưu
@@ -304,26 +319,15 @@ const PostingSettingsPage: React.FC = () => {
             Cấu hình chữ ký và bình luận tự động cho từng kênh
           </p>
         </div>
-        <button className="btn btn-primary" onClick={handleSave}>
-          💾 Lưu
-        </button>
       </div>
 
-      {/* General Settings */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold mb-4">Cài đặt chung</h3>
-        <div className="form-control">
-          <label className="label cursor-pointer justify-start gap-3">
-            <input
-              type="checkbox"
-              className="checkbox checkbox-primary"
-              checked={config.shareToStory}
-              onChange={handleToggleShareToStory}
-            />
-            <span className="label-text font-medium">Chia sẻ lên Tin</span>
-          </label>
+      {/* Error State */}
+      {error && (
+        <div className="alert alert-error">
+          <span>{error}</span>
+          <button className="btn btn-sm btn-ghost" onClick={() => setError(null)}>✕</button>
         </div>
-      </div>
+      )}
 
       {/* Channels Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -346,56 +350,64 @@ const PostingSettingsPage: React.FC = () => {
                     <div className="loading loading-spinner loading-lg text-indigo-600"></div>
                   </td>
                 </tr>
-              ) : channels.length === 0 ? (
+              ) : settingsRows.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="text-center py-12 text-gray-500">
                     Chưa có kênh nào
                   </td>
                 </tr>
               ) : (
-                channels.map((channel) => (
-                  <tr key={channel.id} className="hover:bg-gray-50">
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div className="avatar">
-                          <div className="w-10 h-10 rounded-full">
-                            <img
-                              src={channel.avatarUrl || 'https://via.placeholder.com/40'}
-                              alt={channel.name}
-                              className="w-full h-full object-cover"
-                            />
+                settingsRows.map((row) => {
+                  const channel = row.channel;
+                  const hasSignature = !!row.settings?.default_signature;
+                  const autoCommentEnabled = row.settings?.auto_comment_enabled || false;
+                  
+                  return (
+                    <tr key={channel.id} className="hover:bg-gray-50">
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div className="avatar">
+                            <div className="w-10 h-10 rounded-full">
+                              <img
+                                src={channel.avatar_url || 'https://via.placeholder.com/40'}
+                                alt={channel.page_name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">{channel.page_name}</div>
+                            <div className="text-xs text-gray-500">{channel.page_id}</div>
                           </div>
                         </div>
-                        <div>
-                          <div className="font-medium text-gray-900">{channel.name}</div>
-                          <div className="text-xs text-gray-500">{channel.pageId}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="text-center">
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-primary"
-                        onChange={handleToggleSignature}
-                      />
-                    </td>
-                    <td className="text-center">
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-primary"
-                        onChange={handleToggleAutoComment}
-                      />
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-sm btn-primary"
-                        onClick={() => setEditingChannelId(channel.id)}
-                      >
-                        Sửa
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="text-center">
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-primary"
+                          checked={hasSignature}
+                          onChange={() => handleToggleSignature(channel.id)}
+                        />
+                      </td>
+                      <td className="text-center">
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-primary"
+                          checked={autoCommentEnabled}
+                          onChange={() => handleToggleAutoComment(channel.id)}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() => setEditingChannelId(channel.id)}
+                        >
+                          Sửa
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -403,7 +415,7 @@ const PostingSettingsPage: React.FC = () => {
       </div>
 
       {/* Modals */}
-      {channels.map((channel) => renderBulkCommentModal(channel))}
+      {settingsRows.map((row) => renderBulkCommentModal(row.channel.id))}
     </div>
   );
 };

@@ -1,55 +1,12 @@
 import React, { useState, useEffect } from 'react';
-
-// Types
-interface Channel {
-  id: string;
-  name: string;
-  pageId: string;
-  avatarUrl?: string;
-}
-
-interface ChannelGroup {
-  id: string;
-  name: string;
-  color: string;
-  channelIds: string[];
-}
-
-// Mock data
-const mockChannels: Channel[] = [
-  {
-    id: '1',
-    name: 'Fanpage Mỹ Phẩm ABC',
-    pageId: '123456789',
-    avatarUrl: 'https://via.placeholder.com/40',
-  },
-  {
-    id: '2',
-    name: 'Shop Thời Trang XYZ',
-    pageId: '987654321',
-    avatarUrl: 'https://via.placeholder.com/40',
-  },
-];
-
-const mockGroups: ChannelGroup[] = [
-  {
-    id: '1',
-    name: 'Tiền',
-    color: '#3B82F6',
-    channelIds: ['1'],
-  },
-  {
-    id: '2',
-    name: 'Hút Mỡ',
-    color: '#EF4444',
-    channelIds: ['2'],
-  },
-];
+import * as SettingsAPI from '../../api/settings';
+import type { Channel, ChannelGroup } from '../../api/settings';
 
 const ChannelGroupsSettingsPage: React.FC = () => {
   const [groups, setGroups] = useState<ChannelGroup[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showChannelSelector, setShowChannelSelector] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,33 +15,53 @@ const ChannelGroupsSettingsPage: React.FC = () => {
 
   const loadData = async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      // TODO: Replace with real API calls
-      // const [groupsData, channelsData] = await Promise.all([
-      //   fetchChannelGroups(),
-      //   fetchChannels(),
-      // ]);
-      
-      // Mock data
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setGroups(mockGroups);
-      setChannels(mockChannels);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      console.error('Không thể tải dữ liệu');
-      setGroups(mockGroups);
-      setChannels(mockChannels);
+      const [groupsData, channelsData] = await Promise.all([
+        SettingsAPI.fetchChannelGroups(),
+        SettingsAPI.fetchChannels('facebook'), // Filter by Facebook for now
+      ]);
+      setGroups(groupsData);
+      setChannels(channelsData);
+    } catch (err: any) {
+      console.error('Error loading data:', err);
+      setError(err.response?.data?.detail || 'Không thể tải dữ liệu');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Helper to get channel IDs from group
+  const getGroupChannelIds = (group: ChannelGroup): string[] => {
+    return group.channels.map(c => c.id);
+  };
+
+  // Helper to check if channel is in group
+  const isChannelInGroup = (group: ChannelGroup, channelId: string): boolean => {
+    return group.channels.some(c => c.id === channelId);
+  };
+
+  // Get channels currently in group
+  const getChannelsInGroup = (group: ChannelGroup): Channel[] => {
+    return group.channels;
+  };
+
+  // Get channels not in group
+  const getAvailableChannels = (group: ChannelGroup): Channel[] => {
+    const groupChannelIds = getGroupChannelIds(group);
+    return channels.filter(c => !groupChannelIds.includes(c.id));
+  };
+
   const handleCreateGroup = () => {
+    // Create new group locally - will be saved when user clicks Save
     const newGroup: ChannelGroup = {
-      id: Date.now().toString(),
+      id: `temp-${Date.now()}`, // Temporary ID
+      user_id: 0,
       name: 'Nhóm mới',
-      color: '#3B82F6',
-      channelIds: [],
+      color_hex: '#3B82F6',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      channels: [],
     };
     setGroups([...groups, newGroup]);
   };
@@ -97,14 +74,27 @@ const ChannelGroupsSettingsPage: React.FC = () => {
 
   const handleUpdateGroupColor = (groupId: string, newColor: string) => {
     setGroups((prev) =>
-      prev.map((g) => (g.id === groupId ? { ...g, color: newColor } : g))
+      prev.map((g) => (g.id === groupId ? { ...g, color_hex: newColor } : g))
     );
   };
 
-  const handleDeleteGroup = (groupId: string) => {
-    if (window.confirm('Bạn có chắc muốn xóa nhóm này?')) {
+  const handleDeleteGroup = async (groupId: string) => {
+    if (!window.confirm('Bạn có chắc muốn xóa nhóm này?')) {
+      return;
+    }
+
+    // Skip API call for temporary groups
+    if (groupId.startsWith('temp-')) {
       setGroups((prev) => prev.filter((g) => g.id !== groupId));
-      console.log('Đã xóa nhóm');
+      return;
+    }
+
+    try {
+      await SettingsAPI.deleteChannelGroup(groupId);
+      await loadData(); // Reload after deletion
+    } catch (err: any) {
+      console.error('Error deleting group:', err);
+      alert(err.response?.data?.detail || 'Không thể xóa nhóm');
     }
   };
 
@@ -112,44 +102,56 @@ const ChannelGroupsSettingsPage: React.FC = () => {
     setGroups((prev) =>
       prev.map((g) => {
         if (g.id === groupId) {
-          if (!g.channelIds.includes(channelId)) {
-            return { ...g, channelIds: [...g.channelIds, channelId] };
+          const channel = channels.find(c => c.id === channelId);
+          if (channel && !isChannelInGroup(g, channelId)) {
+            return { ...g, channels: [...g.channels, channel] };
           }
         }
         return g;
       })
     );
     setShowChannelSelector(null);
-    console.log('Đã thêm kênh vào nhóm');
   };
 
   const handleRemoveChannelFromGroup = (groupId: string, channelId: string) => {
     setGroups((prev) =>
       prev.map((g) =>
         g.id === groupId
-          ? { ...g, channelIds: g.channelIds.filter((id) => id !== channelId) }
+          ? { ...g, channels: g.channels.filter((c) => c.id !== channelId) }
           : g
       )
     );
-    console.log('Đã xóa kênh khỏi nhóm');
   };
 
-  const getChannelsInGroup = (group: ChannelGroup) => {
-    return channels.filter((c) => group.channelIds.includes(c.id));
-  };
-
-  const getAvailableChannels = (group: ChannelGroup) => {
-    return channels.filter((c) => !group.channelIds.includes(c.id));
-  };
-
+  // Save all groups - create new ones and update existing ones
   const handleSave = async () => {
+    setError(null);
     try {
-      // TODO: Call API to save groups
-      // await saveChannelGroups(groups);
-      alert('Đã lưu nhóm kênh');
-    } catch (error) {
-      console.error('Error saving groups:', error);
-      alert('Lưu thất bại');
+      // Process all groups
+      for (const group of groups) {
+        const channelIds = getGroupChannelIds(group);
+        const payload = {
+          name: group.name,
+          color_hex: group.color_hex || '#3B82F6',
+          channel_ids: channelIds,
+        };
+
+        if (group.id.startsWith('temp-')) {
+          // Create new group
+          await SettingsAPI.saveChannelGroup(payload);
+        } else {
+          // Update existing group
+          await SettingsAPI.saveChannelGroup(payload, group.id);
+        }
+      }
+
+      // Reload data after saving
+      await loadData();
+      alert('Đã lưu nhóm kênh thành công');
+    } catch (err: any) {
+      console.error('Error saving groups:', err);
+      setError(err.response?.data?.detail || 'Lưu thất bại');
+      alert(err.response?.data?.detail || 'Lưu thất bại');
     }
   };
 
@@ -169,6 +171,14 @@ const ChannelGroupsSettingsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Error State */}
+      {error && (
+        <div className="alert alert-error">
+          <span>{error}</span>
+          <button className="btn btn-sm btn-ghost" onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading ? (
@@ -220,7 +230,7 @@ const ChannelGroupsSettingsPage: React.FC = () => {
                             <input
                               type="color"
                               className="w-10 h-10 rounded border border-gray-300 cursor-pointer"
-                              value={group.color}
+                              value={group.color_hex || '#3B82F6'}
                               onChange={(e) =>
                                 handleUpdateGroupColor(group.id, e.target.value)
                               }
@@ -229,7 +239,7 @@ const ChannelGroupsSettingsPage: React.FC = () => {
                             <input
                               type="text"
                               className="input input-bordered input-sm w-24"
-                              value={group.color}
+                              value={group.color_hex || '#3B82F6'}
                               onChange={(e) =>
                                 handleUpdateGroupColor(group.id, e.target.value)
                               }
@@ -244,16 +254,16 @@ const ChannelGroupsSettingsPage: React.FC = () => {
                                 key={channel.id}
                                 className="badge badge-outline flex items-center gap-1"
                                 style={{
-                                  borderColor: group.color,
-                                  color: group.color,
+                                  borderColor: group.color_hex || '#3B82F6',
+                                  color: group.color_hex || '#3B82F6',
                                 }}
                               >
                                 <img
-                                  src={channel.avatarUrl || 'https://via.placeholder.com/20'}
-                                  alt={channel.name}
+                                  src={channel.avatar_url || 'https://via.placeholder.com/20'}
+                                  alt={channel.page_name}
                                   className="w-4 h-4 rounded-full"
                                 />
-                                <span className="text-xs">{channel.name}</span>
+                                <span className="text-xs">{channel.page_name}</span>
                                 <button
                                   className="ml-1 text-red-500 hover:text-red-700"
                                   onClick={() =>
@@ -292,11 +302,11 @@ const ChannelGroupsSettingsPage: React.FC = () => {
                                             }
                                           >
                                             <img
-                                              src={channel.avatarUrl || 'https://via.placeholder.com/20'}
-                                              alt={channel.name}
+                                              src={channel.avatar_url || 'https://via.placeholder.com/20'}
+                                              alt={channel.page_name}
                                               className="w-5 h-5 rounded-full"
                                             />
-                                            <span className="text-sm">{channel.name}</span>
+                                            <span className="text-sm">{channel.page_name}</span>
                                           </a>
                                         </li>
                                       ))}

@@ -1,38 +1,11 @@
 import React, { useState, useEffect } from 'react';
-
-// Types
-interface Channel {
-  id: string;
-  name: string;
-  pageId: string;
-  avatarUrl?: string;
-  ownerName?: string;
-  platform: 'facebook';
-}
-
-// Mock data - will be replaced with real API later
-const mockChannels: Channel[] = [
-  {
-    id: '1',
-    name: 'Fanpage Mỹ Phẩm ABC',
-    pageId: '123456789',
-    avatarUrl: 'https://via.placeholder.com/40',
-    ownerName: 'Nguyễn Văn A',
-    platform: 'facebook',
-  },
-  {
-    id: '2',
-    name: 'Shop Thời Trang XYZ',
-    pageId: '987654321',
-    avatarUrl: 'https://via.placeholder.com/40',
-    ownerName: 'Trần Thị B',
-    platform: 'facebook',
-  },
-];
+import * as SettingsAPI from '../../api/settings';
+import type { Channel } from '../../api/settings';
 
 const ChannelsSettingsPage: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
 
@@ -42,28 +15,42 @@ const ChannelsSettingsPage: React.FC = () => {
 
   const loadChannels = async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      // TODO: Replace with real API call
-      // const data = await fetchChannels();
-      // setChannels(data);
-      
-      // Mock data for now
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setChannels(mockChannels);
-    } catch (error) {
-      console.error('Error loading channels:', error);
-      console.error('Không thể tải danh sách kênh');
-      // Fallback to mock data
-      setChannels(mockChannels);
+      const data = await SettingsAPI.fetchChannels('facebook'); // Filter by Facebook for now
+      setChannels(data);
+    } catch (err: any) {
+      console.error('Error loading channels:', err);
+      setError(err.response?.data?.detail || 'Không thể tải danh sách kênh');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Map backend Channel to frontend-friendly format for display
+  const getChannelDisplayName = (channel: Channel) => channel.page_name;
+  const getChannelAvatar = (channel: Channel) => channel.avatar_url;
+  const getChannelPageId = (channel: Channel) => channel.page_id;
+
   const filteredChannels = channels.filter((channel) =>
-    channel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    channel.pageId.includes(searchQuery)
+    channel.page_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    channel.page_id.includes(searchQuery)
   );
+
+  const handleDeleteChannel = async (channelId: string) => {
+    if (!window.confirm('Bạn có chắc muốn xóa kênh này?')) {
+      return;
+    }
+
+    try {
+      await SettingsAPI.deleteChannel(channelId);
+      // Reload channels after deletion
+      await loadChannels();
+    } catch (err: any) {
+      console.error('Error deleting channel:', err);
+      alert(err.response?.data?.detail || 'Không thể xóa kênh');
+    }
+  };
 
   const handleToggleSelect = (channelId: string) => {
     setSelectedChannels((prev) => {
@@ -120,6 +107,14 @@ const ChannelsSettingsPage: React.FC = () => {
         </button>
       </div>
 
+      {/* Error State */}
+      {error && (
+        <div className="alert alert-error">
+          <span>{error}</span>
+          <button className="btn btn-sm btn-ghost" onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
       {/* Loading State */}
       {isLoading ? (
         <div className="text-center py-12">
@@ -169,27 +164,27 @@ const ChannelsSettingsPage: React.FC = () => {
                         <div className="avatar">
                           <div className="w-10 h-10 rounded-full">
                             <img
-                              src={channel.avatarUrl || 'https://via.placeholder.com/40'}
-                              alt={channel.name}
+                              src={getChannelAvatar(channel) || 'https://via.placeholder.com/40'}
+                              alt={getChannelDisplayName(channel)}
                               className="w-full h-full object-cover"
                             />
                           </div>
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900">{channel.name}</div>
+                          <div className="font-medium text-gray-900">{getChannelDisplayName(channel)}</div>
                           <div className="text-xs text-gray-500 flex items-center gap-1">
                             <span>📘</span>
-                            <span>{channel.pageId}</span>
+                            <span>{getChannelPageId(channel)}</span>
                           </div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <span className="text-sm text-gray-600 font-mono">{channel.pageId}</span>
+                      <span className="text-sm text-gray-600 font-mono">{getChannelPageId(channel)}</span>
                     </td>
                     <td>
                       <span className="text-sm text-gray-600">
-                        {channel.ownerName || 'Chưa có'}
+                        {channel.page_username || 'Chưa có'}
                       </span>
                     </td>
                     <td>
@@ -205,10 +200,12 @@ const ChannelsSettingsPage: React.FC = () => {
                             <a>Xem chi tiết</a>
                           </li>
                           <li>
-                            <a>Ngắt kết nối</a>
+                            <a onClick={() => SettingsAPI.updateChannel(channel.id, { is_active: !channel.is_active })}>
+                              {channel.is_active ? 'Tắt' : 'Bật'}
+                            </a>
                           </li>
                           <li>
-                            <a className="text-red-600">Xóa</a>
+                            <a className="text-red-600" onClick={() => handleDeleteChannel(channel.id)}>Xóa</a>
                           </li>
                         </ul>
                       </div>
