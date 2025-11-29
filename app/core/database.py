@@ -135,9 +135,10 @@ def init_db():
     from app.models.user import User  # User model for authentication
     from app.models.user_settings import UserSettings  # User settings for Facebook token
     from app.models.ad_studio import AdStudioAsset, AdStudioScheduledPost  # NOTE: added for AdStudio only
-    from app.models.channel import FacebookPage, ChannelGroup, ChannelGroupItem, AutoCommentSchedule  # Channel management models (old structure)
-    # Import new channel models (separate from old ones for backward compatibility)
-    from app.models.channels import Channel, ChannelGroup as NewChannelGroup, ChannelGroupMembership, PostingSettings, AutoCommentTemplate  # Channel management models (new structure)
+    # OLD Channel management models - COMMENTED OUT to avoid table name conflicts
+    # from app.models.channel import FacebookPage, ChannelGroup, ChannelGroupItem, AutoCommentSchedule  # Channel management models (old structure - DEPRECATED)
+    # Import new channel models (new structure - active)
+    from app.models.channels import Channel, ChannelGroup, ChannelGroupMembership, PostingSettings, AutoCommentTemplate  # Channel management models (new structure)
     
     settings = get_settings()
     database_url = settings.DATABASE_URL
