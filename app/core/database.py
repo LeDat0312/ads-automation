@@ -135,6 +135,7 @@ def init_db():
     from app.models.user import User  # User model for authentication
     from app.models.user_settings import UserSettings  # User settings for Facebook token
     from app.models.ad_studio import AdStudioAsset, AdStudioScheduledPost  # NOTE: added for AdStudio only
+    from app.models.channel import FacebookPage, ChannelGroup, ChannelGroupItem, AutoCommentSchedule  # Channel management models
     
     settings = get_settings()
     database_url = settings.DATABASE_URL
