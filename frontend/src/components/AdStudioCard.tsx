@@ -192,7 +192,6 @@ export default function AdStudioCard() {
   // NOTE: AdStudio - Add loading and error states
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
-  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
   
   // NEW - Categorized error handling for fetch operations
   const [fetchErrorCode, setFetchErrorCode] = useState<FetchErrorCode>('NONE');
