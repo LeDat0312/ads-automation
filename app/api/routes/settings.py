@@ -3,7 +3,8 @@
 Settings API Routes - Quản lý token Facebook, accounts, và prefixes cho mỗi user
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+import os
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
@@ -4170,3 +4171,93 @@ async def settings_page(
     </html>
     """
     return HTMLResponse(content=html_content)
+
+
+# ==================== CHANNEL MANAGEMENT ROUTES (React SPA) ====================
+
+@router.get("/channels", response_class=HTMLResponse)
+@router.get("/channel-groups", response_class=HTMLResponse)
+@router.get("/posting", response_class=HTMLResponse)
+async def channel_management_page(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Channel Management pages - Serve React app for /settings/channels, /settings/channel-groups, /settings/posting
+    """
+    # Check if user is locked
+    if current_user and not current_user.is_active:
+        return HTMLResponse(content=get_account_locked_message())
+    
+    # Redirect to login if not authenticated
+    if not current_user:
+        return HTMLResponse(content="""
+        <script>
+            window.location.href = '/auth/login';
+        </script>
+        """)
+    
+    # Serve React app from frontend/dist
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    frontend_dist = os.path.join(project_root, "frontend", "dist", "index.html")
+    
+    if os.path.exists(frontend_dist):
+        return FileResponse(frontend_dist)
+    else:
+        # Fallback nếu React app chưa được build
+        return HTMLResponse(content="""
+        <!DOCTYPE html>
+        <html lang="vi">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Quản lý kênh - React App Not Built</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0;
+                }
+                .container {
+                    background: white;
+                    border-radius: 16px;
+                    padding: 48px;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                    text-align: center;
+                    max-width: 600px;
+                }
+                h1 { color: #1e293b; margin-bottom: 16px; }
+                p { color: #64748b; margin-bottom: 24px; }
+                pre {
+                    background: #f1f5f9;
+                    padding: 16px;
+                    border-radius: 8px;
+                    text-align: left;
+                    overflow-x: auto;
+                }
+                .btn {
+                    display: inline-block;
+                    margin-top: 16px;
+                    padding: 12px 24px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-weight: 600;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>⚙️ Quản lý kênh</h1>
+                <p>React frontend chưa được build. Vui lòng chạy lệnh sau:</p>
+                <pre>cd frontend && npm install && npm run build</pre>
+                <a href="/" class="btn">🏠 Về Trang Chủ</a>
+            </div>
+        </body>
+        </html>
+        """)
