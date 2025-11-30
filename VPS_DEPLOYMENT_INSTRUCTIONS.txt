@@ -1,0 +1,148 @@
+# VPS Deployment - Quick Start Guide
+
+## You encountered these 3 errors:
+
+```bash
+./force_pull.sh                              # ❌ Permission denied
+python -m migrations.add_facebook_accounts_table  # ❌ No module named migrations.add_facebook_accounts_table
+sudo supervisorctl restart backend            # ❌ backend: ERROR (no such process)
+```
+
+---
+
+## ✅ SOLUTION (Copy-Paste These Commands on VPS)
+
+### Option A: Automatic Fix (RECOMMENDED)
+
+```bash
+cd /home/adsuser/ads-automation
+
+# Pull latest code (includes fix scripts)
+git fetch origin main
+git reset --hard origin/main
+
+# Fix permissions & run quick fix
+chmod +x VPS_QUICK_FIX_ERRORS.sh
+./VPS_QUICK_FIX_ERRORS.sh
+```
+
+That's it! The script will:
+- ✅ Fix all script permissions
+- ✅ Find your supervisor service name automatically
+- ✅ Run the migration
+- ✅ Restart the backend
+
+---
+
+### Option B: Full Deployment (Clean Reset)
+
+```bash
+cd /home/adsuser/ads-automation
+git fetch origin main
+git reset --hard origin/main
+
+chmod +x VPS_DEPLOY_FACEBOOK_ACCOUNTS.sh
+./VPS_DEPLOY_FACEBOOK_ACCOUNTS.sh
+```
+
+This does a complete deployment with:
+- Code update
+- Dependency installation
+- Database migration
+- Service restart
+- Health check validation
+
+---
+
+## Verify Deployment
+
+After running either script:
+
+```bash
+# 1. Check service is running
+sudo supervisorctl status
+
+# Expected: SERVICE_NAME    RUNNING   pid 12345, uptime 0:00:30
+
+# 2. Test health endpoint
+curl http://localhost:8000/health
+
+# Expected: {"status":"healthy"}
+
+# 3. Test new API (should return 401 - needs auth)
+curl -I http://localhost:8000/api/facebook-accounts
+
+# Expected: HTTP/1.1 401 Unauthorized
+```
+
+---
+
+## View Logs
+
+```bash
+# Find your service name first
+sudo supervisorctl status
+
+# Then view logs (replace SERVICE_NAME)
+sudo supervisorctl tail SERVICE_NAME -f
+```
+
+---
+
+## Troubleshooting
+
+If issues persist, see detailed guide:
+```bash
+cat VPS_ERROR_RESOLUTION.md
+```
+
+Or check scripts:
+```bash
+ls -la VPS_*.sh
+```
+
+---
+
+## What Was Deployed
+
+**8 New API Endpoints:**
+- GET/POST/PATCH/DELETE `/api/facebook-accounts`
+- POST `/api/facebook-accounts/{id}/verify`
+- GET `/api/facebook-accounts/{id}/pages`
+- POST `/api/channels/facebook/from-saved-account`
+- POST `/api/channels/facebook/manual-v2`
+
+**Database:**
+- New table: `facebook_accounts`
+
+**Backend Only - Frontend NOT yet implemented**
+
+See full docs:
+```bash
+cat FACEBOOK_VIA_TOKEN_IMPLEMENTATION.md
+```
+
+---
+
+## Quick Commands Reference
+
+```bash
+# Restart backend
+sudo supervisorctl restart SERVICE_NAME
+
+# View logs
+sudo supervisorctl tail SERVICE_NAME -f
+
+# Check status
+sudo supervisorctl status
+
+# Check port
+sudo lsof -i :8000
+
+# Test API
+curl http://localhost:8000/docs  # Swagger UI
+```
+
+---
+
+**TL;DR**: Run `VPS_QUICK_FIX_ERRORS.sh` and you're done! 🚀
