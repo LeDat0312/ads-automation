@@ -1,0 +1,74 @@
+========================================
+  CÂU LỆNH PULL CODE VỀ VPS
+========================================
+
+✅ Code đã được push lên GitHub với fix xung đột bảng!
+
+---
+
+CÁCH 1: Dùng Script Đơn Giản (Khuyên dùng)
+
+cd /home/adsuser/ads-automation
+chmod +x VPS_PULL_SIMPLE.sh
+./VPS_PULL_SIMPLE.sh
+
+---
+
+CÁCH 2: Copy-Paste Toàn Bộ Lệnh Này
+
+cd /home/adsuser/ads-automation && \
+git pull origin main && \
+python3 -m migrations.add_channels_management_tables && \
+sudo systemctl restart ads-automation.service && \
+echo "✅ Done!"
+
+---
+
+CÁCH 3: Từng Bước (Nếu Cần Debug)
+
+# 1. Vào thư mục
+cd /home/adsuser/ads-automation
+
+# 2. Pull code
+git pull origin main
+
+# 3. Chạy migration (tạo bảng mới)
+python3 -m migrations.add_channels_management_tables
+
+# 4. Restart service
+sudo systemctl restart ads-automation.service
+
+---
+
+KIỂM TRA SAU KHI PULL:
+
+# Kiểm tra bảng đã được tạo
+psql -U adsuser -d ads_automation_db -c "\dt channels*"
+psql -U adsuser -d ads_automation_db -c "\dt posting_settings"
+
+# Kiểm tra service
+sudo systemctl status ads-automation.service
+
+# Kiểm tra log
+sudo journalctl -u ads-automation.service -n 50
+
+---
+
+NẾU GẶP LỖI "Table already exists":
+
+# Xóa bảng cũ và tạo lại (CẨN THẬN - mất dữ liệu!)
+psql -U adsuser -d ads_automation_db << EOF
+DROP TABLE IF EXISTS auto_comment_templates CASCADE;
+DROP TABLE IF EXISTS posting_settings CASCADE;
+DROP TABLE IF EXISTS channel_group_memberships CASCADE;
+DROP TABLE IF EXISTS channel_groups CASCADE;
+DROP TABLE IF EXISTS channels CASCADE;
+EOF
+
+# Sau đó chạy lại migration
+python3 -m migrations.add_channels_management_tables
+
+---
+
+✅ XONG! Code đã sẵn sàng trên GitHub.
+
