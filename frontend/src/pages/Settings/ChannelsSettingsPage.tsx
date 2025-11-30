@@ -9,6 +9,13 @@ const ChannelsSettingsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  
+  // Manual add modal state
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [manualPageId, setManualPageId] = useState('');
+  const [manualToken, setManualToken] = useState('');
+  const [manualNameOverride, setManualNameOverride] = useState('');
+  const [isSubmittingManual, setIsSubmittingManual] = useState(false);
 
   // Check for OAuth callback parameters
   useEffect(() => {
@@ -101,6 +108,64 @@ const ChannelsSettingsPage: React.FC = () => {
     }
   };
 
+  const handleAddManual = async () => {
+    if (!manualPageId.trim()) {
+      setToast({
+        message: '❌ Vui lòng nhập ID Trang Facebook',
+        type: 'error',
+      });
+      return;
+    }
+
+    setIsSubmittingManual(true);
+
+    try {
+      const response = await fetch('/api/channels/facebook/manual', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          page_id: manualPageId.trim(),
+          page_access_token: manualToken.trim() || null,
+          page_name_override: manualNameOverride.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Không thể thêm kênh');
+      }
+
+      // Success - channel created/updated
+      await response.json();
+
+      // Close modal
+      setShowManualModal(false);
+      setManualPageId('');
+      setManualToken('');
+      setManualNameOverride('');
+
+      // Show success toast
+      setToast({
+        message: '✅ Thêm kênh Facebook thành công',
+        type: 'success',
+      });
+
+      // Reload channels
+      await loadChannels();
+    } catch (err: any) {
+      console.error('Error adding manual channel:', err);
+      setToast({
+        message: err.message || '❌ Không thể thêm kênh Facebook. Vui lòng kiểm tra lại thông tin.',
+        type: 'error',
+      });
+    } finally {
+      setIsSubmittingManual(false);
+    }
+  };
+
   // Map backend Channel to frontend-friendly format for display
   const getChannelDisplayName = (channel: Channel) => channel.page_name;
   const getChannelAvatar = (channel: Channel) => channel.avatar_url;
@@ -186,9 +251,14 @@ const ChannelsSettingsPage: React.FC = () => {
             📊 Xuất báo cáo
           </button>
         </div>
-        <button className="btn btn-primary" onClick={handleConnectFacebook}>
-          ➕ Thêm kênh
-        </button>
+        <div className="flex gap-2">
+          <button className="btn btn-outline" onClick={() => setShowManualModal(true)}>
+            ➕ Thêm kênh thủ công
+          </button>
+          <button className="btn btn-primary" onClick={handleConnectFacebook}>
+            🔗 Kết nối OAuth
+          </button>
+        </div>
       </div>
 
       {/* Error State */}
@@ -316,6 +386,115 @@ const ChannelsSettingsPage: React.FC = () => {
             >
               Bỏ chọn
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Add Modal */}
+      {showManualModal && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-2xl">
+            <h3 className="font-bold text-lg mb-4">Thêm Fanpage Facebook thủ công</h3>
+            
+            <div className="space-y-4">
+              {/* Page ID */}
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium">
+                    ID Trang Facebook <span className="text-red-500">*</span>
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Nhập ID Trang (ví dụ: 687520047771032)"
+                  className="input input-bordered w-full"
+                  value={manualPageId}
+                  onChange={(e) => setManualPageId(e.target.value)}
+                />
+                <label className="label">
+                  <span className="label-text-alt text-gray-500">
+                    ID Trang Facebook có thể tìm trong "Thông tin trang" của Fanpage
+                  </span>
+                </label>
+              </div>
+
+              {/* Page Access Token */}
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium">
+                    Page Access Token (tuỳ chọn)
+                  </span>
+                </label>
+                <textarea
+                  placeholder="Nhập Page Access Token (nếu có)"
+                  className="textarea textarea-bordered w-full h-24"
+                  value={manualToken}
+                  onChange={(e) => setManualToken(e.target.value)}
+                />
+                <label className="label">
+                  <span className="label-text-alt text-gray-500">
+                    Nếu bạn nhập Page Access Token, hệ thống có thể quản lý bình luận/inbox và webhook cho Trang này. 
+                    Nếu bỏ trống, kênh chỉ dùng để thống kê.
+                  </span>
+                </label>
+                <label className="label">
+                  <span className="label-text-alt text-warning">
+                    ⚠️ Token này dùng để hệ thống có thể đọc bình luận, inbox và đăng nội dung dưới tên Trang. 
+                    Hãy chỉ sử dụng cho mục đích cá nhân và bảo mật cẩn thận.
+                  </span>
+                </label>
+              </div>
+
+              {/* Name Override */}
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium">
+                    Tên hiển thị (tuỳ chọn)
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Tên tùy chỉnh cho kênh (nếu muốn)"
+                  className="input input-bordered w-full"
+                  value={manualNameOverride}
+                  onChange={(e) => setManualNameOverride(e.target.value)}
+                />
+                <label className="label">
+                  <span className="label-text-alt text-gray-500">
+                    Nếu để trống, hệ thống sẽ tự động lấy tên từ Facebook
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="modal-action">
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  setShowManualModal(false);
+                  setManualPageId('');
+                  setManualToken('');
+                  setManualNameOverride('');
+                }}
+                disabled={isSubmittingManual}
+              >
+                Hủy
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleAddManual}
+                disabled={isSubmittingManual || !manualPageId.trim()}
+              >
+                {isSubmittingManual ? (
+                  <>
+                    <span className="loading loading-spinner loading-sm"></span>
+                    Đang đồng bộ...
+                  </>
+                ) : (
+                  'Đồng bộ'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

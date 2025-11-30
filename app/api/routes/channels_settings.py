@@ -12,7 +12,7 @@ from app.models.user import User
 from app.api.routes.auth import get_current_user_optional
 from app.services.channels_service import ChannelsService, get_channels_service
 from app.schemas.channels import (
-    ChannelRead, ChannelCreate, ChannelUpdate, FacebookPageImport,
+    ChannelRead, ChannelCreate, ChannelUpdate, FacebookPageImport, ManualFacebookChannelCreate,
     ChannelGroupRead, ChannelGroupCreate, ChannelGroupUpdate,
     ChannelWithPostingSettings, PostingSettingsBulkUpdateWithIds
 )
@@ -74,6 +74,181 @@ def import_facebook_pages(
     except Exception as e:
         logger.error(f"Error importing Facebook pages: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Lỗi khi import pages: {str(e)}")
+
+
+@router.post("/channels/facebook/manual", response_model=ChannelRead)
+async def add_facebook_channel_manually(
+    channel_data: ManualFacebookChannelCreate = Body(...),
+    current_user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
+):
+    """
+    Add Facebook channel manually by Page ID (with optional Page Access Token)
+    
+    - If page_access_token provided: verify with Facebook Graph API and enable comment/inbox features
+    - If no token: use app token to get basic page info (name only)
+    - Subscribe to webhook if token provided
+    """
+    import httpx
+    from app.core.config import get_settings
+    from app.services.facebook_service import facebook_service
+    
+    settings = get_settings()
+    service = get_channels_service(db, current_user.id)
+    
+    page_id = channel_data.page_id
+    page_access_token = channel_data.page_access_token
+    page_name_override = channel_data.page_name_override
+    
+    # Step 1: Get page info from Facebook Graph API
+    page_name = None
+    avatar_url = None
+    
+    try:
+        if page_access_token:
+            # Use provided Page Access Token to get info
+            logger.info(f"🔍 Verifying Page Access Token for Page ID: {page_id}")
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/{page_id}",
+                    params={
+                        "fields": "id,name,picture",
+                        "access_token": page_access_token
+                    }
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"❌ Facebook Graph API error: {response.status_code} - {response.text}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Không thể xác thực Page Access Token hoặc ID Trang. Vui lòng kiểm tra lại."
+                    )
+                
+                page_data = response.json()
+                page_name = page_data.get("name")
+                picture_data = page_data.get("picture", {})
+                if isinstance(picture_data, dict):
+                    avatar_url = picture_data.get("data", {}).get("url")
+                
+                logger.info(f"✅ Verified page: {page_name} (ID: {page_id})")
+        
+        else:
+            # No token provided - use App Token to get public page info
+            logger.info(f"🔍 Getting public info for Page ID: {page_id} (no token provided)")
+            
+            if not settings.FACEBOOK_APP_ID or not settings.FACEBOOK_APP_SECRET:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Cấu hình Facebook App chưa đầy đủ. Vui lòng liên hệ quản trị viên."
+                )
+            
+            # Get app access token
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # First, get app token
+                app_token_response = await client.get(
+                    f"https://graph.facebook.com/oauth/access_token",
+                    params={
+                        "client_id": settings.FACEBOOK_APP_ID,
+                        "client_secret": settings.FACEBOOK_APP_SECRET,
+                        "grant_type": "client_credentials"
+                    }
+                )
+                
+                if app_token_response.status_code != 200:
+                    logger.error(f"❌ Failed to get app token: {app_token_response.text}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Không thể lấy thông tin từ Facebook. Vui lòng thử lại."
+                    )
+                
+                app_token = app_token_response.json().get("access_token")
+                
+                # Then get page info
+                page_response = await client.get(
+                    f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/{page_id}",
+                    params={
+                        "fields": "id,name,picture",
+                        "access_token": app_token
+                    }
+                )
+                
+                if page_response.status_code != 200:
+                    logger.error(f"❌ Failed to get page info: {page_response.text}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Không tìm thấy Trang Facebook với ID này. Vui lòng kiểm tra lại."
+                    )
+                
+                page_data = page_response.json()
+                page_name = page_data.get("name")
+                picture_data = page_data.get("picture", {})
+                if isinstance(picture_data, dict):
+                    avatar_url = picture_data.get("data", {}).get("url")
+                
+                logger.info(f"✅ Got public page info: {page_name} (ID: {page_id})")
+        
+        # Use override name if provided
+        if page_name_override:
+            page_name = page_name_override
+            logger.info(f"📝 Using override name: {page_name}")
+        
+        if not page_name:
+            raise HTTPException(
+                status_code=400,
+                detail="Không thể lấy tên Trang từ Facebook. Vui lòng thử lại."
+            )
+        
+    except httpx.RequestError as e:
+        logger.error(f"❌ Network error calling Facebook API: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Lỗi kết nối với Facebook. Vui lòng thử lại."
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Unexpected error verifying page: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Lỗi không xác định. Vui lòng thử lại."
+        )
+    
+    # Step 2: Upsert channel to database
+    try:
+        channel = service.upsert_manual_facebook_channel(
+            page_id=page_id,
+            page_name=page_name,
+            page_access_token=page_access_token,
+            avatar_url=avatar_url
+        )
+        
+        # Step 3: Subscribe to webhook if token provided
+        if page_access_token:
+            try:
+                logger.info(f"🔔 Subscribing page {page_id} to webhook...")
+                webhook_result = await facebook_service.subscribe_page_webhook(
+                    page_id=page_id,
+                    page_access_token=page_access_token
+                )
+                
+                if webhook_result.get("success"):
+                    logger.info(f"✅ Page {page_name} subscribed to webhook")
+                else:
+                    logger.warning(f"⚠️ Webhook subscription failed (not critical): {webhook_result}")
+            except Exception as webhook_error:
+                # Don't fail the whole request if webhook subscription fails
+                logger.error(f"❌ Error subscribing to webhook: {webhook_error}")
+        
+        logger.info(f"✅ Manual channel created/updated: {page_name} (ID: {channel.id})")
+        return channel
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating manual channel: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi khi lưu kênh: {str(e)}"
+        )
 
 
 @router.patch("/channels/{channel_id}", response_model=ChannelRead)

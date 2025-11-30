@@ -59,6 +59,19 @@ class FacebookPageImport(BaseModel):
     category: Optional[str] = None
 
 
+class ManualFacebookChannelCreate(BaseModel):
+    """Schema for manually adding a Facebook channel by Page ID"""
+    page_id: str = Field(..., description="Facebook Page ID (e.g., 687520047771032)")
+    page_access_token: Optional[str] = Field(None, description="Page Access Token (optional, for comment/inbox management)")
+    page_name_override: Optional[str] = Field(None, description="Override page name if desired")
+    
+    @validator('page_id')
+    def validate_page_id(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Page ID không được để trống")
+        return v.strip()
+
+
 # ==================== CHANNEL GROUP SCHEMAS ====================
 
 class ChannelGroupBase(BaseModel):
