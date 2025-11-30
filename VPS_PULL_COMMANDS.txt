@@ -1,0 +1,196 @@
+=============================================================================
+LỆNH CẬP NHẬT CODE MỚI NHẤT LÊN VPS
+=============================================================================
+Phase 1 Ad Studio Complete: Tasks 1.1-1.5
+- UI merge, Video Title/CTA, Size badge, Error handling, ScrapeGraphAI cleanup
+=============================================================================
+
+CÁCH 1: SỬ DỤNG SCRIPT TỰ ĐỘNG (KHUYẾN NGHỊ)
+---------------------------------------------
+
+# 1. SSH vào VPS
+ssh your_user@your_vps_ip
+
+# 2. Download script từ repo
+cd ~/ads-automation
+curl -O https://raw.githubusercontent.com/LeDat0312/ads-automation/main/VPS_PULL_LATEST.sh
+
+# 3. Cấp quyền thực thi
+chmod +x VPS_PULL_LATEST.sh
+
+# 4. Chạy script
+./VPS_PULL_LATEST.sh
+
+
+=============================================================================
+CÁCH 2: CHẠY TỪNG LỆNH THỦ CÔNG
+=============================================================================
+
+# 1. SSH vào VPS
+ssh your_user@your_vps_ip
+
+# 2. Di chuyển vào thư mục project
+cd ~/ads-automation
+
+# 3. Lưu tạm thay đổi local (nếu có)
+git stash
+
+# 4. Pull code mới từ GitHub
+git fetch origin main
+git reset --hard origin/main
+git clean -fd
+
+# 5. Kiểm tra commit hiện tại
+git log -1 --oneline
+
+# 6. Dừng backend service
+sudo systemctl stop metaupdate-backend
+
+# 7. Kích hoạt Python environment
+source venv/bin/activate
+
+# 8. Cài đặt Python dependencies
+pip install -r requirements.txt
+
+# 9. Build frontend mới
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 10. Khởi động lại backend
+sudo systemctl start metaupdate-backend
+
+# 11. Kiểm tra service status
+sudo systemctl status metaupdate-backend
+
+# 12. Xem logs
+sudo journalctl -u metaupdate-backend -n 50 -f
+
+
+=============================================================================
+CÁCH 3: LỆNH NHANH (ONE-LINER) - CHỈ PULL CODE
+=============================================================================
+
+cd ~/ads-automation && git stash && git fetch origin main && git reset --hard origin/main && git clean -fd && sudo systemctl restart metaupdate-backend && sudo systemctl status metaupdate-backend
+
+
+=============================================================================
+KIỂM TRA SAU KHI CẬP NHẬT
+=============================================================================
+
+# 1. Kiểm tra service đang chạy
+sudo systemctl status metaupdate-backend
+
+# 2. Kiểm tra logs có lỗi không
+sudo journalctl -u metaupdate-backend -n 100 --no-pager
+
+# 3. Test backend API
+curl http://localhost:8000/health
+# Hoặc
+curl http://localhost:8000/api/docs
+
+# 4. Truy cập frontend
+# Mở trình duyệt: http://YOUR_VPS_IP:3000
+
+# 5. Test Ad Studio features
+# - Login vào dashboard
+# - Vào tab "Ad Studio"  
+# - Test fetch TikTok video
+# - Kiểm tra Video Title & CTA fields
+# - Kiểm tra size badge & download button
+# - Test error handling (thử URL sai)
+
+
+=============================================================================
+TROUBLESHOOTING - XỬ LÝ LỖI
+=============================================================================
+
+LỖI: "Service failed to start"
+GIẢI PHÁP:
+  sudo journalctl -u metaupdate-backend -n 50
+  # Xem logs để biết lỗi cụ thể
+
+LỖI: "Port already in use"  
+GIẢI PHÁP:
+  sudo lsof -i :8000
+  sudo kill -9 <PID>
+  sudo systemctl start metaupdate-backend
+
+LỖI: "Database connection failed"
+GIẢI PHÁP:
+  sudo systemctl status postgresql
+  sudo systemctl start postgresql
+  # Kiểm tra database credentials trong .env
+
+LỖI: "Frontend 404 Not Found"
+GIẢI PHÁP:
+  cd ~/ads-automation/frontend
+  npm run build
+  # Đảm bảo dist/ folder được tạo
+
+LỖI: "Permission denied"
+GIẢI PHÁP:
+  sudo chown -R $USER:$USER ~/ads-automation
+  chmod +x VPS_PULL_LATEST.sh
+
+
+=============================================================================
+THÔNG TIN THAY ĐỔI MỚI NHẤT
+=============================================================================
+
+✅ TASK 1.1: UI Merge (2-step → 1 screen)
+   - Gộp "Collect" và "Publish" thành 1 màn hình
+   - Simplified workflow, giảm clicks
+
+✅ TASK 1.2: Video Title & CTA Fields
+   - Thêm trường "Video Title" (tùy chọn)
+   - Thêm trường "CTA Text" với dropdown (LEARN_MORE, SHOP_NOW, v.v.)
+   - Backend: Enum validation, backward compatible
+
+✅ TASK 1.3: Size Badge & Download Button
+   - Hiển thị badge kích thước file (MB/KB)
+   - Thêm nút download video trực tiếp
+   - formatFileSize() helper function
+
+✅ TASK 1.4: Error Handling với /settings Links
+   - 7 error states: NONE, APIFY_KEY_MISSING, INVALID, SCRAPE_FAILED, v.v.
+   - Error box có nút "Mở Cài đặt" cho APIFY_KEY errors
+   - Tất cả thông báo lỗi bằng tiếng Việt
+
+✅ TASK 1.5: Remove ScrapeGraphAI References
+   - Xóa 4 ScrapeGraphAI endpoints từ settings.py
+   - Xóa 3 database columns từ user_settings.py
+   - Xóa scrapegraphai_service.py (547 lines)
+   - Xóa CompetitorResearch.tsx component
+   - Loại bỏ 100+ references trong production code
+   - Giữ nguyên migrations và docs (historical records)
+
+PHASE 1: 100% COMPLETE (5/5 tasks)
+Build size: 247.39 KB (compressed: 65.61 KB)
+
+
+=============================================================================
+GHI CHÚ QUAN TRỌNG
+=============================================================================
+
+⚠️  BACKUP TRƯỚC KHI CẬP NHẬT:
+    - Backup database: pg_dump ads_automation > backup_$(date +%Y%m%d).sql
+    - Backup .env file: cp .env .env.backup
+
+⚠️  SAU KHI CẬP NHẬT:
+    - Test tất cả features chính
+    - Kiểm tra logs không có lỗi
+    - Verify database migrations (nếu có)
+
+⚠️  NẾU CÓ VẤN ĐỀ:
+    - Rollback: git reset --hard <previous_commit_hash>
+    - Restore database từ backup
+    - Restart services
+
+📧 HỖ TRỢ:
+    - Check GitHub issues: https://github.com/LeDat0312/ads-automation/issues
+    - Review commit history: git log --oneline -20
+
+
+=============================================================================
