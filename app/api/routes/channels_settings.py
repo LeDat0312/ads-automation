@@ -16,6 +16,7 @@ from app.schemas.channels import (
     ChannelGroupRead, ChannelGroupCreate, ChannelGroupUpdate,
     ChannelWithPostingSettings, PostingSettingsBulkUpdateWithIds
 )
+from app.schemas.facebook_account import FacebookChannelFromAccount, ManualFacebookChannelCreateV2
 
 router = APIRouter(prefix="/api", tags=["Channel Settings"])
 
@@ -245,6 +246,270 @@ async def add_facebook_channel_manually(
         
     except Exception as e:
         logger.error(f"❌ Error creating manual channel: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi khi lưu kênh: {str(e)}"
+        )
+
+
+@router.post("/channels/facebook/from-saved-account", response_model=List[ChannelRead])
+async def create_channels_from_saved_account(
+    data: FacebookChannelFromAccount = Body(...),
+    current_user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
+):
+    """
+    Create/update multiple Facebook channels from saved Facebook Account
+    
+    Uses token from saved account to fetch page details and create channels
+    """
+    from app.services.facebook_account_service import get_facebook_account_service
+    from app.services.facebook_service import facebook_service
+    
+    # Get Facebook account
+    fb_account_service = get_facebook_account_service(db, current_user.id)
+    fb_account = fb_account_service.get_account(data.facebook_account_id)
+    
+    if not fb_account:
+        raise HTTPException(
+            status_code=404,
+            detail="Không tìm thấy tài khoản Facebook (Via)"
+        )
+    
+    if not fb_account.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail="Tài khoản Facebook đã bị vô hiệu hóa"
+        )
+    
+    service = get_channels_service(db, current_user.id)
+    created_channels = []
+    errors = []
+    
+    try:
+        for page_id in data.page_ids:
+            try:
+                # Get page info from Graph API
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.get(
+                        f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/{page_id}",
+                        params={
+                            "fields": "id,name,picture",
+                            "access_token": fb_account.access_token
+                        }
+                    )
+                    
+                    if response.status_code != 200:
+                        logger.error(f"❌ Failed to get page {page_id}: {response.text}")
+                        errors.append(f"Page {page_id}: Không thể lấy thông tin")
+                        continue
+                    
+                    page_data = response.json()
+                    page_name = page_data.get("name")
+                    picture_url = page_data.get("picture", {}).get("data", {}).get("url")
+                
+                # Create/update channel
+                channel = service.upsert_manual_facebook_channel(
+                    page_id=page_id,
+                    page_name=page_name,
+                    page_access_token=fb_account.access_token,
+                    avatar_url=picture_url
+                )
+                
+                created_channels.append(channel)
+                
+                # Subscribe to webhook
+                try:
+                    await facebook_service.subscribe_page_webhook(
+                        page_id=page_id,
+                        page_access_token=fb_account.access_token
+                    )
+                    logger.info(f"✅ Subscribed page {page_id} to webhook")
+                except Exception as webhook_error:
+                    logger.error(f"⚠️ Webhook subscription failed for {page_id}: {webhook_error}")
+                
+            except Exception as page_error:
+                logger.error(f"❌ Error processing page {page_id}: {page_error}")
+                errors.append(f"Page {page_id}: {str(page_error)}")
+                continue
+        
+        if not created_channels and errors:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Không thể kết nối Fanpage. Lỗi: {'; '.join(errors[:3])}"
+            )
+        
+        logger.info(f"✅ Created/updated {len(created_channels)} channels from account {fb_account.name}")
+        
+        if errors:
+            logger.warning(f"⚠️ Some pages failed: {errors}")
+        
+        return created_channels
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error creating channels from account: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi khi tạo kênh: {str(e)}"
+        )
+
+
+@router.post("/channels/facebook/manual-v2", response_model=ChannelRead)
+async def add_facebook_channel_manually_v2(
+    channel_data: ManualFacebookChannelCreateV2 = Body(...),
+    current_user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
+):
+    """
+    Add Facebook channel manually (Version 2)
+    
+    - If facebook_account_id provided: use token from that account
+    - Otherwise: use app token (public info only)
+    - Subscribe to webhook if token available
+    """
+    import httpx
+    from app.core.config import get_settings
+    from app.services.facebook_service import facebook_service
+    from app.services.facebook_account_service import get_facebook_account_service
+    
+    settings = get_settings()
+    service = get_channels_service(db, current_user.id)
+    
+    page_id = channel_data.page_id
+    page_name_override = channel_data.page_name_override
+    
+    # Determine which token to use
+    access_token = None
+    if channel_data.facebook_account_id:
+        # Use token from saved account
+        fb_account_service = get_facebook_account_service(db, current_user.id)
+        fb_account = fb_account_service.get_account(channel_data.facebook_account_id)
+        
+        if not fb_account:
+            raise HTTPException(
+                status_code=404,
+                detail="Không tìm thấy tài khoản Facebook (Via)"
+            )
+        
+        if not fb_account.is_active:
+            raise HTTPException(
+                status_code=400,
+                detail="Tài khoản Facebook đã bị vô hiệu hóa"
+            )
+        
+        access_token = fb_account.access_token
+    else:
+        # Use app token (public info only)
+        if not settings.FACEBOOK_APP_ID or not settings.FACEBOOK_APP_SECRET:
+            raise HTTPException(
+                status_code=500,
+                detail="Cấu hình Facebook App chưa đầy đủ. Vui lòng liên hệ quản trị viên."
+            )
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                app_token_response = await client.get(
+                    "https://graph.facebook.com/oauth/access_token",
+                    params={
+                        "client_id": settings.FACEBOOK_APP_ID,
+                        "client_secret": settings.FACEBOOK_APP_SECRET,
+                        "grant_type": "client_credentials"
+                    }
+                )
+                
+                if app_token_response.status_code == 200:
+                    access_token = app_token_response.json().get("access_token")
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Không thể lấy App Token từ Facebook"
+                    )
+        except httpx.RequestError as e:
+            logger.error(f"❌ Network error getting app token: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Lỗi kết nối với Facebook"
+            )
+    
+    # Get page info
+    page_name = None
+    avatar_url = None
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/{page_id}",
+                params={
+                    "fields": "id,name,picture",
+                    "access_token": access_token
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"❌ Failed to get page info: {response.text}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Không tìm thấy Trang Facebook với ID này. Vui lòng kiểm tra lại."
+                )
+            
+            page_data = response.json()
+            page_name = page_data.get("name")
+            picture_data = page_data.get("picture", {})
+            if isinstance(picture_data, dict):
+                avatar_url = picture_data.get("data", {}).get("url")
+        
+        # Use override name if provided
+        if page_name_override:
+            page_name = page_name_override
+        
+        if not page_name:
+            raise HTTPException(
+                status_code=400,
+                detail="Không thể lấy tên Trang từ Facebook"
+            )
+        
+    except httpx.RequestError as e:
+        logger.error(f"❌ Network error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Lỗi kết nối với Facebook. Vui lòng thử lại."
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting page info: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Lỗi không xác định"
+        )
+    
+    # Create/update channel
+    try:
+        channel = service.upsert_manual_facebook_channel(
+            page_id=page_id,
+            page_name=page_name,
+            page_access_token=access_token if channel_data.facebook_account_id else None,
+            avatar_url=avatar_url
+        )
+        
+        # Subscribe to webhook if using saved account
+        if channel_data.facebook_account_id and access_token:
+            try:
+                await facebook_service.subscribe_page_webhook(
+                    page_id=page_id,
+                    page_access_token=access_token
+                )
+                logger.info(f"✅ Subscribed page {page_id} to webhook")
+            except Exception as webhook_error:
+                logger.error(f"⚠️ Webhook subscription failed: {webhook_error}")
+        
+        logger.info(f"✅ Manual channel V2 created/updated: {page_name} (ID: {channel.id})")
+        return channel
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating manual channel V2: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Lỗi khi lưu kênh: {str(e)}"

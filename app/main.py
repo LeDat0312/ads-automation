@@ -18,6 +18,7 @@ from app.api.routes import ad_studio  # NOTE: added for AdStudio only
 # from app.api.routes import channel  # Channel management (Pages, Groups, Auto Comment) - DEPRECATED - old models removed
 from app.api.routes import channels_settings  # Channel Settings API (new structure)
 from app.api.routes import facebook_auth, facebook_webhook  # Facebook OAuth and webhook
+from app.api.routes import facebook_accounts  # Facebook Account (Via) management
 from fastapi.staticfiles import StaticFiles
 import os
 
@@ -75,6 +76,7 @@ app.include_router(legal.router)  # Legal pages - Privacy Policy and Terms of Se
 app.include_router(facebook_oauth.router)  # Facebook OAuth login
 app.include_router(facebook_auth.router)  # Facebook OAuth for Pages
 app.include_router(facebook_webhook.router)  # Facebook webhook for Pages
+app.include_router(facebook_accounts.router)  # Facebook Account (Via) management
 app.include_router(ad_studio.router)  # NOTE: added for AdStudio only - UI route
 app.include_router(ad_studio.api_router)  # NOTE: added for AdStudio only - API routes
 # app.include_router(channel.router)  # Channel management (Pages, Groups, Auto Comment) - DEPRECATED - old models removed
