@@ -47,8 +47,13 @@ class Settings(BaseSettings):
     # ===== Facebook OAuth =====
     FACEBOOK_APP_ID: Optional[str] = Field(default=None, env="FACEBOOK_APP_ID")
     FACEBOOK_APP_SECRET: Optional[str] = Field(default=None, env="FACEBOOK_APP_SECRET")
-    FACEBOOK_REDIRECT_URI: Optional[AnyUrl] = Field(default=None, env="FACEBOOK_REDIRECT_URI")
+    FACEBOOK_REDIRECT_URI: Optional[str] = Field(default=None, env="FACEBOOK_REDIRECT_URI")
     FACEBOOK_LOGIN_SCOPES: str = Field(default="ads_read,ads_management,business_management", env="FACEBOOK_LOGIN_SCOPES")
+    
+    # Facebook API Configuration
+    FACEBOOK_API_VERSION: str = Field(default="v20.0", env="FACEBOOK_API_VERSION")
+    FACEBOOK_VERIFY_TOKEN: str = Field(default="your_verify_token_here", env="FACEBOOK_VERIFY_TOKEN")
+    FRONTEND_BASE_URL: str = Field(default="http://localhost:5173", env="FRONTEND_BASE_URL")
     
     # ===== Media Storage (AdStudio) =====
     # NOTE: added for AdStudio only - Local media storage

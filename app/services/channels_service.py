@@ -161,6 +161,83 @@ class ChannelsService:
         
         return imported_channels
     
+    def upsert_facebook_page_channel(
+        self,
+        page_id: str,
+        page_name: str,
+        page_access_token: str,
+        avatar_url: Optional[str] = None
+    ) -> Channel:
+        """
+        Create or update a Channel entry for a Facebook Page
+        
+        Args:
+            page_id: Facebook Page ID
+            page_name: Page display name
+            page_access_token: Page access token
+            avatar_url: Optional page avatar URL
+            
+        Returns:
+            Channel object (created or updated)
+        """
+        from datetime import datetime
+        
+        try:
+            # Check if channel already exists
+            existing = self.db.query(Channel).filter(
+                and_(
+                    Channel.user_id == self.user_id,
+                    Channel.platform == "facebook",
+                    Channel.page_id == page_id
+                )
+            ).first()
+            
+            # Encrypt access token
+            access_token_encrypted = encrypt_token(page_access_token) if page_access_token else None
+            
+            if existing:
+                # Update existing channel
+                existing.page_name = page_name
+                if avatar_url:
+                    existing.avatar_url = avatar_url
+                if access_token_encrypted:
+                    existing.access_token_encrypted = access_token_encrypted
+                existing.is_active = True
+                existing.updated_at = datetime.utcnow()
+                
+                self.db.commit()
+                self.db.refresh(existing)
+                logger.info(f"✅ Updated Facebook page channel: {page_name} (ID: {page_id})")
+                return existing
+            else:
+                # Create new channel
+                channel = Channel(
+                    user_id=self.user_id,
+                    platform="facebook",
+                    page_id=page_id,
+                    page_name=page_name,
+                    avatar_url=avatar_url,
+                    access_token_encrypted=access_token_encrypted,
+                    is_active=True
+                )
+                self.db.add(channel)
+                self.db.commit()
+                self.db.refresh(channel)
+                logger.info(f"✅ Created Facebook page channel: {page_name} (ID: {page_id})")
+                return channel
+                
+        except IntegrityError as e:
+            self.db.rollback()
+            logger.error(f"❌ Integrity error upserting Facebook page: {e}")
+            raise HTTPException(
+                status_code=400,
+                detail="Lỗi khi lưu thông tin Fanpage"
+            )
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"❌ Error upserting Facebook page: {e}")
+            raise
+    
     def update_channel(self, channel_id: str, channel_data: ChannelUpdate) -> Channel:
         """Update an existing channel"""
         channel = self.get_channel(channel_id)

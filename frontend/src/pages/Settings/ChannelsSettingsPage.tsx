@@ -8,6 +8,54 @@ const ChannelsSettingsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Check for OAuth callback parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connectStatus = params.get('connect');
+    const created = params.get('created');
+    const updated = params.get('updated');
+    const reason = params.get('reason');
+
+    if (connectStatus === 'success') {
+      const createdCount = parseInt(created || '0');
+      const updatedCount = parseInt(updated || '0');
+      setToast({
+        message: `✅ Kết nối Fanpage thành công! (${createdCount} mới, ${updatedCount} cập nhật)`,
+        type: 'success',
+      });
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+      // Reload channels
+      loadChannels();
+    } else if (connectStatus === 'error') {
+      let errorMessage = '❌ Kết nối Fanpage thất bại';
+      if (reason === 'no_pages') {
+        errorMessage = '❌ Không tìm thấy Fanpage nào. Vui lòng đảm bảo bạn có quyền quản lý Fanpage.';
+      } else if (reason === 'no_code') {
+        errorMessage = '❌ Không nhận được mã xác thực từ Facebook.';
+      } else if (reason === 'server_error') {
+        errorMessage = '❌ Lỗi server. Vui lòng thử lại sau.';
+      } else if (reason) {
+        errorMessage = `❌ Lỗi: ${decodeURIComponent(reason)}`;
+      }
+      setToast({
+        message: errorMessage,
+        type: 'error',
+      });
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  // Auto-hide toast after 5 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   useEffect(() => {
     loadChannels();
@@ -24,6 +72,32 @@ const ChannelsSettingsPage: React.FC = () => {
       setError(err.response?.data?.detail || 'Không thể tải danh sách kênh');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleConnectFacebook = async () => {
+    try {
+      // Call API to get OAuth URL
+      const response = await fetch('/api/facebook/oauth-url', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Không thể lấy URL OAuth');
+      }
+
+      const data = await response.json();
+      
+      // Redirect to Facebook OAuth
+      window.location.href = data.url;
+    } catch (err: any) {
+      console.error('Error connecting Facebook:', err);
+      setToast({
+        message: '❌ Không thể kết nối với Facebook. Vui lòng thử lại.',
+        type: 'error',
+      });
     }
   };
 
@@ -74,6 +148,16 @@ const ChannelsSettingsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`alert ${toast.type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg`}>
+          <div className="flex items-center justify-between w-full">
+            <span>{toast.message}</span>
+            <button className="btn btn-sm btn-ghost" onClick={() => setToast(null)}>✕</button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Kênh đã kết nối</h2>
@@ -102,7 +186,7 @@ const ChannelsSettingsPage: React.FC = () => {
             📊 Xuất báo cáo
           </button>
         </div>
-        <button className="btn btn-primary">
+        <button className="btn btn-primary" onClick={handleConnectFacebook}>
           ➕ Thêm kênh
         </button>
       </div>
