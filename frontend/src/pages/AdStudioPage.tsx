@@ -21,6 +21,23 @@ const AdStudioPage: React.FC = () => {
             
             {/* Right: Home Button */}
             <div className="flex items-center gap-3">
+              {/* Dashboard Link */}
+              <button 
+                className="px-4 py-2 border-2 border-white/30 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium backdrop-blur-sm"
+                onClick={() => window.location.href = '/dashboard'}
+              >
+                🚀 Dashboard
+              </button>
+              
+              {/* Channel Management Link */}
+              <button 
+                className="px-4 py-2 border-2 border-white/30 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium backdrop-blur-sm"
+                onClick={() => window.location.href = '/settings/channels'}
+              >
+                📡 Quản lý kênh
+              </button>
+              
+              {/* Home Button */}
               <button 
                 className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-colors text-sm font-semibold border border-white/30"
                 onClick={() => window.location.href = '/'}

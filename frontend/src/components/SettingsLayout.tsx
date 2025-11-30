@@ -1,13 +1,11 @@
 import React from 'react';
-import { Link, useLocation, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 
 interface SettingsLayoutProps {
   children?: React.ReactNode;
 }
 
 const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
-  const location = useLocation();
-
   const menuItems = [
     {
       path: '/settings/channels',
@@ -25,10 +23,6 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
       icon: '⚙️',
     },
   ];
-
-  const isActive = (path: string) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/');
-  };
 
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
@@ -68,13 +62,13 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
             <aside className="w-full lg:w-64 border-b lg:border-b-0 lg:border-r border-gray-200 bg-slate-50">
               <nav className="p-4 space-y-1">
                 {menuItems.map((item) => (
-                  <Link
+                  <NavLink
                     key={item.path}
                     to={item.path}
-                    className={`
+                    className={({ isActive }) => `
                       flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all
                       ${
-                        isActive(item.path)
+                        isActive
                           ? 'bg-indigo-600 text-white shadow-md'
                           : 'text-gray-700 hover:bg-gray-100'
                       }
@@ -82,7 +76,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
                   >
                     <span className="text-xl">{item.icon}</span>
                     <span>{item.label}</span>
-                  </Link>
+                  </NavLink>
                 ))}
               </nav>
             </aside>

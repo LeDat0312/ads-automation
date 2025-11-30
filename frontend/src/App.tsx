@@ -651,6 +651,22 @@ function App() {
                 ✓ Sẵn sàng ({data?.summary?.totalAdsets || 0} adsets)
               </div>
               
+              {/* Ad Studio Link */}
+              <button 
+                className="px-4 py-2 border-2 border-white/30 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium backdrop-blur-sm"
+                onClick={() => window.location.href = '/ad-studio'}
+              >
+                🎬 Ad Studio
+              </button>
+              
+              {/* Channel Management Link */}
+              <button 
+                className="px-4 py-2 border-2 border-white/30 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium backdrop-blur-sm"
+                onClick={() => window.location.href = '/settings/channels'}
+              >
+                📡 Quản lý kênh
+              </button>
+              
               {/* Settings Button */}
               <button 
                 className="px-4 py-2 border-2 border-white/30 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium backdrop-blur-sm"
