@@ -15,7 +15,7 @@ from app.services.webhook_setup import setup_webhook
 from app.api.routes import dashboard, templates, templates_ui, rules, rules_ui, rules_ui_v2, telegram, accounts_prefixes
 from app.api.routes import logic_7days_config, rules_ui_birch, auth, home, settings, profile, user_management, legal, facebook_oauth
 from app.api.routes import ad_studio  # NOTE: added for AdStudio only
-from app.api.routes import channel  # Channel management (Pages, Groups, Auto Comment) - old structure
+# from app.api.routes import channel  # Channel management (Pages, Groups, Auto Comment) - DEPRECATED - old models removed
 from app.api.routes import channels_settings  # Channel Settings API (new structure)
 from fastapi.staticfiles import StaticFiles
 import os
@@ -74,7 +74,7 @@ app.include_router(legal.router)  # Legal pages - Privacy Policy and Terms of Se
 app.include_router(facebook_oauth.router)  # Facebook OAuth login
 app.include_router(ad_studio.router)  # NOTE: added for AdStudio only - UI route
 app.include_router(ad_studio.api_router)  # NOTE: added for AdStudio only - API routes
-app.include_router(channel.router)  # Channel management (Pages, Groups, Auto Comment) - old structure
+# app.include_router(channel.router)  # Channel management (Pages, Groups, Auto Comment) - DEPRECATED - old models removed
 app.include_router(channels_settings.router)  # Channel Settings API (new structure)
 
 # Initialize database on startup
