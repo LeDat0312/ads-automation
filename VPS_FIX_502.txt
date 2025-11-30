@@ -1,0 +1,229 @@
+=============================================================================
+CÁCH KIỂM TRA VÀ SỬA LỖI 502 BAD GATEWAY
+=============================================================================
+
+BƯỚC 1: CHẠY SCRIPT KIỂM TRA
+-----------------------------
+ssh your_user@your_vps_ip
+cd ~/ads-automation
+chmod +x VPS_DEBUG_502.sh
+./VPS_DEBUG_502.sh
+
+
+=============================================================================
+BƯỚC 2: KIỂM TRA TỪNG THÀNH PHẦN THỦ CÔNG
+=============================================================================
+
+# 1. Kiểm tra Backend Service
+sudo systemctl status metaupdate-backend
+
+# Nếu service KHÔNG TỒN TẠI hoặc FAILED:
+# Khởi động backend thủ công:
+cd ~/ads-automation
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Hoặc chạy nền:
+nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 &
+
+
+# 2. Kiểm tra Backend đang chạy trên port 8000
+sudo netstat -tlnp | grep 8000
+# Hoặc:
+sudo ss -tlnp | grep 8000
+
+# Nếu KHÔNG có process nào trên port 8000:
+# Backend đã bị dừng - cần khởi động lại
+
+
+# 3. Kiểm tra Nginx status
+sudo systemctl status nginx
+
+# Nếu Nginx STOPPED:
+sudo systemctl start nginx
+
+# Nếu Nginx FAILED:
+sudo nginx -t  # Kiểm tra config có lỗi không
+sudo systemctl restart nginx
+
+
+# 4. Test Backend trực tiếp
+curl http://localhost:8000/health
+curl http://localhost:8000/api/docs
+
+# Nếu KHÔNG PHẢN HỒI:
+# Backend chưa chạy hoặc có lỗi - xem logs
+
+
+# 5. Xem Backend Logs
+tail -100 ~/ads-automation/uvicorn.log
+# Hoặc:
+sudo journalctl -u metaupdate-backend -n 100 -f
+
+
+# 6. Xem Nginx Error Logs
+sudo tail -100 /var/log/nginx/error.log
+
+
+=============================================================================
+BƯỚC 3: CÁC GIẢI PHÁP THƯỜNG GẶP
+=============================================================================
+
+TRƯỜNG HỢP 1: Backend Service không tồn tại
+--------------------------------------------
+# Tạo systemd service file:
+sudo nano /etc/systemd/system/metaupdate-backend.service
+
+# Nội dung:
+[Unit]
+Description=MetaUpdate Backend API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=adsuser
+WorkingDirectory=/home/adsuser/ads-automation
+Environment="PATH=/home/adsuser/ads-automation/venv/bin"
+ExecStart=/home/adsuser/ads-automation/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
+# Sau đó:
+sudo systemctl daemon-reload
+sudo systemctl enable metaupdate-backend
+sudo systemctl start metaupdate-backend
+sudo systemctl status metaupdate-backend
+
+
+TRƯỜNG HỢP 2: Backend bị crash do lỗi code
+--------------------------------------------
+cd ~/ads-automation
+source venv/bin/activate
+python -c "from app.main import app; print('Import OK')"
+
+# Nếu có lỗi ImportError hoặc syntax error:
+# Xem logs chi tiết và fix code
+
+
+TRƯỜNG HỢP 3: Database connection failed
+--------------------------------------------
+# Kiểm tra PostgreSQL:
+sudo systemctl status postgresql
+sudo systemctl start postgresql
+
+# Test connection:
+psql -U postgres -c "\l"
+
+
+TRƯỜNG HỢP 4: Port 8000 bị chiếm dụng
+--------------------------------------------
+# Tìm process đang dùng port 8000:
+sudo lsof -i :8000
+
+# Kill process cũ:
+sudo kill -9 <PID>
+
+# Khởi động lại backend:
+sudo systemctl start metaupdate-backend
+
+
+TRƯỜNG HỢP 5: Nginx config sai
+--------------------------------------------
+# Kiểm tra config:
+sudo nginx -t
+
+# Sửa config nếu cần:
+sudo nano /etc/nginx/sites-available/default
+
+# Config mẫu cho backend:
+location / {
+    proxy_pass http://localhost:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+# Reload Nginx:
+sudo nginx -t
+sudo systemctl reload nginx
+
+
+TRƯỜNG HỢP 6: Firewall chặn port
+--------------------------------------------
+# Kiểm tra firewall:
+sudo ufw status
+
+# Mở port nếu cần:
+sudo ufw allow 8000
+sudo ufw allow 80
+sudo ufw allow 443
+
+
+TRƯỜNG HỢP 7: Hết RAM hoặc disk space
+--------------------------------------------
+# Kiểm tra:
+free -h
+df -h
+
+# Restart backend để giải phóng RAM:
+sudo systemctl restart metaupdate-backend
+
+
+=============================================================================
+BƯỚC 4: KHỞI ĐỘNG LẠI TẤT CẢ (NUCLEAR OPTION)
+=============================================================================
+
+# Dừng tất cả:
+sudo systemctl stop nginx
+sudo systemctl stop metaupdate-backend
+
+# Khởi động lại:
+sudo systemctl start postgresql
+sudo systemctl start metaupdate-backend
+sudo systemctl start nginx
+
+# Kiểm tra:
+sudo systemctl status postgresql
+sudo systemctl status metaupdate-backend
+sudo systemctl status nginx
+
+
+=============================================================================
+BƯỚC 5: TEST SAU KHI SỬA
+=============================================================================
+
+# 1. Test backend:
+curl http://localhost:8000/health
+
+# 2. Test qua Nginx:
+curl http://YOUR_VPS_IP/api/docs
+
+# 3. Mở browser:
+http://YOUR_VPS_IP
+
+# 4. Xem logs realtime:
+sudo journalctl -u metaupdate-backend -f
+
+
+=============================================================================
+TÓM TẮT LỆNH NHANH
+=============================================================================
+
+# Kiểm tra nhanh:
+sudo systemctl status nginx metaupdate-backend postgresql
+sudo netstat -tlnp | grep -E ':(8000|80)'
+curl http://localhost:8000/health
+
+# Restart tất cả:
+sudo systemctl restart postgresql metaupdate-backend nginx
+
+# Xem logs:
+sudo tail -50 /var/log/nginx/error.log
+sudo journalctl -u metaupdate-backend -n 50
+
+
+=============================================================================
