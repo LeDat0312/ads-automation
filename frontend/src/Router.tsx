@@ -4,8 +4,6 @@ import App from './App';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import AdStudioPage from './pages/AdStudioPage';
-import PagesList from './pages/Channels/PagesList';
-import ChannelGroups from './pages/Channels/ChannelGroups';
 import SettingsLayout from './components/SettingsLayout';
 import ChannelsSettingsPage from './pages/Settings/ChannelsSettingsPage';
 import ChannelGroupsSettingsPage from './pages/Settings/ChannelGroupsSettingsPage';
@@ -15,14 +13,17 @@ const AppRouter: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Main Dashboard */}
         <Route path="/dashboard" element={<App />} />
+        
+        {/* Ad Studio - Separate page for TikTok/FB video collection & scheduling */}
         <Route path="/ad-studio" element={<AdStudioPage />} />
-        <Route path="/channels/pages" element={<PagesList />} />
-        <Route path="/channels/groups" element={<ChannelGroups />} />
+        
+        {/* Legal Pages */}
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         
-        {/* Settings Routes */}
+        {/* Settings Routes - Channel Management */}
         <Route path="/settings" element={<SettingsLayout />}>
           <Route path="channels" element={<ChannelsSettingsPage />} />
           <Route path="channel-groups" element={<ChannelGroupsSettingsPage />} />
