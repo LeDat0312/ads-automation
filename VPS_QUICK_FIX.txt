@@ -1,0 +1,112 @@
+========================================
+  HƯỚNG DẪN SỬA LỖI NHANH TRÊN VPS
+========================================
+
+❌ LỖI ĐANG GẶP:
+1. Database "ads_automation_db" không tồn tại
+2. Service ads-automation failed
+
+---
+
+🚀 CÁCH 1: Dùng Script Tự Động (Khuyên dùng)
+
+cd /home/adsuser/ads-automation
+chmod +x fix_database_service.sh
+./fix_database_service.sh
+
+---
+
+🔧 CÁCH 2: Kiểm tra và Sửa Thủ Công
+
+Bước 1: Kiểm tra DATABASE_URL thực tế
+
+cd /home/adsuser/ads-automation
+cat .env | grep DATABASE_URL
+
+Lưu ý: Tên database có thể KHÔNG phải "ads_automation_db"
+Nó nằm cuối URL: postgresql://user:pass@host/database_name
+
+---
+
+Bước 2: Xem lỗi cụ thể từ service logs
+
+sudo journalctl -u ads-automation.service -n 50 --no-pager
+
+Tìm dòng có "ERROR" hoặc "Traceback" để xem lỗi chi tiết.
+
+---
+
+Bước 3: Tạo database (nếu chưa có)
+
+# Lấy tên database từ .env
+DB_NAME=$(grep DATABASE_URL .env | sed -n 's|.*/\([^?]*\).*|\1|p')
+echo "Database name: $DB_NAME"
+
+# Kết nối PostgreSQL
+sudo -u postgres psql
+
+# Trong PostgreSQL shell, chạy:
+CREATE DATABASE your_database_name;
+\q
+
+---
+
+Bước 4: Test database connection
+
+cd /home/adsuser/ads-automation
+source venv/bin/activate
+
+python3 -c "
+from app.core.config import get_settings
+from app.core.database import init_db
+try:
+    init_db()
+    print('✅ Database OK')
+except Exception as e:
+    print(f'❌ Error: {e}')
+"
+
+---
+
+Bước 5: Restart service
+
+sudo systemctl restart ads-automation.service
+sudo systemctl status ads-automation.service
+
+---
+
+📋 CÁC LỖI THƯỜNG GẶP VÀ CÁCH SỬA:
+
+1. "database does not exist"
+   → Tạo database như Bước 3
+
+2. "could not connect to server"
+   → Kiểm tra PostgreSQL đang chạy:
+   sudo systemctl status postgresql
+   sudo systemctl start postgresql
+
+3. "DATABASE_URL không được để trống"
+   → Kiểm tra .env file có DATABASE_URL
+
+4. "ModuleNotFoundError"
+   → Cài lại dependencies:
+   source venv/bin/activate
+   pip install -r requirements.txt
+
+---
+
+✅ SAU KHI SỬA XONG:
+
+1. Chạy migration:
+   python3 -m migrations.add_channels_management_tables
+
+2. Kiểm tra service:
+   sudo systemctl status ads-automation.service
+
+3. Kiểm tra log:
+   sudo journalctl -u ads-automation.service -f
+
+---
+
+📝 File chi tiết: VPS_FIX_DATABASE_AND_SERVICE.md
+
