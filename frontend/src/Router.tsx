@@ -8,6 +8,7 @@ import SettingsLayout from './components/SettingsLayout';
 import ChannelsSettingsPage from './pages/Settings/ChannelsSettingsPage';
 import ChannelGroupsSettingsPage from './pages/Settings/ChannelGroupsSettingsPage';
 import PostingSettingsPage from './pages/Settings/PostingSettingsPage';
+import FacebookViaPage from './pages/settings/FacebookViaPage';
 
 const AppRouter: React.FC = () => {
   return (
@@ -28,6 +29,7 @@ const AppRouter: React.FC = () => {
           <Route path="channels" element={<ChannelsSettingsPage />} />
           <Route path="channel-groups" element={<ChannelGroupsSettingsPage />} />
           <Route path="posting" element={<PostingSettingsPage />} />
+          <Route path="facebook-via" element={<FacebookViaPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

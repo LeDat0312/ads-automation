@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as SettingsAPI from '../../api/settings';
 import type { Channel } from '../../api/settings';
+import ConnectFacebookPageModal from '../../components/ConnectFacebookPageModal';
 
 const ChannelsSettingsPage: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -10,12 +11,8 @@ const ChannelsSettingsPage: React.FC = () => {
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
-  // Manual add modal state
-  const [showManualModal, setShowManualModal] = useState(false);
-  const [manualPageId, setManualPageId] = useState('');
-  const [manualToken, setManualToken] = useState('');
-  const [manualNameOverride, setManualNameOverride] = useState('');
-  const [isSubmittingManual, setIsSubmittingManual] = useState(false);
+  // NEW: Connect Facebook Page Modal
+  const [showConnectModal, setShowConnectModal] = useState(false);
 
   // Check for OAuth callback parameters
   useEffect(() => {
@@ -211,6 +208,14 @@ const ChannelsSettingsPage: React.FC = () => {
     }
   };
 
+  const handleConnectSuccess = () => {
+    setToast({
+      message: '✅ Kết nối Fanpage thành công!',
+      type: 'success',
+    });
+    loadChannels();
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
@@ -252,11 +257,11 @@ const ChannelsSettingsPage: React.FC = () => {
           </button>
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-outline" onClick={() => setShowManualModal(true)}>
-            ➕ Thêm kênh thủ công
+          <button className="btn btn-primary" onClick={() => setShowConnectModal(true)}>
+            ➕ Thêm kênh
           </button>
-          <button className="btn btn-primary" onClick={handleConnectFacebook}>
-            🔗 Kết nối OAuth
+          <button className="btn btn-outline" onClick={handleConnectFacebook}>
+            🔗 Kết nối OAuth (Legacy)
           </button>
         </div>
       </div>
@@ -390,114 +395,12 @@ const ChannelsSettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Manual Add Modal */}
-      {showManualModal && (
-        <div className="modal modal-open">
-          <div className="modal-box max-w-2xl">
-            <h3 className="font-bold text-lg mb-4">Thêm Fanpage Facebook thủ công</h3>
-            
-            <div className="space-y-4">
-              {/* Page ID */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">
-                    ID Trang Facebook <span className="text-red-500">*</span>
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Nhập ID Trang (ví dụ: 687520047771032)"
-                  className="input input-bordered w-full"
-                  value={manualPageId}
-                  onChange={(e) => setManualPageId(e.target.value)}
-                />
-                <label className="label">
-                  <span className="label-text-alt text-gray-500">
-                    ID Trang Facebook có thể tìm trong "Thông tin trang" của Fanpage
-                  </span>
-                </label>
-              </div>
-
-              {/* Page Access Token */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">
-                    Page Access Token (tuỳ chọn)
-                  </span>
-                </label>
-                <textarea
-                  placeholder="Nhập Page Access Token (nếu có)"
-                  className="textarea textarea-bordered w-full h-24"
-                  value={manualToken}
-                  onChange={(e) => setManualToken(e.target.value)}
-                />
-                <label className="label">
-                  <span className="label-text-alt text-gray-500">
-                    Nếu bạn nhập Page Access Token, hệ thống có thể quản lý bình luận/inbox và webhook cho Trang này. 
-                    Nếu bỏ trống, kênh chỉ dùng để thống kê.
-                  </span>
-                </label>
-                <label className="label">
-                  <span className="label-text-alt text-warning">
-                    ⚠️ Token này dùng để hệ thống có thể đọc bình luận, inbox và đăng nội dung dưới tên Trang. 
-                    Hãy chỉ sử dụng cho mục đích cá nhân và bảo mật cẩn thận.
-                  </span>
-                </label>
-              </div>
-
-              {/* Name Override */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">
-                    Tên hiển thị (tuỳ chọn)
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Tên tùy chỉnh cho kênh (nếu muốn)"
-                  className="input input-bordered w-full"
-                  value={manualNameOverride}
-                  onChange={(e) => setManualNameOverride(e.target.value)}
-                />
-                <label className="label">
-                  <span className="label-text-alt text-gray-500">
-                    Nếu để trống, hệ thống sẽ tự động lấy tên từ Facebook
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            <div className="modal-action">
-              <button
-                className="btn btn-ghost"
-                onClick={() => {
-                  setShowManualModal(false);
-                  setManualPageId('');
-                  setManualToken('');
-                  setManualNameOverride('');
-                }}
-                disabled={isSubmittingManual}
-              >
-                Hủy
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={handleAddManual}
-                disabled={isSubmittingManual || !manualPageId.trim()}
-              >
-                {isSubmittingManual ? (
-                  <>
-                    <span className="loading loading-spinner loading-sm"></span>
-                    Đang đồng bộ...
-                  </>
-                ) : (
-                  'Đồng bộ'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Connect Facebook Page Modal - NEW */}
+      <ConnectFacebookPageModal
+        open={showConnectModal}
+        onClose={() => setShowConnectModal(false)}
+        onSuccess={handleConnectSuccess}
+      />
     </div>
   );
 };

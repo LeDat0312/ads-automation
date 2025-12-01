@@ -13,6 +13,11 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
       icon: '📡',
     },
     {
+      path: '/settings/facebook-via',
+      label: 'Quản lý Via Facebook',
+      icon: '🔑',
+    },
+    {
       path: '/settings/channel-groups',
       label: 'Nhóm kênh',
       icon: '👥',
