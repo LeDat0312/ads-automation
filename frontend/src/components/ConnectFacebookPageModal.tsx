@@ -76,9 +76,18 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
       setPages(res.data);
       if (res.data.length === 0) {
         toast.info("Không tìm thấy Fanpage nào từ Via này.");
+      } else {
+        toast.success(`Đã tải ${res.data.length} Fanpage từ Via.`);
       }
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Không thể tải danh sách Fanpage. Vui lòng kiểm tra lại Via.");
+      const errorDetail = e?.response?.data?.detail;
+      if (errorDetail) {
+        // Show the specific error message from backend (in Vietnamese)
+        toast.error(errorDetail);
+      } else {
+        toast.error("Không thể tải danh sách Fanpage. Vui lòng kiểm tra lại Via.");
+      }
+      console.error("Error loading pages:", e);
     } finally {
       setLoadingPages(false);
     }
@@ -97,6 +106,7 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
     // Check if any selected pages are not admin
     const selectedPages = pages.filter(p => selectedPageIds.includes(p.id));
     const nonAdminPages = selectedPages.filter(p => !p.is_admin);
+    const pagesWithoutToken = selectedPages.filter(p => !p.access_token);
     
     setSubmitting(true);
     try {
@@ -107,20 +117,32 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
       
       // Show appropriate success message
       if (nonAdminPages.length > 0) {
-        toast.success(
-          `Đã kết nối ${selectedPageIds.length} Fanpage thành công.\n\n` +
+        toast.warning(
+          `Đã kết nối ${selectedPageIds.length} Fanpage.\n\n` +
           `⚠️ Lưu ý: ${nonAdminPages.length} Fanpage chưa có quyền Quản trị viên. ` +
           `Bạn cần thêm Via làm QTV trước khi dùng tính năng đăng bài/auto comment.`,
-          { autoClose: 7000 }
+          { autoClose: 8000 }
+        );
+      } else if (pagesWithoutToken.length > 0) {
+        toast.warning(
+          `Đã kết nối ${selectedPageIds.length} Fanpage.\n\n` +
+          `⚠️ Lưu ý: ${pagesWithoutToken.length} Fanpage không lấy được Page Access Token. ` +
+          `Một số tính năng có thể bị hạn chế.`,
+          { autoClose: 8000 }
         );
       } else {
-        toast.success("Kết nối Fanpage thành công. Tất cả đều có quyền Quản trị viên.");
+        toast.success("Kết nối Fanpage thành công! Via đã có đủ quyền để đăng bài và tự động bình luận.");
       }
       
       onSuccess();
       onClose();
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Không thể kết nối Fanpage. Vui lòng thử lại.");
+      const errorDetail = e?.response?.data?.detail;
+      if (errorDetail) {
+        toast.error(errorDetail);
+      } else {
+        toast.error("Không thể kết nối Fanpage. Vui lòng thử lại.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -139,23 +161,33 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
         page_name_override: manualDisplayName.trim() || undefined,
       });
       
-      const { is_admin, warning_message } = response.data;
+      const { is_admin, has_page_token, warning_message } = response.data;
       
       if (warning_message) {
         toast.warning(
           `Đã kết nối Fanpage.\n\n⚠️ ${warning_message}`,
-          { autoClose: 7000 }
+          { autoClose: 8000 }
         );
-      } else if (is_admin) {
-        toast.success("Kết nối Fanpage thành công. Via đã có quyền Quản trị viên.");
+      } else if (is_admin && has_page_token) {
+        toast.success("Kết nối Fanpage thành công! Via đã có đủ quyền để đăng bài và tự động bình luận.");
+      } else if (is_admin && !has_page_token) {
+        toast.warning(
+          "Đã kết nối Fanpage.\n\n⚠️ Via là Quản trị viên nhưng không lấy được Page Access Token. Một số tính năng có thể bị hạn chế.",
+          { autoClose: 8000 }
+        );
       } else {
-        toast.success("Kết nối Fanpage thành công.");
+        toast.success("Đã kết nối Fanpage.");
       }
       
       onSuccess();
       onClose();
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Không thể kết nối Fanpage. Vui lòng kiểm tra lại ID Trang hoặc Via.");
+      const errorDetail = e?.response?.data?.detail;
+      if (errorDetail) {
+        toast.error(errorDetail);
+      } else {
+        toast.error("Không thể kết nối Fanpage. Vui lòng kiểm tra lại ID Trang hoặc Via.");
+      }
     } finally {
       setSubmitting(false);
     }

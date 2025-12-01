@@ -161,21 +161,27 @@ class ChannelsService:
         
         return imported_channels
     
-    def upsert_facebook_page_channel(
+    def upsert_facebook_page_channel_from_account(
         self,
         page_id: str,
         page_name: str,
-        page_access_token: str,
-        avatar_url: Optional[str] = None
+        page_access_token: Optional[str],
+        avatar_url: Optional[str] = None,
+        is_admin: bool = False,
+        can_publish: bool = False,
+        can_moderate: bool = False
     ) -> Channel:
         """
-        Create or update a Channel entry for a Facebook Page
+        Create or update a Channel entry for a Facebook Page from saved account
         
         Args:
             page_id: Facebook Page ID
             page_name: Page display name
-            page_access_token: Page access token
+            page_access_token: Page access token (can be None if not available)
             avatar_url: Optional page avatar URL
+            is_admin: Whether Via has admin rights
+            can_publish: Whether can publish posts
+            can_moderate: Whether can moderate comments
             
         Returns:
             Channel object (created or updated)
@@ -192,8 +198,13 @@ class ChannelsService:
                 )
             ).first()
             
-            # Encrypt access token
-            access_token_encrypted = encrypt_token(page_access_token) if page_access_token else None
+            # Encrypt access token if provided
+            access_token_encrypted = None
+            if page_access_token:
+                access_token_encrypted = encrypt_token(page_access_token)
+                logger.info(f"🔐 Encrypted page access token for page {page_id}")
+            else:
+                logger.warning(f"⚠️ No page access token available for page {page_id}")
             
             if existing:
                 # Update existing channel
@@ -207,7 +218,10 @@ class ChannelsService:
                 
                 self.db.commit()
                 self.db.refresh(existing)
-                logger.info(f"✅ Updated Facebook page channel: {page_name} (ID: {page_id})")
+                logger.info(
+                    f"✅ Updated Facebook page channel: {page_name} (ID: {page_id}), "
+                    f"has_token={bool(page_access_token)}, is_admin={is_admin}"
+                )
                 return existing
             else:
                 # Create new channel
@@ -223,7 +237,10 @@ class ChannelsService:
                 self.db.add(channel)
                 self.db.commit()
                 self.db.refresh(channel)
-                logger.info(f"✅ Created Facebook page channel: {page_name} (ID: {page_id})")
+                logger.info(
+                    f"✅ Created Facebook page channel: {page_name} (ID: {page_id}), "
+                    f"has_token={bool(page_access_token)}, is_admin={is_admin}"
+                )
                 return channel
                 
         except IntegrityError as e:

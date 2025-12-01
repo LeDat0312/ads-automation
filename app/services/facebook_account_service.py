@@ -213,6 +213,8 @@ class FacebookAccountService:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 # Call /me/accounts with BOTH tasks AND perms to get full permission info
+                logger.info(f"🔍 Fetching pages for account {account_id} (name: {account.name})")
+                
                 response = await client.get(
                     f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/me/accounts",
                     params={
@@ -222,21 +224,47 @@ class FacebookAccountService:
                     }
                 )
                 
+                logger.info(f"📊 Graph API response status: {response.status_code}")
+                
                 if response.status_code != 200:
-                    error_data = response.json() if response.text else {}
-                    error_message = error_data.get("error", {}).get("message", "Không xác định")
-                    logger.error(f"❌ Failed to get pages: {response.status_code} - {error_message}")
+                    error_data = {}
+                    try:
+                        error_data = response.json()
+                    except:
+                        pass
                     
-                    # Provide helpful error messages
-                    if "permissions" in error_message.lower() or "pages_show_list" in error_message.lower():
+                    error_obj = error_data.get("error", {})
+                    error_message = error_obj.get("message", "Không xác định")
+                    error_code = error_obj.get("code", 0)
+                    error_type = error_obj.get("type", "")
+                    
+                    logger.error(
+                        f"❌ Failed to get pages: status={response.status_code}, "
+                        f"code={error_code}, type={error_type}, message={error_message}"
+                    )
+                    
+                    # Map Facebook error codes to Vietnamese messages
+                    if error_code == 190:
+                        # Invalid OAuth 2.0 Access Token
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Token Facebook đã hết hạn hoặc không hợp lệ. Vui lòng tạo lại token."
+                        )
+                    elif error_code == 200:
+                        # Permissions error
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Token không có đủ quyền để lấy danh sách Fanpage (thiếu pages_show_list hoặc pages_read_engagement). Vui lòng cấp lại quyền."
+                        )
+                    elif "permissions" in error_message.lower() or "pages_show_list" in error_message.lower():
                         raise HTTPException(
                             status_code=400,
                             detail="Token không có quyền 'pages_show_list'. Vui lòng cấp quyền quản lý Fanpage khi tạo token."
                         )
-                    elif response.status_code == 401 or "expired" in error_message.lower():
+                    elif response.status_code == 401 or "expired" in error_message.lower() or "invalid" in error_message.lower():
                         raise HTTPException(
                             status_code=400,
-                            detail="Token đã hết hạn. Vui lòng xác thực lại token."
+                            detail="Token đã hết hạn hoặc không hợp lệ. Vui lòng xác thực lại token."
                         )
                     else:
                         raise HTTPException(
@@ -246,6 +274,8 @@ class FacebookAccountService:
                 
                 data = response.json()
                 pages_data = data.get("data", [])
+                
+                logger.info(f"✅ Retrieved {len(pages_data)} pages from Graph API")
                 
                 # Process each page to determine permissions
                 processed_pages = []

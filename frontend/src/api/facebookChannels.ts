@@ -37,6 +37,7 @@ export async function connectPageManualV2(payload: {
     is_admin: boolean;
     can_publish: boolean;
     can_moderate: boolean;
+    has_page_token: boolean;
     warning_message?: string;
   }>(`/api/channels/facebook/manual-v2`, payload);
 }

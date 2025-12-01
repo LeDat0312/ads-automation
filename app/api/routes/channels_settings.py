@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import logging
+import httpx
 
 from app.core.database import get_db
 from app.models.user import User
@@ -329,12 +330,15 @@ async def create_channels_from_saved_account(
                 f"can_publish={can_publish}, can_moderate={can_moderate}"
             )
             
-            # Create/update channel
-            channel = service.upsert_manual_facebook_channel(
+            # Create/update channel using the new method with permission flags
+            channel = service.upsert_facebook_page_channel_from_account(
                 page_id=page_id,
                 page_name=page_name,
                 page_access_token=page_access_token if page_access_token else None,
-                avatar_url=picture_url
+                avatar_url=picture_url,
+                is_admin=is_admin,
+                can_publish=can_publish,
+                can_moderate=can_moderate
             )
             
             created_channels.append(channel)
@@ -433,27 +437,69 @@ async def add_facebook_channel_manually_v2(
         
         access_token = fb_account.access_token
         
-        # Try to find page in Via's managed pages to get permissions
+        # Try to find page in Via's managed pages to get permissions and Page Access Token
         try:
+            logger.info(f"🔍 Checking if page {page_id} is in Via's managed pages...")
             pages_with_perms = await fb_account_service.get_pages_with_permissions(channel_data.facebook_account_id)
             page_in_managed = next((p for p in pages_with_perms if p["id"] == page_id), None)
             
             if page_in_managed:
-                # Via manages this page - use its permissions
+                # Via manages this page - use its permissions and Page Access Token
                 is_admin = page_in_managed.get("is_admin", False)
                 can_publish = page_in_managed.get("can_publish", False)
                 can_moderate = page_in_managed.get("can_moderate", False)
                 page_access_token = page_in_managed.get("access_token")
                 
+                logger.info(
+                    f"✅ Page {page_id} found in managed pages: "
+                    f"is_admin={is_admin}, has_token={bool(page_access_token)}"
+                )
+                
                 if not is_admin:
                     warning_message = "Via này chưa là Quản trị viên của Fanpage. Bạn cần thêm Via làm QTV để sử dụng tính năng đăng bài, lên lịch và tự động bình luận."
+                elif not page_access_token:
+                    warning_message = "Không lấy được Page Access Token. Một số tính năng có thể bị hạn chế."
             else:
-                # Page not in managed list - Via has no permissions
-                warning_message = "Via không có quyền quản lý Fanpage này. Kênh sẽ được tạo nhưng không thể sử dụng tính năng đăng bài và tự động bình luận."
+                # Page not in managed list - try to get it directly
+                logger.warning(f"⚠️ Page {page_id} not in /me/accounts, trying direct lookup...")
                 
+                try:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        direct_response = await client.get(
+                            f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/{page_id}",
+                            params={
+                                "fields": "id,name,access_token,picture",
+                                "access_token": access_token
+                            }
+                        )
+                        
+                        if direct_response.status_code == 200:
+                            direct_data = direct_response.json()
+                            page_access_token = direct_data.get("access_token")
+                            
+                            if page_access_token:
+                                logger.info(f"✅ Got Page Access Token via direct lookup")
+                                # Assume basic permissions if we got the token
+                                is_admin = True
+                                can_publish = True
+                                can_moderate = True
+                            else:
+                                logger.warning(f"⚠️ Direct lookup succeeded but no access_token in response")
+                                warning_message = "Via không có quyền quản lý Fanpage này. Kênh sẽ được tạo nhưng không thể sử dụng tính năng đăng bài và tự động bình luận."
+                        else:
+                            logger.warning(f"⚠️ Direct lookup failed: {direct_response.status_code}")
+                            warning_message = "Via không có quyền quản lý Fanpage này. Kênh sẽ được tạo nhưng không thể sử dụng tính năng đăng bài và tự động bình luận."
+                except Exception as direct_error:
+                    logger.error(f"❌ Error in direct lookup: {direct_error}")
+                    warning_message = "Via không có quyền quản lý Fanpage này. Kênh sẽ được tạo nhưng không thể sử dụng tính năng đăng bài và tự động bình luận."
+                
+        except HTTPException as he:
+            # Re-raise HTTP exceptions (like permission errors)
+            raise
         except Exception as e:
-            logger.warning(f"⚠️ Could not check page permissions: {e}")
-            # Continue with public info
+            logger.error(f"❌ Error checking page permissions: {e}", exc_info=True)
+            # Continue with public info but show warning
+            warning_message = f"Không thể kiểm tra quyền của Via: {str(e)}"
             
     else:
         # No Via specified - use app token (public info only)
@@ -546,15 +592,19 @@ async def add_facebook_channel_manually_v2(
     
     # Create/update channel
     try:
-        channel = service.upsert_manual_facebook_channel(
+        # Use the new method that accepts permission flags
+        channel = service.upsert_facebook_page_channel_from_account(
             page_id=page_id,
             page_name=page_name,
-            page_access_token=page_access_token if channel_data.facebook_account_id else None,
-            avatar_url=avatar_url
+            page_access_token=page_access_token,
+            avatar_url=avatar_url,
+            is_admin=is_admin,
+            can_publish=can_publish,
+            can_moderate=can_moderate
         )
         
-        # Subscribe to webhook if admin and using saved account
-        if channel_data.facebook_account_id and is_admin and page_access_token:
+        # Subscribe to webhook if admin and has page access token
+        if is_admin and page_access_token:
             try:
                 await facebook_service.subscribe_page_webhook(
                     page_id=page_id,
@@ -563,8 +613,12 @@ async def add_facebook_channel_manually_v2(
                 logger.info(f"✅ Subscribed page {page_id} to webhook")
             except Exception as webhook_error:
                 logger.error(f"⚠️ Webhook subscription failed: {webhook_error}")
+                # Don't fail the whole request
         
-        logger.info(f"✅ Manual channel V2 created: {page_name} (admin={is_admin})")
+        logger.info(
+            f"✅ Manual channel V2 created: {page_name} (admin={is_admin}, "
+            f"has_token={bool(page_access_token)})"
+        )
         
         # Return channel info with permission flags
         return {
@@ -572,6 +626,7 @@ async def add_facebook_channel_manually_v2(
             "is_admin": is_admin,
             "can_publish": can_publish,
             "can_moderate": can_moderate,
+            "has_page_token": bool(page_access_token),
             "warning_message": warning_message
         }
         
