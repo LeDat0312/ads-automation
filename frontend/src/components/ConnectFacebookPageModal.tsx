@@ -119,7 +119,7 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
       await connectPageManualV2({
         page_id: manualPageId.trim(),
         facebook_account_id: useViaForManual && selectedViaId ? selectedViaId : undefined,
-        display_name: manualDisplayName.trim() || undefined,
+        page_name_override: manualDisplayName.trim() || undefined,
       });
       toast.success("Kết nối Fanpage thành công.");
       onSuccess();

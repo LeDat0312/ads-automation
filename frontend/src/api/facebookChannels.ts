@@ -20,7 +20,7 @@ export async function connectPagesFromSavedAccount(payload: {
 export async function connectPageManualV2(payload: {
   page_id: string;
   facebook_account_id?: number;
-  display_name?: string;
+  page_name_override?: string;
 }) {
   return api.post(`/api/channels/facebook/manual-v2`, payload);
 }
