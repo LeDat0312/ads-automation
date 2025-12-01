@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Tab } from '@headlessui/react';
 import MediaUploadCard from '../MediaUploadCard';
 import ThumbnailModal from './ThumbnailModal';
+import VideoEditorModal from './VideoEditorModal';
 
 interface PostComposerProps {
   onSubmit: (data: PostData) => void;
@@ -66,6 +67,9 @@ const PostComposer: React.FC<PostComposerProps> = ({ onSubmit, isSaving }) => {
   const [thumbnailFile, setThumbnailFile] = useState<File>();
   const [thumbnailPreview, setThumbnailPreview] = useState<string>();
   const [thumbnailModalOpen, setThumbnailModalOpen] = useState(false);
+  
+  // Video editor state
+  const [videoEditorOpen, setVideoEditorOpen] = useState(false);
 
   const handleMediaUpload = async (file: File): Promise<string> => {
     setMediaFile(file);
@@ -219,9 +223,21 @@ const PostComposer: React.FC<PostComposerProps> = ({ onSubmit, isSaving }) => {
             </Tab.Panels>
           </Tab.Group>
 
-          {/* Thumbnail selector for video */}
+          {/* Video actions */}
           {isVideo && mediaUrl && (
-            <div className="mt-3">
+            <div className="mt-3 flex items-center gap-4">
+              {/* Edit Video Button */}
+              <button
+                onClick={() => setVideoEditorOpen(true)}
+                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+                Chỉnh sửa video
+              </button>
+              
+              {/* Thumbnail Button */}
               <button
                 onClick={() => setThumbnailModalOpen(true)}
                 className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
@@ -455,6 +471,19 @@ const PostComposer: React.FC<PostComposerProps> = ({ onSubmit, isSaving }) => {
         videoUrl={mediaUrl}
         onApply={handleThumbnailApply}
       />
+
+      {/* Video Editor Modal */}
+      {mediaUrl && (
+        <VideoEditorModal
+          open={videoEditorOpen}
+          onClose={() => setVideoEditorOpen(false)}
+          videoUrl={mediaUrl}
+          onSave={(editedUrl, _thumbnailUrl) => {
+            setMediaUrl(editedUrl);
+            setVideoEditorOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 };
