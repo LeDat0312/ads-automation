@@ -519,16 +519,6 @@ async def add_facebook_channel_manually_v2(
         logger.error(f"❌ Error getting page info: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-        raise HTTPException(
-            status_code=500,
-            detail="Lỗi kết nối với Facebook. Vui lòng thử lại."
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error getting page info: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
             detail="Lỗi không xác định"
         )
     
