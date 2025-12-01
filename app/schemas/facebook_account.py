@@ -53,12 +53,19 @@ class FacebookAccountRead(FacebookAccountBase):
 
 
 class FacebookPageSimple(BaseModel):
-    """Simple schema for Facebook Page list"""
+    """Simple schema for Facebook Page list with permission info"""
     id: str = Field(..., description="Facebook Page ID")
     name: str = Field(..., description="Page name")
     picture_url: Optional[str] = Field(None, description="Page avatar URL")
     category: Optional[str] = Field(None, description="Page category")
     access_token: Optional[str] = Field(None, description="Page-specific access token")
+    
+    # Permission flags
+    tasks: list[str] = Field(default_factory=list, description="Facebook Page tasks/permissions")
+    is_admin: bool = Field(default=False, description="Via có quyền Quản trị viên")
+    can_publish: bool = Field(default=False, description="Có thể đăng bài")
+    can_moderate: bool = Field(default=False, description="Có thể quản lý bình luận")
+    warning_message: Optional[str] = Field(None, description="Cảnh báo nếu thiếu quyền")
 
 
 class FacebookChannelFromAccount(BaseModel):

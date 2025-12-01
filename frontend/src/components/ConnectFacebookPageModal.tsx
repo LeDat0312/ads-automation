@@ -93,13 +93,30 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
       toast.error("Vui lòng chọn ít nhất một Fanpage.");
       return;
     }
+    
+    // Check if any selected pages are not admin
+    const selectedPages = pages.filter(p => selectedPageIds.includes(p.id));
+    const nonAdminPages = selectedPages.filter(p => !p.is_admin);
+    
     setSubmitting(true);
     try {
       await connectPagesFromSavedAccount({
         facebook_account_id: selectedViaId,
         page_ids: selectedPageIds,
       });
-      toast.success("Kết nối Fanpage thành công.");
+      
+      // Show appropriate success message
+      if (nonAdminPages.length > 0) {
+        toast.success(
+          `Đã kết nối ${selectedPageIds.length} Fanpage thành công.\n\n` +
+          `⚠️ Lưu ý: ${nonAdminPages.length} Fanpage chưa có quyền Quản trị viên. ` +
+          `Bạn cần thêm Via làm QTV trước khi dùng tính năng đăng bài/auto comment.`,
+          { autoClose: 7000 }
+        );
+      } else {
+        toast.success("Kết nối Fanpage thành công. Tất cả đều có quyền Quản trị viên.");
+      }
+      
       onSuccess();
       onClose();
     } catch (e: any) {
@@ -116,12 +133,25 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
     }
     setSubmitting(true);
     try {
-      await connectPageManualV2({
+      const response = await connectPageManualV2({
         page_id: manualPageId.trim(),
         facebook_account_id: useViaForManual && selectedViaId ? selectedViaId : undefined,
         page_name_override: manualDisplayName.trim() || undefined,
       });
-      toast.success("Kết nối Fanpage thành công.");
+      
+      const { is_admin, warning_message } = response.data;
+      
+      if (warning_message) {
+        toast.warning(
+          `Đã kết nối Fanpage.\n\n⚠️ ${warning_message}`,
+          { autoClose: 7000 }
+        );
+      } else if (is_admin) {
+        toast.success("Kết nối Fanpage thành công. Via đã có quyền Quản trị viên.");
+      } else {
+        toast.success("Kết nối Fanpage thành công.");
+      }
+      
       onSuccess();
       onClose();
     } catch (e: any) {
@@ -178,12 +208,12 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
             {/* Step 2: Tabs */}
             <Tab.Group>
               <Tab.List className="flex border-b mb-4">
-                <Tab className={({ selected }) =>
+                <Tab className={({ selected }: { selected: boolean }) =>
                   `px-4 py-2 font-medium outline-none ${selected ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-gray-800"}`
                 }>
                   Chọn từ danh sách
                 </Tab>
-                <Tab className={({ selected }) =>
+                <Tab className={({ selected }: { selected: boolean }) =>
                   `px-4 py-2 font-medium outline-none ${selected ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-gray-800"}`
                 }>
                   Nhập ID thủ công
@@ -211,13 +241,14 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
                             <tr>
                               <th className="px-4 py-2 text-left w-12"></th>
                               <th className="px-4 py-2 text-left">Tên Page</th>
+                              <th className="px-4 py-2 text-left">Quyền</th>
                               <th className="px-4 py-2 text-left">ID Page</th>
                             </tr>
                           </thead>
                           <tbody>
                             {filteredPages.length === 0 ? (
                               <tr>
-                                <td colSpan={3} className="text-center py-4 text-gray-500">
+                                <td colSpan={4} className="text-center py-4 text-gray-500">
                                   {searchQuery ? "Không tìm thấy Fanpage phù hợp." : "Không có Fanpage."}
                                 </td>
                               </tr>
@@ -231,11 +262,30 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
                                     className="w-4 h-4"
                                   />
                                 </td>
-                                <td className="px-4 py-2 flex items-center gap-2">
-                                  {page.picture_url && (
-                                    <img src={page.picture_url} alt="" className="w-8 h-8 rounded-full" />
+                                <td className="px-4 py-2">
+                                  <div className="flex items-center gap-2">
+                                    {page.picture_url && (
+                                      <img src={page.picture_url} alt="" className="w-8 h-8 rounded-full" />
+                                    )}
+                                    <span className="font-medium">{page.name}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2">
+                                  {page.is_admin ? (
+                                    <span 
+                                      className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-800"
+                                      title="Via này đang là Quản trị viên. Có thể đăng bài, lên lịch và tự động bình luận."
+                                    >
+                                      ✓ QTV
+                                    </span>
+                                  ) : (
+                                    <span 
+                                      className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800"
+                                      title={page.warning_message || "Via này chưa là Quản trị viên"}
+                                    >
+                                      ⚠ Không phải QTV
+                                    </span>
                                   )}
-                                  <span className="font-medium">{page.name}</span>
                                 </td>
                                 <td className="px-4 py-2 text-sm text-gray-600">{page.id}</td>
                               </tr>

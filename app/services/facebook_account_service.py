@@ -194,6 +194,103 @@ class FacebookAccountService:
                 "valid": False,
                 "error": str(e)
             }
+    
+    async def get_pages_with_permissions(self, account_id: int) -> list[dict]:
+        """
+        Get list of Facebook Pages with detailed permission info
+        Returns pages with admin status, tasks, and capability flags
+        """
+        account = self.get_account(account_id)
+        if not account:
+            raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản Facebook")
+        
+        import httpx
+        from app.core.config import get_settings
+        
+        settings = get_settings()
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Call /me/accounts with tasks field to get permissions
+                response = await client.get(
+                    f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/me/accounts",
+                    params={
+                        "access_token": account.access_token,
+                        "fields": "id,name,access_token,tasks,category,picture{url}",
+                        "limit": 100
+                    }
+                )
+                
+                if response.status_code != 200:
+                    error_data = response.json() if response.text else {}
+                    error_message = error_data.get("error", {}).get("message", "Không xác định")
+                    logger.error(f"❌ Failed to get pages: {response.status_code} - {error_message}")
+                    
+                    # Provide helpful error messages
+                    if "permissions" in error_message.lower() or "pages_show_list" in error_message.lower():
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Token không có quyền 'pages_show_list'. Vui lòng cấp quyền quản lý Fanpage khi tạo token."
+                        )
+                    elif response.status_code == 401 or "expired" in error_message.lower():
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Token đã hết hạn. Vui lòng xác thực lại token."
+                        )
+                    else:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Không thể tải danh sách Fanpage: {error_message}"
+                        )
+                
+                data = response.json()
+                pages_data = data.get("data", [])
+                
+                # Process each page to determine permissions
+                processed_pages = []
+                for page in pages_data:
+                    tasks = set(page.get("tasks", []))
+                    
+                    # Determine permission levels
+                    is_admin = "MANAGE" in tasks
+                    can_publish = "CREATE_CONTENT" in tasks or is_admin
+                    can_moderate = "MODERATE" in tasks or is_admin
+                    
+                    # Get picture URL
+                    picture_url = None
+                    picture_data = page.get("picture", {})
+                    if isinstance(picture_data, dict):
+                        picture_url = picture_data.get("data", {}).get("url")
+                    
+                    # Create warning message if not admin
+                    warning_message = None
+                    if not is_admin:
+                        warning_message = "Via này chưa là Quản trị viên. Bạn cần thêm Via làm QTV để sử dụng tính năng đăng bài, lên lịch và tự động bình luận."
+                    
+                    processed_pages.append({
+                        "id": page["id"],
+                        "name": page["name"],
+                        "picture_url": picture_url,
+                        "category": page.get("category"),
+                        "access_token": page.get("access_token"),
+                        "tasks": list(tasks),
+                        "is_admin": is_admin,
+                        "can_publish": can_publish,
+                        "can_moderate": can_moderate,
+                        "warning_message": warning_message
+                    })
+                
+                logger.info(f"✅ Retrieved {len(processed_pages)} pages for account {account.name}")
+                return processed_pages
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"❌ Error getting pages: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Lỗi khi tải danh sách Fanpage: {str(e)}"
+            )
 
 
 def get_facebook_account_service(db: Session, user_id: int) -> FacebookAccountService:

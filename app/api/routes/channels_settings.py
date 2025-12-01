@@ -356,18 +356,18 @@ async def create_channels_from_saved_account(
         )
 
 
-@router.post("/channels/facebook/manual-v2", response_model=ChannelRead)
+@router.post("/channels/facebook/manual-v2")
 async def add_facebook_channel_manually_v2(
     channel_data: ManualFacebookChannelCreateV2 = Body(...),
     current_user: User = Depends(require_auth),
     db: Session = Depends(get_db)
 ):
     """
-    Add Facebook channel manually (Version 2)
+    Add Facebook channel manually (Version 2) with permission checking
     
-    - If facebook_account_id provided: use token from that account
-    - Otherwise: use app token (public info only)
-    - Subscribe to webhook if token available
+    - If facebook_account_id provided: check page in Via's managed pages first
+    - Otherwise: use app token (public info only, no admin rights)
+    - Returns channel info with permission flags
     """
     import httpx
     from app.core.config import get_settings
@@ -380,10 +380,18 @@ async def add_facebook_channel_manually_v2(
     page_id = channel_data.page_id
     page_name_override = channel_data.page_name_override
     
-    # Determine which token to use
+    # Permission flags
+    is_admin = False
+    can_publish = False
+    can_moderate = False
+    warning_message = None
+    
+    # Determine which token to use and check permissions
     access_token = None
+    page_access_token = None
+    
     if channel_data.facebook_account_id:
-        # Use token from saved account
+        # Use token from saved account - check in managed pages
         fb_account_service = get_facebook_account_service(db, current_user.id)
         fb_account = fb_account_service.get_account(channel_data.facebook_account_id)
         
@@ -400,8 +408,33 @@ async def add_facebook_channel_manually_v2(
             )
         
         access_token = fb_account.access_token
+        
+        # Try to find page in Via's managed pages to get permissions
+        try:
+            pages_with_perms = await fb_account_service.get_pages_with_permissions(channel_data.facebook_account_id)
+            page_in_managed = next((p for p in pages_with_perms if p["id"] == page_id), None)
+            
+            if page_in_managed:
+                # Via manages this page - use its permissions
+                is_admin = page_in_managed.get("is_admin", False)
+                can_publish = page_in_managed.get("can_publish", False)
+                can_moderate = page_in_managed.get("can_moderate", False)
+                page_access_token = page_in_managed.get("access_token")
+                
+                if not is_admin:
+                    warning_message = "Via này chưa là Quản trị viên của Fanpage. Bạn cần thêm Via làm QTV để sử dụng tính năng đăng bài, lên lịch và tự động bình luận."
+            else:
+                # Page not in managed list - Via has no permissions
+                warning_message = "Via không có quyền quản lý Fanpage này. Kênh sẽ được tạo nhưng không thể sử dụng tính năng đăng bài và tự động bình luận."
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Could not check page permissions: {e}")
+            # Continue with public info
+            
     else:
-        # Use app token (public info only)
+        # No Via specified - use app token (public info only)
+        warning_message = "Kênh được tạo không có Via quản lý. Chỉ xem thông tin công khai, không thể đăng bài hay tự động bình luận."
+        
         if not settings.FACEBOOK_APP_ID or not settings.FACEBOOK_APP_SECRET:
             raise HTTPException(
                 status_code=500,
@@ -448,10 +481,12 @@ async def add_facebook_channel_manually_v2(
             )
             
             if response.status_code != 200:
-                logger.error(f"❌ Failed to get page info: {response.text}")
+                error_data = response.json() if response.text else {}
+                error_message = error_data.get("error", {}).get("message", "Không xác định")
+                logger.error(f"❌ Failed to get page info: {response.status_code} - {error_message}")
                 raise HTTPException(
                     status_code=400,
-                    detail="Không tìm thấy Trang Facebook với ID này. Vui lòng kiểm tra lại."
+                    detail=f"Không tìm thấy Trang Facebook với ID {page_id}. {error_message}"
                 )
             
             page_data = response.json()
@@ -482,6 +517,16 @@ async def add_facebook_channel_manually_v2(
         logger.error(f"❌ Error getting page info: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
+        raise HTTPException(
+            status_code=500,
+            detail="Lỗi kết nối với Facebook. Vui lòng thử lại."
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting page info: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
             detail="Lỗi không xác định"
         )
     
@@ -490,23 +535,31 @@ async def add_facebook_channel_manually_v2(
         channel = service.upsert_manual_facebook_channel(
             page_id=page_id,
             page_name=page_name,
-            page_access_token=access_token if channel_data.facebook_account_id else None,
+            page_access_token=page_access_token if channel_data.facebook_account_id else None,
             avatar_url=avatar_url
         )
         
-        # Subscribe to webhook if using saved account
-        if channel_data.facebook_account_id and access_token:
+        # Subscribe to webhook if admin and using saved account
+        if channel_data.facebook_account_id and is_admin and page_access_token:
             try:
                 await facebook_service.subscribe_page_webhook(
                     page_id=page_id,
-                    page_access_token=access_token
+                    page_access_token=page_access_token
                 )
                 logger.info(f"✅ Subscribed page {page_id} to webhook")
             except Exception as webhook_error:
                 logger.error(f"⚠️ Webhook subscription failed: {webhook_error}")
         
-        logger.info(f"✅ Manual channel V2 created/updated: {page_name} (ID: {channel.id})")
-        return channel
+        logger.info(f"✅ Manual channel V2 created: {page_name} (admin={is_admin})")
+        
+        # Return channel info with permission flags
+        return {
+            "channel": channel,
+            "is_admin": is_admin,
+            "can_publish": can_publish,
+            "can_moderate": can_moderate,
+            "warning_message": warning_message
+        }
         
     except Exception as e:
         logger.error(f"❌ Error creating manual channel V2: {e}", exc_info=True)

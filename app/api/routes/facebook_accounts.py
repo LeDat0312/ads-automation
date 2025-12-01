@@ -191,71 +191,21 @@ async def get_pages_from_account(
     db: Session = Depends(get_db)
 ):
     """
-    Get list of Facebook Pages managed by this account
-    Calls Facebook Graph API /me/accounts
+    Get list of Facebook Pages with permission info
+    Returns pages with admin status and capability flags
     """
     service = get_facebook_account_service(db, current_user.id)
     
-    account = service.get_account(account_id)
-    if not account:
-        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản Facebook")
-    
-    if not account.is_active:
-        raise HTTPException(status_code=400, detail="Tài khoản Facebook đã bị vô hiệu hóa")
-    
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/me/accounts",
-                params={
-                    "access_token": account.access_token,
-                    "fields": "id,name,picture,category,access_token"
-                }
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"❌ Failed to get pages: {response.status_code} - {response.text}")
-                raise HTTPException(
-                    status_code=400,
-                    detail="Không thể lấy danh sách Fanpage. Token có thể đã hết hạn hoặc không có quyền."
-                )
-            
-            data = response.json()
-            pages_data = data.get("data", [])
-            
-            if not pages_data:
-                return []
-            
-            # Transform to FacebookPageSimple
-            pages = []
-            for page in pages_data:
-                picture_url = None
-                picture_data = page.get("picture")
-                if isinstance(picture_data, dict):
-                    picture_url = picture_data.get("data", {}).get("url")
-                
-                pages.append(FacebookPageSimple(
-                    id=page.get("id"),
-                    name=page.get("name"),
-                    picture_url=picture_url,
-                    category=page.get("category"),
-                    access_token=page.get("access_token")
-                ))
-            
-            logger.info(f"✅ Found {len(pages)} pages for account {account.name}")
-            return pages
-            
-    except httpx.RequestError as e:
-        logger.error(f"❌ Network error calling Facebook API: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Lỗi kết nối với Facebook. Vui lòng thử lại."
-        )
+        pages = await service.get_pages_with_permissions(account_id)
+        return pages
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error getting pages: {e}", exc_info=True)
+        logger.error(f"Error getting pages: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Lỗi không xác định: {str(e)}"
+            detail=f"Không thể tải danh sách Fanpage: {str(e)}"
         )
+
+
