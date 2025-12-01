@@ -274,14 +274,21 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
                                   {page.is_admin ? (
                                     <span 
                                       className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-800"
-                                      title="Via này đang là Quản trị viên. Có thể đăng bài, lên lịch và tự động bình luận."
+                                      title="Via này đang là Quản trị viên và app đã được cấp quyền automation đầy đủ."
                                     >
                                       ✓ QTV
+                                    </span>
+                                  ) : page.perms?.includes("ADMINISTER") ? (
+                                    <span 
+                                      className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800"
+                                      title={page.warning_message || "Bạn là Quản trị viên nhưng token chưa được cấp đủ quyền MANAGE/CREATE_CONTENT/MODERATE. Cần thêm lại Via với đủ quyền."}
+                                    >
+                                      ⚠ QTV nhưng app chưa đủ quyền
                                     </span>
                                   ) : (
                                     <span 
                                       className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800"
-                                      title={page.warning_message || "Via này chưa là Quản trị viên"}
+                                      title={page.warning_message || "Via này chưa là Quản trị viên của Fanpage"}
                                     >
                                       ⚠ Không phải QTV
                                     </span>

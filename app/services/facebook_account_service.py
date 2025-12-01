@@ -198,6 +198,7 @@ class FacebookAccountService:
     async def get_pages_with_permissions(self, account_id: int) -> list[dict]:
         """
         Get list of Facebook Pages with detailed permission info
+        Checks both 'perms' (user permissions) and 'tasks' (app permissions)
         Returns pages with admin status, tasks, and capability flags
         """
         account = self.get_account(account_id)
@@ -211,12 +212,12 @@ class FacebookAccountService:
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # Call /me/accounts with tasks field to get permissions
+                # Call /me/accounts with BOTH tasks AND perms to get full permission info
                 response = await client.get(
                     f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/me/accounts",
                     params={
                         "access_token": account.access_token,
-                        "fields": "id,name,access_token,tasks,category,picture{url}",
+                        "fields": "id,name,access_token,tasks,perms,category,link,picture{url}",
                         "limit": 100
                     }
                 )
@@ -249,12 +250,28 @@ class FacebookAccountService:
                 # Process each page to determine permissions
                 processed_pages = []
                 for page in pages_data:
-                    tasks = set(page.get("tasks", []))
+                    # Get raw permissions
+                    raw_tasks = page.get("tasks") or []
+                    raw_perms = page.get("perms") or []
                     
-                    # Determine permission levels
-                    is_admin = "MANAGE" in tasks
-                    can_publish = "CREATE_CONTENT" in tasks or is_admin
-                    can_moderate = "MODERATE" in tasks or is_admin
+                    # Normalize to uppercase sets
+                    tasks = {t.upper() for t in raw_tasks}
+                    perms = {p.upper() for p in raw_perms}
+                    
+                    # Check user-level permission (ADMINISTER = Quản trị viên)
+                    has_admin_perm = "ADMINISTER" in perms
+                    
+                    # Check app-level permissions
+                    has_manage_task = "MANAGE" in tasks
+                    has_content_and_moderate = "CREATE_CONTENT" in tasks and "MODERATE" in tasks
+                    
+                    # Determine if "admin for automation purposes"
+                    # True if: user is ADMINISTER + app has MANAGE or (CREATE_CONTENT + MODERATE)
+                    is_admin_for_app = has_admin_perm and (has_manage_task or has_content_and_moderate)
+                    
+                    # Determine capabilities
+                    can_publish = "CREATE_CONTENT" in tasks or is_admin_for_app
+                    can_moderate = "MODERATE" in tasks or is_admin_for_app
                     
                     # Get picture URL
                     picture_url = None
@@ -262,10 +279,27 @@ class FacebookAccountService:
                     if isinstance(picture_data, dict):
                         picture_url = picture_data.get("data", {}).get("url")
                     
-                    # Create warning message if not admin
+                    # Create warning message based on permission status
                     warning_message = None
-                    if not is_admin:
-                        warning_message = "Via này chưa là Quản trị viên. Bạn cần thêm Via làm QTV để sử dụng tính năng đăng bài, lên lịch và tự động bình luận."
+                    if has_admin_perm and not is_admin_for_app:
+                        # User is admin but app doesn't have enough permissions
+                        warning_message = (
+                            "Bạn là Quản trị viên Fanpage nhưng token chưa được cấp đủ quyền cho app "
+                            "(CREATE_CONTENT/MODERATE/MANAGE). Hãy tạo lại token và bật đầy đủ quyền."
+                        )
+                    elif not has_admin_perm:
+                        # User is not admin
+                        warning_message = (
+                            "Via này chưa là Quản trị viên của Fanpage. "
+                            "Bạn cần thêm Via làm QTV để sử dụng tính năng đăng bài, lên lịch và tự động bình luận."
+                        )
+                    
+                    # Debug log
+                    logger.info(
+                        f"PAGE ROLES: id={page.get('id')} name={page.get('name')} "
+                        f"perms={list(perms)} tasks={list(tasks)} "
+                        f"has_admin_perm={has_admin_perm} is_admin_for_app={is_admin_for_app}"
+                    )
                     
                     processed_pages.append({
                         "id": page["id"],
@@ -274,7 +308,8 @@ class FacebookAccountService:
                         "category": page.get("category"),
                         "access_token": page.get("access_token"),
                         "tasks": list(tasks),
-                        "is_admin": is_admin,
+                        "perms": list(perms),
+                        "is_admin": is_admin_for_app,
                         "can_publish": can_publish,
                         "can_moderate": can_moderate,
                         "warning_message": warning_message

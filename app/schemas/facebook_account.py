@@ -61,8 +61,9 @@ class FacebookPageSimple(BaseModel):
     access_token: Optional[str] = Field(None, description="Page-specific access token")
     
     # Permission flags
-    tasks: list[str] = Field(default_factory=list, description="Facebook Page tasks/permissions")
-    is_admin: bool = Field(default=False, description="Via có quyền Quản trị viên")
+    tasks: list[str] = Field(default_factory=list, description="Facebook Page tasks/permissions (app-level)")
+    perms: list[str] = Field(default_factory=list, description="Facebook Page perms/permissions (user-level)")
+    is_admin: bool = Field(default=False, description="Via có quyền Quản trị viên VÀ app có đủ quyền automation")
     can_publish: bool = Field(default=False, description="Có thể đăng bài")
     can_moderate: bool = Field(default=False, description="Có thể quản lý bình luận")
     warning_message: Optional[str] = Field(None, description="Cảnh báo nếu thiếu quyền")

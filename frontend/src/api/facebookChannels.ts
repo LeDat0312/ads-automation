@@ -8,8 +8,9 @@ export interface FacebookPageSummary {
   access_token?: string;
   
   // Permission flags
-  tasks: string[];
-  is_admin: boolean;
+  tasks: string[]; // App-level permissions (MANAGE, CREATE_CONTENT, etc.)
+  perms: string[]; // User-level permissions (ADMINISTER, EDIT_PROFILE, etc.)
+  is_admin: boolean; // True if user has ADMINISTER AND app has sufficient permissions
   can_publish: boolean;
   can_moderate: boolean;
   warning_message?: string;

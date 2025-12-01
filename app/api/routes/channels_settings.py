@@ -266,6 +266,8 @@ async def create_channels_from_saved_account(
     from app.services.facebook_account_service import get_facebook_account_service
     from app.services.facebook_service import facebook_service
     
+    logger.info(f"🔵 Connect pages request - facebook_account_id={data.facebook_account_id}, page_ids={data.page_ids}, user_id={current_user.id}")
+    
     # Get Facebook account
     fb_account_service = get_facebook_account_service(db, current_user.id)
     fb_account = fb_account_service.get_account(data.facebook_account_id)
