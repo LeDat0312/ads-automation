@@ -1,0 +1,191 @@
+# VPS Pull Commands - Frontend Dependencies Fix
+# Copy và paste từng lệnh vào terminal VPS
+
+# ============================================
+# CÁCH 1: Sử dụng script tự động (KHUYẾN NGHỊ)
+# ============================================
+
+# Bước 1: SSH vào VPS
+ssh adsuser@your-vps-ip
+
+# Bước 2: Chuyển đến thư mục project
+cd /home/adsuser/ads-automation
+
+# Bước 3: Pull code mới nhất
+git pull origin main
+
+# Bước 4: Cấp quyền thực thi cho script
+chmod +x VPS_PULL_DEPENDENCIES_FIX.sh
+
+# Bước 5: Chạy script
+./VPS_PULL_DEPENDENCIES_FIX.sh
+
+# ============================================
+# CÁCH 2: Chạy từng lệnh thủ công
+# ============================================
+
+# Bước 1: SSH vào VPS
+ssh adsuser@your-vps-ip
+
+# Bước 2: Chuyển đến thư mục project
+cd /home/adsuser/ads-automation
+
+# Bước 3: Stash local changes (nếu có)
+git stash
+
+# Bước 4: Pull code mới nhất
+git pull origin main
+
+# Bước 5: Cài đặt frontend dependencies
+cd frontend
+npm install
+
+# Bước 6: Build frontend
+npm run build
+
+# Bước 7: Quay lại thư mục root
+cd ..
+
+# Bước 8: Kích hoạt virtual environment
+source venv/bin/activate
+
+# Bước 9: Chạy migrations
+python3 -m migrations.add_last_error_to_facebook_accounts
+python3 -m migrations.add_color_hex_to_channel_groups
+
+# Bước 10: Deactivate venv
+deactivate
+
+# Bước 11: Restart backend service
+sudo systemctl restart ads-automation
+
+# Hoặc nếu dùng supervisor:
+sudo supervisorctl restart backend
+
+# Bước 12: Kiểm tra status
+sudo systemctl status ads-automation
+
+# Bước 13: Xem logs (nếu cần)
+sudo journalctl -u ads-automation -f
+
+# ============================================
+# KIỂM TRA SAU KHI DEPLOY
+# ============================================
+
+# 1. Kiểm tra backend có chạy không
+curl http://localhost:8000/api/health
+
+# 2. Kiểm tra frontend có build không
+ls -lh frontend/dist/
+
+# 3. Kiểm tra database migrations
+# (Trong Python shell)
+source venv/bin/activate
+python3 << EOF
+from app.core.database import init_db, get_db_session
+from sqlalchemy import text
+
+init_db()
+db = get_db_session()
+
+# Check last_error column
+result = db.execute(text("""
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name='facebook_accounts' 
+    AND column_name='last_error'
+""")).fetchone()
+print(f"✅ last_error column exists: {result is not None}")
+
+# Check color_hex column
+result = db.execute(text("""
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name='channel_groups' 
+    AND column_name='color_hex'
+""")).fetchone()
+print(f"✅ color_hex column exists: {result is not None}")
+
+db.close()
+EOF
+deactivate
+
+# 4. Test API endpoints
+# Test Facebook Via list
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/facebook-accounts
+
+# Test Channels list
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/channels
+
+# Test Channel Groups list
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/channel-groups
+
+# ============================================
+# TROUBLESHOOTING
+# ============================================
+
+# Nếu npm install lỗi:
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+
+# Nếu build lỗi:
+cd frontend
+npm run build 2>&1 | tee build.log
+cat build.log
+
+# Nếu service không start:
+sudo journalctl -u ads-automation -n 100 --no-pager
+sudo systemctl restart ads-automation
+
+# Nếu database migration lỗi:
+source venv/bin/activate
+python3 -m migrations.add_last_error_to_facebook_accounts 2>&1 | tee migration.log
+cat migration.log
+
+# Kiểm tra port 8000 có bị chiếm không:
+sudo lsof -i :8000
+# Nếu có process cũ, kill nó:
+sudo kill -9 <PID>
+
+# ============================================
+# ROLLBACK (NẾU CẦN)
+# ============================================
+
+# Nếu có vấn đề, rollback về commit trước:
+git log --oneline -5
+git reset --hard <commit-hash-before-update>
+git push origin main --force
+
+# Sau đó rebuild:
+cd frontend
+npm install
+npm run build
+cd ..
+sudo systemctl restart ads-automation
+
+# ============================================
+# THÔNG TIN CẬP NHẬT
+# ============================================
+
+# Commit mới nhất:
+# - Fix: Add missing frontend dependencies and health check report
+# - Added @headlessui/react, react-toastify, dayjs to package.json
+# - Fixed frontend build errors
+# - Created comprehensive health check report
+# - All diagnostics passed successfully
+
+# Các dependencies mới:
+# - @headlessui/react ^1.7.17 (Dialog, Transition, Tab components)
+# - react-toastify ^9.1.3 (Toast notifications)
+# - dayjs ^1.11.10 (Date formatting)
+
+# Migrations mới:
+# - add_last_error_to_facebook_accounts: Thêm column tracking lỗi token
+# - add_color_hex_to_channel_groups: Thêm column custom màu cho groups
+
+# Tính năng mới:
+# - Token expiry tracking với last_error field
+# - Custom colors cho channel groups
+# - Improved permission checking cho Facebook pages
+# - Better error messages bằng tiếng Việt
