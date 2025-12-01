@@ -53,7 +53,7 @@ const PostComposer: React.FC<PostComposerProps> = ({ onSubmit, isSaving }) => {
 
   // Facebook settings
   const [postType, setPostType] = useState<'feed' | 'reel' | 'story'>('feed');
-  const [ctaType, setCta Type] = useState('none');
+  const [ctaType, setCtaType] = useState('none');
   const [ctaUrl, setCtaUrl] = useState('');
 
   // Schedule state

@@ -81,7 +81,7 @@ class ChannelGroup(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     name = Column(String, nullable=False)
-    color_hex = Column(String, nullable=True)  # Hex color like "#22c55e"
+    color_hex = Column(String, nullable=False, default="#3B82F6", server_default="#3B82F6")  # Hex color like "#22c55e"
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
