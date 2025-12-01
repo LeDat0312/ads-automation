@@ -166,9 +166,11 @@ class FacebookAccountService:
                 if response.status_code == 200:
                     data = response.json()
                     
-                    # Update account info
+                    # Update account info - token is valid
                     account.facebook_user_id = data.get("id")
                     account.facebook_user_name = data.get("name")
+                    account.is_active = True
+                    account.last_error = None
                     account.last_verified_at = datetime.utcnow()
                     self.db.commit()
                     
@@ -181,15 +183,49 @@ class FacebookAccountService:
                         "last_verified_at": account.last_verified_at.isoformat()
                     }
                 else:
-                    logger.error(f"❌ Token verification failed: {response.text}")
-                    return {
-                        "valid": False,
-                        "message": "Token không hợp lệ hoặc đã hết hạn",
-                        "error": "Token không hợp lệ hoặc đã hết hạn"
-                    }
+                    # Parse error
+                    error_data = {}
+                    try:
+                        error_data = response.json()
+                    except:
+                        pass
+                    
+                    error_obj = error_data.get("error", {})
+                    error_message = error_obj.get("message", "Không xác định")
+                    error_code = error_obj.get("code", 0)
+                    
+                    logger.error(f"❌ Token verification failed: code={error_code}, message={error_message}")
+                    
+                    # Update account status
+                    if error_code == 190:
+                        # Token expired
+                        account.is_active = False
+                        account.last_error = error_message
+                        account.last_verified_at = datetime.utcnow()
+                        self.db.commit()
+                        
+                        return {
+                            "valid": False,
+                            "message": "Token đã hết hạn. Vui lòng cập nhật lại token.",
+                            "error": error_message
+                        }
+                    else:
+                        account.last_error = error_message
+                        account.last_verified_at = datetime.utcnow()
+                        self.db.commit()
+                        
+                        return {
+                            "valid": False,
+                            "message": "Token không hợp lệ hoặc đã hết hạn",
+                            "error": error_message
+                        }
                     
         except Exception as e:
             logger.error(f"❌ Error verifying token: {e}")
+            account.last_error = str(e)
+            account.last_verified_at = datetime.utcnow()
+            self.db.commit()
+            
             return {
                 "valid": False,
                 "error": str(e)
@@ -243,39 +279,78 @@ class FacebookAccountService:
                         f"code={error_code}, type={error_type}, message={error_message}"
                     )
                     
-                    # Map Facebook error codes to Vietnamese messages
+                    # Handle token expiration (code 190)
                     if error_code == 190:
-                        # Invalid OAuth 2.0 Access Token
+                        # Update account status in DB
+                        logger.warning(f"⚠️ Token expired for account {account.id}, marking as inactive")
+                        account.is_active = False
+                        account.last_error = error_message
+                        account.last_verified_at = datetime.utcnow()
+                        self.db.commit()
+                        
+                        # Return user-friendly Vietnamese message
                         raise HTTPException(
                             status_code=400,
-                            detail="Token Facebook đã hết hạn hoặc không hợp lệ. Vui lòng tạo lại token."
+                            detail="Token Facebook của Via này đã hết hạn. Vui lòng cập nhật lại token trong 'Quản lý Via Facebook' trước khi tải danh sách Fanpage."
                         )
+                    
+                    # Handle permissions error (code 200)
                     elif error_code == 200:
-                        # Permissions error
+                        account.last_error = error_message
+                        account.last_verified_at = datetime.utcnow()
+                        self.db.commit()
+                        
                         raise HTTPException(
                             status_code=400,
                             detail="Token không có đủ quyền để lấy danh sách Fanpage (thiếu pages_show_list hoặc pages_read_engagement). Vui lòng cấp lại quyền."
                         )
+                    
+                    # Handle other permission errors
                     elif "permissions" in error_message.lower() or "pages_show_list" in error_message.lower():
+                        account.last_error = error_message
+                        account.last_verified_at = datetime.utcnow()
+                        self.db.commit()
+                        
                         raise HTTPException(
                             status_code=400,
                             detail="Token không có quyền 'pages_show_list'. Vui lòng cấp quyền quản lý Fanpage khi tạo token."
                         )
+                    
+                    # Handle other auth errors
                     elif response.status_code == 401 or "expired" in error_message.lower() or "invalid" in error_message.lower():
+                        account.is_active = False
+                        account.last_error = error_message
+                        account.last_verified_at = datetime.utcnow()
+                        self.db.commit()
+                        
                         raise HTTPException(
                             status_code=400,
-                            detail="Token đã hết hạn hoặc không hợp lệ. Vui lòng xác thực lại token."
+                            detail="Token đã hết hạn hoặc không hợp lệ. Vui lòng xác thực lại token trong 'Quản lý Via Facebook'."
                         )
+                    
+                    # Generic error
                     else:
+                        account.last_error = error_message
+                        account.last_verified_at = datetime.utcnow()
+                        self.db.commit()
+                        
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Không thể tải danh sách Fanpage: {error_message}"
+                            detail=f"Không thể tải danh sách Fanpage. Lỗi từ Facebook: {error_message}"
                         )
                 
                 data = response.json()
                 pages_data = data.get("data", [])
                 
                 logger.info(f"✅ Retrieved {len(pages_data)} pages from Graph API")
+                
+                # Clear error status since token is working
+                if account.last_error or not account.is_active:
+                    logger.info(f"✅ Token is working, clearing error status for account {account.id}")
+                    account.is_active = True
+                    account.last_error = None
+                    account.last_verified_at = datetime.utcnow()
+                    self.db.commit()
                 
                 # Process each page to determine permissions
                 processed_pages = []

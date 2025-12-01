@@ -224,7 +224,9 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
                 >
                   <option value="">Chọn Via...</option>
                   {viaAccounts.map(via => (
-                    <option key={via.id} value={via.id}>{via.name}</option>
+                    <option key={via.id} value={via.id}>
+                      {via.name} {!via.is_active ? " (Token hết hạn)" : ""}
+                    </option>
                   ))}
                 </select>
                 <button
@@ -235,6 +237,24 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
                   {loadingPages ? "Đang tải..." : "Tải danh sách Fanpage"}
                 </button>
               </div>
+              
+              {/* Show warning if selected Via is inactive */}
+              {selectedViaId && viaAccounts.find(v => v.id === selectedViaId)?.is_active === false && (
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ Token của Via này đã hết hạn. Vui lòng cập nhật lại token trong "Quản lý Via Facebook" trước khi tải danh sách Fanpage.
+                  </p>
+                </div>
+              )}
+              
+              {/* Show last error if any */}
+              {selectedViaId && viaAccounts.find(v => v.id === selectedViaId)?.last_error && (
+                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded">
+                  <p className="text-sm text-red-800">
+                    ❌ Lỗi: {viaAccounts.find(v => v.id === selectedViaId)?.last_error}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Step 2: Tabs */}

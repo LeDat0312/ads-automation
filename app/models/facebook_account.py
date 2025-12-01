@@ -43,6 +43,7 @@ class FacebookAccount(Base):
     # Status
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     last_verified_at = Column(DateTime, nullable=True)  # Last time token was verified
+    last_error = Column(Text, nullable=True)  # Last error message from Facebook API
     
     # Timestamps
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

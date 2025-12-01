@@ -8,6 +8,7 @@ export interface FacebookAccount {
   token_type: FacebookAccountType;
   note?: string;
   is_active: boolean;
+  last_error?: string;
   masked_token: string;
   last_verified_at?: string;
   created_at: string;

@@ -42,6 +42,7 @@ class FacebookAccountRead(FacebookAccountBase):
     expires_at: Optional[datetime] = None
     is_active: bool
     last_verified_at: Optional[datetime] = None
+    last_error: Optional[str] = Field(None, description="Last error message from Facebook API")
     created_at: datetime
     updated_at: datetime
     
