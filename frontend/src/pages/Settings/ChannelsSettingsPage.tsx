@@ -23,7 +23,6 @@ const ChannelsSettingsPage: React.FC = () => {
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
-  const [lastConnectedChannel, setLastConnectedChannel] = useState<Channel | null>(null);
   const [togglingChannelId, setTogglingChannelId] = useState<string | null>(null);
   
   // Filters
@@ -56,13 +55,6 @@ const ChannelsSettingsPage: React.FC = () => {
     loadChannels().then(() => {
       // Show success banner after reload
       setShowSuccessBanner(true);
-      // Get the most recently created channel
-      if (channels.length > 0) {
-        const sorted = [...channels].sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-        setLastConnectedChannel(sorted[0]);
-      }
     });
   };
 
