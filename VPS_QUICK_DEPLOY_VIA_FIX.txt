@@ -1,0 +1,93 @@
+# Quick Commands: Deploy Facebook Via Permissions Fix
+
+## 🚀 1-Command Deploy (Recommended)
+
+```bash
+ssh root@YOUR_VPS 'cd /root/ads-automation && git fetch origin && git reset --hard origin/main && git pull origin main && sudo supervisorctl restart adstudio && sleep 5 && cd frontend && npm install && npm run build && echo "✅ Deploy complete!"'
+```
+
+## 📋 Step-by-step Commands
+
+### Pull latest code
+```bash
+ssh root@YOUR_VPS
+cd /root/ads-automation
+git pull origin main
+```
+
+### Restart backend
+```bash
+sudo supervisorctl restart adstudio
+```
+
+### Rebuild frontend
+```bash
+cd /root/ads-automation/frontend
+npm install
+npm run build
+```
+
+## 🔍 Check logs
+
+### Watch permission detection
+```bash
+ssh root@YOUR_VPS
+sudo tail -f /var/log/supervisor/adstudio-stderr.log | grep "PAGE ROLES"
+```
+
+Expected output:
+```
+PAGE ROLES: id=123456789 perms={'ADMINISTER'} tasks={'MANAGE'} is_admin_for_app=True
+```
+
+### Watch connect endpoint
+```bash
+sudo tail -f /var/log/supervisor/adstudio-stderr.log | grep "🔵 Connect pages"
+```
+
+Expected output:
+```
+🔵 Connect pages - facebook_account_id=5, page_ids=['123456789'], user_id=1
+```
+
+## ✅ Test checklist
+
+1. [ ] Vào Settings → Facebook Via
+2. [ ] Click "Tải danh sách Fanpage" trên 1 Via
+3. [ ] Kiểm tra badge hiển thị đúng (3 màu: xanh/vàng QTV/vàng không QTV)
+4. [ ] Chọn Fanpage và click "Kết nối Fanpage đã chọn"
+5. [ ] Không có lỗi 400 Bad Request
+6. [ ] Fanpage xuất hiện trong danh sách Channels
+
+## 🐛 Quick debug
+
+### If badges still wrong
+```bash
+# Clear browser cache (Ctrl+Shift+R)
+# Check backend logs for permission data
+sudo tail -n 50 /var/log/supervisor/adstudio-stderr.log | grep "PAGE ROLES"
+```
+
+### If 400 error persists
+```bash
+# Check request payload
+sudo tail -n 50 /var/log/supervisor/adstudio-stderr.log | grep "Connect pages"
+```
+
+### If frontend not updated
+```bash
+# Verify build timestamp
+ls -lh /root/ads-automation/frontend/dist/index.html
+# Should show recent timestamp (within last few minutes)
+```
+
+## 📊 What changed
+
+✅ Backend checks BOTH `perms` (user) and `tasks` (app)  
+✅ 3 badge states: QTV (green), QTV-no-perms (yellow), Not-admin (yellow)  
+✅ Debug logging added for troubleshooting  
+✅ TypeScript interface updated with `perms` field  
+
+---
+
+**Quick reference:** See `FIX_FACEBOOK_VIA_PERMISSIONS.md` for full documentation
