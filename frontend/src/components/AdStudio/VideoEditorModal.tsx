@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Dialog, Transition, Tab } from '@headlessui/react';
+import { Dialog, Transition } from '@headlessui/react';
 
 interface VideoEditorModalProps {
   open: boolean;
@@ -47,7 +47,6 @@ const VideoEditorModal: React.FC<VideoEditorModalProps> = ({
   onSave,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [activeTool, setActiveTool] = useState<Tool>('trim');
   
   // Trim state
@@ -69,7 +68,6 @@ const VideoEditorModal: React.FC<VideoEditorModalProps> = ({
   
   // Annotation state
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [annotationMode, setAnnotationMode] = useState<'text' | 'rectangle' | null>(null);
   const [annotationColor, setAnnotationColor] = useState('#FFFFFF');
   
   // Processing state
