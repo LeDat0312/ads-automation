@@ -49,8 +49,7 @@ ssh your-username@your-vps-ip
 
 **Chuyển vào thư mục project:**
 ```bash
-cd /var/www/ads-automation
-# hoặc đường dẫn project của bạn
+cd /home/adsuser/ads-automation
 ```
 
 **Pull code mới nhất:**
@@ -67,7 +66,7 @@ git pull origin main
 
 **ONE-LINE COMMAND (copy & paste):**
 ```bash
-cd /var/www/ads-automation && git stash && git pull origin main && cd frontend && npm install @headlessui/react react-toastify dayjs
+cd /home/adsuser/ads-automation && git stash && git pull origin main && cd frontend && npm install @headlessui/react react-toastify dayjs
 ```
 
 ---
@@ -204,10 +203,10 @@ npm run build
 ### Lỗi: Permission denied
 ```bash
 # Fix ownership
-sudo chown -R $USER:$USER /var/www/ads-automation
+sudo chown -R adsuser:adsuser /home/adsuser/ads-automation
 
 # Fix permissions
-sudo chmod -R 755 /var/www/ads-automation
+sudo chmod -R 755 /home/adsuser/ads-automation
 ```
 
 ### Lỗi: Port 5173 already in use (dev mode)
@@ -265,7 +264,7 @@ cd "C:\Users\Foxy\Downloads\File 5h_4_11\MetaUpdate"; git add .; git commit -m "
 
 **VPS (Linux - ONE LINE):**
 ```bash
-cd /var/www/ads-automation && git pull origin main && cd frontend && npm install @headlessui/react react-toastify dayjs && npm run build && cd .. && sudo systemctl restart ads-automation
+cd /home/adsuser/ads-automation && git pull origin main && cd frontend && npm install @headlessui/react react-toastify dayjs && npm run build && cd .. && sudo systemctl restart ads-automation
 ```
 
 **VPS (Check Status):**
