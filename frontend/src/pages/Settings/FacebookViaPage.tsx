@@ -15,15 +15,15 @@ import "dayjs/locale/vi";
 dayjs.locale("vi");
 
 const TYPE_LABEL: Record<FacebookAccountType, string> = {
-  FANPAGE: "Via cầm Fanpage",
-  ADS: "Via Automation Ads",
-  BOTH: "Cả hai",
+  fanpage: "Via cầm Fanpage",
+  ads: "Via Automation Ads",
+  both: "Cả hai",
 };
 
 const TYPE_BADGE: Record<FacebookAccountType, string> = {
-  FANPAGE: "bg-blue-100 text-blue-700",
-  ADS: "bg-yellow-100 text-yellow-700",
-  BOTH: "bg-green-100 text-green-700",
+  fanpage: "bg-blue-100 text-blue-700",
+  ads: "bg-yellow-100 text-yellow-700",
+  both: "bg-green-100 text-green-700",
 };
 
 const FILTER_OPTIONS = [
@@ -175,7 +175,7 @@ function FacebookViaFormModal({ open, onClose, onSuccess, editAccount }: {
   editAccount: FacebookAccount | null;
 }) {
   const [name, setName] = useState("");
-  const [tokenType, setTokenType] = useState<FacebookAccountType>("FANPAGE");
+  const [tokenType, setTokenType] = useState<FacebookAccountType>("fanpage");
   const [accessToken, setAccessToken] = useState("");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
@@ -187,7 +187,7 @@ function FacebookViaFormModal({ open, onClose, onSuccess, editAccount }: {
       setAccessToken("");
     } else {
       setName("");
-      setTokenType("FANPAGE");
+      setTokenType("fanpage");
       setNote("");
       setAccessToken("");
     }
@@ -253,15 +253,15 @@ function FacebookViaFormModal({ open, onClose, onSuccess, editAccount }: {
               <label className="block font-medium mb-1">Loại Via</label>
               <div className="flex gap-4">
                 <label className="flex items-center gap-1">
-                  <input type="radio" name="type" value="FANPAGE" checked={tokenType === "FANPAGE"} onChange={() => setTokenType("FANPAGE")}/>
+                  <input type="radio" name="type" value="fanpage" checked={tokenType === "fanpage"} onChange={() => setTokenType("fanpage")}/>
                   Via cầm Fanpage
                 </label>
                 <label className="flex items-center gap-1">
-                  <input type="radio" name="type" value="ADS" checked={tokenType === "ADS"} onChange={() => setTokenType("ADS")}/>
+                  <input type="radio" name="type" value="ads" checked={tokenType === "ads"} onChange={() => setTokenType("ads")}/>
                   Via Automation Ads
                 </label>
                 <label className="flex items-center gap-1">
-                  <input type="radio" name="type" value="BOTH" checked={tokenType === "BOTH"} onChange={() => setTokenType("BOTH")}/>
+                  <input type="radio" name="type" value="both" checked={tokenType === "both"} onChange={() => setTokenType("both")}/>
                   Cả hai
                 </label>
               </div>

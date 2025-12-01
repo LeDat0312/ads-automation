@@ -1,6 +1,6 @@
 import api from "./base";
 
-export type FacebookAccountType = "FANPAGE" | "ADS" | "BOTH";
+export type FacebookAccountType = "fanpage" | "ads" | "both";
 
 export interface FacebookAccount {
   id: number;
