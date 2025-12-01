@@ -1,0 +1,136 @@
+# ========================================
+# HƯỚNG DẪN FIX HOÀN CHỈNH - VPS
+# ========================================
+
+## TÌNH TRẠNG HIỆN TẠI:
+
+✅ Fix Fanpage đã hoạt động:
+   - GET /api/facebook-accounts/1/pages trả về 400 với message tiếng Việt
+   - "Token đã hết hạn" - Đúng như mong đợi!
+
+❌ Lỗi database mới phát hiện:
+   - column channel_groups.color_hex does not exist
+   - Cần chạy migration để thêm column này
+
+## GIẢI PHÁP: Chạy 2 lệnh sau trên VPS
+
+### CÁCH 1: Copy-paste toàn bộ (KHUYẾN NGHỊ)
+
+cd /home/adsuser/ads-automation && \
+git pull origin main && \
+source venv/bin/activate && \
+python -m migrations.add_color_hex_to_channel_groups && \
+sudo systemctl restart ads-automation && \
+echo "✅ Hoàn tất! Kiểm tra tại Settings → Channel Groups"
+
+
+### CÁCH 2: Chạy từng bước
+
+# 1. Pull code mới
+cd /home/adsuser/ads-automation
+git pull origin main
+
+# 2. Kích hoạt venv
+source venv/bin/activate
+
+# 3. Chạy migration
+python -m migrations.add_color_hex_to_channel_groups
+
+# 4. Restart backend
+sudo systemctl restart ads-automation
+
+# 5. Kiểm tra status
+sudo systemctl status ads-automation
+
+
+### CÁCH 3: Dùng script tự động
+
+cd /home/adsuser/ads-automation
+git pull origin main
+chmod +x VPS_FIX_DATABASE_COLUMN.sh
+./VPS_FIX_DATABASE_COLUMN.sh
+
+
+## KẾT QUẢ MONG ĐỢI:
+
+✅ Migration output:
+   🚀 Starting migration: Add color_hex to channel_groups...
+   📝 Adding color_hex column to channel_groups...
+   ✅ Successfully added color_hex column to channel_groups
+   ✅ Migration completed successfully!
+
+✅ Backend restart thành công
+
+✅ Không còn lỗi 500 khi vào Settings → Channel Groups
+
+
+## KIỂM TRA SAU KHI FIX:
+
+### 1. Kiểm tra Fix Fanpage (ĐÃ HOẠT ĐỘNG)
+
+Vào Settings → Facebook Via:
+- Chọn Via → Bấm "Tải danh sách Fanpage"
+- Nếu token hết hạn: Toast hiển thị "Token Facebook đã hết hạn hoặc không hợp lệ. Vui lòng tạo lại token."
+- Nếu token đúng: Hiển thị list pages với badge quyền
+
+### 2. Kiểm tra Fix Database (SAU KHI CHẠY MIGRATION)
+
+Vào Settings → Channel Groups:
+- Không còn lỗi 500
+- Có thể tạo/xem channel groups bình thường
+
+
+## XEM LOGS NẾU CẦN:
+
+# Backend logs
+sudo journalctl -u ads-automation -f
+
+# Hoặc xem log file
+sudo tail -50 /var/log/ads-automation.log
+
+
+## ROLLBACK NẾU CÓ VẤN ĐỀ:
+
+# Rollback migration (xóa column color_hex)
+cd /home/adsuser/ads-automation
+source venv/bin/activate
+psql -U adsuser -d ads_automation -c "ALTER TABLE channel_groups DROP COLUMN IF EXISTS color_hex;"
+sudo systemctl restart ads-automation
+
+
+## TÓM TẮT CÁC FIX:
+
+1. ✅ GET /api/facebook-accounts/{id}/pages
+   - Trả về 400 với message tiếng Việt rõ ràng
+   - Map error codes: 190 (token hết hạn), 200 (thiếu quyền)
+   - Logging chi tiết
+
+2. ✅ Lưu Page Access Token đúng
+   - Method mới: upsert_facebook_page_channel_from_account()
+   - Lấy token từ /me/accounts
+   - Fallback sang direct lookup nếu cần
+   - Subscribe webhook khi có quyền
+
+3. ✅ Frontend UX
+   - Hiển thị error detail từ backend
+   - Toast warning khi thiếu quyền
+   - Kiểm tra has_page_token flag
+
+4. 🔧 Database fix (CẦN CHẠY MIGRATION)
+   - Thêm column color_hex vào channel_groups
+   - Fix lỗi 500 khi vào Channel Groups
+
+
+## COMMIT HISTORY:
+
+- 588c033: Fix kết nối Fanpage Facebook
+- e1c98e7: Add script và hướng dẫn pull fix
+- 9faeb7a: Fix database - thêm migration color_hex
+
+
+## HỖ TRỢ:
+
+Nếu gặp vấn đề, kiểm tra:
+1. Database connection: psql -U adsuser -d ads_automation
+2. Backend logs: sudo journalctl -u ads-automation -f
+3. Migration đã chạy chưa: SELECT column_name FROM information_schema.columns WHERE table_name='channel_groups';
