@@ -105,64 +105,6 @@ const ChannelsSettingsPage: React.FC = () => {
     }
   };
 
-  const handleAddManual = async () => {
-    if (!manualPageId.trim()) {
-      setToast({
-        message: '❌ Vui lòng nhập ID Trang Facebook',
-        type: 'error',
-      });
-      return;
-    }
-
-    setIsSubmittingManual(true);
-
-    try {
-      const response = await fetch('/api/channels/facebook/manual', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          page_id: manualPageId.trim(),
-          page_access_token: manualToken.trim() || null,
-          page_name_override: manualNameOverride.trim() || null,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Không thể thêm kênh');
-      }
-
-      // Success - channel created/updated
-      await response.json();
-
-      // Close modal
-      setShowManualModal(false);
-      setManualPageId('');
-      setManualToken('');
-      setManualNameOverride('');
-
-      // Show success toast
-      setToast({
-        message: '✅ Thêm kênh Facebook thành công',
-        type: 'success',
-      });
-
-      // Reload channels
-      await loadChannels();
-    } catch (err: any) {
-      console.error('Error adding manual channel:', err);
-      setToast({
-        message: err.message || '❌ Không thể thêm kênh Facebook. Vui lòng kiểm tra lại thông tin.',
-        type: 'error',
-      });
-    } finally {
-      setIsSubmittingManual(false);
-    }
-  };
-
   // Map backend Channel to frontend-friendly format for display
   const getChannelDisplayName = (channel: Channel) => channel.page_name;
   const getChannelAvatar = (channel: Channel) => channel.avatar_url;

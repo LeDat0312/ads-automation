@@ -235,7 +235,7 @@ function FacebookViaFormModal({ open, onClose, onSuccess, editAccount }: {
   return (
     <Transition show={open} as={React.Fragment}>
       <Dialog as="div" className="fixed inset-0 z-50 flex items-center justify-center" onClose={onClose}>
-        <Dialog.Overlay className="fixed inset-0 bg-black bg-opacity-30" />
+        <div className="fixed inset-0 bg-black bg-opacity-30" aria-hidden="true" />
         <div className="bg-white rounded shadow-lg p-6 w-full max-w-md mx-auto relative z-10">
           <Dialog.Title className="text-lg font-bold mb-2">{editAccount ? "Sửa Via Facebook" : "Thêm Via Facebook"}</Dialog.Title>
           <form onSubmit={handleSubmit} className="space-y-4">

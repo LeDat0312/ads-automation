@@ -8,7 +8,7 @@ import SettingsLayout from './components/SettingsLayout';
 import ChannelsSettingsPage from './pages/Settings/ChannelsSettingsPage';
 import ChannelGroupsSettingsPage from './pages/Settings/ChannelGroupsSettingsPage';
 import PostingSettingsPage from './pages/Settings/PostingSettingsPage';
-import FacebookViaPage from './pages/settings/FacebookViaPage';
+import FacebookViaPage from './pages/Settings/FacebookViaPage';
 
 const AppRouter: React.FC = () => {
   return (

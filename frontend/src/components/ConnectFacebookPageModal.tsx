@@ -144,7 +144,7 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
   return (
     <Transition show={open} as={React.Fragment}>
       <Dialog as="div" className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto" onClose={onClose}>
-        <Dialog.Overlay className="fixed inset-0 bg-black bg-opacity-40" />
+        <div className="fixed inset-0 bg-black bg-opacity-40" aria-hidden="true" />
         <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-auto relative z-10 my-8">
           <div className="p-6">
             <Dialog.Title className="text-xl font-bold mb-4">Kết nối Fanpage Facebook</Dialog.Title>
