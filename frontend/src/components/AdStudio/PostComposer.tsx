@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Tab } from '@headlessui/react';
 import MediaUploadCard from '../MediaUploadCard';
 import ThumbnailModal from './ThumbnailModal';
@@ -105,7 +105,7 @@ const PostComposer: React.FC<PostComposerProps> = ({ onSubmit, isSaving }) => {
     }
   };
 
-  const handleSubmit = (action: 'draft' | 'publish') => {
+  const handleSubmit = (_action: 'draft' | 'publish') => {
     // Validation
     if (!mediaUrl && !mediaFile) {
       alert('Vui lòng tải media lên');

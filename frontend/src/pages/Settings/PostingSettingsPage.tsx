@@ -3,8 +3,6 @@ import * as SettingsAPI from '../../api/settings';
 import type { PostingSettingsRow, AutoCommentTemplate } from '../../api/settings';
 import { toast } from 'react-toastify';
 import { PageHeader, EmptyState, Badge, StatusSwitch } from '../../components/ui';
-import SpinContentModal from '../../components/SpinContentModal';
-import MediaUploadCard from '../../components/MediaUploadCard';
 
 const PostingSettingsPage: React.FC = () => {
   const [settingsRows, setSettingsRows] = useState<PostingSettingsRow[]>([]);

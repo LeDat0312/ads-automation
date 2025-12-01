@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { listChannels, listChannelGroups } from '../../api/settings';
-import type { ChannelRead, ChannelGroupRead } from '../../api/settings';
+import { fetchChannels, fetchChannelGroups } from '../../api/settings';
+import type { Channel, ChannelGroup } from '../../api/settings';
 
 interface ChannelSelectorProps {
   selectedChannelIds: string[];
@@ -11,8 +11,8 @@ const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   selectedChannelIds,
   onSelectionChange,
 }) => {
-  const [channels, setChannels] = useState<ChannelRead[]>([]);
-  const [groups, setGroups] = useState<ChannelGroupRead[]>([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [groups, setGroups] = useState<ChannelGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -25,8 +25,8 @@ const ChannelSelector: React.FC<ChannelSelectorProps> = ({
     setIsLoading(true);
     try {
       const [channelsData, groupsData] = await Promise.all([
-        listChannels({ platform: 'facebook', is_active: true }),
-        listChannelGroups(),
+        fetchChannels('facebook', undefined, true),
+        fetchChannelGroups(),
       ]);
       setChannels(channelsData);
       setGroups(groupsData);
@@ -41,7 +41,7 @@ const ChannelSelector: React.FC<ChannelSelectorProps> = ({
     // Filter by group
     if (selectedGroupId !== 'all') {
       const group = groups.find((g) => g.id === selectedGroupId);
-      if (!group || !group.channels.some((c) => c.id === channel.id)) {
+      if (!group || !group.channels.some((c: Channel) => c.id === channel.id)) {
         return false;
       }
     }

@@ -141,7 +141,7 @@ const PostingSettingsPageV2: React.FC = () => {
     handleUpdateComment(channelId, commentId, { media_url: undefined });
   };
 
-  const handleOpenSpinModal = (channelId: string, commentId: string) => {
+  const handleOpenSpinModal = (_channelId: string, commentId: string) => {
     setActiveCommentId(commentId);
     setSpinModalOpen(true);
   };
