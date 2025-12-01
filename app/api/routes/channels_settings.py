@@ -261,12 +261,12 @@ async def create_channels_from_saved_account(
     """
     Create/update multiple Facebook channels from saved Facebook Account
     
-    Uses token from saved account to fetch page details and create channels
+    Uses token from saved account to fetch Page Access Tokens and permissions
     """
     from app.services.facebook_account_service import get_facebook_account_service
     from app.services.facebook_service import facebook_service
     
-    logger.info(f"🔵 Connect pages request - facebook_account_id={data.facebook_account_id}, page_ids={data.page_ids}, user_id={current_user.id}")
+    logger.info(f"🔵 Connect pages - facebook_account_id={data.facebook_account_id}, page_ids={data.page_ids}, user_id={current_user.id}")
     
     # Get Facebook account
     fb_account_service = get_facebook_account_service(db, current_user.id)
@@ -284,73 +284,100 @@ async def create_channels_from_saved_account(
             detail="Tài khoản Facebook đã bị vô hiệu hóa"
         )
     
+    # Fetch pages with permissions from /me/accounts to get Page Access Tokens
+    try:
+        pages_with_perms = await fb_account_service.get_pages_with_permissions(data.facebook_account_id)
+        pages_map = {p["id"]: p for p in pages_with_perms}
+    except HTTPException as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail=f"Không thể lấy thông tin quyền của Fanpage: {e.detail}"
+        )
+    except Exception as e:
+        logger.error(f"❌ Failed to get pages with permissions: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Lỗi khi kiểm tra quyền Fanpage"
+        )
+    
     service = get_channels_service(db, current_user.id)
     created_channels = []
     errors = []
+    warnings = []
     
-    try:
-        for page_id in data.page_ids:
-            try:
-                # Get page info from Graph API
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.get(
-                        f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/{page_id}",
-                        params={
-                            "fields": "id,name,picture",
-                            "access_token": fb_account.access_token
-                        }
-                    )
-                    
-                    if response.status_code != 200:
-                        logger.error(f"❌ Failed to get page {page_id}: {response.text}")
-                        errors.append(f"Page {page_id}: Không thể lấy thông tin")
-                        continue
-                    
-                    page_data = response.json()
-                    page_name = page_data.get("name")
-                    picture_url = page_data.get("picture", {}).get("data", {}).get("url")
-                
-                # Create/update channel
-                channel = service.upsert_manual_facebook_channel(
-                    page_id=page_id,
-                    page_name=page_name,
-                    page_access_token=fb_account.access_token,
-                    avatar_url=picture_url
-                )
-                
-                created_channels.append(channel)
-                
-                # Subscribe to webhook
+    for page_id in data.page_ids:
+        try:
+            page_info = pages_map.get(page_id)
+            
+            if not page_info:
+                logger.warning(f"⚠️ Page {page_id} not found in /me/accounts")
+                errors.append(f"Page {page_id}: Không tìm thấy trong danh sách quản lý")
+                continue
+            
+            # Extract data
+            page_name = page_info["name"]
+            picture_url = page_info.get("picture_url")
+            page_access_token = page_info.get("access_token")
+            is_admin = page_info.get("is_admin", False)
+            can_publish = page_info.get("can_publish", False)
+            can_moderate = page_info.get("can_moderate", False)
+            warning_message = page_info.get("warning_message")
+            
+            logger.info(
+                f"📄 Page {page_id} ({page_name}): "
+                f"has_token={bool(page_access_token)}, is_admin={is_admin}, "
+                f"can_publish={can_publish}, can_moderate={can_moderate}"
+            )
+            
+            # Create/update channel
+            channel = service.upsert_manual_facebook_channel(
+                page_id=page_id,
+                page_name=page_name,
+                page_access_token=page_access_token if page_access_token else None,
+                avatar_url=picture_url
+            )
+            
+            created_channels.append(channel)
+            
+            # Subscribe to webhook only if has page token and can moderate
+            if page_access_token and (can_publish or can_moderate):
                 try:
                     await facebook_service.subscribe_page_webhook(
                         page_id=page_id,
-                        page_access_token=fb_account.access_token
+                        page_access_token=page_access_token
                     )
                     logger.info(f"✅ Subscribed page {page_id} to webhook")
                 except Exception as webhook_error:
                     logger.error(f"⚠️ Webhook subscription failed for {page_id}: {webhook_error}")
-                
-            except Exception as page_error:
-                logger.error(f"❌ Error processing page {page_id}: {page_error}")
-                errors.append(f"Page {page_id}: {str(page_error)}")
-                continue
-        
-        if not created_channels and errors:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Không thể kết nối Fanpage. Lỗi: {'; '.join(errors[:3])}"
-            )
-        
-        logger.info(f"✅ Created/updated {len(created_channels)} channels from account {fb_account.name}")
-        
-        if errors:
-            logger.warning(f"⚠️ Some pages failed: {errors}")
-        
-        return created_channels
-        
-    except HTTPException:
-        raise
-    except Exception as e:
+                    warnings.append(f"{page_name}: Webhook subscription failed")
+            else:
+                logger.warning(
+                    f"⚠️ Skip webhook for {page_id}: "
+                    f"has_token={bool(page_access_token)}, can_publish={can_publish}, can_moderate={can_moderate}"
+                )
+                if warning_message:
+                    warnings.append(f"{page_name}: {warning_message}")
+                elif not page_access_token:
+                    warnings.append(f"{page_name}: Không lấy được Page Access Token")
+            
+        except Exception as page_error:
+            logger.error(f"❌ Error processing page {page_id}: {page_error}", exc_info=True)
+            errors.append(f"Page {page_id}: {str(page_error)}")
+    
+    if not created_channels and errors:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Không thể kết nối Fanpage. {'; '.join(errors[:2])}"
+        )
+    
+    logger.info(f"✅ Created/updated {len(created_channels)} channels from account {fb_account.name}")
+    
+    if errors:
+        logger.warning(f"⚠️ Errors: {errors}")
+    if warnings:
+        logger.warning(f"⚠️ Warnings: {warnings}")
+    
+    return created_channels
         logger.error(f"❌ Error creating channels from account: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
