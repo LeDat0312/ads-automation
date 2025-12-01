@@ -1,0 +1,126 @@
+# ========================================
+# HƯỚNG DẪN PULL FIX KẾT NỐI FANPAGE VỀ VPS
+# ========================================
+
+## CÁCH 1: Dùng script tự động (Khuyến nghị)
+
+# 1. SSH vào VPS
+ssh root@your-vps-ip
+
+# 2. Di chuyển vào thư mục project
+cd /root/ads-automation
+
+# 3. Pull script mới từ GitHub
+git pull origin main
+
+# 4. Chạy script
+chmod +x VPS_PULL_FACEBOOK_FIX.sh
+./VPS_PULL_FACEBOOK_FIX.sh
+
+
+## CÁCH 2: Chạy từng lệnh thủ công
+
+# 1. SSH vào VPS
+ssh root@your-vps-ip
+
+# 2. Di chuyển vào thư mục project
+cd /root/ads-automation
+
+# 3. Stash thay đổi local (nếu có)
+git stash
+
+# 4. Pull code mới
+git pull origin main
+
+# 5. Rebuild frontend
+cd frontend
+npm run build
+
+# 6. Quay lại thư mục gốc
+cd ..
+
+# 7. Restart backend
+sudo systemctl restart ads-automation
+
+# 8. Restart nginx
+sudo systemctl restart nginx
+
+# 9. Kiểm tra status
+sudo systemctl status ads-automation
+sudo systemctl status nginx
+
+
+## CÁCH 3: Copy-paste toàn bộ (Nhanh nhất)
+
+Chạy lệnh này trên VPS (copy toàn bộ):
+
+cd /root/ads-automation && \
+git stash && \
+git pull origin main && \
+cd frontend && \
+npm run build && \
+cd .. && \
+sudo systemctl restart ads-automation && \
+sudo systemctl restart nginx && \
+echo "✅ Hoàn tất! Kiểm tra tại Settings → Facebook Via"
+
+
+## Kiểm tra sau khi deploy
+
+1. Vào Settings → Facebook Via
+2. Chọn 1 Via → Bấm "Tải danh sách Fanpage"
+3. Kiểm tra:
+   - Nếu token đúng: Hiển thị list pages với badge quyền (✓ QTV / ⚠ Không phải QTV)
+   - Nếu token sai: Hiển thị toast error tiếng Việt rõ ràng
+4. Kết nối 1 page và xem toast message có đúng không
+
+
+## Xem logs nếu có lỗi
+
+# Backend logs
+sudo journalctl -u ads-automation -f
+
+# Nginx logs
+sudo tail -f /var/log/nginx/error.log
+
+
+## Rollback nếu có vấn đề
+
+cd /root/ads-automation
+git reset --hard HEAD~1
+cd frontend && npm run build && cd ..
+sudo systemctl restart ads-automation
+sudo systemctl restart nginx
+
+
+## Các file đã thay đổi trong commit này:
+
+1. app/services/facebook_account_service.py
+   - Sửa method get_pages_with_permissions()
+   - Thêm logging chi tiết
+   - Map error codes sang tiếng Việt
+
+2. app/services/channels_service.py
+   - Thêm method upsert_facebook_page_channel_from_account()
+   - Lưu permission flags
+
+3. app/api/routes/channels_settings.py
+   - Sửa endpoint /channels/facebook/from-saved-account
+   - Sửa endpoint /channels/facebook/manual-v2
+   - Thêm import httpx
+
+4. frontend/src/components/ConnectFacebookPageModal.tsx
+   - Cải thiện error handling
+   - Hiển thị toast warning khi thiếu quyền
+   - Kiểm tra has_page_token
+
+5. frontend/src/api/facebookChannels.ts
+   - Cập nhật TypeScript types
+
+6. FACEBOOK_FANPAGE_CONNECTION_FIX.md
+   - Tài liệu chi tiết về fix
+
+
+## Commit hash: 588c033
+
+Commit message: "Fix: Sửa lỗi kết nối Fanpage Facebook - GET /pages 400 & lưu Page Access Token đúng"
