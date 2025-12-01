@@ -175,13 +175,16 @@ class FacebookAccountService:
                     logger.info(f"✅ Verified Facebook account: {account.name}")
                     return {
                         "valid": True,
+                        "message": f"Token còn hoạt động. User: {data.get('name')}",
                         "user_id": data.get("id"),
-                        "user_name": data.get("name")
+                        "user_name": data.get("name"),
+                        "last_verified_at": account.last_verified_at.isoformat()
                     }
                 else:
                     logger.error(f"❌ Token verification failed: {response.text}")
                     return {
                         "valid": False,
+                        "message": "Token không hợp lệ hoặc đã hết hạn",
                         "error": "Token không hợp lệ hoặc đã hết hạn"
                     }
                     

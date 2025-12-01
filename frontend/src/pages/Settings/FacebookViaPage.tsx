@@ -74,7 +74,15 @@ export default function FacebookViaPage() {
     setVerifyingId(id);
     try {
       const res = await verifyFacebookAccount(id);
-      toast.success(res.data?.message || "Token còn hoạt động.");
+      const data = res.data;
+      
+      if (data.valid) {
+        toast.success(data.message || "Token còn hoạt động.");
+      } else {
+        toast.error(data.message || "Token không còn hợp lệ hoặc bị hết hạn.");
+      }
+      
+      // Reload danh sách để cập nhật last_verified_at
       fetchAccounts();
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || "Token không còn hợp lệ hoặc bị hết hạn.");
