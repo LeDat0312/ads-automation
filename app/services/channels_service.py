@@ -392,10 +392,13 @@ class ChannelsService:
     def create_group(self, group_data: ChannelGroupCreate) -> ChannelGroup:
         """Create a new channel group"""
         try:
+            # Ensure color_hex always has a value (default to blue if not provided)
+            color_hex = group_data.color_hex if group_data.color_hex else "#3B82F6"
+            
             group = ChannelGroup(
                 user_id=self.user_id,
                 name=group_data.name,
-                color_hex=group_data.color_hex or "#3B82F6"
+                color_hex=color_hex
             )
             self.db.add(group)
             self.db.flush()  # Get group.id

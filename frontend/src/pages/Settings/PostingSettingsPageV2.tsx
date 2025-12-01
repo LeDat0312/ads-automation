@@ -6,12 +6,32 @@ import { PageHeader, EmptyState, Badge, StatusSwitch } from '../../components/ui
 import SpinContentModal from '../../components/SpinContentModal';
 import MediaUploadCard from '../../components/MediaUploadCard';
 
-const PostingSettingsPage: React.FC = () => {
+// Delay options in minutes
+const DELAY_OPTIONS = [
+  { label: 'Đăng ngay', value: 0 },
+  { label: '10 phút', value: 10 },
+  { label: '30 phút', value: 30 },
+  { label: '45 phút', value: 45 },
+  { label: '1 giờ', value: 60 },
+  { label: '2 giờ', value: 120 },
+  { label: '6 giờ', value: 360 },
+  { label: '12 giờ', value: 720 },
+  { label: '24 giờ', value: 1440 },
+  { label: '36 giờ', value: 2160 },
+  { label: '48 giờ', value: 2880 },
+  { label: '72 giờ', value: 4320 },
+];
+
+const PostingSettingsPageV2: React.FC = () => {
   const [settingsRows, setSettingsRows] = useState<PostingSettingsRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Spin modal state
+  const [spinModalOpen, setSpinModalOpen] = useState(false);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -72,7 +92,9 @@ const PostingSettingsPage: React.FC = () => {
       user_id: 0,
       channel_id: channelId,
       content: '',
+      media_url: undefined,
       schedule_type: 'IMMEDIATE',
+      delay_minutes: 0,
       is_active: true,
       sort_order: row.auto_comments.length,
       created_at: new Date().toISOString(),
@@ -107,6 +129,37 @@ const PostingSettingsPage: React.FC = () => {
     updateSettingsRow(channelId, { auto_comments: updatedComments });
   };
 
+  const handleMediaUpload = async (channelId: string, commentId: string, file: File): Promise<string> => {
+    // TODO: Implement actual upload to backend
+    // For now, create a local URL
+    const url = URL.createObjectURL(file);
+    handleUpdateComment(channelId, commentId, { media_url: url });
+    return url;
+  };
+
+  const handleMediaRemove = (channelId: string, commentId: string) => {
+    handleUpdateComment(channelId, commentId, { media_url: undefined });
+  };
+
+  const handleOpenSpinModal = (channelId: string, commentId: string) => {
+    setActiveCommentId(commentId);
+    setSpinModalOpen(true);
+  };
+
+  const handleInsertSpin = (text: string) => {
+    if (!selectedChannelId || !activeCommentId) return;
+
+    const row = getSettingsRow(selectedChannelId);
+    if (!row) return;
+
+    const comment = row.auto_comments.find(c => c.id === activeCommentId);
+    if (!comment) return;
+
+    // Insert at end of current content
+    const newContent = comment.content ? `${comment.content} ${text}` : text;
+    handleUpdateComment(selectedChannelId, activeCommentId, { content: newContent });
+  };
+
   const handleSaveChannel = async (channelId: string) => {
     const row = getSettingsRow(channelId);
     if (!row) return;
@@ -123,7 +176,7 @@ const PostingSettingsPage: React.FC = () => {
           content: template.content,
           media_url: template.media_url || undefined,
           schedule_type: template.schedule_type,
-          delay_minutes: template.delay_minutes || undefined,
+          delay_minutes: template.delay_minutes || 0,
           is_active: template.is_active,
           sort_order: template.sort_order,
         })),
@@ -133,7 +186,7 @@ const PostingSettingsPage: React.FC = () => {
       setSettingsRows(prev => prev.map(r =>
         r.channel.id === channelId ? updated : r
       ));
-      toast.success('Đã lưu cấu hình bình luận');
+      toast.success(`Đã lưu cấu hình bình luận cho ${row.channel.page_name}`);
     } catch (err: any) {
       console.error('Error saving posting settings:', err);
       toast.error(err.response?.data?.detail || 'Không thể lưu cài đặt');
@@ -251,12 +304,17 @@ const PostingSettingsPage: React.FC = () => {
                         <p className="text-sm text-gray-500">ID: {selectedRow.channel.page_id}</p>
                       </div>
                     </div>
-                    <StatusSwitch
-                      checked={selectedRow.settings?.auto_comment_enabled || false}
-                      onChange={() => handleToggleAutoComment(selectedRow.channel.id)}
-                      labelOn="Bật auto comment"
-                      labelOff="Tắt auto comment"
-                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600">
+                        {selectedRow.settings?.auto_comment_enabled ? 'Bật' : 'Tắt'} auto comment
+                      </span>
+                      <StatusSwitch
+                        checked={selectedRow.settings?.auto_comment_enabled || false}
+                        onChange={() => handleToggleAutoComment(selectedRow.channel.id)}
+                        labelOn=""
+                        labelOff=""
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -293,19 +351,21 @@ const PostingSettingsPage: React.FC = () => {
                           key={comment.id}
                           className="border border-gray-200 rounded-lg p-4 bg-gray-50"
                         >
+                          {/* Header */}
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-gray-700">Mẫu #{index + 1}</span>
                               <StatusSwitch
                                 checked={comment.is_active}
                                 onChange={(checked) => handleUpdateComment(selectedRow.channel.id, comment.id, { is_active: checked })}
-                                labelOn="Bật"
-                                labelOff="Tắt"
+                                labelOn=""
+                                labelOff=""
                               />
                             </div>
                             <button
                               onClick={() => handleDeleteComment(selectedRow.channel.id, comment.id)}
                               className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Xoá mẫu"
                             >
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -313,9 +373,9 @@ const PostingSettingsPage: React.FC = () => {
                             </button>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="space-y-4">
                             {/* Content */}
-                            <div className="md:col-span-2">
+                            <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">Nội dung</label>
                               <textarea
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
@@ -324,32 +384,48 @@ const PostingSettingsPage: React.FC = () => {
                                 value={comment.content}
                                 onChange={(e) => handleUpdateComment(selectedRow.channel.id, comment.id, { content: e.target.value })}
                               />
-                              <p className="text-xs text-gray-500 mt-1">
-                                💡 Dùng {'{a|b|c}'} để random nội dung (Spin)
-                              </p>
+                              <div className="flex items-center justify-between mt-1">
+                                <p className="text-xs text-gray-500 flex items-center gap-1">
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
+                                  </svg>
+                                  Dùng {'{a|b|c}'} để random nội dung (Spin)
+                                </p>
+                                <button
+                                  onClick={() => handleOpenSpinModal(selectedRow.channel.id, comment.id)}
+                                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                                >
+                                  Hướng dẫn Spin →
+                                </button>
+                              </div>
                             </div>
 
-                            {/* Schedule */}
+                            {/* Media Upload */}
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian</label>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Media (tuỳ chọn)</label>
+                              <MediaUploadCard
+                                mediaUrl={comment.media_url}
+                                onUpload={(file) => handleMediaUpload(selectedRow.channel.id, comment.id, file)}
+                                onRemove={() => handleMediaRemove(selectedRow.channel.id, comment.id)}
+                                accept="image/*,video/mp4"
+                                maxSizeMB={50}
+                              />
+                            </div>
+
+                            {/* Delay */}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian đăng</label>
                               <select
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                value={comment.schedule_type}
-                                onChange={(e) => handleUpdateComment(selectedRow.channel.id, comment.id, { schedule_type: e.target.value })}
+                                value={comment.delay_minutes || 0}
+                                onChange={(e) => handleUpdateComment(selectedRow.channel.id, comment.id, { delay_minutes: parseInt(e.target.value) })}
                               >
-                                <option value="IMMEDIATE">Đăng ngay</option>
-                                <option value="AFTER_X_MINUTES">Sau X phút</option>
-                                <option value="DELAYED">Đăng sau</option>
+                                {DELAY_OPTIONS.map(option => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
                               </select>
-                              {(comment.schedule_type === 'AFTER_X_MINUTES' || comment.schedule_type === 'DELAYED') && (
-                                <input
-                                  type="number"
-                                  className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                  placeholder="Số phút"
-                                  value={comment.delay_minutes || ''}
-                                  onChange={(e) => handleUpdateComment(selectedRow.channel.id, comment.id, { delay_minutes: parseInt(e.target.value) || undefined })}
-                                />
-                              )}
                             </div>
                           </div>
                         </div>
@@ -393,8 +469,18 @@ const PostingSettingsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Spin Content Modal */}
+      <SpinContentModal
+        open={spinModalOpen}
+        onClose={() => {
+          setSpinModalOpen(false);
+          setActiveCommentId(null);
+        }}
+        onInsert={handleInsertSpin}
+      />
     </div>
   );
 };
 
-export default PostingSettingsPage;
+export default PostingSettingsPageV2;
