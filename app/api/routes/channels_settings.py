@@ -378,11 +378,6 @@ async def create_channels_from_saved_account(
         logger.warning(f"⚠️ Warnings: {warnings}")
     
     return created_channels
-        logger.error(f"❌ Error creating channels from account: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Lỗi khi tạo kênh: {str(e)}"
-        )
 
 
 @router.post("/channels/facebook/manual-v2")
