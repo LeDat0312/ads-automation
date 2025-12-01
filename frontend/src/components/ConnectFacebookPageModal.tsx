@@ -326,23 +326,37 @@ export default function ConnectFacebookPageModal({ open, onClose, onSuccess }: C
                                   {page.is_admin ? (
                                     <span 
                                       className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-800"
-                                      title="Via này đang là Quản trị viên và app đã được cấp quyền automation đầy đủ."
+                                      title="Via có quyền MANAGE hoặc (CREATE_CONTENT + MODERATE). Có thể đăng bài và tự động bình luận."
                                     >
-                                      ✓ QTV
+                                      ✓ Đủ quyền
                                     </span>
-                                  ) : page.perms?.includes("ADMINISTER") ? (
+                                  ) : page.can_publish && page.can_moderate ? (
+                                    <span 
+                                      className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800"
+                                      title="Via có quyền đăng bài và quản lý bình luận nhưng chưa có MANAGE."
+                                    >
+                                      ✓ Có quyền cơ bản
+                                    </span>
+                                  ) : page.can_publish ? (
                                     <span 
                                       className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800"
-                                      title={page.warning_message || "Bạn là Quản trị viên nhưng token chưa được cấp đủ quyền MANAGE/CREATE_CONTENT/MODERATE. Cần thêm lại Via với đủ quyền."}
+                                      title={page.warning_message || "Via có quyền đăng bài nhưng chưa có quyền quản lý bình luận."}
                                     >
-                                      ⚠ QTV nhưng app chưa đủ quyền
+                                      ⚠ Chỉ đăng bài
+                                    </span>
+                                  ) : page.can_moderate ? (
+                                    <span 
+                                      className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800"
+                                      title={page.warning_message || "Via có quyền quản lý bình luận nhưng chưa có quyền đăng bài."}
+                                    >
+                                      ⚠ Chỉ bình luận
                                     </span>
                                   ) : (
                                     <span 
-                                      className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800"
-                                      title={page.warning_message || "Via này chưa là Quản trị viên của Fanpage"}
+                                      className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800"
+                                      title={page.warning_message || "Via chưa có quyền quản lý Fanpage này."}
                                     >
-                                      ⚠ Không phải QTV
+                                      ✗ Không đủ quyền
                                     </span>
                                   )}
                                 </td>

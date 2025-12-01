@@ -248,14 +248,15 @@ class FacebookAccountService:
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # Call /me/accounts with BOTH tasks AND perms to get full permission info
+                # Call /me/accounts with tasks (perms field removed in v20.0+)
                 logger.info(f"🔍 Fetching pages for account {account_id} (name: {account.name})")
                 
+                # First attempt: without perms (v20.0+ compatible)
                 response = await client.get(
                     f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/me/accounts",
                     params={
                         "access_token": account.access_token,
-                        "fields": "id,name,access_token,tasks,perms,category,link,picture{url}",
+                        "fields": "id,name,access_token,tasks,category,link,picture{url}",
                         "limit": 100
                     }
                 )
@@ -278,6 +279,16 @@ class FacebookAccountService:
                         f"❌ Failed to get pages: status={response.status_code}, "
                         f"code={error_code}, type={error_type}, message={error_message}"
                     )
+                    
+                    # Special handling for field error (code 100) - fallback for older API versions
+                    if error_code == 100 and "perms" in error_message.lower():
+                        logger.warning(f"⚠️ Field 'perms' not supported, already using fallback query")
+                        # We already removed perms from the query, so this shouldn't happen
+                        # But if it does, provide a clear message
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Lỗi khi tải danh sách Fanpage. API Facebook đã thay đổi. Vui lòng liên hệ admin."
+                        )
                     
                     # Handle token expiration (code 190)
                     if error_code == 190:
@@ -353,30 +364,28 @@ class FacebookAccountService:
                     self.db.commit()
                 
                 # Process each page to determine permissions
+                # Note: 'perms' field is no longer available in Graph API v20.0+
+                # We now rely solely on 'tasks' to determine permissions
                 processed_pages = []
                 for page in pages_data:
-                    # Get raw permissions
+                    # Get raw tasks (perms no longer available in v20.0+)
                     raw_tasks = page.get("tasks") or []
-                    raw_perms = page.get("perms") or []
                     
-                    # Normalize to uppercase sets
+                    # Normalize to uppercase set
                     tasks = {t.upper() for t in raw_tasks}
-                    perms = {p.upper() for p in raw_perms}
                     
-                    # Check user-level permission (ADMINISTER = Quản trị viên)
-                    has_admin_perm = "ADMINISTER" in perms
-                    
-                    # Check app-level permissions
+                    # Determine admin status based on tasks only
+                    # MANAGE = full admin rights
+                    # CREATE_CONTENT + MODERATE = sufficient for automation
                     has_manage_task = "MANAGE" in tasks
                     has_content_and_moderate = "CREATE_CONTENT" in tasks and "MODERATE" in tasks
                     
-                    # Determine if "admin for automation purposes"
-                    # True if: user is ADMINISTER + app has MANAGE or (CREATE_CONTENT + MODERATE)
-                    is_admin_for_app = has_admin_perm and (has_manage_task or has_content_and_moderate)
+                    # User is considered "admin for automation" if they have MANAGE or both CREATE_CONTENT and MODERATE
+                    is_admin_for_app = has_manage_task or has_content_and_moderate
                     
                     # Determine capabilities
-                    can_publish = "CREATE_CONTENT" in tasks or is_admin_for_app
-                    can_moderate = "MODERATE" in tasks or is_admin_for_app
+                    can_publish = "CREATE_CONTENT" in tasks or has_manage_task
+                    can_moderate = "MODERATE" in tasks or has_manage_task
                     
                     # Get picture URL
                     picture_url = None
@@ -386,24 +395,33 @@ class FacebookAccountService:
                     
                     # Create warning message based on permission status
                     warning_message = None
-                    if has_admin_perm and not is_admin_for_app:
-                        # User is admin but app doesn't have enough permissions
-                        warning_message = (
-                            "Bạn là Quản trị viên Fanpage nhưng token chưa được cấp đủ quyền cho app "
-                            "(CREATE_CONTENT/MODERATE/MANAGE). Hãy tạo lại token và bật đầy đủ quyền."
-                        )
-                    elif not has_admin_perm:
-                        # User is not admin
-                        warning_message = (
-                            "Via này chưa là Quản trị viên của Fanpage. "
-                            "Bạn cần thêm Via làm QTV để sử dụng tính năng đăng bài, lên lịch và tự động bình luận."
-                        )
+                    if not is_admin_for_app:
+                        if not tasks:
+                            warning_message = (
+                                "Via này không có quyền quản lý Fanpage. "
+                                "Bạn cần thêm Via làm Quản trị viên hoặc cấp quyền CREATE_CONTENT + MODERATE để sử dụng tính năng đăng bài và tự động bình luận."
+                            )
+                        elif can_publish and not can_moderate:
+                            warning_message = (
+                                "Via có quyền đăng bài nhưng chưa có quyền quản lý bình luận (MODERATE). "
+                                "Tính năng tự động bình luận sẽ không khả dụng."
+                            )
+                        elif can_moderate and not can_publish:
+                            warning_message = (
+                                "Via có quyền quản lý bình luận nhưng chưa có quyền đăng bài (CREATE_CONTENT). "
+                                "Tính năng đăng bài sẽ không khả dụng."
+                            )
+                        else:
+                            warning_message = (
+                                "Via chưa có đủ quyền để sử dụng tính năng đăng bài và tự động bình luận. "
+                                "Vui lòng cấp quyền MANAGE hoặc (CREATE_CONTENT + MODERATE)."
+                            )
                     
                     # Debug log
                     logger.info(
                         f"PAGE ROLES: id={page.get('id')} name={page.get('name')} "
-                        f"perms={list(perms)} tasks={list(tasks)} "
-                        f"has_admin_perm={has_admin_perm} is_admin_for_app={is_admin_for_app}"
+                        f"tasks={list(tasks)} "
+                        f"is_admin_for_app={is_admin_for_app} can_publish={can_publish} can_moderate={can_moderate}"
                     )
                     
                     processed_pages.append({
@@ -413,7 +431,7 @@ class FacebookAccountService:
                         "category": page.get("category"),
                         "access_token": page.get("access_token"),
                         "tasks": list(tasks),
-                        "perms": list(perms),
+                        "perms": [],  # Always empty in v20.0+, kept for backward compatibility
                         "is_admin": is_admin_for_app,
                         "can_publish": can_publish,
                         "can_moderate": can_moderate,
