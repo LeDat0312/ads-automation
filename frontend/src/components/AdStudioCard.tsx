@@ -280,18 +280,61 @@ function ContentSection({
   setUploadedFile: (f: File | null) => void;
   onAIRewrite?: () => void;
 }) {
-  const [showSpinPopover, setShowSpinPopover] = useState(false);
+  const [showSpinModal, setShowSpinModal] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const captionRef = useRef<HTMLTextAreaElement>(null);
 
-  const spinSnippets = [
-    { label: 'Chọn ngẫu nhiên', example: '{lựa chọn 1|lựa chọn 2|lựa chọn 3}' },
-    { label: 'Icon ngẫu nhiên', example: '@icon{R1}' },
-    { label: 'Emoji ngẫu nhiên', example: '@emoji{happy}' },
-  ];
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
 
-  const insertSpin = (snippet: string) => {
-    setCaption(caption + ' ' + snippet);
-    setShowSpinPopover(false);
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('video/')) {
+      toast.error('Chỉ chấp nhận file video (MP4, MOV, WebM)');
+      return;
+    }
+    
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error('File quá lớn (tối đa 100MB)');
+      return;
+    }
+    
+    setUploadedFile(file);
+    toast.success(`Đã tải lên: ${file.name}`);
+  };
+
+  const insertSpinAtCursor = (snippet: string) => {
+    const textarea = captionRef.current;
+    if (!textarea) {
+      setCaption(caption + ' ' + snippet);
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newCaption = caption.substring(0, start) + snippet + caption.substring(end);
+    setCaption(newCaption);
+    
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + snippet.length, start + snippet.length);
+    }, 0);
   };
 
   return (
@@ -305,6 +348,7 @@ function ContentSection({
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">Nội dung sẽ đăng</label>
         <textarea
+          ref={captionRef}
           className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none transition"
           rows={5}
           placeholder="Nhập nội dung bài đăng..."
@@ -314,33 +358,16 @@ function ContentSection({
         <div className="flex items-center justify-between mt-2">
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
-            {/* Spin Content */}
-            <div className="relative">
-              <button
-                onClick={() => setShowSpinPopover(!showSpinPopover)}
-                className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center gap-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Spin nội dung
-              </button>
-              {showSpinPopover && (
-                <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-lg border border-gray-200 p-3 z-20">
-                  <p className="text-xs text-gray-500 mb-2">Chèn cú pháp spin để tạo nội dung đa dạng:</p>
-                  {spinSnippets.map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => insertSpin(s.example)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 rounded-lg transition"
-                    >
-                      <span className="font-medium">{s.label}</span>
-                      <code className="ml-2 text-xs text-violet-600 bg-violet-50 px-1 rounded">{s.example}</code>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Spin Content Modal */}
+            <button
+              onClick={() => setShowSpinModal(true)}
+              className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Spin nội dung
+            </button>
 
             {/* AI Rewrite */}
             <button
@@ -392,7 +419,7 @@ function ContentSection({
           </label>
         </div>
 
-        {/* Upload Zone */}
+        {/* Upload Zone with Drag & Drop */}
         {videoSource === 'upload' && (
           <div className="mt-3">
             <input
@@ -403,16 +430,23 @@ function ContentSection({
               onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
             />
             {!uploadedFile ? (
-              <button
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-violet-400 transition text-center"
+                className={`w-full p-6 border-2 border-dashed rounded-xl transition text-center cursor-pointer ${
+                  isDragging
+                    ? 'border-violet-500 bg-violet-50'
+                    : 'border-gray-300 hover:border-violet-400'
+                }`}
               >
                 <svg className="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 <p className="text-sm text-gray-600">Nhấn để chọn video hoặc kéo thả vào đây</p>
                 <p className="text-xs text-gray-400 mt-1">MP4, MOV, WebM (tối đa 100MB)</p>
-              </button>
+              </div>
             ) : (
               <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
                 <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -432,17 +466,26 @@ function ContentSection({
           </div>
         )}
       </div>
+
+      {/* Spin Content Modal */}
+      {showSpinModal && (
+        <SpinContentModal
+          onClose={() => setShowSpinModal(false)}
+          onInsert={insertSpinAtCursor}
+        />
+      )}
     </div>
   );
 }
 
 /** Section 3: Cấu hình đăng bài */
 function SettingsSection({
-  channels, channelsLoading, selectedChannelIds, setSelectedChannelIds,
+  channels, groups, channelsLoading, selectedChannelIds, setSelectedChannelIds,
   postType, setPostType, cta, setCta, videoTitle, setVideoTitle,
   scheduleMode, setScheduleMode, scheduleTime, setScheduleTime
 }: {
   channels: Channel[];
+  groups: ChannelGroup[];
   channelsLoading: boolean;
   selectedChannelIds: string[];
   setSelectedChannelIds: (ids: string[]) => void;
@@ -459,10 +502,13 @@ function SettingsSection({
 }) {
   const [showChannelDrawer, setShowChannelDrawer] = useState(false);
   const [channelSearch, setChannelSearch] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
-  const filteredChannels = channels.filter(c =>
-    c.page_name.toLowerCase().includes(channelSearch.toLowerCase())
-  );
+  const filteredChannels = channels.filter(c => {
+    const matchesSearch = c.page_name.toLowerCase().includes(channelSearch.toLowerCase());
+    const matchesGroup = !selectedGroupId || (c as any).channel_group_id === selectedGroupId;
+    return matchesSearch && matchesGroup;
+  });
 
   const toggleChannel = (id: string) => {
     setSelectedChannelIds(
@@ -612,8 +658,50 @@ function SettingsSection({
               </button>
             </div>
 
-            {/* Search */}
+            {/* Group Filter + Search */}
             <div className="p-4 border-b border-gray-100">
+              {/* Group Filter */}
+              {groups.length > 0 && (
+                <div className="mb-3">
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Lọc theo nhóm</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setSelectedGroupId(null)}
+                      className={`px-3 py-1.5 text-sm rounded-full transition ${
+                        !selectedGroupId
+                          ? 'bg-violet-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Tất cả
+                    </button>
+                    {groups.map(g => (
+                      <button
+                        key={g.id}
+                        onClick={() => setSelectedGroupId(g.id)}
+                        className={`px-3 py-1.5 text-sm rounded-full transition flex items-center gap-1 ${
+                          selectedGroupId === g.id
+                            ? 'text-white'
+                            : 'text-gray-700 hover:opacity-80'
+                        }`}
+                        style={{
+                          backgroundColor: selectedGroupId === g.id
+                            ? g.color_hex || '#8B5CF6'
+                            : `${g.color_hex || '#E5E7EB'}33`,
+                        }}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: g.color_hex || '#8B5CF6' }}
+                        />
+                        {g.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Search */}
               <input
                 type="text"
                 className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-violet-500"
@@ -1038,7 +1126,7 @@ function ThumbnailModal({
 export default function AdStudioCard() {
   // ===== Hooks =====
   const { status: fetchStatus, error: fetchError, video, fetchVideo, reset: resetVideo } = useFetchVideo();
-  const { channels, loading: channelsLoading } = useChannels();
+  const { channels, groups, loading: channelsLoading } = useChannels();
 
   // ===== Form State =====
   const [url, setUrl] = useState('');
@@ -1154,7 +1242,7 @@ export default function AdStudioCard() {
     <div className="min-h-screen bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/10 backdrop-blur-lg border-b border-white/20">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-[1800px] mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
               <span className="text-xl">🎬</span>
@@ -1204,7 +1292,7 @@ export default function AdStudioCard() {
       </header>
 
       {/* Main Content - 2 Columns */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-[1800px] mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
           {/* Left Column - Form (70%) */}
           <div className="lg:col-span-7 space-y-4">
@@ -1234,6 +1322,7 @@ export default function AdStudioCard() {
             {/* Section 3: Cấu hình đăng bài */}
             <SettingsSection
               channels={channels}
+              groups={groups}
               channelsLoading={channelsLoading}
               selectedChannelIds={selectedChannelIds}
               setSelectedChannelIds={setSelectedChannelIds}
@@ -1283,6 +1372,218 @@ export default function AdStudioCard() {
         currentThumbnail={customThumbnail || video?.thumbnailUrl}
         onApply={setCustomThumbnail}
       />
+    </div>
+  );
+}
+
+// ==================== SPIN CONTENT MODAL ====================
+
+/**
+ * Modal chi tiết cho Spin Content với 3 tabs
+ */
+function SpinContentModal({ onClose, onInsert }: { onClose: () => void; onInsert: (snippet: string) => void }) {
+  const [activeTab, setActiveTab] = useState<'text' | 'icon' | 'emoji'>('text');
+
+  const textExamples = [
+    { label: 'Chào buổi sáng/tối', snippet: 'Chào {buổi sáng|buổi tối}!' },
+    { label: 'Sản phẩm đa dạng', snippet: '{Sản phẩm|Dịch vụ|Giải pháp} của chúng tôi' },
+    { label: 'Khuyến mãi', snippet: 'Giảm giá {10%|15%|20%} hôm nay!' },
+    { label: 'Kêu gọi hành động', snippet: '{Inbox ngay|Gọi hotline|Đặt hàng} để nhận ưu đãi' },
+  ];
+
+  const iconPresets = [
+    { code: '@icon{R1}', desc: 'Random icon bộ 1', preview: '🎯🔥💎✨🌟' },
+    { code: '@icon{R2}', desc: 'Random icon bộ 2', preview: '💡🚀🎁🏆⭐' },
+    { code: '@icon{R3}', desc: 'Random icon bộ 3', preview: '❤️👍🎉🌈🌺' },
+    { code: '@icon{shopping}', desc: 'Shopping icons', preview: '🛍️🛒💳🎁📦' },
+    { code: '@icon{food}', desc: 'Food icons', preview: '🍔🍕🍜🍰🍹' },
+  ];
+
+  const emojiGroups = [
+    { code: '@emoji{happy}', desc: 'Happy faces', preview: '😊😃😄😁🤩' },
+    { code: '@emoji{love}', desc: 'Love & hearts', preview: '❤️💕💖💗💘' },
+    { code: '@emoji{celebration}', desc: 'Celebration', preview: '🎉🎊🥳🎈🎁' },
+    { code: '@emoji{nature}', desc: 'Nature', preview: '🌸🌺🌻🌷🌹' },
+    { code: '@emoji{fire}', desc: 'Fire & energy', preview: '🔥💥⚡✨💫' },
+  ];
+
+  const handleInsert = (snippet: string) => {
+    onInsert(snippet);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="p-5 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900">🔄 Spin Content</h3>
+            <p className="text-sm text-gray-500 mt-1">Tạo nội dung đa dạng với cú pháp spin</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('text')}
+            className={`flex-1 py-3 px-4 text-sm font-medium transition ${
+              activeTab === 'text'
+                ? 'text-violet-600 border-b-2 border-violet-600 bg-violet-50/50'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            📝 Text Spin
+          </button>
+          <button
+            onClick={() => setActiveTab('icon')}
+            className={`flex-1 py-3 px-4 text-sm font-medium transition ${
+              activeTab === 'icon'
+                ? 'text-violet-600 border-b-2 border-violet-600 bg-violet-50/50'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            🎨 Icon Spin
+          </button>
+          <button
+            onClick={() => setActiveTab('emoji')}
+            className={`flex-1 py-3 px-4 text-sm font-medium transition ${
+              activeTab === 'emoji'
+                ? 'text-violet-600 border-b-2 border-violet-600 bg-violet-50/50'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            😊 Emoji Spin
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {activeTab === 'text' && (
+            <div>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                <h4 className="font-semibold text-blue-900 mb-2">📖 Cách dùng</h4>
+                <p className="text-sm text-blue-800 mb-2">Dùng dấu <code className="bg-blue-100 px-1 rounded">|</code> để ngăn cách các lựa chọn trong dấu ngoặc nhọn:</p>
+                <code className="block bg-white border border-blue-300 rounded px-3 py-2 text-sm text-gray-800">
+                  {'Chào {buổi sáng|buổi chiều|buổi tối}!'}
+                </code>
+                <p className="text-xs text-blue-700 mt-2">→ Hệ thống sẽ random chọn 1 trong 3 cụm từ khi đăng</p>
+              </div>
+
+              <h4 className="font-semibold text-gray-900 mb-3">✨ Mẫu có sẵn</h4>
+              <div className="space-y-2">
+                {textExamples.map((item, idx) => (
+                  <div key={idx} className="border border-gray-200 rounded-xl p-3 hover:border-violet-400 transition">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-700">{item.label}</p>
+                        <code className="text-xs text-violet-600 bg-violet-50 px-2 py-1 rounded mt-1 inline-block">
+                          {item.snippet}
+                        </code>
+                      </div>
+                      <button
+                        onClick={() => handleInsert(item.snippet)}
+                        className="px-3 py-1 bg-violet-600 text-white text-xs rounded-lg hover:bg-violet-700"
+                      >
+                        Chèn
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'icon' && (
+            <div>
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
+                <h4 className="font-semibold text-purple-900 mb-2">🎨 Icon Random</h4>
+                <p className="text-sm text-purple-800 mb-2">Hệ thống sẽ tự động chọn 1 icon ngẫu nhiên từ bộ preset:</p>
+                <code className="block bg-white border border-purple-300 rounded px-3 py-2 text-sm text-gray-800">
+                  Sản phẩm hot @icon{'{'}R1{'}'} nhất tuần!
+                </code>
+                <p className="text-xs text-purple-700 mt-2">→ Mỗi lần đăng sẽ hiện icon khác nhau từ bộ R1</p>
+              </div>
+
+              <h4 className="font-semibold text-gray-900 mb-3">🎯 Bộ icon có sẵn</h4>
+              <div className="space-y-2">
+                {iconPresets.map((item, idx) => (
+                  <div key={idx} className="border border-gray-200 rounded-xl p-3 hover:border-violet-400 transition">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-700">{item.desc}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <code className="text-xs text-violet-600 bg-violet-50 px-2 py-1 rounded">
+                            {item.code}
+                          </code>
+                          <span className="text-lg">{item.preview}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleInsert(item.code)}
+                        className="px-3 py-1 bg-violet-600 text-white text-xs rounded-lg hover:bg-violet-700"
+                      >
+                        Chèn
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'emoji' && (
+            <div>
+              <div className="bg-pink-50 border border-pink-200 rounded-xl p-4 mb-4">
+                <h4 className="font-semibold text-pink-900 mb-2">😊 Emoji Random</h4>
+                <p className="text-sm text-pink-800 mb-2">Chọn 1 emoji ngẫu nhiên từ nhóm cảm xúc:</p>
+                <code className="block bg-white border border-pink-300 rounded px-3 py-2 text-sm text-gray-800">
+                  Chúc bạn một ngày tuyệt vời @emoji{'{'}happy{'}'}
+                </code>
+                <p className="text-xs text-pink-700 mt-2">→ Random từ các emoji vui vẻ: 😊😃😄😁🤩</p>
+              </div>
+
+              <h4 className="font-semibold text-gray-900 mb-3">💬 Nhóm emoji có sẵn</h4>
+              <div className="space-y-2">
+                {emojiGroups.map((item, idx) => (
+                  <div key={idx} className="border border-gray-200 rounded-xl p-3 hover:border-violet-400 transition">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-700">{item.desc}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <code className="text-xs text-violet-600 bg-violet-50 px-2 py-1 rounded">
+                            {item.code}
+                          </code>
+                          <span className="text-lg">{item.preview}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleInsert(item.code)}
+                        className="px-3 py-1 bg-violet-600 text-white text-xs rounded-lg hover:bg-violet-700"
+                      >
+                        Chèn
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+          <p className="text-xs text-gray-500 text-center">
+            💡 Tip: Kết hợp nhiều cú pháp spin để tạo nội dung đa dạng hơn!
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

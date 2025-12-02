@@ -4,6 +4,16 @@ import { Asset, SchedulePayload } from '../types/adStudio';
 const API_BASE_URL = '/api';
 
 /**
+ * Backend response cho scrape endpoint
+ */
+interface ScrapeResponse {
+  success: boolean;
+  code: 'OK' | 'INVALID_URL' | 'UPSTREAM_ERROR' | 'PRIVATE_VIDEO' | 'UNKNOWN_ERROR';
+  message: string;
+  data?: Asset;
+}
+
+/**
  * API Error với detail code
  */
 class ApiError extends Error {
@@ -20,7 +30,7 @@ class ApiError extends Error {
 
 /**
  * Gọi backend để lấy video + caption từ TikTok
- * NOTE: AdStudio - No more mock fallback
+ * NOTE: AdStudio - Now handles ScrapeResponse format
  */
 export async function fetchTiktokAsset(url: string, note?: string): Promise<Asset> {
   const response = await fetch(`${API_BASE_URL}/tiktok/scrape`, {
@@ -31,29 +41,27 @@ export async function fetchTiktokAsset(url: string, note?: string): Promise<Asse
     body: JSON.stringify({ url, note }),
   });
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    const detail = data.detail || 'UNKNOWN_ERROR';
+  const result: ScrapeResponse = await response.json();
+  
+  if (!result.success || !result.data) {
     throw new ApiError(
-      `HTTP error! status: ${response.status}`,
-      detail,
+      result.message,
+      result.code,
       response.status
     );
   }
-
-  const asset: Asset = await response.json();
   
   // NOTE: AdStudio - Debug log to verify API response
   console.log('[AdStudio] TikTok asset from API:', {
-    id: asset.id,
-    platform: asset.platform,
-    videoUrl: asset.videoUrl,
-    thumbnailUrl: asset.thumbnailUrl,
-    duration: asset.duration,
-    hashtags: asset.hashtags,
+    id: result.data.id,
+    platform: result.data.platform,
+    videoUrl: result.data.videoUrl,
+    thumbnailUrl: result.data.thumbnailUrl,
+    duration: result.data.duration,
+    hashtags: result.data.hashtags,
   });
   
-  return asset;
+  return result.data;
 }
 
 /**

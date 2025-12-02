@@ -27,7 +27,7 @@ from app.core.database import get_db
 from app.core.config import get_settings
 from app.models.ad_studio import AdStudioAsset, AdStudioScheduledPost
 from app.models.user import User
-from app.schemas.ad_studio import ScrapeRequest, Asset, SchedulePayload, ScheduleResponse
+from app.schemas.ad_studio import ScrapeRequest, ScrapeResponse, Asset, SchedulePayload, ScheduleResponse
 from app.services.apify_helper import get_apify_api_key
 from app.api.routes.auth import get_current_user_optional
 from app.core.ui_helpers import get_user_dropdown_menu, get_account_locked_message
@@ -295,14 +295,18 @@ def _map_tiktok_item_to_asset(
     )
 
 
-@api_router.post("/tiktok/scrape", response_model=Asset)
+@api_router.post("/tiktok/scrape", response_model=ScrapeResponse)
 async def scrape_tiktok(
     body: ScrapeRequest,
     db: Session = Depends(get_db),
 ):
     """
     Lấy video + caption từ TikTok qua Apify actor + Download về local storage.
-    NOTE: AdStudio - Use run-sync-get-dataset-items for immediate results
+    
+    QUAN TRỌNG - ERROR HANDLING:
+    - Không raise HTTPException, luôn trả JSON với success=True/False
+    - Frontend sẽ mapping code sang message tiếng Việt thân thiện
+    - Codes: OK, INVALID_URL, UPSTREAM_ERROR, PRIVATE_VIDEO, UNKNOWN_ERROR
     
     QUAN TRỌNG - BẢO MẬT:
     - Apify API key được lấy từ DB (admin cấu hình tại /settings)
@@ -314,235 +318,208 @@ async def scrape_tiktok(
     - Lưu vào MEDIA_ROOT/ad_studio/{asset_id}.mp4 và {asset_id}.jpg
     - Return URL local cho frontend (/media/ad_studio/{asset_id}.mp4)
     - Giữ Apify URL làm fallback trong DB
-    
-    Apify Actor: clockworks/free-tiktok-scraper
-    Endpoint: POST /v2/acts/{actorId}/run-sync-get-dataset-items
-    Input format: {"postURLs": ["https://tiktok.com/..."], "shouldDownloadVideos": true, ...}
-    
-    Args:
-        body: ScrapeRequest chứa URL TikTok và note (optional)
-        db: Database session
-        
-    Returns:
-        Asset: Object chứa LOCAL video URL, thumbnail, caption, etc.
-        
-    Raises:
-        HTTPException 400: Nếu thiếu Apify key (APIFY_KEY_MISSING)
-        HTTPException 502: Nếu lỗi khi gọi Apify (APIFY_SCRAPE_FAILED)
     """
-    # 1. Lấy Apify API key (DB first → .env fallback)
     try:
-        apify_key = get_apify_api_key(db)
-    except HTTPException as e:
-        # Re-raise với detail APIFY_KEY_MISSING
-        raise e
-    
-    # 2. Call Apify synchronously and get dataset items immediately
-    # NOTE: AdStudio - Use run-sync-get-dataset-items endpoint (không cần /runs rồi fetch dataset)
-    sync_url = f"{APIFY_BASE}/acts/{TIKTOK_ACTOR_ID}/run-sync-get-dataset-items?token={apify_key}"
-    
-    # Input theo OpenAPI schema của clockworks/free-tiktok-scraper
-    # NOTE: AdStudio - MUST enable shouldDownloadVideos to get videoMeta.downloadAddr
-    run_input: Dict[str, Any] = {
-        "postURLs": [str(body.url)],
-        "shouldDownloadVideos": True,   # Bắt buộc để lấy video download URL từ Apify KV store
-        "shouldDownloadCovers": True,   # Lấy cover image để làm thumbnail/poster
-        "shouldDownloadSubtitles": False,
-        "shouldDownloadSlideshowImages": False,
-    }
-    
-    logger.info(f"Calling Apify TikTok scraper for URL: {body.url}")
-    
-    try:
-        # NOTE: AdStudio - Timeout 180s cho sync call (actor cần thời gian scrape + download)
-        r = requests.post(sync_url, json=run_input, timeout=180)
-        
-        # Log response để debug
-        logger.info(f"Apify response status: {r.status_code}")
-        
-        # NOTE: AdStudio - Apify trả về 200 hoặc 201 (Created) cho run-sync-get-dataset-items
-        if r.status_code not in (200, 201):
-            logger.error(f"Apify error response: {r.text[:500]}")
-            raise HTTPException(
-                status_code=502,
-                detail="APIFY_SCRAPE_FAILED"
+        # Validate URL format
+        url_str = str(body.url)
+        if "tiktok.com" not in url_str.lower():
+            return ScrapeResponse(
+                success=False,
+                code="INVALID_URL",
+                message="Link không hợp lệ, vui lòng kiểm tra lại."
             )
         
-        r.raise_for_status()
+        # 1. Lấy Apify API key (DB first → .env fallback)
+        try:
+            apify_key = get_apify_api_key(db)
+        except HTTPException:
+            return ScrapeResponse(
+                success=False,
+                code="UPSTREAM_ERROR",
+                message="Hệ thống chưa cấu hình API key, vui lòng liên hệ admin."
+            )
         
-    except requests.exceptions.Timeout:
-        logger.error("Apify TikTok scrape timeout after 180s")
-        raise HTTPException(
-            status_code=504,
-            detail="APIFY_SCRAPE_TIMEOUT"
-        )
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Apify TikTok scrape network error: {str(e)}")
-        raise HTTPException(
-            status_code=502,
-            detail="APIFY_SCRAPE_FAILED"
-        )
-    except Exception as e:
-        logger.error(f"Apify TikTok scrape unexpected error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=502,
-            detail="APIFY_SCRAPE_FAILED"
-        )
-    
-    # 3. Parse dataset items từ response body (run-sync-get-dataset-items trả về trực tiếp array)
-    try:
-        items: List[Dict[str, Any]] = r.json()
-    except Exception as e:
-        logger.error(f"Failed to parse Apify response JSON: {str(e)}, body: {r.text[:500]}")
-        raise HTTPException(
-            status_code=502,
-            detail="APIFY_SCRAPE_FAILED"
-        )
-    
-    if not items or len(items) == 0:
-        logger.error(f"Empty dataset from Apify for URL: {body.url}")
-        raise HTTPException(
-            status_code=502,
-            detail="APIFY_SCRAPE_FAILED"
-        )
-    
-    item = items[0]
-    logger.info(f"Successfully scraped TikTok video, item keys: {list(item.keys())}")
-    
-    # 4. Map sang schema Asset mà frontend expect
-    asset = _map_tiktok_item_to_asset(
-        item=item, 
-        source_url=str(body.url), 
-        note=body.note
-    )
-    
-    # NOTE: AdStudio - Validate asset có đủ dữ liệu để preview
-    if not asset.videoUrl:
-        logger.error(
-            f"Apify payload missing video URL. "
-            f"item keys: {list(item.keys())}, "
-            f"videoMeta: {item.get('videoMeta', {})}, "
-            f"mediaUrls: {item.get('mediaUrls', [])}"
-        )
-        raise HTTPException(
-            status_code=502,
-            detail="APIFY_SCRAPE_FAILED_NO_VIDEO_URL"
-        )
-    
-    if not asset.thumbnailUrl:
-        logger.warning(f"Asset missing thumbnail, will use placeholder. videoMeta: {item.get('videoMeta', {})}")
-    
-    # Log thông tin trước khi download
-    logger.info(
-        f"Asset mapped from Apify - videoUrl: {asset.videoUrl[:80] if asset.videoUrl else 'None'}, "
-        f"thumbnailUrl: {asset.thumbnailUrl[:80] if asset.thumbnailUrl else 'None'}, "
-        f"duration: {asset.duration}s, hashtags: {len(asset.hashtags or [])}"
-    )
-    
-    # 5. Download video + thumbnail to local storage
-    # NOTE: AdStudio - NEW: Download files locally instead of relying on Apify KV store
-    apify_video_url = asset.videoUrl  # Save original Apify URL
-    apify_thumb_url = asset.thumbnailUrl
-    
-    # Generate unique filenames
-    video_filename = f"{asset.id}.mp4"
-    thumb_filename = f"{asset.id}.jpg"
-    
-    # Download video (will return None if fails - no exception)
-    logger.info(f"Downloading video from Apify KV store...")
-    local_video_path, video_size_bytes, video_mime_type = await download_media_to_local(
-        apify_video_url,
-        video_filename,
-        subfolder="ad_studio"
-    )
-    
-    # Download thumbnail (will return None if fails - no exception)
-    logger.info(f"Downloading thumbnail from Apify KV store...")
-    local_thumb_path, _, _ = await download_media_to_local(
-        apify_thumb_url,
-        thumb_filename,
-        subfolder="ad_studio"
-    )
-    
-    # Log result
-    if local_video_path and video_size_bytes:
-        logger.info(
-            f"Media downloaded successfully - "
-            f"video: {local_video_path} ({video_size_bytes / 1024 / 1024:.2f} MB), "
-            f"thumbnail: {local_thumb_path or 'failed'}"
-        )
-    elif local_video_path:
-        logger.info(
-            f"Media downloaded successfully - "
-            f"video: {local_video_path}, "
-            f"thumbnail: {local_thumb_path or 'failed'}"
-        )
-    else:
-        logger.warning(
-            f"Media download failed, will use Apify URLs as fallback - "
-            f"video: {apify_video_url[:80]}..."
-        )
-    
-    # 6. Lưu vào database
-    try:
-        db_asset = AdStudioAsset(
-            id=asset.id,
-            platform=asset.platform,
-            source_url=asset.sourceUrl,
-            video_url=apify_video_url,              # Keep Apify URL as fallback
-            thumbnail_url=apify_thumb_url,
-            local_video_path=local_video_path,      # NEW
-            local_thumbnail_path=local_thumb_path,  # NEW
-            video_size_bytes=video_size_bytes,      # NEW
-            video_mime_type=video_mime_type,        # NEW
-            caption_original=asset.captionOriginal,
-            note=asset.note,
-            duration=asset.duration,
-            hashtags=asset.hashtags,
-            created_at=datetime.utcnow(),
-        )
-        db.add(db_asset)
-        db.commit()
-        db.refresh(db_asset)
+        # 2. Call Apify synchronously
+        sync_url = f"{APIFY_BASE}/acts/{TIKTOK_ACTOR_ID}/run-sync-get-dataset-items?token={apify_key}"
         
-        # NOTE: AdStudio - Log full paths to verify storage
-        logger.info(
-            f"AdStudio asset saved to DB - id: {db_asset.id}, "
-            f"local_video_path: {db_asset.local_video_path}, "
-            f"local_thumbnail_path: {db_asset.local_thumbnail_path}, "
-            f"size: {db_asset.video_size_bytes} bytes"
+        run_input: Dict[str, Any] = {
+            "postURLs": [url_str],
+            "shouldDownloadVideos": True,
+            "shouldDownloadCovers": True,
+            "shouldDownloadSubtitles": False,
+            "shouldDownloadSlideshowImages": False,
+        }
+        
+        logger.info(f"Calling Apify TikTok scraper for URL: {url_str}")
+        
+        try:
+            r = requests.post(sync_url, json=run_input, timeout=180)
+            logger.info(f"Apify response status: {r.status_code}")
+            
+            if r.status_code not in (200, 201):
+                logger.error(f"Apify error response: {r.text[:500]}")
+                return ScrapeResponse(
+                    success=False,
+                    code="UPSTREAM_ERROR",
+                    message="Hệ thống tạm thời lỗi khi tải video, hãy thử lại sau."
+                )
+            
+            r.raise_for_status()
+            
+        except requests.exceptions.Timeout:
+            logger.error("Apify TikTok scrape timeout after 180s")
+            return ScrapeResponse(
+                success=False,
+                code="UPSTREAM_ERROR",
+                message="Quá thời gian chờ, vui lòng thử lại sau."
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Apify TikTok scrape network error: {str(e)}")
+            return ScrapeResponse(
+                success=False,
+                code="UPSTREAM_ERROR",
+                message="Lỗi kết nối, vui lòng thử lại sau."
+            )
+        
+        # 3. Parse dataset items
+        try:
+            items: List[Dict[str, Any]] = r.json()
+        except Exception as e:
+            logger.error(f"Failed to parse Apify response JSON: {str(e)}, body: {r.text[:500]}")
+            return ScrapeResponse(
+                success=False,
+                code="UPSTREAM_ERROR",
+                message="Dữ liệu trả về không hợp lệ."
+            )
+        
+        if not items or len(items) == 0:
+            logger.error(f"Empty dataset from Apify for URL: {url_str}")
+            return ScrapeResponse(
+                success=False,
+                code="PRIVATE_VIDEO",
+                message="Video đã riêng tư hoặc bị xóa."
+            )
+        
+        item = items[0]
+        logger.info(f"Successfully scraped TikTok video, item keys: {list(item.keys())}")
+        
+        # 4. Map sang schema Asset
+        asset = _map_tiktok_item_to_asset(
+            item=item, 
+            source_url=url_str, 
+            note=body.note
         )
         
-        # NOTE: AdStudio - Return asset with LOCAL URLs for frontend
-        # If local download succeeded, use local URL; otherwise fallback to Apify
+        # Validate asset
+        if not asset.videoUrl:
+            logger.error(f"Apify payload missing video URL. item keys: {list(item.keys())}")
+            return ScrapeResponse(
+                success=False,
+                code="UPSTREAM_ERROR",
+                message="Video không hợp lệ, vui lòng thử link khác."
+            )
+        
+        if not asset.thumbnailUrl:
+            logger.warning(f"Asset missing thumbnail, will use placeholder")
+        
+        # Log before download
+        logger.info(
+            f"Asset mapped - videoUrl: {asset.videoUrl[:80] if asset.videoUrl else 'None'}, "
+            f"duration: {asset.duration}s"
+        )
+        
+        # 5. Download video + thumbnail to local storage
+        apify_video_url = asset.videoUrl
+        apify_thumb_url = asset.thumbnailUrl
+        
+        video_filename = f"{asset.id}.mp4"
+        thumb_filename = f"{asset.id}.jpg"
+        
+        logger.info(f"Downloading media from Apify KV store...")
+        local_video_path, video_size_bytes, _ = await download_media_to_local(
+            apify_video_url,
+            video_filename,
+            subfolder="ad_studio"
+        )
+        
+        local_thumb_path, _, _ = await download_media_to_local(
+            apify_thumb_url,
+            thumb_filename,
+            subfolder="ad_studio"
+        )
+    
+        
         if local_video_path:
-            video_url_for_frontend = f"{settings.MEDIA_URL_PREFIX}/{local_video_path.replace(os.sep, '/')}"
+            logger.info(f"Media downloaded - video: {local_video_path}, thumbnail: {local_thumb_path or 'failed'}")
         else:
-            video_url_for_frontend = apify_video_url
+            logger.warning(f"Media download failed, will use Apify URLs as fallback")
         
-        if local_thumb_path:
-            thumb_url_for_frontend = f"{settings.MEDIA_URL_PREFIX}/{local_thumb_path.replace(os.sep, '/')}"
-        else:
-            thumb_url_for_frontend = apify_thumb_url
-        
-        return Asset(
-            id=db_asset.id,
-            platform=db_asset.platform,
-            sourceUrl=db_asset.source_url,
-            videoUrl=video_url_for_frontend,        # LOCAL URL (or Apify fallback)
-            thumbnailUrl=thumb_url_for_frontend,    # LOCAL URL (or Apify fallback)
-            captionOriginal=db_asset.caption_original,
-            note=db_asset.note,
-            duration=db_asset.duration,
-            hashtags=db_asset.hashtags or [],
-        )
-        
+        # 6. Lưu vào database
+        try:
+            db_asset = AdStudioAsset(
+                id=asset.id,
+                platform=asset.platform,
+                source_url=asset.sourceUrl,
+                video_url=apify_video_url,
+                thumbnail_url=apify_thumb_url,
+                local_video_path=local_video_path,
+                local_thumbnail_path=local_thumb_path,
+                video_size_bytes=video_size_bytes,
+                caption_original=asset.captionOriginal,
+                note=asset.note,
+                duration=asset.duration,
+                hashtags=asset.hashtags,
+                created_at=datetime.utcnow(),
+            )
+            db.add(db_asset)
+            db.commit()
+            db.refresh(db_asset)
+            
+            logger.info(f"Asset saved to DB - id: {db_asset.id}, local_video_path: {db_asset.local_video_path}")
+            
+            # Return asset with LOCAL URLs for frontend
+            if local_video_path:
+                video_url_for_frontend = f"{settings.MEDIA_URL_PREFIX}/{local_video_path.replace(os.sep, '/')}"
+            else:
+                video_url_for_frontend = apify_video_url
+            
+            if local_thumb_path:
+                thumb_url_for_frontend = f"{settings.MEDIA_URL_PREFIX}/{local_thumb_path.replace(os.sep, '/')}"
+            else:
+                thumb_url_for_frontend = apify_thumb_url
+            
+            return ScrapeResponse(
+                success=True,
+                code="OK",
+                message="Đã tải video thành công!",
+                data=Asset(
+                    id=db_asset.id,
+                    platform=db_asset.platform,
+                    sourceUrl=db_asset.source_url,
+                    videoUrl=video_url_for_frontend,
+                    thumbnailUrl=thumb_url_for_frontend,
+                    captionOriginal=db_asset.caption_original,
+                    note=db_asset.note,
+                    duration=db_asset.duration,
+                    hashtags=db_asset.hashtags or [],
+                )
+            )
+            
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error saving asset to DB: {str(e)}", exc_info=True)
+            return ScrapeResponse(
+                success=False,
+                code="UNKNOWN_ERROR",
+                message="Lỗi lưu dữ liệu, vui lòng thử lại."
+            )
+    
     except Exception as e:
-        db.rollback()
-        logger.error(f"Error saving asset to DB: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Lỗi lưu asset vào database: {str(e)}"
+        logger.error(f"Unexpected error in scrape_tiktok: {str(e)}", exc_info=True)
+        return ScrapeResponse(
+            success=False,
+            code="UNKNOWN_ERROR",
+            message="Có lỗi xảy ra, vui lòng thử lại sau."
         )
 
 

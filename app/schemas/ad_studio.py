@@ -19,6 +19,17 @@ class ScrapeRequest(BaseModel):
     note: Optional[str] = None
 
 
+class ScrapeResponse(BaseModel):
+    """
+    Response từ /tiktok/scrape endpoint
+    Không raise exception 500, luôn trả JSON với success flag
+    """
+    success: bool
+    code: Literal["OK", "INVALID_URL", "UPSTREAM_ERROR", "PRIVATE_VIDEO", "UNKNOWN_ERROR"]
+    message: str
+    data: Optional['Asset'] = None
+
+
 class Asset(BaseModel):
     """
     Schema Asset mà frontend AdStudioCard.tsx đang expect.
