@@ -180,7 +180,7 @@ function LinkSection({
   const hasVideo = status === 'success';
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-7 h-7 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center text-sm font-bold">1</div>
         <h3 className="font-semibold text-gray-900">Dán link video</h3>
@@ -285,6 +285,16 @@ function ContentSection({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
+  // Auto-expand textarea
+  useEffect(() => {
+    const textarea = captionRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const newHeight = Math.max(300, textarea.scrollHeight);
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, [caption]);
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -338,7 +348,7 @@ function ContentSection({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-7 h-7 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center text-sm font-bold">2</div>
         <h3 className="font-semibold text-gray-900">Nội dung & Video</h3>
@@ -349,8 +359,8 @@ function ContentSection({
         <label className="block text-sm font-medium text-gray-700 mb-2">Nội dung sẽ đăng</label>
         <textarea
           ref={captionRef}
-          className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none transition"
-          rows={5}
+          className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none overflow-hidden transition"
+          style={{ minHeight: '300px' }}
           placeholder="Nhập nội dung bài đăng..."
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
@@ -382,7 +392,9 @@ function ContentSection({
           </div>
 
           {/* Character Count */}
-          <span className="text-xs text-gray-400">{caption.length} / 2200</span>
+          <span className="text-xs text-gray-500">
+            <span className={caption.length > 2200 ? 'text-red-500 font-semibold' : ''}>{caption.length}</span> / 2200 ký tự
+          </span>
         </div>
       </div>
 
@@ -522,7 +534,7 @@ function SettingsSection({
   const deselectAll = () => setSelectedChannelIds([]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-7 h-7 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center text-sm font-bold">3</div>
         <h3 className="font-semibold text-gray-900">Cấu hình đăng bài</h3>
@@ -783,7 +795,7 @@ function AutoCommentSection({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
       {/* Header - Clickable */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -872,26 +884,60 @@ function VideoPreview({
   onDownload: () => void;
 }) {
   const [showFullscreen, setShowFullscreen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
   const firstChannel = selectedChannels[0];
+
+  const previewWidth = previewMode === 'mobile' ? '430px' : '900px';
 
   return (
     <>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
         {/* Header */}
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900">Video Preview</h3>
-          {video && (
-            <button onClick={() => setShowFullscreen(true)} className="text-gray-400 hover:text-violet-600 transition" title="Xem toàn màn hình">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-              </svg>
+        <div className="p-4 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-900">Xem trước</h3>
+            {video && (
+              <button onClick={() => setShowFullscreen(true)} className="text-gray-400 hover:text-violet-600 transition" title="Xem toàn màn hình">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+              </button>
+            )}
+          </div>
+          
+          {/* Preview Mode Toggle */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPreviewMode('mobile')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition ${
+                previewMode === 'mobile'
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <span>📱</span>
+              <span>Mobile</span>
             </button>
-          )}
+            <button
+              onClick={() => setPreviewMode('desktop')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition ${
+                previewMode === 'desktop'
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <span>🖥️</span>
+              <span>PC</span>
+            </button>
+          </div>
         </div>
 
-        {/* Phone Mockup */}
-        <div className="p-4">
-          <div className="mx-auto w-full max-w-[280px] bg-gray-900 rounded-[2rem] p-2 shadow-xl">
+        {/* Phone/Desktop Mockup */}
+        <div className="p-6 bg-gray-50">
+          <div 
+            className="mx-auto bg-gray-900 rounded-[2rem] p-2 shadow-xl transition-all duration-300" 
+            style={{ maxWidth: previewWidth }}
+          >
             <div className="bg-black rounded-[1.5rem] overflow-hidden aspect-[9/16] relative">
               {video ? (
                 <>
@@ -1242,7 +1288,7 @@ export default function AdStudioCard() {
     <div className="min-h-screen bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/10 backdrop-blur-lg border-b border-white/20">
-        <div className="max-w-[1800px] mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-[1800px] mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
               <span className="text-xl">🎬</span>
@@ -1292,10 +1338,10 @@ export default function AdStudioCard() {
       </header>
 
       {/* Main Content - 2 Columns */}
-      <main className="max-w-[1800px] mx-auto px-4 py-6">
+      <main className="max-w-[1800px] mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
           {/* Left Column - Form (70%) */}
-          <div className="lg:col-span-7 space-y-4">
+          <div className="lg:col-span-7 space-y-8">
             {/* Section 1: Dán link */}
             <LinkSection
               url={url}
