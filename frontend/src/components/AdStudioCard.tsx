@@ -873,7 +873,7 @@ function AutoCommentSection({
 
 /** Video Preview - Cột phải */
 function VideoPreview({
-  video, caption, selectedChannels, cta, thumbnailUrl, onChangeThumbnail, onDownload
+  video, caption, selectedChannels, cta, thumbnailUrl, onChangeThumbnail, onDownload, uploadedFile
 }: {
   video: VideoData | null;
   caption: string;
@@ -882,25 +882,39 @@ function VideoPreview({
   thumbnailUrl?: string;
   onChangeThumbnail: () => void;
   onDownload: () => void;
+  uploadedFile?: File | null;
 }) {
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
   const [videoAspectRatio, setVideoAspectRatio] = useState<number>(9/16); // Default vertical
+  const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const firstChannel = selectedChannels[0];
 
+  // Create object URL for uploaded file
+  useEffect(() => {
+    if (uploadedFile) {
+      const url = URL.createObjectURL(uploadedFile);
+      setUploadedVideoUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setUploadedVideoUrl('');
+    }
+  }, [uploadedFile]);
+
   // Detect video aspect ratio
   useEffect(() => {
-    if (video?.videoUrl && videoRef.current) {
+    const videoUrl = uploadedVideoUrl || video?.videoUrl;
+    if (videoUrl && videoRef.current) {
       const videoElement = videoRef.current;
       videoElement.addEventListener('loadedmetadata', () => {
         const ratio = videoElement.videoWidth / videoElement.videoHeight;
         setVideoAspectRatio(ratio);
       });
     }
-  }, [video?.videoUrl]);
+  }, [uploadedVideoUrl, video?.videoUrl]);
 
-  const previewWidth = previewMode === 'mobile' ? '375px' : '500px';
+  const previewWidth = previewMode === 'mobile' ? '375px' : '400px';
 
   return (
     <>
@@ -991,12 +1005,12 @@ function VideoPreview({
 
                 {/* Video Container */}
                 <div className="relative bg-black" style={{ aspectRatio: videoAspectRatio || 16/9 }}>
-                  {video ? (
+                  {(video || uploadedVideoUrl) ? (
                     <>
                       <video
                         ref={videoRef}
-                        src={video.videoUrl}
-                        poster={thumbnailUrl || video.thumbnailUrl}
+                        src={uploadedVideoUrl || video?.videoUrl}
+                        poster={thumbnailUrl || video?.thumbnailUrl}
                         className="w-full h-full object-contain"
                         controls
                       />
@@ -1046,12 +1060,12 @@ function VideoPreview({
             ) : (
               /* Mobile Reels/TikTok Layout */
               <div className="relative bg-black" style={{ aspectRatio: videoAspectRatio || 9/16, height: '650px' }}>
-                {video ? (
+                {(video || uploadedVideoUrl) ? (
                   <>
                     <video
                       ref={videoRef}
-                      src={video.videoUrl}
-                      poster={thumbnailUrl || video.thumbnailUrl}
+                      src={uploadedVideoUrl || video?.videoUrl}
+                      poster={thumbnailUrl || video?.thumbnailUrl}
                       className="w-full h-full object-cover"
                       controls
                     />
@@ -1534,6 +1548,7 @@ export default function AdStudioCard() {
                 thumbnailUrl={customThumbnail || video?.thumbnailUrl}
                 onChangeThumbnail={() => setShowThumbnailModal(true)}
                 onDownload={handleDownload}
+                uploadedFile={uploadedFile}
               />
             </div>
           </div>
