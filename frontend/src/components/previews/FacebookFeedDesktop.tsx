@@ -10,8 +10,6 @@
  * - Like, Comment, Share buttons với icons
  */
 
-import React from 'react';
-
 interface FacebookFeedDesktopProps {
   videoUrl?: string;
   thumbnailUrl?: string;
@@ -29,7 +27,6 @@ export function FacebookFeedDesktop({
   pageName,
   pageAvatar,
   caption,
-  videoTitle,
   ctaText,
   onVideoRef
 }: FacebookFeedDesktopProps) {

@@ -893,7 +893,6 @@ function VideoPreview({
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string>('');
-  const videoRef = useRef<HTMLVideoElement>(null);
   const firstChannel = selectedChannels[0];
 
   // Create object URL for uploaded file
@@ -925,7 +924,6 @@ function VideoPreview({
           pageAvatar={pageAvatar}
           caption={caption}
           ctaText={ctaText}
-          onVideoRef={(ref) => { if (ref) videoRef.current = ref; }}
         />
       ) : (
         <FacebookReelsDesktop
@@ -935,7 +933,6 @@ function VideoPreview({
           pageAvatar={pageAvatar}
           caption={caption}
           ctaText={ctaText}
-          onVideoRef={(ref) => { if (ref) videoRef.current = ref; }}
         />
       );
     } else {
@@ -949,7 +946,6 @@ function VideoPreview({
           caption={caption}
           videoTitle={videoTitle}
           ctaText={ctaText}
-          onVideoRef={(ref) => { if (ref) videoRef.current = ref; }}
         />
       ) : (
         <FacebookFeedDesktop
@@ -960,7 +956,6 @@ function VideoPreview({
           caption={caption}
           videoTitle={videoTitle}
           ctaText={ctaText}
-          onVideoRef={(ref) => { if (ref) videoRef.current = ref; }}
         />
       );
     }

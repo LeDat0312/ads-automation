@@ -9,8 +9,6 @@
  * - Like, Comment, Share buttons
  */
 
-import React from 'react';
-
 interface FacebookFeedMobileProps {
   videoUrl?: string;
   thumbnailUrl?: string;
@@ -28,7 +26,6 @@ export function FacebookFeedMobile({
   pageName,
   pageAvatar,
   caption,
-  videoTitle,
   ctaText,
   onVideoRef
 }: FacebookFeedMobileProps) {

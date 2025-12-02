@@ -7,8 +7,6 @@
  * - CTA button full-width
  */
 
-import React from 'react';
-
 interface FacebookReelsMobileProps {
   videoUrl?: string;
   thumbnailUrl?: string;

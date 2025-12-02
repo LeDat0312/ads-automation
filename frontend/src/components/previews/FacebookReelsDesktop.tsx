@@ -6,8 +6,6 @@
  * - Info bar dưới: Avatar, Page, Caption, CTA
  */
 
-import React from 'react';
-
 interface FacebookReelsDesktopProps {
   videoUrl?: string;
   thumbnailUrl?: string;
