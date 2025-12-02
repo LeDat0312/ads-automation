@@ -923,7 +923,6 @@ function VideoPreview({
           pageName={pageName}
           pageAvatar={pageAvatar}
           caption={caption}
-          ctaText={ctaText}
         />
       ) : (
         <FacebookReelsDesktop
@@ -932,7 +931,6 @@ function VideoPreview({
           pageName={pageName}
           pageAvatar={pageAvatar}
           caption={caption}
-          ctaText={ctaText}
         />
       );
     } else {
