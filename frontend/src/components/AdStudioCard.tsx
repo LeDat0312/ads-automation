@@ -901,7 +901,6 @@ function VideoPreview({
   }, [video?.videoUrl]);
 
   const previewWidth = previewMode === 'mobile' ? '375px' : '500px';
-  const isVertical = videoAspectRatio < 1;
 
   return (
     <>
