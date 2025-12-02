@@ -68,3 +68,7 @@ class ScheduleResponse(BaseModel):
     ok: bool
     id: str
     message: Optional[str] = "Đã lưu vào lịch đăng thành công"
+
+
+# Rebuild model để resolve forward references
+ScrapeResponse.model_rebuild()
