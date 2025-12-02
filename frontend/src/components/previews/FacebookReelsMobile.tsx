@@ -13,7 +13,6 @@ interface FacebookReelsMobileProps {
   pageName: string;
   pageAvatar?: string;
   caption: string;
-  ctaText?: string;
   onVideoRef?: (ref: HTMLVideoElement | null) => void;
 }
 
@@ -23,7 +22,6 @@ export function FacebookReelsMobile({
   pageName,
   pageAvatar,
   caption,
-  ctaText,
   onVideoRef
 }: FacebookReelsMobileProps) {
   
@@ -101,44 +99,34 @@ export function FacebookReelsMobile({
         </button>
       </div>
 
-      {/* Bottom Info - Giống Facebook */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 pb-4">
+      {/* Bottom Info - Giống Facebook Reels (KHÔNG có CTA button) */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent pt-20 pb-5 px-3">
         {/* Page Info */}
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold overflow-hidden">
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold overflow-hidden">
             {pageAvatar ? (
               <img src={pageAvatar} alt={pageName} className="w-full h-full object-cover" />
             ) : (
               pageName.charAt(0)
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-white text-sm">{pageName}</span>
-            <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-white text-[15px]">{pageName}</span>
+            {/* Verified Badge */}
+            <svg className="w-[18px] h-[18px] text-blue-500" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
             </svg>
-            <button className="px-3 py-0.5 bg-white/20 backdrop-blur-sm rounded text-white text-xs font-medium hover:bg-white/30 transition">
-              Theo dõi
-            </button>
           </div>
         </div>
 
         {/* Caption */}
         {caption && (
-          <p className="text-white text-sm leading-snug mb-3">
+          <p className="text-white text-[14px] leading-[1.4] font-normal">
             {truncatedCaption}
+            {caption.length > 80 && (
+              <span className="text-white/80 ml-1 font-medium">Xem thêm</span>
+            )}
           </p>
-        )}
-
-        {/* CTA Button - Full Width */}
-        {ctaText && (
-          <button className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition shadow-lg">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-              <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
-            </svg>
-            {ctaText}
-          </button>
         )}
       </div>
     </div>
