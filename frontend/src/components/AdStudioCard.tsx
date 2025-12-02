@@ -887,7 +887,8 @@ function VideoPreview({
   const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
   const firstChannel = selectedChannels[0];
 
-  const previewWidth = previewMode === 'mobile' ? '430px' : '900px';
+  const previewWidth = previewMode === 'mobile' ? '360px' : '500px';
+  const aspectRatio = previewMode === 'mobile' ? '9/16' : '16/9';
 
   return (
     <>
@@ -933,12 +934,15 @@ function VideoPreview({
         </div>
 
         {/* Phone/Desktop Mockup */}
-        <div className="p-6 bg-gray-50">
+        <div className="p-4 bg-gray-50">
           <div 
-            className="mx-auto bg-gray-900 rounded-[2rem] p-2 shadow-xl transition-all duration-300" 
+            className="mx-auto transition-all duration-300" 
             style={{ maxWidth: previewWidth }}
           >
-            <div className="bg-black rounded-[1.5rem] overflow-hidden aspect-[9/16] relative">
+            <div 
+              className="bg-black rounded-lg overflow-hidden relative shadow-2xl"
+              style={{ aspectRatio: aspectRatio }}
+            >
               {video ? (
                 <>
                   <video
