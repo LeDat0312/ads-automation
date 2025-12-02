@@ -1,0 +1,146 @@
+========================================
+HƯỚNG DẪN PULL AD STUDIO REDESIGN VỀ VPS
+========================================
+
+📋 THÔNG TIN CẬP NHẬT:
+- Redesign hoàn toàn Ad Studio với layout 2 cột theo phong cách Publer
+- Giao diện hiện đại, gọn gàng, dễ sử dụng
+- Tất cả text hiển thị bằng tiếng Việt
+- Tích hợp đầy đủ tính năng: fetch video, chỉnh sửa, lên lịch đăng
+
+========================================
+CÁCH 1: SỬ DỤNG SCRIPT TỰ ĐỘNG (KHUYẾN NGHỊ)
+========================================
+
+1. SSH vào VPS:
+   ssh adsuser@your-vps-ip
+
+2. Upload script lên VPS:
+   # Trên máy local (Windows PowerShell):
+   scp VPS_PULL_AD_STUDIO_REDESIGN.sh adsuser@your-vps-ip:/home/adsuser/
+
+3. Chạy script trên VPS:
+   cd /home/adsuser
+   chmod +x VPS_PULL_AD_STUDIO_REDESIGN.sh
+   ./VPS_PULL_AD_STUDIO_REDESIGN.sh
+
+========================================
+CÁCH 2: CHẠY TỪNG LỆNH THỦ CÔNG
+========================================
+
+1. SSH vào VPS:
+   ssh adsuser@your-vps-ip
+
+2. Navigate to project:
+   cd /home/adsuser/ads-automation
+
+3. Stash local changes:
+   git stash
+
+4. Pull latest code:
+   git pull origin main
+
+5. Build frontend:
+   cd frontend
+   npm install
+   npm run build
+
+6. Restart service:
+   cd ..
+   sudo supervisorctl restart ads_automation
+
+========================================
+KIỂM TRA SAU KHI DEPLOY
+========================================
+
+1. Kiểm tra service status:
+   sudo supervisorctl status ads_automation
+
+2. Xem logs:
+   sudo supervisorctl tail -f ads_automation
+
+3. Truy cập Ad Studio:
+   http://your-vps-ip/ad-studio
+
+4. Test các tính năng:
+   ✓ Dán link TikTok/Facebook
+   ✓ Fetch video và metadata
+   ✓ Chỉnh sửa caption
+   ✓ Chọn kênh đăng
+   ✓ Chọn thumbnail
+   ✓ Lên lịch đăng bài
+
+========================================
+TROUBLESHOOTING
+========================================
+
+Nếu gặp lỗi "Permission denied":
+   sudo chown -R adsuser:adsuser /home/adsuser/ads-automation
+
+Nếu frontend không build được:
+   cd /home/adsuser/ads-automation/frontend
+   rm -rf node_modules package-lock.json
+   npm install
+   npm run build
+
+Nếu service không restart:
+   sudo supervisorctl stop ads_automation
+   sudo supervisorctl start ads_automation
+
+Nếu port 8000 bị chiếm:
+   sudo lsof -i :8000
+   sudo kill -9 <PID>
+
+========================================
+TÍNH NĂNG MỚI TRONG BẢN CẬP NHẬT
+========================================
+
+✨ Layout 2 cột theo phong cách Publer:
+   - Cột trái (70%): Form nhập liệu
+   - Cột phải (30%): Video Preview sticky
+
+📝 4 Sections chính:
+   1. Dán link video (TikTok/Facebook)
+   2. Nội dung & Video (Caption, Spin, AI)
+   3. Cấu hình đăng bài (Kênh, CTA, Lịch)
+   4. Bình luận tự động (Accordion)
+
+🎨 Video Preview:
+   - Phone mockup vertical 9:16
+   - Real-time preview
+   - Chọn thumbnail (từ video hoặc upload)
+   - Fullscreen modal
+
+🚀 UX Improvements:
+   - Loading states rõ ràng
+   - Error handling tốt hơn
+   - Validation form đầy đủ
+   - Toast notifications
+
+========================================
+LƯU Ý QUAN TRỌNG
+========================================
+
+⚠️  Backup trước khi deploy:
+    cd /home/adsuser
+    tar -czf ads-automation-backup-$(date +%Y%m%d).tar.gz ads-automation/
+
+⚠️  Kiểm tra Apify API key:
+    - Đảm bảo đã cấu hình Apify key trong Settings
+    - Cần có key để fetch video từ TikTok
+
+⚠️  Database migrations:
+    - Không có migration mới trong bản này
+    - Chỉ cập nhật frontend
+
+========================================
+HỖ TRỢ
+========================================
+
+Nếu cần hỗ trợ, cung cấp thông tin:
+1. Output của: sudo supervisorctl status
+2. Logs: sudo supervisorctl tail ads_automation
+3. Browser console errors (F12)
+4. Screenshot lỗi nếu có
+
+========================================
