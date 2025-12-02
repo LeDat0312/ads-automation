@@ -5,13 +5,17 @@
  * - Cột phải (30%): Video Preview sticky
  * 
  * @author AI Assistant
- * @version 2.0
+ * @version 3.0 - Facebook-like Preview System
  */
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { fetchTiktokAsset, fetchFacebookAsset } from '../api/adStudio';
 import { fetchChannels, fetchChannelGroups } from '../api/settings';
 import type { Channel, ChannelGroup } from '../api/settings';
+import { FacebookReelsMobile } from './previews/FacebookReelsMobile';
+import { FacebookReelsDesktop } from './previews/FacebookReelsDesktop';
+import { FacebookFeedMobile } from './previews/FacebookFeedMobile';
+import { FacebookFeedDesktop } from './previews/FacebookFeedDesktop';
 
 // ==================== TYPES ====================
 interface VideoData {
@@ -871,9 +875,9 @@ function AutoCommentSection({
   );
 }
 
-/** Video Preview - Cột phải */
+/** Video Preview - Cột phải với 4 layouts Facebook */
 function VideoPreview({
-  video, caption, selectedChannels, cta, thumbnailUrl, onChangeThumbnail, onDownload, uploadedFile
+  video, caption, selectedChannels, cta, thumbnailUrl, onChangeThumbnail, onDownload, uploadedFile, postType, videoTitle
 }: {
   video: VideoData | null;
   caption: string;
@@ -883,10 +887,11 @@ function VideoPreview({
   onChangeThumbnail: () => void;
   onDownload: () => void;
   uploadedFile?: File | null;
+  postType: 'feed' | 'reel' | 'story';
+  videoTitle?: string;
 }) {
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
-  const [videoAspectRatio, setVideoAspectRatio] = useState<number>(9/16); // Default vertical
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const firstChannel = selectedChannels[0];
@@ -902,19 +907,64 @@ function VideoPreview({
     }
   }, [uploadedFile]);
 
-  // Detect video aspect ratio
-  useEffect(() => {
-    const videoUrl = uploadedVideoUrl || video?.videoUrl;
-    if (videoUrl && videoRef.current) {
-      const videoElement = videoRef.current;
-      videoElement.addEventListener('loadedmetadata', () => {
-        const ratio = videoElement.videoWidth / videoElement.videoHeight;
-        setVideoAspectRatio(ratio);
-      });
-    }
-  }, [uploadedVideoUrl, video?.videoUrl]);
+  const videoUrl = uploadedVideoUrl || video?.videoUrl;
+  const posterUrl = thumbnailUrl || video?.thumbnailUrl;
+  const pageName = firstChannel?.page_name || 'Tên Fanpage';
+  const pageAvatar = firstChannel?.avatar_url;
+  const ctaText = cta && CTA_OPTIONS.find(o => o.value === cta)?.label;
 
-  const previewWidth = previewMode === 'mobile' ? '375px' : '400px';
+  // Render preview based on postType and previewMode
+  const renderPreview = () => {
+    if (postType === 'reel' || postType === 'story') {
+      // Reels Layout
+      return previewMode === 'mobile' ? (
+        <FacebookReelsMobile
+          videoUrl={videoUrl}
+          thumbnailUrl={posterUrl}
+          pageName={pageName}
+          pageAvatar={pageAvatar}
+          caption={caption}
+          ctaText={ctaText}
+          onVideoRef={(ref) => { if (ref) videoRef.current = ref; }}
+        />
+      ) : (
+        <FacebookReelsDesktop
+          videoUrl={videoUrl}
+          thumbnailUrl={posterUrl}
+          pageName={pageName}
+          pageAvatar={pageAvatar}
+          caption={caption}
+          ctaText={ctaText}
+          onVideoRef={(ref) => { if (ref) videoRef.current = ref; }}
+        />
+      );
+    } else {
+      // Feed Layout
+      return previewMode === 'mobile' ? (
+        <FacebookFeedMobile
+          videoUrl={videoUrl}
+          thumbnailUrl={posterUrl}
+          pageName={pageName}
+          pageAvatar={pageAvatar}
+          caption={caption}
+          videoTitle={videoTitle}
+          ctaText={ctaText}
+          onVideoRef={(ref) => { if (ref) videoRef.current = ref; }}
+        />
+      ) : (
+        <FacebookFeedDesktop
+          videoUrl={videoUrl}
+          thumbnailUrl={posterUrl}
+          pageName={pageName}
+          pageAvatar={pageAvatar}
+          caption={caption}
+          videoTitle={videoTitle}
+          ctaText={ctaText}
+          onVideoRef={(ref) => { if (ref) videoRef.current = ref; }}
+        />
+      );
+    }
+  };
 
   return (
     <>
@@ -923,7 +973,7 @@ function VideoPreview({
         <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-gray-900">Xem trước</h3>
-            {video && (
+            {(video || uploadedVideoUrl) && (
               <button onClick={() => setShowFullscreen(true)} className="text-gray-400 hover:text-violet-600 transition" title="Xem toàn màn hình">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
@@ -957,179 +1007,16 @@ function VideoPreview({
               <span>PC</span>
             </button>
           </div>
+
+          {/* Post Type Info */}
+          <div className="mt-3 text-xs text-gray-500 text-center">
+            {postType === 'reel' || postType === 'story' ? 'Facebook Reels' : 'Facebook Feed'}
+          </div>
         </div>
 
-        {/* Facebook Post Preview - Giống Publer */}
-        <div className="p-4 bg-gray-50 max-h-[700px] overflow-y-auto">
-          <div 
-            className="mx-auto bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300" 
-            style={{ maxWidth: previewWidth }}
-          >
-            {previewMode === 'desktop' ? (
-              /* Desktop Facebook Post Layout */
-              <>
-                {/* Header */}
-                <div className="p-3 flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white font-bold">
-                    {firstChannel?.page_name?.charAt(0) || 'F'}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-1">
-                      <p className="font-semibold text-sm text-gray-900">
-                        {firstChannel?.page_name || 'Tên Fanpage'}
-                      </p>
-                      <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <p className="text-xs text-gray-500">Just now • 🌐</p>
-                  </div>
-                  <button className="text-gray-400 hover:text-gray-600">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Caption */}
-                {caption && (
-                  <div className="px-3 pb-2">
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
-                      {caption.slice(0, 200)}{caption.length > 200 && '... '}
-                      {caption.length > 200 && (
-                        <span className="text-blue-600 cursor-pointer hover:underline">See more</span>
-                      )}
-                    </p>
-                  </div>
-                )}
-
-                {/* Video Container */}
-                <div className="relative bg-black" style={{ aspectRatio: videoAspectRatio || 16/9 }}>
-                  {(video || uploadedVideoUrl) ? (
-                    <>
-                      <video
-                        ref={videoRef}
-                        src={uploadedVideoUrl || video?.videoUrl}
-                        poster={thumbnailUrl || video?.thumbnailUrl}
-                        className="w-full h-full object-contain"
-                        controls
-                      />
-                    </>
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white/50">
-                      <svg className="w-16 h-16 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p className="text-sm">Chưa tải video</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Engagement Buttons */}
-                <div className="border-t border-gray-200 px-3 py-2 flex items-center justify-around text-gray-600">
-                  <button className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
-                    </svg>
-                    <span className="text-sm font-medium">Like</span>
-                  </button>
-                  <button className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                    <span className="text-sm font-medium">Comment</span>
-                  </button>
-                  <button className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                    </svg>
-                    <span className="text-sm font-medium">Share</span>
-                  </button>
-                </div>
-
-                {/* CTA Button */}
-                {cta && (
-                  <div className="px-3 pb-3">
-                    <button className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition">
-                      {CTA_OPTIONS.find(o => o.value === cta)?.label || cta}
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              /* Mobile Reels/TikTok Layout */
-              <div className="relative bg-black" style={{ aspectRatio: videoAspectRatio || 9/16, height: '650px' }}>
-                {(video || uploadedVideoUrl) ? (
-                  <>
-                    <video
-                      ref={videoRef}
-                      src={uploadedVideoUrl || video?.videoUrl}
-                      poster={thumbnailUrl || video?.thumbnailUrl}
-                      className="w-full h-full object-cover"
-                      controls
-                    />
-                    
-                    {/* Bottom Overlay - Caption & Info */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pb-20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
-                          {firstChannel?.page_name?.charAt(0) || 'F'}
-                        </div>
-                        <p className="font-semibold text-white text-sm">
-                          {firstChannel?.page_name || 'Tên Fanpage'}
-                        </p>
-                        <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      {caption && (
-                        <p className="text-white text-sm line-clamp-2">
-                          {caption}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Right Side Actions */}
-                    <div className="absolute right-3 bottom-24 flex flex-col gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white mb-1">
-                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <span className="text-white text-xs font-medium">15.6K</span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white mb-1">
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                        </div>
-                        <span className="text-white text-xs font-medium">937</span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white mb-1">
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                          </svg>
-                        </div>
-                        <span className="text-white text-xs font-medium">119</span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white/50">
-                    <svg className="w-16 h-16 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-sm">Chưa tải video</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+        {/* Preview Container */}
+        <div className="p-6 bg-gray-50 flex items-center justify-center min-h-[400px]">
+          {renderPreview()}
         </div>
 
         {/* Actions */}
@@ -1152,7 +1039,7 @@ function VideoPreview({
       </div>
 
       {/* Fullscreen Modal */}
-      {showFullscreen && video && (
+      {showFullscreen && (video || uploadedVideoUrl) && (
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
           <button
             onClick={() => setShowFullscreen(false)}
@@ -1163,7 +1050,7 @@ function VideoPreview({
             </svg>
           </button>
           <video
-            src={video.videoUrl}
+            src={videoUrl}
             controls
             autoPlay
             className="max-w-full max-h-full"
@@ -1549,6 +1436,8 @@ export default function AdStudioCard() {
                 onChangeThumbnail={() => setShowThumbnailModal(true)}
                 onDownload={handleDownload}
                 uploadedFile={uploadedFile}
+                postType={postType}
+                videoTitle={videoTitle}
               />
             </div>
           </div>
