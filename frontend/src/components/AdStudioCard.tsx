@@ -12,10 +12,8 @@ import { toast } from 'react-toastify';
 import { fetchTiktokAsset, fetchFacebookAsset } from '../api/adStudio';
 import { fetchChannels, fetchChannelGroups } from '../api/settings';
 import type { Channel, ChannelGroup } from '../api/settings';
-import { FacebookReelsMobile } from './previews/FacebookReelsMobile';
-import { FacebookReelsDesktop } from './previews/FacebookReelsDesktop';
-import { FacebookFeedMobile } from './previews/FacebookFeedMobile';
-import { FacebookFeedDesktop } from './previews/FacebookFeedDesktop';
+import { PreviewPanel } from './preview/PreviewPanel';
+import type { PreviewData } from '../types/preview';
 
 // ==================== TYPES ====================
 interface VideoData {
@@ -875,9 +873,9 @@ function AutoCommentSection({
   );
 }
 
-/** Video Preview - Cột phải với 4 layouts Facebook */
+/** Video Preview - Static Thumbnail Preview (NO VIDEO PLAYER) */
 function VideoPreview({
-  video, caption, selectedChannels, cta, thumbnailUrl, onChangeThumbnail, onDownload, uploadedFile, postType, videoTitle
+  video, caption, selectedChannels, cta, thumbnailUrl, onChangeThumbnail, onDownload, postType
 }: {
   video: VideoData | null;
   caption: string;
@@ -886,171 +884,97 @@ function VideoPreview({
   thumbnailUrl?: string;
   onChangeThumbnail: () => void;
   onDownload: () => void;
-  uploadedFile?: File | null;
   postType: 'feed' | 'reel' | 'story';
-  videoTitle?: string;
 }) {
-  const [showFullscreen, setShowFullscreen] = useState(false);
   const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
-  const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string>('');
   const firstChannel = selectedChannels[0];
 
-  // Create object URL for uploaded file
-  useEffect(() => {
-    if (uploadedFile) {
-      const url = URL.createObjectURL(uploadedFile);
-      setUploadedVideoUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } else {
-      setUploadedVideoUrl('');
-    }
-  }, [uploadedFile]);
+  // Prepare thumbnail URL (from uploaded file or fetched video)
+  const getThumbnailUrl = (): string | undefined => {
+    if (thumbnailUrl) return thumbnailUrl;
+    if (video?.thumbnailUrl) return video.thumbnailUrl;
+    return undefined;
+  };
 
-  const videoUrl = uploadedVideoUrl || video?.videoUrl;
-  const posterUrl = thumbnailUrl || video?.thumbnailUrl;
-  const pageName = firstChannel?.page_name || 'Tên Fanpage';
-  const pageAvatar = firstChannel?.avatar_url;
-  const ctaText = cta && CTA_OPTIONS.find(o => o.value === cta)?.label;
-
-  // Render preview based on postType and previewMode
-  const renderPreview = () => {
-    if (postType === 'reel' || postType === 'story') {
-      // Reels Layout
-      return previewMode === 'mobile' ? (
-        <FacebookReelsMobile
-          videoUrl={videoUrl}
-          thumbnailUrl={posterUrl}
-          pageName={pageName}
-          pageAvatar={pageAvatar}
-          caption={caption}
-        />
-      ) : (
-        <FacebookReelsDesktop
-          videoUrl={videoUrl}
-          thumbnailUrl={posterUrl}
-          pageName={pageName}
-          pageAvatar={pageAvatar}
-          caption={caption}
-        />
-      );
-    } else {
-      // Feed Layout
-      return previewMode === 'mobile' ? (
-        <FacebookFeedMobile
-          videoUrl={videoUrl}
-          thumbnailUrl={posterUrl}
-          pageName={pageName}
-          pageAvatar={pageAvatar}
-          caption={caption}
-          videoTitle={videoTitle}
-          ctaText={ctaText}
-        />
-      ) : (
-        <FacebookFeedDesktop
-          videoUrl={videoUrl}
-          thumbnailUrl={posterUrl}
-          pageName={pageName}
-          pageAvatar={pageAvatar}
-          caption={caption}
-          videoTitle={videoTitle}
-          ctaText={ctaText}
-        />
-      );
-    }
+  // Prepare preview data
+  const previewData: PreviewData = {
+    pageName: firstChannel?.page_name || 'Tên Fanpage',
+    pageAvatarUrl: firstChannel?.avatar_url,
+    isVerified: true,
+    isSponsored: true,
+    caption: caption || 'Nội dung bài viết sẽ hiển thị ở đây...',
+    thumbnailUrl: getThumbnailUrl(),
+    ctaText: cta ? CTA_OPTIONS.find(o => o.value === cta)?.label : undefined,
+    reactionsCount: postType === 'reel' || postType === 'story' ? 15600 : 204,
+    commentsCount: postType === 'reel' || postType === 'story' ? 937 : 25,
+    sharesCount: postType === 'reel' || postType === 'story' ? 119 : 5,
   };
 
   return (
-    <>
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-        {/* Header */}
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-gray-900">Xem trước</h3>
-            {(video || uploadedVideoUrl) && (
-              <button onClick={() => setShowFullscreen(true)} className="text-gray-400 hover:text-violet-600 transition" title="Xem toàn màn hình">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                </svg>
-              </button>
-            )}
-          </div>
-          
-          {/* Preview Mode Toggle */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPreviewMode('mobile')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition ${
-                previewMode === 'mobile'
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <span>📱</span>
-              <span>Mobile</span>
-            </button>
-            <button
-              onClick={() => setPreviewMode('desktop')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition ${
-                previewMode === 'desktop'
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <span>🖥️</span>
-              <span>PC</span>
-            </button>
-          </div>
-
-          {/* Post Type Info */}
-          <div className="mt-3 text-xs text-gray-500 text-center">
-            {postType === 'reel' || postType === 'story' ? 'Facebook Reels' : 'Facebook Feed'}
-          </div>
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+      {/* Header */}
+      <div className="p-4 border-b border-gray-100">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-900">Xem trước</h3>
+        </div>
+        
+        {/* Preview Mode Toggle */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setPreviewMode('mobile')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition ${
+              previewMode === 'mobile'
+                ? 'bg-violet-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <span>📱</span>
+            <span>Mobile</span>
+          </button>
+          <button
+            onClick={() => setPreviewMode('desktop')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition ${
+              previewMode === 'desktop'
+                ? 'bg-violet-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <span>🖥️</span>
+            <span>PC</span>
+          </button>
         </div>
 
-        {/* Preview Container */}
-        <div className="p-6 bg-gray-50 flex items-center justify-center min-h-[400px]">
-          {renderPreview()}
+        {/* Post Type Info */}
+        <div className="mt-3 text-xs text-gray-500 text-center">
+          {postType === 'reel' || postType === 'story' ? 'Facebook Reels' : 'Facebook Feed'}
         </div>
-
-        {/* Actions */}
-        {video && (
-          <div className="p-4 border-t border-gray-100 flex gap-2">
-            <button
-              onClick={onChangeThumbnail}
-              className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
-            >
-              🖼️ Chọn thumbnail
-            </button>
-            <button
-              onClick={onDownload}
-              className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
-            >
-              ⬇️ Tải video
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* Fullscreen Modal */}
-      {showFullscreen && (video || uploadedVideoUrl) && (
-        <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+      {/* Static Preview Panel - NO VIDEO PLAYER */}
+      <PreviewPanel 
+        mode={postType}
+        device={previewMode}
+        data={previewData}
+      />
+
+      {/* Actions */}
+      {video && (
+        <div className="p-4 border-t border-gray-100 flex gap-2">
           <button
-            onClick={() => setShowFullscreen(false)}
-            className="absolute top-4 right-4 text-white/80 hover:text-white"
+            onClick={onChangeThumbnail}
+            className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
           >
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            🖼️ Chọn thumbnail
           </button>
-          <video
-            src={videoUrl}
-            controls
-            autoPlay
-            className="max-w-full max-h-full"
-          />
+          <button
+            onClick={onDownload}
+            className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
+          >
+            ⬇️ Tải video
+          </button>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -1428,9 +1352,7 @@ export default function AdStudioCard() {
                 thumbnailUrl={customThumbnail || video?.thumbnailUrl}
                 onChangeThumbnail={() => setShowThumbnailModal(true)}
                 onDownload={handleDownload}
-                uploadedFile={uploadedFile}
                 postType={postType}
-                videoTitle={videoTitle}
               />
             </div>
           </div>

@@ -12,6 +12,8 @@ Endpoints cho hệ thống quản lý nội dung quảng cáo (AdStudio):
 import os
 import random
 import logging
+import asyncio
+import time
 from datetime import datetime, timedelta
 from uuid import uuid4
 from typing import Any, Dict, List, Optional, Tuple
@@ -352,33 +354,59 @@ async def scrape_tiktok(
         
         logger.info(f"Calling Apify TikTok scraper for URL: {url_str}")
         
-        try:
-            r = requests.post(sync_url, json=run_input, timeout=180)
-            logger.info(f"Apify response status: {r.status_code}")
-            
-            if r.status_code not in (200, 201):
-                logger.error(f"Apify error response: {r.text[:500]}")
+        # Retry logic: 2 attempts with 180s timeout each
+        max_retries = 2
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Apify attempt {attempt + 1}/{max_retries}")
+                r = requests.post(sync_url, json=run_input, timeout=180)
+                logger.info(f"Apify response status: {r.status_code}")
+                
+                if r.status_code not in (200, 201):
+                    logger.error(f"Apify error response: {r.text[:500]}")
+                    if attempt < max_retries - 1:
+                        logger.info("Retrying after 2 seconds...")
+                        await asyncio.sleep(2)
+                        continue
+                    return ScrapeResponse(
+                        success=False,
+                        code="UPSTREAM_ERROR",
+                        message="Hệ thống tạm thời lỗi khi tải video, hãy thử lại sau."
+                    )
+                
+                r.raise_for_status()
+                break  # Success, exit retry loop
+                
+            except requests.exceptions.Timeout:
+                last_error = "timeout"
+                logger.error(f"Apify timeout on attempt {attempt + 1}")
+                if attempt < max_retries - 1:
+                    logger.info("Retrying after timeout...")
+                    await asyncio.sleep(2)
+                    continue
+                    
+            except requests.exceptions.RequestException as e:
+                last_error = str(e)
+                logger.error(f"Apify network error on attempt {attempt + 1}: {str(e)}")
+                if attempt < max_retries - 1:
+                    logger.info("Retrying after network error...")
+                    await asyncio.sleep(2)
+                    continue
+        
+        # If all retries failed
+        if last_error:
+            if last_error == "timeout":
                 return ScrapeResponse(
                     success=False,
                     code="UPSTREAM_ERROR",
-                    message="Hệ thống tạm thời lỗi khi tải video, hãy thử lại sau."
+                    message="Quá thời gian chờ sau nhiều lần thử, vui lòng thử lại sau."
                 )
-            
-            r.raise_for_status()
-            
-        except requests.exceptions.Timeout:
-            logger.error("Apify TikTok scrape timeout after 180s")
             return ScrapeResponse(
                 success=False,
                 code="UPSTREAM_ERROR",
-                message="Quá thời gian chờ, vui lòng thử lại sau."
-            )
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Apify TikTok scrape network error: {str(e)}")
-            return ScrapeResponse(
-                success=False,
-                code="UPSTREAM_ERROR",
-                message="Lỗi kết nối, vui lòng thử lại sau."
+                message="Lỗi kết nối sau nhiều lần thử, vui lòng thử lại sau."
             )
         
         # 3. Parse dataset items
