@@ -1,1308 +1,1288 @@
-// NOTE: AdStudio - Updated to use real API calls
-import React, { useState, useEffect } from 'react';
-import * as API from '../api/adStudio';
+/**
+ * AdStudioCard.tsx - Thu thập link & Lên lịch đăng bài
+ * Layout 2 cột theo phong cách Publer:
+ * - Cột trái (70%): Form nhập liệu
+ * - Cột phải (30%): Video Preview sticky
+ * 
+ * @author AI Assistant
+ * @version 2.0
+ */
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { toast } from 'react-toastify';
+import { fetchTiktokAsset, fetchFacebookAsset } from '../api/adStudio';
+import { fetchChannels, fetchChannelGroups } from '../api/settings';
+import type { Channel, ChannelGroup } from '../api/settings';
 
-// ============================================================================
-// TYPES
-// ============================================================================
-
-type AssetPlatform = 'tiktok' | 'facebook' | 'other';
-
-type Asset = {
+// ==================== TYPES ====================
+interface VideoData {
   id: string;
-  platform: AssetPlatform;
-  sourceUrl: string;
+  platform: 'tiktok' | 'facebook';
   videoUrl: string;
   thumbnailUrl: string;
-  localVideoUrl?: string | null;      // Local video URL if downloaded
-  localThumbnailUrl?: string | null;  // Local thumbnail URL if downloaded
-  captionOriginal: string;
+  caption: string;
   duration?: number;
-  durationSeconds?: number;           // Alias for duration
   hashtags?: string[];
-  note?: string;
-  fileSizeBytes?: number;             // Video file size in bytes
-  qualityLabel?: string;              // Quality label (e.g., "HD (No Watermark)")
-};
+}
 
-type ScheduleMode = 'NOW' | 'RANDOM_2H' | 'EXACT_TIME';
-
-type Language = 'la' | 'vi' | 'th';
-
-type ThumbnailSource = 'FRAME' | 'UPLOAD';
-
-type PostStatus = 'published' | 'scheduled' | 'draft' | 'failed' | 'cancelled';
-
-type Post = {
+interface AutoComment {
   id: string;
+  text: string;
+  mediaUrl?: string;
+}
+
+interface FormPayload {
+  sourceUrl: string;
+  platform: 'tiktok' | 'facebook' | 'auto';
+  video: { id?: string; thumbnailUrl?: string; localUpload?: File | null };
   caption: string;
-  thumbnailUrl: string;
+  title?: string;
+  cta: string;
+  postType: 'feed' | 'reel' | 'story';
   channels: string[];
-  scheduledTime: string;
-  status: PostStatus;
-  creator: string;
-  videoUrl?: string;
-};
-
-type DashboardStats = {
-  totalPosts: number;
-  publishedPosts: number;
-  scheduledPosts: number;
-  draftPosts: number;
-  failedPosts: number;
-};
-
-// Error categorization for better UX
-type FetchErrorCode =
-  | 'NONE'
-  | 'APIFY_KEY_MISSING'
-  | 'APIFY_KEY_INVALID'
-  | 'SCRAPE_FAILED'
-  | 'INVALID_URL'
-  | 'NETWORK_ERROR'
-  | 'UNKNOWN';
-
-type SchedulePayload = {
-  assetId: string;
-  videoTitle?: string;         // NEW - Video title field
-  caption: string;
-  language: Language;
-  ctaText: string;
-  targetUrl: string;
-  pageIds: string[];
-  scheduleMode: ScheduleMode;
-  scheduleTime?: string;
-  thumbnailSource: ThumbnailSource;
-  thumbnailFile?: File;
-  videoUrl?: string;
-  customVideoFile?: File;
-};
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Format file size from bytes to human-readable string
- */
-function formatFileSize(bytes?: number): string | undefined {
-  if (!bytes || bytes <= 0) return undefined;
-  const mb = bytes / (1024 * 1024);
-  if (mb < 0.1) {
-    const kb = bytes / 1024;
-    return `${kb.toFixed(0)} KB`;
-  }
-  return `${mb.toFixed(1)} MB`;
+  schedule: { mode: 'now' | 'at' | 'auto'; time?: string };
+  autoCommentsEnabled: boolean;
+  autoComments: { text: string; mediaUrl?: string }[];
 }
 
-/**
- * Phát hiện nền tảng từ URL
- */
-function detectPlatform(url: string): AssetPlatform {
-  try {
-    const urlObj = new URL(url);
-    const host = urlObj.hostname.toLowerCase();
-    
-    if (host.includes('tiktok.com')) return 'tiktok';
-    if (host.includes('facebook.com') || host.includes('fb.watch') || host.includes('fb.com')) return 'facebook';
-    return 'other';
-  } catch {
-    return 'other';
-  }
-}
+type FetchStatus = 'idle' | 'loading' | 'success' | 'error';
+type VideoSource = 'original' | 'upload';
 
-/**
- * Lấy thông tin nền tảng (icon, label, màu)
- */
-function getPlatformInfo(platform: AssetPlatform) {
-  switch (platform) {
-    case 'tiktok':
-      return { label: 'TikTok', icon: '🎵', color: 'bg-black text-white' };
-    case 'facebook':
-      return { label: 'Facebook', icon: '📘', color: 'bg-blue-600 text-white' };
-    default:
-      return { label: 'Không xác định', icon: '❓', color: 'bg-gray-400 text-white' };
-  }
-}
-
-// ============================================================================
-// NOTE: AdStudio - Mock data removed, now using real API calls
-// All data is loaded via API from backend
-// ============================================================================
-
-// CTA Options - Map to backend enum values
-const ctaOptions = [
-  { label: 'Nhắn tin ngay', value: 'MESSAGE' },
-  { label: 'Tìm hiểu thêm', value: 'LEARN_MORE' },
-  { label: 'Gọi ngay', value: 'CALL_NOW' },
-  { label: 'Đăng ký', value: 'SIGN_UP' },
+// ==================== CONSTANTS ====================
+const CTA_OPTIONS = [
+  { value: '', label: 'Không dùng CTA' },
+  { value: 'MESSAGE', label: 'Nhắn tin ngay' },
+  { value: 'LEARN_MORE', label: 'Tìm hiểu thêm' },
+  { value: 'CALL_NOW', label: 'Gọi ngay' },
+  { value: 'BOOK_NOW', label: 'Đặt lịch hẹn' },
+  { value: 'SHOP_NOW', label: 'Mua ngay' },
+  { value: 'SIGN_UP', label: 'Đăng ký ngay' },
 ];
 
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
+const POST_TYPES = [
+  { value: 'feed', label: 'Feed' },
+  { value: 'reel', label: 'Reel' },
+  { value: 'story', label: 'Story' },
+];
 
-export default function AdStudioCard() {
-  // Tab management
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'collect' | 'collection' | 'posts'>('dashboard');
-  
-  // Assets
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
-  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
-  
-  // Tab 2: Thu thập link - Step 1
-  const [inputUrl, setInputUrl] = useState('');
-  const [detectedPlatform, setDetectedPlatform] = useState<AssetPlatform>('other');
-  const [isLoadingAsset, setIsLoadingAsset] = useState(false);
-  const [editedCaption, setEditedCaption] = useState('');
-  const [videoSource, setVideoSource] = useState<'original' | 'upload'>('original');
-  const [customVideoFile, setCustomVideoFile] = useState<File | null>(null);
-  
-  // Tab 2: Step 2 - Publish form
-  const [publishForm, setPublishForm] = useState({
-    videoTitle: '',              // NEW: Video title field
-    caption: '',
-    language: 'la' as Language,
-    ctaText: 'MESSAGE',          // NEW: Use enum value instead of string
-    targetUrl: '',
-    pageIds: [] as string[],
-    scheduleMode: 'NOW' as ScheduleMode,
-    scheduleTime: '',
-    thumbnailSource: 'FRAME' as ThumbnailSource,
-    thumbnailFile: null as File | null,
-  });
-  
-  // Tab 4: Posts management
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [filterStatus, setFilterStatus] = useState<PostStatus | 'all'>('all');
-  
-  // Dashboard
-  const [dashboardRange, setDashboardRange] = useState('7days');
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
-    totalPosts: 0,
-    publishedPosts: 0,
-    scheduledPosts: 0,
-    draftPosts: 0,
-    failedPosts: 0,
-  });
-  const [recentPosts, setRecentPosts] = useState<Post[]>([]);
-  
-  // NOTE: AdStudio - Add loading and error states
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
-  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
-  
-  // NEW - Categorized error handling for fetch operations
-  const [fetchErrorCode, setFetchErrorCode] = useState<FetchErrorCode>('NONE');
-  const [fetchErrorMessage, setFetchErrorMessage] = useState<string | null>(null);
-  
-  // Generic error for dashboard/collections (keep for backward compat)
-  const [error, setError] = useState<string | null>(null);
-  
-  const [fanpages, setFanpages] = useState<Array<{id: string, name: string}>>([]);
-  const [fanpagesError, setFanpagesError] = useState<string | null>(null);
+// ==================== HELPER HOOKS ====================
 
-  // NOTE: AdStudio - Load dashboard stats
-  useEffect(() => {
-    if (activeTab === 'dashboard') {
-      setIsLoadingStats(true);
-      setIsLoadingPosts(true);
-      setError(null);
-      
-      API.getSummary(dashboardRange === '30days' ? '30d' : '7d')
-        .then(data => {
-          setDashboardStats({
-            totalPosts: data.totalPosts || 0,
-            publishedPosts: data.publishedPosts || 0,
-            scheduledPosts: data.scheduledPosts || 0,
-            draftPosts: data.draftPosts || 0,
-            failedPosts: data.failedPosts || 0,
-          });
-        })
-        .catch(err => {
-          console.error('Error loading dashboard stats:', err);
-          setError('Không thể tải số liệu tổng quan. Vui lòng thử lại.');
-        })
-        .finally(() => setIsLoadingStats(false));
+/**
+ * Hook để fetch video từ link TikTok/Facebook
+ */
+function useFetchVideo() {
+  const [status, setStatus] = useState<FetchStatus>('idle');
+  const [error, setError] = useState<string>('');
+  const [video, setVideo] = useState<VideoData | null>(null);
 
-      // Load recent posts for dashboard
-      API.getPosts({ status: 'ALL' })
-        .then(data => {
-          const formatted = data.slice(0, 5).map((post: any) => ({
-            id: post.id,
-            caption: post.caption,
-            thumbnailUrl: post.thumbnailUrl || '',
-            channels: post.channels || [],
-            scheduledTime: post.scheduleTime || '',
-            status: post.status,
-            creator: post.creatorName || 'User',
-          }));
-          setRecentPosts(formatted);
-        })
-        .catch(err => {
-          console.error('Error loading recent posts:', err);
-        })
-        .finally(() => setIsLoadingPosts(false));
+  const fetchVideo = useCallback(async (url: string, platform: 'tiktok' | 'facebook' | 'auto') => {
+    if (!url.trim()) {
+      setError('Vui lòng nhập link video');
+      return null;
     }
-  }, [activeTab, dashboardRange]);
 
-  // NOTE: AdStudio - Load assets when switching to collection tab
-  useEffect(() => {
-    if (activeTab === 'collection') {
-      setIsLoadingAssets(true);
-      setError(null);
-      
-      API.getAssets()
-        .then(data => {
-          setAssets(data);
-        })
-        .catch(err => {
-          console.error('Error loading assets:', err);
-          setError('Không thể tải bộ sưu tầm. Vui lòng thử lại.');
-        })
-        .finally(() => setIsLoadingAssets(false));
-    }
-  }, [activeTab]);
+    setStatus('loading');
+    setError('');
 
-  // NOTE: AdStudio - Load posts when switching to posts tab
-  useEffect(() => {
-    if (activeTab === 'posts') {
-      setIsLoadingPosts(true);
-      const statusFilter = filterStatus === 'all' ? undefined : filterStatus.toUpperCase();
-      API.getPosts({ status: statusFilter })
-        .then(data => {
-          const formatted = data.map((post: any) => ({
-            id: post.id,
-            caption: post.caption,
-            thumbnailUrl: post.thumbnailUrl || '',
-            channels: post.channels || [],
-            scheduledTime: post.scheduleTime || '',
-            status: post.status.toLowerCase() as PostStatus,
-            creator: post.creatorName || 'User',
-          }));
-          setPosts(formatted);
-        })
-        .catch(err => {
-          console.error('Error loading posts:', err);
-        })
-        .finally(() => setIsLoadingPosts(false));
-    }
-  }, [activeTab, filterStatus]);
-
-  // NOTE: AdStudio - Load fanpages on mount
-  useEffect(() => {
-    API.getFanpages()
-      .then(data => {
-        if (data.length === 0) {
-          setFanpagesError('Chưa có fanpage nào được cấu hình. Vui lòng kiểm tra lại mục Cài Đặt.');
+    try {
+      // Auto detect platform
+      let detectedPlatform = platform;
+      if (platform === 'auto') {
+        if (url.includes('tiktok.com')) detectedPlatform = 'tiktok';
+        else if (url.includes('facebook.com') || url.includes('fb.watch')) detectedPlatform = 'facebook';
+        else {
+          setError('Không nhận diện được nền tảng. Vui lòng chọn thủ công.');
+          setStatus('error');
+          return null;
         }
-        setFanpages(data.map((p: any) => ({ id: p.id, name: p.name })));
-      })
-      .catch(err => {
-        console.error('Error loading fanpages:', err);
-        setFanpagesError('Không thể tải danh sách fanpage. Vui lòng kiểm tra kết nối.');
-      });
+      }
+
+      const result = detectedPlatform === 'tiktok'
+        ? await fetchTiktokAsset(url)
+        : await fetchFacebookAsset(url);
+
+      const videoData: VideoData = {
+        id: result.id,
+        platform: result.platform as 'tiktok' | 'facebook',
+        videoUrl: result.videoUrl,
+        thumbnailUrl: result.thumbnailUrl,
+        caption: result.captionOriginal || '',
+        duration: result.duration,
+        hashtags: result.hashtags,
+      };
+
+      setVideo(videoData);
+      setStatus('success');
+      return videoData;
+    } catch (err: any) {
+      const message = err.detail || err.message || 'Không lấy được video, vui lòng kiểm tra link hoặc thử lại sau';
+      setError(message);
+      setStatus('error');
+      return null;
+    }
   }, []);
 
-  // ============================================================================
-  // EVENT HANDLERS
-  // ============================================================================
+  const reset = useCallback(() => {
+    setStatus('idle');
+    setError('');
+    setVideo(null);
+  }, []);
 
-  const handleUrlChange = (url: string) => {
-    setInputUrl(url);
-    const platform = detectPlatform(url);
-    setDetectedPlatform(platform);
-  };
+  return { status, error, video, fetchVideo, reset };
+}
 
-  const handleFetchAsset = async () => {
-    if (!inputUrl.trim()) {
-      setFetchErrorCode('INVALID_URL');
-      setFetchErrorMessage('Vui lòng nhập URL video');
-      return;
-    }
+/**
+ * Hook để quản lý danh sách kênh
+ */
+function useChannels() {
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [groups, setGroups] = useState<ChannelGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-    // Reset errors before new fetch
-    setFetchErrorCode('NONE');
-    setFetchErrorMessage(null);
-    setIsLoadingAsset(true);
-    
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
-      let asset: Asset;
-      
-      // NOTE: AdStudio - Use real API calls
-      if (detectedPlatform === 'tiktok') {
-        asset = await API.fetchTiktokAsset(inputUrl);
-      } else if (detectedPlatform === 'facebook') {
-        asset = await API.fetchFacebookAsset(inputUrl);
-      } else {
-        setFetchErrorCode('INVALID_URL');
-        setFetchErrorMessage('Nền tảng không được hỗ trợ. Chỉ hỗ trợ TikTok và Facebook.');
-        setIsLoadingAsset(false);
-        return;
-      }
-
-      // Success: set asset and clear errors
-      setSelectedAsset(asset);
-      setEditedCaption(asset.captionOriginal);
-      setAssets((prev) => [...prev, asset]);
-      setFetchErrorCode('NONE');
-      setFetchErrorMessage(null);
+      const [channelsData, groupsData] = await Promise.all([
+        fetchChannels('facebook', undefined, true),
+        fetchChannelGroups(),
+      ]);
+      setChannels(channelsData);
+      setGroups(groupsData);
     } catch (err: any) {
-      console.error('[AdStudio] Error fetching asset:', err);
-      
-      // Ensure selectedAsset is cleared on error (no fake data)
-      setSelectedAsset(null);
-      
-      // NOTE: AdStudio - Map backend errors to user-friendly messages
-      if (API.isApifyKeyMissing(err)) {
-        setFetchErrorCode('APIFY_KEY_MISSING');
-        setFetchErrorMessage('Apify API key chưa được cấu hình. Vui lòng vào trang Cài đặt để thêm key trước khi tải video TikTok.');
-      } else if (err?.detail === 'APIFY_KEY_INVALID' || err?.message?.includes('API Key có định dạng không hợp lệ')) {
-        setFetchErrorCode('APIFY_KEY_INVALID');
-        setFetchErrorMessage('Apify API key không hợp lệ. Kiểm tra lại key trong trang Cài đặt.');
-      } else if (API.isApifyScrapeFailed(err)) {
-        setFetchErrorCode('SCRAPE_FAILED');
-        setFetchErrorMessage('Không lấy được dữ liệu từ TikTok. Thử lại sau hoặc kiểm tra lại link video.');
-      } else if (err?.status === 422 || err?.status === 400) {
-        setFetchErrorCode('INVALID_URL');
-        setFetchErrorMessage('Đường dẫn TikTok không hợp lệ. Vui lòng kiểm tra lại link.');
-      } else if (!err?.status || err?.status === 0 || err?.message?.includes('Network')) {
-        setFetchErrorCode('NETWORK_ERROR');
-        setFetchErrorMessage('Kết nối mạng không ổn định hoặc server đang bận. Thử lại sau ít phút.');
-      } else {
-        setFetchErrorCode('UNKNOWN');
-        setFetchErrorMessage('Có lỗi không xác định xảy ra khi tải video. Thử lại sau.');
-      }
+      setError('Không thể tải danh sách kênh');
     } finally {
-      setIsLoadingAsset(false);
+      setLoading(false);
     }
-  };
+  }, []);
 
-  const handleSchedulePost = async () => {
-    if (!selectedAsset) return;
-    if (publishForm.pageIds.length === 0) {
-      alert('Vui lòng chọn ít nhất 1 fanpage');
-      return;
-    }
+  useEffect(() => { load(); }, [load]);
 
-    const payload: SchedulePayload = {
-      assetId: selectedAsset.id,
-      videoTitle: publishForm.videoTitle?.trim() || undefined,  // NEW: Send video title
-      caption: publishForm.caption,
-      language: publishForm.language,
-      ctaText: publishForm.ctaText || 'MESSAGE',                // NEW: Ensure fallback to MESSAGE
-      targetUrl: publishForm.targetUrl,
-      pageIds: publishForm.pageIds,
-      scheduleMode: publishForm.scheduleMode,
-      scheduleTime: publishForm.scheduleTime,
-      thumbnailSource: publishForm.thumbnailSource,
-      thumbnailFile: publishForm.thumbnailFile || undefined,
-      videoUrl: videoSource === 'original' ? selectedAsset.videoUrl : undefined,
-      customVideoFile: customVideoFile || undefined,
-    };
+  return { channels, groups, loading, error, reload: load };
+}
 
-    // NOTE: AdStudio - Use real API
-    try {
-      await API.schedulePost(payload);
-      alert('Đã lên lịch đăng bài thành công!');
-      
-      // Reset form (no need to change step in merged UI)
-      setSelectedAsset(null);
-      setInputUrl('');
-      setEditedCaption('');
-      setCustomVideoFile(null);
-      setPublishForm({
-        videoTitle: '',          // NEW: Reset video title
-        caption: '',
-        language: 'la',
-        ctaText: 'MESSAGE',      // NEW: Use enum value
-        targetUrl: '',
-        pageIds: [],
-        scheduleMode: 'NOW',
-        scheduleTime: '',
-        thumbnailSource: 'FRAME',
-        thumbnailFile: null,
-      });
-      setActiveTab('posts');
-    } catch (error) {
-      console.error('Error scheduling post:', error);
-      alert('Lỗi khi lên lịch đăng bài. Vui lòng thử lại.');
-    }
-  };
+// ==================== SUB COMPONENTS ====================
 
-  const handleUseAssetFromCollection = (asset: Asset) => {
-    setSelectedAsset(asset);
-    setEditedCaption(asset.captionOriginal);
-    setActiveTab('collect');
-    // Pre-fill caption vào form (no step change needed)
-    setPublishForm((prev) => ({ ...prev, caption: asset.captionOriginal }));
-  };
+/** Section 1: Dán link video */
+function LinkSection({
+  url, setUrl, platform, setPlatform, status, error, onFetch, onReset
+}: {
+  url: string;
+  setUrl: (v: string) => void;
+  platform: 'tiktok' | 'facebook' | 'auto';
+  setPlatform: (v: 'tiktok' | 'facebook' | 'auto') => void;
+  status: FetchStatus;
+  error: string;
+  onFetch: () => void;
+  onReset: () => void;
+}) {
+  const isLoading = status === 'loading';
+  const hasVideo = status === 'success';
 
-  const handleDeleteAsset = async (assetId: string) => {
-    if (!window.confirm("Bạn có chắc muốn xóa video này khỏi bộ sưu tập? Hành động này không thể hoàn tác.")) {
-      return;
-    }
-
-    setIsDeletingId(assetId);
-
-    try {
-      await API.deleteAdStudioAsset(assetId);
-      setAssets(prev => prev.filter(a => a.id !== assetId));
-      alert("Đã xóa video khỏi bộ sưu tập.");
-    } catch (error) {
-      console.error(error);
-      alert("Xóa video thất bại. Thử lại sau.");
-    } finally {
-      setIsDeletingId(null);
-    }
-  };
-
-  const handleCustomVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCustomVideoFile(file);
-    }
-  };
-
-  const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPublishForm((prev) => ({ ...prev, thumbnailFile: file }));
-    }
-  };
-
-  const handleCancelPost = async (postId: string) => {
-    if (!confirm('Bạn có chắc muốn hủy bài đăng này?')) {
-      return;
-    }
-
-    try {
-      await API.cancelPost(postId);
-      alert('Đã hủy bài đăng thành công!');
-      
-      // Reload posts
-      const statusFilter = filterStatus === 'all' ? undefined : filterStatus.toUpperCase();
-      const data = await API.getPosts({ status: statusFilter });
-      const formatted = data.map((post: any) => ({
-        id: post.id,
-        caption: post.caption,
-        thumbnailUrl: post.thumbnailUrl || '',
-        channels: post.channels || [],
-        scheduledTime: post.scheduleTime || '',
-        status: post.status.toLowerCase() as PostStatus,
-        creator: post.creatorName || 'User',
-      }));
-      setPosts(formatted);
-    } catch (error) {
-      console.error('Error canceling post:', error);
-      alert('Lỗi khi hủy bài đăng. Vui lòng thử lại.');
-    }
-  };
-
-  // ============================================================================
-  // RENDER HELPERS
-  // ============================================================================
-
-  const platformInfo = getPlatformInfo(detectedPlatform);
-
-  const renderTabButton = (
-    tab: 'dashboard' | 'collect' | 'collection' | 'posts',
-    label: string
-  ) => (
-    <button
-      onClick={() => setActiveTab(tab)}
-      className={`px-6 py-3 font-medium transition-colors border-b-2 ${
-        activeTab === tab
-          ? 'border-blue-600 text-blue-600'
-          : 'border-transparent text-gray-600 hover:text-gray-900'
-      }`}
-    >
-      {label}
-    </button>
-  );
-
-  const getStatusBadge = (status: PostStatus) => {
-    const configs = {
-      published: { label: 'Đã đăng', color: 'bg-green-100 text-green-800' },
-      scheduled: { label: 'Chờ đăng', color: 'bg-blue-100 text-blue-800' },
-      draft: { label: 'Nháp', color: 'bg-gray-100 text-gray-800' },
-      failed: { label: 'Thất bại', color: 'bg-red-100 text-red-800' },
-      cancelled: { label: 'Đã hủy', color: 'bg-yellow-100 text-yellow-800' },
-    };
-    const config = configs[status];
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
-        {config.label}
-      </span>
-    );
-  };
-
-  // ============================================================================
-  // TAB RENDERS
-  // ============================================================================
-
-  const renderDashboardTab = () => (
-    <div className="space-y-6">
-      {/* Bộ lọc */}
-      <div className="flex gap-4 items-center">
-        <select
-          value={dashboardRange}
-          onChange={(e) => setDashboardRange(e.target.value)}
-          className="px-4 py-2 border rounded-lg"
-        >
-          <option value="today">Hôm nay</option>
-          <option value="7days">7 ngày</option>
-          <option value="30days">30 ngày</option>
-          <option value="custom">Tuỳ chọn</option>
-        </select>
-        <select className="px-4 py-2 border rounded-lg">
-          <option value="all">Tất cả kênh</option>
-          <option value="facebook">Facebook</option>
-          <option value="tiktok">TikTok</option>
-        </select>
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-7 h-7 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center text-sm font-bold">1</div>
+        <h3 className="font-semibold text-gray-900">Dán link video</h3>
+        {hasVideo && <span className="ml-auto px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">✓ Đã tải</span>}
       </div>
 
-      {/* Error message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+      <div className="flex gap-2">
+        {/* URL Input */}
+        <div className="flex-1 relative">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition disabled:bg-gray-50"
+            placeholder="Dán link TikTok / Facebook / Reels vào đây..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            disabled={isLoading || hasVideo}
+            onKeyDown={(e) => e.key === 'Enter' && !hasVideo && onFetch()}
+          />
+        </div>
+
+        {/* Platform Select */}
+        <select
+          className="px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 text-sm bg-white disabled:bg-gray-50"
+          value={platform}
+          onChange={(e) => setPlatform(e.target.value as any)}
+          disabled={isLoading || hasVideo}
+        >
+          <option value="auto">Tự động</option>
+          <option value="tiktok">TikTok</option>
+          <option value="facebook">Facebook</option>
+        </select>
+
+        {/* Action Button */}
+        {!hasVideo ? (
+          <button
+            onClick={onFetch}
+            disabled={isLoading || !url.trim()}
+            className="px-5 py-3 bg-violet-600 text-white rounded-xl hover:bg-violet-700 transition disabled:opacity-50 font-medium whitespace-nowrap flex items-center gap-2"
+          >
+            {isLoading ? (
+              <>
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Đang tải...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Lấy video
+              </>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={onReset}
+            className="px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-medium"
+          >
+            Đổi link
+          </button>
+        )}
+      </div>
+
+      {/* Status Messages */}
+      {status === 'idle' && (
+        <p className="mt-2 text-sm text-gray-500">Ví dụ: https://www.tiktok.com/@user/video/123...</p>
+      )}
+      {status === 'error' && error && (
+        <div className="mt-2 flex items-center gap-2 text-red-600 text-sm">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
           {error}
-        </div>
-      )}
-
-      {/* Loading indicator */}
-      {isLoadingStats && (
-        <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-gray-600">Đang tải dữ liệu...</p>
-        </div>
-      )}
-
-      {/* Số liệu tổng quan */}
-      {!isLoadingStats && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-white p-4 rounded-lg border shadow-sm">
-            <div className="text-gray-600 text-sm">Tổng bài đăng</div>
-            <div className="text-2xl font-bold text-gray-900">{dashboardStats.totalPosts}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border shadow-sm">
-            <div className="text-gray-600 text-sm">Đã đăng</div>
-            <div className="text-2xl font-bold text-green-600">{dashboardStats.publishedPosts}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border shadow-sm">
-            <div className="text-gray-600 text-sm">Chờ đăng</div>
-            <div className="text-2xl font-bold text-blue-600">{dashboardStats.scheduledPosts}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border shadow-sm">
-            <div className="text-gray-600 text-sm">Nháp</div>
-            <div className="text-2xl font-bold text-gray-600">{dashboardStats.draftPosts}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border shadow-sm">
-            <div className="text-gray-600 text-sm">Thất bại</div>
-            <div className="text-2xl font-bold text-red-600">{dashboardStats.failedPosts}</div>
-          </div>
-        </div>
-      )}
-
-      {/* Lịch đăng 7 ngày tới */}
-      {!isLoadingPosts && (
-        <div className="bg-white rounded-lg border shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">Lịch đăng trong 7 ngày tới</h3>
-          {recentPosts.filter((p) => p.status === 'scheduled').length === 0 ? (
-            <p className="text-gray-500 text-center py-8">Chưa có bài đăng nào được lên lịch</p>
-          ) : (
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Thời gian</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Nội dung</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Kênh</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* NOTE: AdStudio - Use recentPosts from API */}
-                {recentPosts.filter((p) => p.status === 'scheduled').map((post) => (
-                  <tr key={post.id} className="border-t">
-                    <td className="px-4 py-3 text-sm">{post.scheduledTime}</td>
-                    <td className="px-4 py-3 text-sm">{post.caption.substring(0, 50)}...</td>
-                    <td className="px-4 py-3 text-sm">{post.channels.join(', ')}</td>
-                    <td className="px-4 py-3">{getStatusBadge(post.status)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
         </div>
       )}
     </div>
   );
+}
 
-  // ============================================================================
-  // COLLECT TAB - HELPER FUNCTIONS (NEW: Phase 1 - Merged UI)
-  // ============================================================================
+/** Section 2: Nội dung & Video */
+function ContentSection({
+  caption, setCaption, videoSource, setVideoSource, uploadedFile, setUploadedFile, onAIRewrite
+}: {
+  caption: string;
+  setCaption: (v: string) => void;
+  videoSource: VideoSource;
+  setVideoSource: (v: VideoSource) => void;
+  uploadedFile: File | null;
+  setUploadedFile: (f: File | null) => void;
+  onAIRewrite?: () => void;
+}) {
+  const [showSpinPopover, setShowSpinPopover] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  /**
-   * Render left panel: URL input + Caption + Publish form
-   * All sections visible in single column, no step switching
-   */
-  const renderLeftPanel = () => {
-    return (
-      <div className="space-y-6">
-        {/* Section 1: URL Input - Always visible */}
-        <div className="bg-white border rounded-lg p-4">
-          <h3 className="text-lg font-semibold mb-4">1. Dán link video</h3>
-          
-          <div className="space-y-4">
-            {/* URL Input với platform detection */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">URL video</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={inputUrl}
-                  onChange={(e) => handleUrlChange(e.target.value)}
-                  placeholder="Dán link TikTok hoặc Facebook..."
-                  className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-                <span className={`px-3 py-2 rounded-lg text-sm font-medium ${platformInfo.color}`}>
-                  {platformInfo.icon} {platformInfo.label}
-                </span>
-              </div>
+  const spinSnippets = [
+    { label: 'Chọn ngẫu nhiên', example: '{lựa chọn 1|lựa chọn 2|lựa chọn 3}' },
+    { label: 'Icon ngẫu nhiên', example: '@icon{R1}' },
+    { label: 'Emoji ngẫu nhiên', example: '@emoji{happy}' },
+  ];
+
+  const insertSpin = (snippet: string) => {
+    setCaption(caption + ' ' + snippet);
+    setShowSpinPopover(false);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-7 h-7 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center text-sm font-bold">2</div>
+        <h3 className="font-semibold text-gray-900">Nội dung & Video</h3>
+      </div>
+
+      {/* Caption Textarea */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Nội dung sẽ đăng</label>
+        <textarea
+          className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none transition"
+          rows={5}
+          placeholder="Nhập nội dung bài đăng..."
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+        />
+        <div className="flex items-center justify-between mt-2">
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            {/* Spin Content */}
+            <div className="relative">
+              <button
+                onClick={() => setShowSpinPopover(!showSpinPopover)}
+                className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Spin nội dung
+              </button>
+              {showSpinPopover && (
+                <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-lg border border-gray-200 p-3 z-20">
+                  <p className="text-xs text-gray-500 mb-2">Chèn cú pháp spin để tạo nội dung đa dạng:</p>
+                  {spinSnippets.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => insertSpin(s.example)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 rounded-lg transition"
+                    >
+                      <span className="font-medium">{s.label}</span>
+                      <code className="ml-2 text-xs text-violet-600 bg-violet-50 px-1 rounded">{s.example}</code>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Error Display - NEW: Categorized errors with /settings link */}
-            {fetchErrorMessage && (
-              <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="flex-1">{fetchErrorMessage}</span>
-                  
-                  {/* Show settings link only for config errors */}
-                  {(fetchErrorCode === 'APIFY_KEY_MISSING' || fetchErrorCode === 'APIFY_KEY_INVALID') && (
-                    <a
-                      href="/settings"
-                      className="shrink-0 rounded border border-red-300 bg-white px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 transition-colors"
-                    >
-                      Mở Cài đặt
-                    </a>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Nút lấy video */}
+            {/* AI Rewrite */}
             <button
-              onClick={handleFetchAsset}
-              disabled={detectedPlatform === 'other' || isLoadingAsset}
-              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              onClick={onAIRewrite}
+              className="px-3 py-1.5 text-sm bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg hover:from-violet-600 hover:to-purple-600 transition flex items-center gap-1"
             >
-              {isLoadingAsset ? 'Đang tải...' : `Lấy video ${platformInfo.label}`}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              AI gợi ý
             </button>
           </div>
+
+          {/* Character Count */}
+          <span className="text-xs text-gray-400">{caption.length} / 2200</span>
+        </div>
+      </div>
+
+      {/* Video Source Options */}
+      <div className="border-t border-gray-100 pt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-3">Nguồn video</label>
+        <div className="space-y-2">
+          <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition ${videoSource === 'original' ? 'border-violet-500 bg-violet-50' : 'border-gray-200 hover:border-gray-300'}`}>
+            <input
+              type="radio"
+              name="videoSource"
+              checked={videoSource === 'original'}
+              onChange={() => setVideoSource('original')}
+              className="mt-0.5 w-4 h-4 text-violet-600"
+            />
+            <div>
+              <p className="font-medium text-gray-900">Dùng video gốc & chỉnh sửa nội dung</p>
+              <p className="text-sm text-gray-500">Video sẽ là video từ link gốc. Bạn có thể chỉnh sửa caption.</p>
+            </div>
+          </label>
+
+          <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition ${videoSource === 'upload' ? 'border-violet-500 bg-violet-50' : 'border-gray-200 hover:border-gray-300'}`}>
+            <input
+              type="radio"
+              name="videoSource"
+              checked={videoSource === 'upload'}
+              onChange={() => setVideoSource('upload')}
+              className="mt-0.5 w-4 h-4 text-violet-600"
+            />
+            <div className="flex-1">
+              <p className="font-medium text-gray-900">Dùng nội dung gốc, tự tải lên video của tôi</p>
+              <p className="text-sm text-gray-500">Giữ caption gốc nhưng thay video bằng file của bạn.</p>
+            </div>
+          </label>
         </div>
 
-        {/* Section 2: Caption & Video Source - Show after asset fetched */}
-        {selectedAsset && (
-          <div className="bg-white border rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-4">2. Nội dung & Video</h3>
-            
-            <div className="space-y-4">
-              {/* Caption gốc */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Nội dung gốc (Thai/Viet)
-                </label>
-                <textarea
-                  value={editedCaption}
-                  onChange={(e) => setEditedCaption(e.target.value)}
-                  rows={6}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
+        {/* Upload Zone */}
+        {videoSource === 'upload' && (
+          <div className="mt-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
+            />
+            {!uploadedFile ? (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-violet-400 transition text-center"
+              >
+                <svg className="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p className="text-sm text-gray-600">Nhấn để chọn video hoặc kéo thả vào đây</p>
+                <p className="text-xs text-gray-400 mt-1">MP4, MOV, WebM (tối đa 100MB)</p>
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-green-800 truncate">{uploadedFile.name}</p>
+                  <p className="text-xs text-green-600">{(uploadedFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                </div>
+                <button onClick={() => setUploadedFile(null)} className="text-green-600 hover:text-green-800">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-
-              {/* Radio: Video source */}
-              <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-                <label className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="videoSource"
-                    checked={videoSource === 'original'}
-                    onChange={() => setVideoSource('original')}
-                    className="mt-1"
-                  />
-                  <div>
-                    <div className="font-medium">Dùng video gốc & chỉnh sửa nội dung</div>
-                    <div className="text-sm text-gray-600">
-                      Video sẽ là video từ link gốc. Bạn có thể chỉnh sửa caption.
-                    </div>
-                  </div>
-                </label>
-                
-                <label className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="videoSource"
-                    checked={videoSource === 'upload'}
-                    onChange={() => setVideoSource('upload')}
-                    className="mt-1"
-                  />
-                  <div>
-                    <div className="font-medium">Dùng nội dung gốc, tự tải lên video của tôi</div>
-                    <div className="text-sm text-gray-600">
-                      Giữ caption gốc, nhưng upload video riêng của bạn.
-                    </div>
-                  </div>
-                </label>
-
-                {videoSource === 'upload' && (
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={handleCustomVideoUpload}
-                    className="w-full px-4 py-2 border rounded-lg bg-white"
-                  />
-                )}
-              </div>
-            </div>
+            )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
 
-        {/* Section 3: Publish Settings - Show after asset fetched */}
-        {selectedAsset && (
-          <div className="bg-white border rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-4">3. Cấu hình đăng bài</h3>
-            
-            <div className="space-y-4">
-              {/* Video Title - NEW */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Tiêu đề video</label>
-                <input
-                  type="text"
-                  value={publishForm.videoTitle}
-                  onChange={(e) => setPublishForm({ ...publishForm, videoTitle: e.target.value })}
-                  placeholder="Nhập tiêu đề video (tùy chọn)"
-                  maxLength={150}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
+/** Section 3: Cấu hình đăng bài */
+function SettingsSection({
+  channels, channelsLoading, selectedChannelIds, setSelectedChannelIds,
+  postType, setPostType, cta, setCta, videoTitle, setVideoTitle,
+  scheduleMode, setScheduleMode, scheduleTime, setScheduleTime
+}: {
+  channels: Channel[];
+  channelsLoading: boolean;
+  selectedChannelIds: string[];
+  setSelectedChannelIds: (ids: string[]) => void;
+  postType: 'feed' | 'reel' | 'story';
+  setPostType: (v: 'feed' | 'reel' | 'story') => void;
+  cta: string;
+  setCta: (v: string) => void;
+  videoTitle: string;
+  setVideoTitle: (v: string) => void;
+  scheduleMode: 'now' | 'at' | 'auto';
+  setScheduleMode: (v: 'now' | 'at' | 'auto') => void;
+  scheduleTime: string;
+  setScheduleTime: (v: string) => void;
+}) {
+  const [showChannelDrawer, setShowChannelDrawer] = useState(false);
+  const [channelSearch, setChannelSearch] = useState('');
+
+  const filteredChannels = channels.filter(c =>
+    c.page_name.toLowerCase().includes(channelSearch.toLowerCase())
+  );
+
+  const toggleChannel = (id: string) => {
+    setSelectedChannelIds(
+      selectedChannelIds.includes(id)
+        ? selectedChannelIds.filter(x => x !== id)
+        : [...selectedChannelIds, id]
+    );
+  };
+
+  const selectAll = () => setSelectedChannelIds(filteredChannels.map(c => c.id));
+  const deselectAll = () => setSelectedChannelIds([]);
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-7 h-7 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center text-sm font-bold">3</div>
+        <h3 className="font-semibold text-gray-900">Cấu hình đăng bài</h3>
+      </div>
+
+      {/* 3.1 Chọn kênh đăng */}
+      <div className="mb-5">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Chọn kênh đăng</label>
+        <button
+          onClick={() => setShowChannelDrawer(true)}
+          className="w-full flex items-center justify-between px-4 py-3 border border-gray-200 rounded-xl hover:border-violet-300 transition"
+        >
+          <span className="text-gray-700">
+            {selectedChannelIds.length > 0 ? `Đã chọn ${selectedChannelIds.length} kênh` : 'Chọn kênh...'}
+          </span>
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+
+        {/* Selected Channels Tags */}
+        {selectedChannelIds.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {selectedChannelIds.slice(0, 5).map(id => {
+              const ch = channels.find(c => c.id === id);
+              return ch ? (
+                <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-violet-50 text-violet-700 rounded-lg text-sm">
+                  <img src={ch.avatar_url || 'https://via.placeholder.com/20'} alt="" className="w-4 h-4 rounded-full" />
+                  {ch.page_name}
+                </span>
+              ) : null;
+            })}
+            {selectedChannelIds.length > 5 && (
+              <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-lg text-sm">+{selectedChannelIds.length - 5} khác</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 3.2 Loại bài & CTA */}
+      <div className="grid grid-cols-2 gap-4 mb-5">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Loại bài</label>
+          <select
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 bg-white"
+            value={postType}
+            onChange={(e) => setPostType(e.target.value as any)}
+          >
+            {POST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Nút kêu gọi (CTA)</label>
+          <select
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 bg-white"
+            value={cta}
+            onChange={(e) => setCta(e.target.value)}
+          >
+            {CTA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Video Title (for Reel) */}
+      {postType === 'reel' && (
+        <div className="mb-5">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Tiêu đề video (tuỳ chọn)</label>
+          <input
+            type="text"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500"
+            placeholder="Nhập tiêu đề cho Reel..."
+            value={videoTitle}
+            onChange={(e) => setVideoTitle(e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* 3.3 Lịch đăng bài */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-3">Lịch đăng bài</label>
+        <div className="space-y-2">
+          <label className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition ${scheduleMode === 'now' ? 'border-violet-500 bg-violet-50' : 'border-gray-200 hover:border-gray-300'}`}>
+            <input type="radio" name="schedule" checked={scheduleMode === 'now'} onChange={() => setScheduleMode('now')} className="w-4 h-4 text-violet-600" />
+            <div>
+              <p className="font-medium text-gray-900">⚡ Đăng ngay</p>
+              <p className="text-xs text-gray-500">Bài viết sẽ được đăng ngay lập tức</p>
+            </div>
+          </label>
+
+          <label className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition ${scheduleMode === 'at' ? 'border-violet-500 bg-violet-50' : 'border-gray-200 hover:border-gray-300'}`}>
+            <input type="radio" name="schedule" checked={scheduleMode === 'at'} onChange={() => setScheduleMode('at')} className="w-4 h-4 text-violet-600" />
+            <div className="flex-1">
+              <p className="font-medium text-gray-900">🕐 Hẹn giờ</p>
+              <p className="text-xs text-gray-500">Chọn thời gian cụ thể để đăng bài</p>
+            </div>
+          </label>
+
+          {scheduleMode === 'at' && (
+            <div className="ml-7 mt-2">
+              <input
+                type="datetime-local"
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-violet-500 ${!scheduleTime ? 'border-red-300' : 'border-gray-200'}`}
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+                min={new Date().toISOString().slice(0, 16)}
+              />
+              {!scheduleTime && <p className="text-xs text-red-500 mt-1">Vui lòng chọn thời gian đăng</p>}
+            </div>
+          )}
+
+          <label className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition ${scheduleMode === 'auto' ? 'border-violet-500 bg-violet-50' : 'border-gray-200 hover:border-gray-300'}`}>
+            <input type="radio" name="schedule" checked={scheduleMode === 'auto'} onChange={() => setScheduleMode('auto')} className="w-4 h-4 text-violet-600" />
+            <div>
+              <p className="font-medium text-gray-900">🎲 Lịch tự động</p>
+              <p className="text-xs text-gray-500">Tính năng đang phát triển...</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {/* Channel Drawer */}
+      {showChannelDrawer && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowChannelDrawer(false)} />
+          <div className="relative w-full max-w-md bg-white shadow-xl flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Chọn kênh đăng</h3>
+              <button onClick={() => setShowChannelDrawer(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="p-4 border-b border-gray-100">
+              <input
+                type="text"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-violet-500"
+                placeholder="Tìm kiếm fanpage..."
+                value={channelSearch}
+                onChange={(e) => setChannelSearch(e.target.value)}
+              />
+              <div className="flex gap-2 mt-2">
+                <button onClick={selectAll} className="text-xs text-violet-600 hover:underline">Chọn tất cả</button>
+                <button onClick={deselectAll} className="text-xs text-gray-500 hover:underline">Bỏ chọn</button>
               </div>
+            </div>
 
-              {/* Caption for publish */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Nội dung đăng</label>
-                <textarea
-                  value={publishForm.caption}
-                  onChange={(e) => setPublishForm({ ...publishForm, caption: e.target.value })}
-                  rows={5}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Ngôn ngữ */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Ngôn ngữ</label>
-                <select
-                  value={publishForm.language}
-                  onChange={(e) => setPublishForm({ ...publishForm, language: e.target.value as Language })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                >
-                  <option value="la">ພາສາລາວ (Lào)</option>
-                  <option value="vi">Tiếng Việt</option>
-                  <option value="th">ภาษาไทย (Thái)</option>
-                </select>
-              </div>
-
-              {/* Fanpage selection */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Chọn fanpage <span className="text-red-500">*</span>
-                </label>
-                {fanpagesError && (
-                  <div className="text-sm text-red-600 mb-2">{fanpagesError}</div>
-                )}
-                <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
-                  {fanpages.map((page) => (
-                    <label key={page.id} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={publishForm.pageIds.includes(page.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setPublishForm({
-                              ...publishForm,
-                              pageIds: [...publishForm.pageIds, page.id],
-                            });
-                          } else {
-                            setPublishForm({
-                              ...publishForm,
-                              pageIds: publishForm.pageIds.filter((id) => id !== page.id),
-                            });
-                          }
-                        }}
-                      />
-                      <span className="text-sm">{page.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* CTA - NEW: Updated to use enum values */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Nút hành động (CTA)</label>
-                <select
-                  value={publishForm.ctaText}
-                  onChange={(e) => setPublishForm({ ...publishForm, ctaText: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                >
-                  {ctaOptions.map((cta) => (
-                    <option key={cta.value} value={cta.value}>
-                      {cta.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Target URL */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Link đích (URL)</label>
-                <input
-                  type="url"
-                  value={publishForm.targetUrl}
-                  onChange={(e) => setPublishForm({ ...publishForm, targetUrl: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full px-4 py-2 border rounded-lg"
-                />
-              </div>
-
-              {/* Thumbnail source */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Thumbnail</label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2">
+            {/* Channel List */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {channelsLoading ? (
+                <div className="p-8 text-center text-gray-500">Đang tải...</div>
+              ) : filteredChannels.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">Không tìm thấy kênh nào</div>
+              ) : (
+                filteredChannels.map(ch => (
+                  <label
+                    key={ch.id}
+                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition ${selectedChannelIds.includes(ch.id) ? 'bg-violet-50' : 'hover:bg-gray-50'}`}
+                  >
                     <input
-                      type="radio"
-                      checked={publishForm.thumbnailSource === 'FRAME'}
-                      onChange={() => setPublishForm({ ...publishForm, thumbnailSource: 'FRAME' })}
+                      type="checkbox"
+                      checked={selectedChannelIds.includes(ch.id)}
+                      onChange={() => toggleChannel(ch.id)}
+                      className="w-5 h-5 text-violet-600 rounded"
                     />
-                    <span className="text-sm">Dùng frame từ video</span>
+                    <img src={ch.avatar_url || 'https://via.placeholder.com/40'} alt="" className="w-10 h-10 rounded-full" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{ch.page_name}</p>
+                      <p className="text-xs text-gray-500">Fanpage</p>
+                    </div>
                   </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      checked={publishForm.thumbnailSource === 'UPLOAD'}
-                      onChange={() => setPublishForm({ ...publishForm, thumbnailSource: 'UPLOAD' })}
-                    />
-                    <span className="text-sm">Upload ảnh thumbnail riêng</span>
-                  </label>
-                  {publishForm.thumbnailSource === 'UPLOAD' && (
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleThumbnailUpload}
-                      className="w-full px-4 py-2 border rounded-lg bg-white"
-                    />
-                  )}
-                </div>
-              </div>
+                ))
+              )}
+            </div>
 
-              {/* Schedule mode */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Lịch đăng</label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      checked={publishForm.scheduleMode === 'NOW'}
-                      onChange={() => setPublishForm({ ...publishForm, scheduleMode: 'NOW' })}
-                    />
-                    <span className="text-sm">Đăng ngay</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      checked={publishForm.scheduleMode === 'RANDOM_2H'}
-                      onChange={() => setPublishForm({ ...publishForm, scheduleMode: 'RANDOM_2H' })}
-                    />
-                    <span className="text-sm">Ngẫu nhiên trong 2 giờ tới</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      checked={publishForm.scheduleMode === 'EXACT_TIME'}
-                      onChange={() => setPublishForm({ ...publishForm, scheduleMode: 'EXACT_TIME' })}
-                    />
-                    <span className="text-sm">Hẹn giờ cụ thể</span>
-                  </label>
-                  {publishForm.scheduleMode === 'EXACT_TIME' && (
-                    <input
-                      type="datetime-local"
-                      value={publishForm.scheduleTime}
-                      onChange={(e) => setPublishForm({ ...publishForm, scheduleTime: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-lg"
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Submit button */}
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200">
               <button
-                onClick={handleSchedulePost}
-                className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+                onClick={() => setShowChannelDrawer(false)}
+                className="w-full py-3 bg-violet-600 text-white rounded-xl font-medium hover:bg-violet-700 transition"
               >
-                Lưu vào lịch đăng
+                Xác nhận ({selectedChannelIds.length} kênh)
               </button>
             </div>
           </div>
-        )}
-      </div>
-    );
-  };
-
-  /**
-   * Render right preview panel: Video player + metadata
-   * Always visible, shows placeholder when no asset
-   */
-  const renderRightPreview = () => {
-    return (
-      <div className="space-y-4 sticky top-4">
-        <h3 className="text-lg font-semibold">Video Preview</h3>
-        
-        {selectedAsset ? (
-          <div className="bg-white border rounded-lg p-4 space-y-3">
-            {/* Video preview */}
-            <div className="aspect-[9/16] bg-gray-100 rounded-lg overflow-hidden max-w-xs mx-auto">
-              {videoSource === 'original' ? (
-                <video
-                  src={selectedAsset.videoUrl}
-                  poster={selectedAsset.thumbnailUrl}
-                  controls
-                  className="w-full h-full object-cover"
-                />
-              ) : customVideoFile ? (
-                <video
-                  src={URL.createObjectURL(customVideoFile)}
-                  controls
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
-                  Chọn video để upload
-                </div>
-              )}
-            </div>
-
-            {/* Video metadata */}
-            <div className="text-sm text-gray-600 space-y-2">
-              {/* Badge + Download Button Row - NEW */}
-              <div className="flex items-center justify-between">
-                {/* Quality Badge with Size */}
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-                  {selectedAsset.qualityLabel || 'HD (No Watermark)'}
-                  {formatFileSize(selectedAsset.fileSizeBytes) && (
-                    <>
-                      <span className="mx-1">·</span>
-                      <span>{formatFileSize(selectedAsset.fileSizeBytes)}</span>
-                    </>
-                  )}
-                </span>
-
-                {/* Download Button */}
-                {selectedAsset.videoUrl && (
-                  <a
-                    href={selectedAsset.videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download
-                    className="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors"
-                  >
-                    <span className="mr-1">⬇️</span>
-                    Tải video
-                  </a>
-                )}
-              </div>
-
-              {/* Duration */}
-              {selectedAsset.duration && (
-                <div className="flex items-center text-xs text-gray-500">
-                  <span>🕒 Thời lượng: {selectedAsset.duration}s</span>
-                </div>
-              )}
-
-              {/* Hashtags */}
-              {selectedAsset.hashtags && selectedAsset.hashtags.length > 0 && (
-                <div className="text-xs text-gray-500">
-                  #{selectedAsset.hashtags.join(' #')}
-                </div>
-              )}
-            </div>
-
-            {/* Preview of publish content */}
-            <div className="mt-4 pt-4 border-t">
-              {/* Video Title Preview - NEW */}
-              {publishForm.videoTitle && (
-                <h4 className="text-base font-semibold text-gray-900 mb-2">
-                  {publishForm.videoTitle}
-                </h4>
-              )}
-              <div className="text-sm text-gray-700 whitespace-pre-wrap mb-3">
-                {publishForm.caption || editedCaption}
-              </div>
-              <div className="text-xs text-gray-500 space-y-1">
-                <div>📍 Fanpage: {publishForm.pageIds.length} được chọn</div>
-                <div>⏰ Lịch: {
-                  publishForm.scheduleMode === 'NOW' ? 'Đăng ngay' : 
-                  publishForm.scheduleMode === 'RANDOM_2H' ? 'Ngẫu nhiên 2h' : 
-                  publishForm.scheduleTime
-                }</div>
-              </div>
-            </div>
-
-            {/* Delete button */}
-            <button
-              onClick={() => {
-                setSelectedAsset(null);
-                setEditedCaption('');
-                setCustomVideoFile(null);
-              }}
-              className="w-full px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
-            >
-              Xoá video
-            </button>
-          </div>
-        ) : (
-          <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-500">
-            Dán link và lấy video để xem preview
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderCollectTab = () => (
-    <div className="space-y-6">
-      {/* Error display - Global */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* 2-column layout: Forms left, Preview right */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {renderLeftPanel()}
-        {renderRightPreview()}
-      </div>
-    </div>
-  );
-  const renderCollectionTab = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Bộ sưu tầm ({assets.length} asset)</h3>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Tìm kiếm..."
-            className="px-4 py-2 border rounded-lg"
-          />
-          <select className="px-4 py-2 border rounded-lg">
-            <option value="all">Tất cả nền tảng</option>
-            <option value="tiktok">TikTok</option>
-            <option value="facebook">Facebook</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Error message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {/* Loading indicator */}
-      {isLoadingAssets && (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-gray-600">Đang tải bộ sưu tầm...</p>
-        </div>
-      )}
-
-      {/* Asset grid - Compact layout */}
-      {!isLoadingAssets && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          {assets.length === 0 ? (
-            <div className="col-span-full text-center py-12 text-gray-500">
-              Chưa có asset nào. Hãy thu thập video từ tab "Thu thập link".
-            </div>
-          ) : (
-            assets.map((asset) => (
-              <div 
-                key={asset.id} 
-                className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow relative"
-              >
-                {/* Video thumbnail/preview with delete button */}
-                <div className="relative aspect-[9/16] bg-black">
-                  <video
-                    src={asset.localVideoUrl ?? asset.videoUrl}
-                    poster={asset.localThumbnailUrl ?? asset.thumbnailUrl}
-                    className="h-full w-full object-cover"
-                    muted
-                    playsInline
-                    preload="metadata"
-                  />
-                  {/* Duration badge - bottom right */}
-                  {(asset.durationSeconds || asset.duration) && (
-                    <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
-                      {(asset.durationSeconds || asset.duration)}s
-                    </span>
-                  )}
-                  {/* Delete button - top right */}
-                  <button
-                    onClick={() => handleDeleteAsset(asset.id)}
-                    disabled={isDeletingId === asset.id}
-                    className="absolute top-1 right-1 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80 text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title="Xóa video"
-                  >
-                    {isDeletingId === asset.id ? '⏳' : '🗑️'}
-                  </button>
-                </div>
-                
-                {/* Text info below */}
-                <div className="p-2 space-y-1">
-                  <p className="line-clamp-2 text-xs text-gray-800 min-h-[2.5rem]">
-                    {asset.captionOriginal || "Không có caption"}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-gray-500">
-                      {asset.qualityLabel || "HD (No Watermark)"}
-                      {asset.fileSizeBytes && ` · ${formatFileSize(asset.fileSizeBytes)}`}
-                    </span>
-                    <button
-                      onClick={() => handleUseAssetFromCollection(asset)}
-                      className="text-[10px] px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                    >
-                      Dùng
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
         </div>
       )}
     </div>
   );
+}
 
-  const renderPostsTab = () => {
-    const filteredPosts = filterStatus === 'all' ? posts : posts.filter((p) => p.status === filterStatus);
+/** Section 4: Bình luận tự động (Accordion) */
+function AutoCommentSection({
+  enabled, setEnabled, comments, setComments
+}: {
+  enabled: boolean;
+  setEnabled: (v: boolean) => void;
+  comments: AutoComment[];
+  setComments: (c: AutoComment[]) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
 
-    return (
-      <div className="space-y-6">
-        <div className="flex gap-4">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as PostStatus | 'all')}
-            className="px-4 py-2 border rounded-lg"
-          >
-            <option value="all">Tất cả trạng thái</option>
-            <option value="published">Đã đăng</option>
-            <option value="scheduled">Chờ đăng</option>
-            <option value="draft">Nháp</option>
-            <option value="failed">Thất bại</option>
-            <option value="cancelled">Đã hủy</option>
-          </select>
-        </div>
-
-        <div className="bg-white border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Nội dung</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Media</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Kênh đăng</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Thời gian</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Trạng thái</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Người tạo</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Hành động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPosts.map((post) => (
-                <tr key={post.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <div className="text-sm max-w-xs truncate">{post.caption}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <img
-                      src={post.thumbnailUrl}
-                      alt="Thumbnail"
-                      className="w-12 h-12 object-cover rounded"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="text-sm">{post.channels.join(', ')}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="text-sm">{post.scheduledTime}</div>
-                  </td>
-                  <td className="px-4 py-3">{getStatusBadge(post.status)}</td>
-                  <td className="px-4 py-3">
-                    <div className="text-sm">{post.creator}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button className="text-blue-600 hover:underline text-sm">Sửa</button>
-                      <button 
-                        onClick={() => handleCancelPost(post.id)}
-                        className="text-red-600 hover:underline text-sm"
-                        disabled={post.status === 'published' || post.status === 'cancelled'}
-                      >
-                        Huỷ
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {filteredPosts.length === 0 && (
-            <div className="text-center py-12 text-gray-500">Không có bài đăng nào</div>
-          )}
-        </div>
-      </div>
-    );
+  const addComment = () => {
+    setComments([...comments, { id: Date.now().toString(), text: '', mediaUrl: '' }]);
   };
 
-  // ============================================================================
-  // MAIN RENDER
-  // ============================================================================
+  const updateComment = (id: string, text: string) => {
+    setComments(comments.map(c => c.id === id ? { ...c, text } : c));
+  };
+
+  const removeComment = (id: string) => {
+    setComments(comments.filter(c => c.id !== id));
+  };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg border border-gray-200">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-2xl font-bold text-gray-900">Studio quảng cáo</h2>
-        <p className="text-sm text-gray-600 mt-1">
-          Quản lý ý tưởng, nội dung và lịch đăng bài cho fanpage
-        </p>
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* Header - Clickable */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition"
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center text-sm font-bold">4</div>
+          <h3 className="font-semibold text-gray-900">Bình luận tự động</h3>
+          <span className="text-xs text-gray-400">(tuỳ chọn)</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Toggle Switch */}
+          <div
+            onClick={(e) => { e.stopPropagation(); setEnabled(!enabled); }}
+            className={`relative w-11 h-6 rounded-full transition cursor-pointer ${enabled ? 'bg-violet-600' : 'bg-gray-300'}`}
+          >
+            <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </div>
+          {/* Expand Icon */}
+          <svg className={`w-5 h-5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Content */}
+      {expanded && (
+        <div className="px-5 pb-5 border-t border-gray-100">
+          {!enabled ? (
+            <p className="text-sm text-gray-500 py-4">Bật công tắc để sử dụng tính năng bình luận tự động.</p>
+          ) : (
+            <>
+              <p className="text-xs text-gray-500 py-3">
+                💡 Trong tương lai sẽ thêm điều kiện hiển thị bình luận (ví dụ sau 5 phút, sau 10 comment...)
+              </p>
+
+              {/* Comment List */}
+              <div className="space-y-3">
+                {comments.map((c, idx) => (
+                  <div key={c.id} className="flex gap-2">
+                    <span className="text-xs text-gray-400 mt-3 w-5">{idx + 1}.</span>
+                    <textarea
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 resize-none"
+                      rows={2}
+                      placeholder="Nhập nội dung bình luận..."
+                      value={c.text}
+                      onChange={(e) => updateComment(c.id, e.target.value)}
+                    />
+                    <button
+                      onClick={() => removeComment(c.id)}
+                      className="text-gray-400 hover:text-red-500 transition"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add Button */}
+              <button
+                onClick={addComment}
+                className="mt-3 w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-violet-400 hover:text-violet-600 transition"
+              >
+                + Thêm bình luận
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Video Preview - Cột phải */
+function VideoPreview({
+  video, caption, selectedChannels, cta, thumbnailUrl, onChangeThumbnail, onDownload
+}: {
+  video: VideoData | null;
+  caption: string;
+  selectedChannels: Channel[];
+  cta: string;
+  thumbnailUrl?: string;
+  onChangeThumbnail: () => void;
+  onDownload: () => void;
+}) {
+  const [showFullscreen, setShowFullscreen] = useState(false);
+  const firstChannel = selectedChannels[0];
+
+  return (
+    <>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900">Video Preview</h3>
+          {video && (
+            <button onClick={() => setShowFullscreen(true)} className="text-gray-400 hover:text-violet-600 transition" title="Xem toàn màn hình">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Phone Mockup */}
+        <div className="p-4">
+          <div className="mx-auto w-full max-w-[280px] bg-gray-900 rounded-[2rem] p-2 shadow-xl">
+            <div className="bg-black rounded-[1.5rem] overflow-hidden aspect-[9/16] relative">
+              {video ? (
+                <>
+                  <video
+                    src={video.videoUrl}
+                    poster={thumbnailUrl || video.thumbnailUrl}
+                    controls
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Quality Badge */}
+                  <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/70 text-white text-xs rounded">
+                    HD (No watermark)
+                  </div>
+                </>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-white/50">
+                  <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm">Chưa tải video</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Post Preview */}
+        <div className="p-4 border-t border-gray-100">
+          <div className="flex items-start gap-3 mb-3">
+            <img
+              src={firstChannel?.avatar_url || 'https://via.placeholder.com/40'}
+              alt=""
+              className="w-10 h-10 rounded-full"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 truncate">{firstChannel?.page_name || 'Tên Fanpage'}</p>
+              <p className="text-xs text-gray-500">Vừa xong • 🌐</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-700 line-clamp-3 whitespace-pre-wrap">
+            {caption || 'Nội dung bài đăng sẽ hiển thị ở đây...'}
+          </p>
+          {cta && (
+            <button className="mt-3 w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
+              {CTA_OPTIONS.find(o => o.value === cta)?.label || cta}
+            </button>
+          )}
+        </div>
+
+        {/* Actions */}
+        {video && (
+          <div className="p-4 border-t border-gray-100 flex gap-2">
+            <button
+              onClick={onChangeThumbnail}
+              className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
+            >
+              🖼️ Chọn thumbnail
+            </button>
+            <button
+              onClick={onDownload}
+              className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
+            >
+              ⬇️ Tải video
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <div className="flex">
-          {renderTabButton('dashboard', 'Dashboard')}
-          {renderTabButton('collect', 'Thu thập link')}
-          {renderTabButton('collection', 'Bộ sưu tầm')}
-          {renderTabButton('posts', 'Quản lý bài đăng')}
+      {/* Fullscreen Modal */}
+      {showFullscreen && video && (
+        <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+          <button
+            onClick={() => setShowFullscreen(false)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white"
+          >
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <video
+            src={video.videoUrl}
+            controls
+            autoPlay
+            className="max-w-full max-h-full"
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Thumbnail Modal */
+function ThumbnailModal({
+  open, onClose, videoUrl, currentThumbnail, onApply
+}: {
+  open: boolean;
+  onClose: () => void;
+  videoUrl?: string;
+  currentThumbnail?: string;
+  onApply: (url: string) => void;
+}) {
+  const [tab, setTab] = useState<'frame' | 'upload'>('frame');
+  const [selectedFrame, setSelectedFrame] = useState(currentThumbnail || '');
+  const [uploadedUrl, setUploadedUrl] = useState('');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const captureFrame = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx?.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    setSelectedFrame(dataUrl);
+  };
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setUploadedUrl(url);
+    }
+  };
+
+  const handleApply = () => {
+    const url = tab === 'frame' ? selectedFrame : uploadedUrl;
+    if (url) {
+      onApply(url);
+      onClose();
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900">Chọn thumbnail</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setTab('frame')}
+            className={`flex-1 py-3 text-sm font-medium transition ${tab === 'frame' ? 'text-violet-600 border-b-2 border-violet-600' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Lấy từ video
+          </button>
+          <button
+            onClick={() => setTab('upload')}
+            className={`flex-1 py-3 text-sm font-medium transition ${tab === 'upload' ? 'text-violet-600 border-b-2 border-violet-600' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Tải ảnh lên
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {tab === 'frame' ? (
+            <div className="space-y-4">
+              <div className="bg-black rounded-xl overflow-hidden">
+                <video
+                  ref={videoRef}
+                  src={videoUrl}
+                  controls
+                  className="w-full max-h-64 object-contain"
+                />
+              </div>
+              <canvas ref={canvasRef} className="hidden" />
+              <button
+                onClick={captureFrame}
+                className="w-full py-2 bg-violet-100 text-violet-700 rounded-lg font-medium hover:bg-violet-200 transition"
+              >
+                📸 Chụp frame hiện tại
+              </button>
+              {selectedFrame && (
+                <div className="border border-gray-200 rounded-xl p-2">
+                  <p className="text-xs text-gray-500 mb-2">Frame đã chọn:</p>
+                  <img src={selectedFrame} alt="Selected frame" className="w-full rounded-lg" />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleUpload}
+                className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-violet-100 file:text-violet-700 hover:file:bg-violet-200"
+              />
+              {uploadedUrl && (
+                <div className="border border-gray-200 rounded-xl p-2">
+                  <p className="text-xs text-gray-500 mb-2">Ảnh đã chọn:</p>
+                  <img src={uploadedUrl} alt="Uploaded" className="w-full rounded-lg" />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-200 flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 transition">
+            Huỷ
+          </button>
+          <button
+            onClick={handleApply}
+            disabled={tab === 'frame' ? !selectedFrame : !uploadedUrl}
+            className="flex-1 py-2 bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700 transition disabled:opacity-50"
+          >
+            Áp dụng
+          </button>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Tab Content */}
-      <div className="p-6">
-        {activeTab === 'dashboard' && renderDashboardTab()}
-        {activeTab === 'collect' && renderCollectTab()}
-        {activeTab === 'collection' && renderCollectionTab()}
-        {activeTab === 'posts' && renderPostsTab()}
-      </div>
+// ==================== MAIN COMPONENT ====================
+export default function AdStudioCard() {
+  // ===== Hooks =====
+  const { status: fetchStatus, error: fetchError, video, fetchVideo, reset: resetVideo } = useFetchVideo();
+  const { channels, loading: channelsLoading } = useChannels();
+
+  // ===== Form State =====
+  const [url, setUrl] = useState('');
+  const [platform, setPlatform] = useState<'tiktok' | 'facebook' | 'auto'>('auto');
+  const [caption, setCaption] = useState('');
+  const [videoSource, setVideoSource] = useState<VideoSource>('original');
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([]);
+  const [postType, setPostType] = useState<'feed' | 'reel' | 'story'>('reel');
+  const [cta, setCta] = useState('');
+  const [videoTitle, setVideoTitle] = useState('');
+  const [scheduleMode, setScheduleMode] = useState<'now' | 'at' | 'auto'>('now');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [autoCommentsEnabled, setAutoCommentsEnabled] = useState(false);
+  const [autoComments, setAutoComments] = useState<AutoComment[]>([]);
+  const [customThumbnail, setCustomThumbnail] = useState<string>('');
+  const [showThumbnailModal, setShowThumbnailModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ===== Derived State =====
+  const selectedChannels = channels.filter(c => selectedChannelIds.includes(c.id));
+  const hasVideo = fetchStatus === 'success' && video;
+  const canSubmit = hasVideo && selectedChannelIds.length > 0 && (scheduleMode !== 'at' || scheduleTime);
+
+  // ===== Handlers =====
+  const handleFetch = async () => {
+    const result = await fetchVideo(url, platform);
+    if (result) {
+      setCaption(result.caption);
+      toast.success('🎉 Đã tải video thành công!');
+    }
+  };
+
+  const handleReset = () => {
+    resetVideo();
+    setUrl('');
+    setCaption('');
+    setCustomThumbnail('');
+    setUploadedFile(null);
+    setVideoSource('original');
+  };
+
+  const handleAIRewrite = () => {
+    // TODO: Integrate AI rewrite API
+    toast.info('Tính năng AI gợi ý đang phát triển...');
+  };
+
+  const handleDownload = () => {
+    if (video?.videoUrl) {
+      const a = document.createElement('a');
+      a.href = video.videoUrl;
+      a.download = `video_${video.id}.mp4`;
+      a.click();
+    }
+  };
+
+  const handleSubmit = async (isDraft: boolean = false) => {
+    if (!canSubmit && !isDraft) {
+      toast.error('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+
+    const payload: FormPayload = {
+      sourceUrl: url,
+      platform,
+      video: {
+        id: video?.id,
+        thumbnailUrl: customThumbnail || video?.thumbnailUrl,
+        localUpload: videoSource === 'upload' ? uploadedFile : null,
+      },
+      caption,
+      title: videoTitle || undefined,
+      cta,
+      postType,
+      channels: selectedChannelIds,
+      schedule: {
+        mode: scheduleMode,
+        time: scheduleMode === 'at' ? scheduleTime : undefined,
+      },
+      autoCommentsEnabled,
+      autoComments: autoComments.map(c => ({ text: c.text, mediaUrl: c.mediaUrl })),
+    };
+
+    setIsSubmitting(true);
+    try {
+      // TODO: Replace with actual API call
+      // await schedulePost(payload);
+      console.log('Submit payload:', payload);
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      toast.success(isDraft ? '📝 Đã lưu nháp!' : `🚀 Đã lên lịch đăng cho ${selectedChannelIds.length} kênh!`);
+      
+      if (!isDraft) {
+        // Reset form after successful submit
+        handleReset();
+        setSelectedChannelIds([]);
+        setScheduleMode('now');
+        setScheduleTime('');
+        setAutoCommentsEnabled(false);
+        setAutoComments([]);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Có lỗi xảy ra, vui lòng thử lại');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ===== Render =====
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600">
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-white/10 backdrop-blur-lg border-b border-white/20">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <span className="text-xl">🎬</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white">Ad Studio</h1>
+              <p className="text-xs text-white/70">Thu thập link & Lên lịch đăng</p>
+            </div>
+            {/* Status Badge */}
+            <span className={`ml-4 px-3 py-1 rounded-full text-xs font-medium ${
+              hasVideo ? 'bg-green-500/20 text-green-100' : 
+              fetchStatus === 'error' ? 'bg-red-500/20 text-red-100' : 
+              'bg-white/20 text-white/80'
+            }`}>
+              {hasVideo ? '✓ Đã tải video' : fetchStatus === 'error' ? '✗ Lỗi tải video' : 'Chưa tải video'}
+            </span>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleSubmit(true)}
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition text-sm font-medium disabled:opacity-50"
+            >
+              Lưu nháp
+            </button>
+            <button
+              onClick={() => handleSubmit(false)}
+              disabled={!canSubmit || isSubmitting}
+              className="px-4 py-2 bg-white text-violet-700 rounded-lg hover:bg-white/90 transition text-sm font-semibold disabled:opacity-50 flex items-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Đang xử lý...
+                </>
+              ) : (
+                <>🚀 Lên lịch đăng</>
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content - 2 Columns */}
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
+          {/* Left Column - Form (70%) */}
+          <div className="lg:col-span-7 space-y-4">
+            {/* Section 1: Dán link */}
+            <LinkSection
+              url={url}
+              setUrl={setUrl}
+              platform={platform}
+              setPlatform={setPlatform}
+              status={fetchStatus}
+              error={fetchError}
+              onFetch={handleFetch}
+              onReset={handleReset}
+            />
+
+            {/* Section 2: Nội dung & Video */}
+            <ContentSection
+              caption={caption}
+              setCaption={setCaption}
+              videoSource={videoSource}
+              setVideoSource={setVideoSource}
+              uploadedFile={uploadedFile}
+              setUploadedFile={setUploadedFile}
+              onAIRewrite={handleAIRewrite}
+            />
+
+            {/* Section 3: Cấu hình đăng bài */}
+            <SettingsSection
+              channels={channels}
+              channelsLoading={channelsLoading}
+              selectedChannelIds={selectedChannelIds}
+              setSelectedChannelIds={setSelectedChannelIds}
+              postType={postType}
+              setPostType={setPostType}
+              cta={cta}
+              setCta={setCta}
+              videoTitle={videoTitle}
+              setVideoTitle={setVideoTitle}
+              scheduleMode={scheduleMode}
+              setScheduleMode={setScheduleMode}
+              scheduleTime={scheduleTime}
+              setScheduleTime={setScheduleTime}
+            />
+
+            {/* Section 4: Bình luận tự động */}
+            <AutoCommentSection
+              enabled={autoCommentsEnabled}
+              setEnabled={setAutoCommentsEnabled}
+              comments={autoComments}
+              setComments={setAutoComments}
+            />
+          </div>
+
+          {/* Right Column - Preview (30%) */}
+          <div className="lg:col-span-3">
+            <div className="sticky top-20">
+              <VideoPreview
+                video={video}
+                caption={caption}
+                selectedChannels={selectedChannels}
+                cta={cta}
+                thumbnailUrl={customThumbnail || video?.thumbnailUrl}
+                onChangeThumbnail={() => setShowThumbnailModal(true)}
+                onDownload={handleDownload}
+              />
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Thumbnail Modal */}
+      <ThumbnailModal
+        open={showThumbnailModal}
+        onClose={() => setShowThumbnailModal(false)}
+        videoUrl={video?.videoUrl}
+        currentThumbnail={customThumbnail || video?.thumbnailUrl}
+        onApply={setCustomThumbnail}
+      />
     </div>
   );
 }

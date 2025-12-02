@@ -256,3 +256,7 @@ export function isApifyScrapeFailed(error: any): boolean {
 
 export { ApiError };
 
+// Alias functions for backward compatibility with AdStudioCardV2
+export const scrapeTikTok = fetchTiktokAsset;
+export const scrapeFacebook = fetchFacebookAsset;
+
