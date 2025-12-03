@@ -600,14 +600,14 @@ function SettingsSection({
         </div>
       </div>
 
-      {/* Video Title (for Reel) */}
-      {postType === 'reel' && (
+      {/* Video Title - ONLY for Feed (not Reels) */}
+      {postType === 'feed' && (
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-2">Tiêu đề video (tuỳ chọn)</label>
           <input
             type="text"
             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500"
-            placeholder="Nhập tiêu đề cho Reel..."
+            placeholder="Nhập tiêu đề cho video Feed..."
             value={videoTitle}
             onChange={(e) => setVideoTitle(e.target.value)}
           />

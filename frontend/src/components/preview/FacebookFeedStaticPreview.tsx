@@ -2,15 +2,14 @@
  * FacebookFeedStaticPreview.tsx
  * Static thumbnail preview for Facebook Feed (News Feed)
  * NO video player, NO autoplay - just static card like So9/Publer
+ * UNIFIED SIZE: 360px for both mobile and desktop
  */
 
-import { PreviewProps } from '../../types/preview';
+import { PreviewProps, getCtaLabel } from '../../types/preview';
 
-export function FacebookFeedStaticPreview({ data, variant }: PreviewProps) {
-  const isMobile = variant === 'mobile';
-  
-  // Truncate caption based on device
-  const maxCaptionLength = isMobile ? 100 : 200;
+export function FacebookFeedStaticPreview({ data }: PreviewProps) {
+  // UNIFIED: Same truncation for all devices
+  const maxCaptionLength = 150;
   const shouldTruncate = data.caption.length > maxCaptionLength;
   const displayCaption = shouldTruncate 
     ? data.caption.slice(0, maxCaptionLength) 
@@ -21,13 +20,15 @@ export function FacebookFeedStaticPreview({ data, variant }: PreviewProps) {
   const comments = data.commentsCount ?? 25;
   const shares = data.sharesCount ?? 5;
 
+  // Get CTA label
+  const ctaLabel = getCtaLabel(data.ctaType);
+
   return (
     <div 
-      className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
-      style={{ width: isMobile ? '390px' : '600px' }}
+      className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden w-full"
     >
       {/* Header - Page Info */}
-      <div className={`flex items-center gap-2.5 ${isMobile ? 'p-3' : 'p-4'}`}>
+      <div className="flex items-center gap-2.5 p-3">
         {/* Avatar */}
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white font-bold overflow-hidden flex-shrink-0">
           {data.pageAvatarUrl ? (
@@ -44,7 +45,7 @@ export function FacebookFeedStaticPreview({ data, variant }: PreviewProps) {
         {/* Page Name + Sponsored */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className={`font-semibold text-gray-900 truncate ${isMobile ? 'text-[15px]' : 'text-base'}`}>
+            <span className="font-semibold text-gray-900 truncate text-[15px]">
               {data.pageName}
             </span>
             {/* Verified Badge */}
@@ -68,10 +69,19 @@ export function FacebookFeedStaticPreview({ data, variant }: PreviewProps) {
         </button>
       </div>
 
+      {/* Video Title - Only for Feed */}
+      {data.videoTitle && (
+        <div className="px-3 pb-1">
+          <p className="font-semibold text-gray-900 text-[15px]">
+            {data.videoTitle}
+          </p>
+        </div>
+      )}
+
       {/* Caption - Before Thumbnail (Facebook style) */}
       {data.caption && (
-        <div className={isMobile ? 'px-3 pb-2' : 'px-4 pb-3'}>
-          <p className={`text-gray-800 leading-relaxed whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-[15px]'}`}>
+        <div className="px-3 pb-2">
+          <p className="text-gray-800 leading-relaxed whitespace-pre-wrap text-sm">
             {displayCaption}
             {shouldTruncate && (
               <>
@@ -106,21 +116,21 @@ export function FacebookFeedStaticPreview({ data, variant }: PreviewProps) {
       </div>
 
       {/* CTA Button - Full Width Messenger Style */}
-      {data.ctaText && (
-        <div className={isMobile ? 'p-3' : 'p-4'}>
+      {data.ctaType && (
+        <div className="p-3">
           <button className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition shadow-sm">
             {/* Messenger Icon */}
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
               <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
             </svg>
-            {data.ctaText}
+            {ctaLabel}
           </button>
         </div>
       )}
 
       {/* Reactions & Stats */}
-      <div className={`flex items-center justify-between text-[13px] text-gray-600 border-t border-gray-100 ${isMobile ? 'px-3 py-2.5' : 'px-4 py-3'}`}>
+      <div className="flex items-center justify-between text-[13px] text-gray-600 border-t border-gray-100 px-3 py-2.5">
         <div className="flex items-center gap-2">
           {/* Reaction Icons - Facebook SVG Style */}
           <div className="flex -space-x-0.5">
@@ -145,7 +155,7 @@ export function FacebookFeedStaticPreview({ data, variant }: PreviewProps) {
       </div>
 
       {/* Action Buttons - Static */}
-      <div className={`border-t border-gray-200 flex items-center ${isMobile ? 'px-1 py-1' : 'px-2 py-1'}`}>
+      <div className="border-t border-gray-200 flex items-center px-1 py-1">
         {/* Thích */}
         <button className="flex items-center justify-center gap-1.5 py-2 hover:bg-gray-50 rounded transition flex-1">
           <svg className="w-[18px] h-[18px] text-gray-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

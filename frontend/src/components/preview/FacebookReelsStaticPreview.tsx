@@ -2,15 +2,15 @@
  * FacebookReelsStaticPreview.tsx
  * Static thumbnail preview for Facebook Reels
  * NO video player, NO autoplay - just static vertical thumbnail
+ * UNIFIED SIZE: 360x640px for both mobile and desktop
+ * NOTE: Reels NEVER has videoTitle - only caption
  */
 
 import { PreviewProps } from '../../types/preview';
 
-export function FacebookReelsStaticPreview({ data, variant }: PreviewProps) {
-  const isMobile = variant === 'mobile';
-  
-  // Truncate caption for Reels (shorter than Feed)
-  const maxCaptionLength = isMobile ? 60 : 100;
+export function FacebookReelsStaticPreview({ data }: PreviewProps) {
+  // UNIFIED: Same caption length for all devices
+  const maxCaptionLength = 80;
   const shouldTruncate = data.caption.length > maxCaptionLength;
   const displayCaption = shouldTruncate 
     ? data.caption.slice(0, maxCaptionLength) 
@@ -31,10 +31,10 @@ export function FacebookReelsStaticPreview({ data, variant }: PreviewProps) {
 
   return (
     <div 
-      className="relative bg-black rounded-xl overflow-hidden"
+      className="relative bg-black rounded-xl overflow-hidden w-full"
       style={{ 
-        width: isMobile ? '360px' : '480px',
-        height: isMobile ? '640px' : '720px'
+        height: '640px',
+        aspectRatio: '9/16'
       }}
     >
       {/* Static Thumbnail - 9:16 Vertical */}
@@ -58,7 +58,7 @@ export function FacebookReelsStaticPreview({ data, variant }: PreviewProps) {
       </div>
 
       {/* Right Side Actions - Static Icons */}
-      <div className={`absolute ${isMobile ? 'right-2 bottom-32' : 'right-4 bottom-40'} flex flex-col gap-5 z-10`}>
+      <div className="absolute right-2 bottom-32 flex flex-col gap-5 z-10">
         {/* Like */}
         <div className="flex flex-col items-center">
           <div className="w-11 h-11 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
